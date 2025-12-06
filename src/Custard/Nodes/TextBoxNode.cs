@@ -11,19 +11,33 @@ public sealed class TextBoxNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        // Render the text with a cursor indicator
         var text = State.Text;
         var cursor = State.CursorPosition;
 
-        // Show text with cursor as underscore or block
-        var before = text[..cursor];
-        var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
-        var after = cursor < text.Length ? text[(cursor + 1)..] : "";
-
-        // Use reverse video for cursor only if focused
         if (IsFocused)
         {
-            context.Write($"[{before}\x1b[7m{cursorChar}\x1b[27m{after}]");
+            if (State.HasSelection)
+            {
+                // Render with selection highlight
+                var selStart = State.SelectionStart;
+                var selEnd = State.SelectionEnd;
+                
+                var beforeSel = text[..selStart];
+                var selected = text[selStart..selEnd];
+                var afterSel = text[selEnd..];
+                
+                // Use reverse video for selection, and underline for cursor position within selection
+                context.Write($"[{beforeSel}\x1b[7m{selected}\x1b[27m{afterSel}]");
+            }
+            else
+            {
+                // Show text with cursor as reverse video block
+                var before = text[..cursor];
+                var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
+                var after = cursor < text.Length ? text[(cursor + 1)..] : "";
+                
+                context.Write($"[{before}\x1b[7m{cursorChar}\x1b[27m{after}]");
+            }
         }
         else
         {

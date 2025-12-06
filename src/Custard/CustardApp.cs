@@ -34,21 +34,17 @@ public class CustardApp : IDisposable
         _context.EnterAlternateScreen();
         try
         {
-            // Main render loop
-            while (!cancellationToken.IsCancellationRequested)
+            // Initial render
+            await RenderFrameAsync(cancellationToken);
+
+            // React to input events - only render when input is received
+            await foreach (var inputEvent in _terminal.InputEvents.ReadAllAsync(cancellationToken))
             {
-                // Process any pending input events
-                while (_terminal.InputEvents.TryRead(out var inputEvent))
-                {
-                    // Dispatch input to the root node (for now, no focus system)
-                    _rootNode?.HandleInput(inputEvent);
-                }
+                // Dispatch input to the root node
+                _rootNode?.HandleInput(inputEvent);
 
-                // Render the current frame
+                // Re-render after handling input (state may have changed)
                 await RenderFrameAsync(cancellationToken);
-
-                // Delay to control frame rate (~60 FPS)
-                await Task.Delay(16, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
