@@ -86,7 +86,7 @@ public class CustardApp : IDisposable
     /// Reconciles a node with a widget, creating/updating/replacing as needed.
     /// This is the core of the "diffing" algorithm.
     /// </summary>
-    private static CustardNode? Reconcile(CustardNode? existingNode, CustardWidget? widget)
+    private static CustardNode? Reconcile(CustardNode? existingNode, CustardWidget? widget, CustardNode? parent = null)
     {
         if (widget is null)
         {
@@ -97,7 +97,7 @@ public class CustardApp : IDisposable
         // If the node type matches the widget type, update it.
         // Otherwise, create a new node.
 
-        return widget switch
+        CustardNode node = widget switch
         {
             TextBlockWidget textWidget => ReconcileTextBlock(existingNode as TextBlockNode, textWidget),
             TextBoxWidget textBoxWidget => ReconcileTextBox(existingNode as TextBoxNode, textBoxWidget),
@@ -108,6 +108,12 @@ public class CustardApp : IDisposable
             HStackWidget hStackWidget => ReconcileHStack(existingNode as HStackNode, hStackWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
+
+        // Set parent and shortcuts on the reconciled node
+        node.Parent = parent;
+        node.Shortcuts = widget.Shortcuts ?? [];
+
+        return node;
     }
 
     private static TextBlockNode ReconcileTextBlock(TextBlockNode? existingNode, TextBlockWidget widget)
@@ -141,13 +147,16 @@ public class CustardApp : IDisposable
         for (int i = 0; i < widget.Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = Reconcile(existingChild, widget.Children[i]);
+            var reconciledChild = Reconcile(existingChild, widget.Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
             }
         }
         node.Children = newChildren;
+        
+        // Pass size hints from widget to node
+        node.ChildHeightHints = widget.ChildHeightHints?.ToList() ?? [];
 
         // Invalidate focus cache since children changed
         node.InvalidateFocusCache();
@@ -191,8 +200,8 @@ public class CustardApp : IDisposable
     private static SplitterNode ReconcileSplitter(SplitterNode? existingNode, SplitterWidget widget)
     {
         var node = existingNode ?? new SplitterNode();
-        node.Left = Reconcile(node.Left, widget.Left);
-        node.Right = Reconcile(node.Right, widget.Right);
+        node.Left = Reconcile(node.Left, widget.Left, node);
+        node.Right = Reconcile(node.Right, widget.Right, node);
         node.LeftWidth = widget.LeftWidth;
         
         // Invalidate focus cache since children may have changed
@@ -216,13 +225,16 @@ public class CustardApp : IDisposable
         for (int i = 0; i < widget.Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = Reconcile(existingChild, widget.Children[i]);
+            var reconciledChild = Reconcile(existingChild, widget.Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
             }
         }
         node.Children = newChildren;
+        
+        // Pass size hints from widget to node
+        node.ChildWidthHints = widget.ChildWidthHints?.ToList() ?? [];
 
         return node;
     }

@@ -86,123 +86,60 @@ public sealed class SplitterNode : CustardNode
         var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
         var dividerColor = theme.Get(SplitterTheme.DividerColor);
         
-        // Get the rendered content of left and right as lines
-        var leftLines = RenderToLines(Left, theme);
-        var rightLines = RenderToLines(Right, theme);
-
-        // Ensure both have the same number of lines
-        var maxLines = Math.Max(leftLines.Count, rightLines.Count);
-        while (leftLines.Count < maxLines) leftLines.Add("");
-        while (rightLines.Count < maxLines) rightLines.Add("");
-
-        // Render side by side with a vertical bar separator
-        for (int i = 0; i < maxLines; i++)
+        // Render left pane at its bounds
+        if (Left != null)
         {
-            var leftText = leftLines[i];
-            var visibleLength = GetVisibleLength(leftText);
-            
-            // Truncate if too long (need to be careful with ANSI codes)
-            if (visibleLength > LeftWidth)
-            {
-                leftText = TruncateToVisibleWidth(leftText, LeftWidth);
-                visibleLength = LeftWidth;
-            }
-            
-            // Pad to reach LeftWidth
-            var padding = LeftWidth - visibleLength;
-            
-            context.Write(leftText);
-            context.Write(new string(' ', padding));
-            context.Write($" {dividerColor.ToForegroundAnsi()}{dividerChar}\x1b[0m ");
-            context.Write(rightLines[i]);
-
-            if (i < maxLines - 1)
-            {
-                context.Write("\n");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets the visible length of a string, ignoring ANSI escape sequences.
-    /// </summary>
-    private static int GetVisibleLength(string text)
-    {
-        var length = 0;
-        var inEscape = false;
-        foreach (var c in text)
-        {
-            if (c == '\x1b')
-            {
-                inEscape = true;
-            }
-            else if (inEscape)
-            {
-                // End of escape sequence is a letter
-                if (char.IsLetter(c))
-                {
-                    inEscape = false;
-                }
-            }
-            else
-            {
-                length++;
-            }
-        }
-        return length;
-    }
-
-    /// <summary>
-    /// Truncates a string to a visible width, preserving ANSI escape sequences.
-    /// </summary>
-    private static string TruncateToVisibleWidth(string text, int maxWidth)
-    {
-        var result = new System.Text.StringBuilder();
-        var visibleCount = 0;
-        var inEscape = false;
-        
-        foreach (var c in text)
-        {
-            if (c == '\x1b')
-            {
-                inEscape = true;
-                result.Append(c);
-            }
-            else if (inEscape)
-            {
-                result.Append(c);
-                if (char.IsLetter(c))
-                {
-                    inEscape = false;
-                }
-            }
-            else
-            {
-                if (visibleCount < maxWidth)
-                {
-                    result.Append(c);
-                    visibleCount++;
-                }
-            }
+            context.SetCursorPosition(Left.Bounds.X, Left.Bounds.Y);
+            Left.Render(context);
         }
         
-        // Reset any formatting at the end
-        result.Append("\x1b[0m");
-        return result.ToString();
-    }
-
-    private static List<string> RenderToLines(CustardNode? node, Theming.CustardTheme theme)
-    {
-        if (node == null) return [""];
+        // Render divider line for each row in our bounds
+        var dividerX = Bounds.X + LeftWidth + 1;
+        for (int row = 0; row < Bounds.Height; row++)
+        {
+            context.SetCursorPosition(dividerX, Bounds.Y + row);
+            context.Write($"{dividerColor.ToForegroundAnsi()}{dividerChar}\x1b[0m");
+        }
         
-        var buffer = new StringRenderBuffer();
-        var tempContext = new CustardRenderContext(buffer, theme);
-        node.Render(tempContext);
-        return buffer.GetLines();
+        // Render right pane at its bounds
+        if (Right != null)
+        {
+            context.SetCursorPosition(Right.Bounds.X, Right.Bounds.Y);
+            Right.Render(context);
+        }
     }
 
     public override bool HandleInput(CustardInputEvent evt)
     {
+        // First, try shortcuts on focused node (bubbles up through parents)
+        var focusablesList = GetFocusableNodesList();
+        if (_focusedIndex >= 0 && _focusedIndex < focusablesList.Count)
+        {
+            if (focusablesList[_focusedIndex].TryHandleShortcut(evt))
+            {
+                return true;
+            }
+        }
+
+        // Handle Escape to jump focus back to first focusable (e.g., master list)
+        if (evt is KeyInputEvent escapeEvent && escapeEvent.Key == ConsoleKey.Escape)
+        {
+            var focusables = GetFocusableNodesList();
+            if (focusables.Count > 0 && _focusedIndex != 0)
+            {
+                // Clear old focus
+                if (_focusedIndex >= 0 && _focusedIndex < focusables.Count)
+                {
+                    SetNodeFocus(focusables[_focusedIndex], false);
+                }
+                
+                // Jump to first focusable
+                _focusedIndex = 0;
+                SetNodeFocus(focusables[_focusedIndex], true);
+                return true;
+            }
+        }
+        
         // Handle Tab to move focus across all focusable nodes
         if (evt is KeyInputEvent keyEvent && keyEvent.Key == ConsoleKey.Tab)
         {
@@ -231,8 +168,7 @@ public sealed class SplitterNode : CustardNode
             }
         }
 
-        // Dispatch to focused node
-        var focusablesList = GetFocusableNodesList();
+        // Dispatch to focused node for regular input handling
         if (_focusedIndex >= 0 && _focusedIndex < focusablesList.Count)
         {
             return focusablesList[_focusedIndex].HandleInput(evt);
@@ -255,29 +191,5 @@ public sealed class SplitterNode : CustardNode
                 list.IsFocused = focused;
                 break;
         }
-    }
-}
-
-/// <summary>
-/// A simple string buffer that implements ICustardTerminalOutput for off-screen rendering.
-/// </summary>
-internal class StringRenderBuffer : ICustardTerminalOutput
-{
-    private readonly System.Text.StringBuilder _buffer = new();
-
-    public int Width => 200;
-    public int Height => 50;
-
-    public void Write(string text) => _buffer.Append(text);
-    public void Clear() => _buffer.Clear();
-    public void SetCursorPosition(int left, int top) { }
-    public void EnterAlternateScreen() { }
-    public void ExitAlternateScreen() { }
-
-    public List<string> GetLines()
-    {
-        var text = _buffer.ToString();
-        // Split by newlines, keeping ANSI codes intact
-        return text.Split('\n').ToList();
     }
 }

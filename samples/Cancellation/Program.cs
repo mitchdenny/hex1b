@@ -1,4 +1,6 @@
 ﻿using Custard;
+using Custard.Input;
+using Custard.Layout;
 using Custard.Theming;
 using Custard.Widgets;
 
@@ -50,6 +52,7 @@ listState.OnSelectionChanged = item =>
 };
 
 // Save action - updates the contact in the list
+var statusMessage = "";
 void Save()
 {
     var contact = GetSelectedContact();
@@ -59,6 +62,7 @@ void Save()
         contact.Email = emailState.Text;
         // Refresh the list display
         listState.Items = ToListItems();
+        statusMessage = $"Saved {contact.Name}";
     }
 }
 
@@ -69,15 +73,16 @@ if (listState.SelectedItem != null)
 }
 
 // Create and run the app
-using var app = new CustardApp(ct => App(listState, nameState, emailState, Save, cts, ct), CustardThemes.Sunset);
+using var app = new CustardApp(ct => App(listState, nameState, emailState, Save, () => statusMessage, cts, ct), CustardThemes.Sunset);
 await app.RunAsync(cts.Token);
 
-// The root component - master-detail layout
+// The root component - master-detail layout with status bar
 static Task<CustardWidget> App(
     ListState listState, 
     TextBoxState nameState, 
     TextBoxState emailState,
     Action onSave,
+    Func<string> getStatusMessage,
     CancellationTokenSource cts, 
     CancellationToken cancellationToken)
 {
@@ -93,7 +98,28 @@ static Task<CustardWidget> App(
         new ButtonWidget("Close", () => cts.Cancel())
     ]);
 
-    return Task.FromResult<CustardWidget>(new SplitterWidget(masterPane, detailPane, 25));
+    var content = new SplitterWidget(masterPane, detailPane, 25) with
+    {
+        Shortcuts = [
+            new Shortcut(KeyBinding.WithCtrl(ConsoleKey.S), onSave, "Save contact"),
+            new Shortcut(KeyBinding.WithCtrl(ConsoleKey.Q), () => cts.Cancel(), "Quit application"),
+        ]
+    };
+    
+    var statusMessage = getStatusMessage();
+    var instructions = "Tab: Next  |  Esc: Back  |  Ctrl+S: Save  |  Ctrl+Q: Quit";
+    var statusText = string.IsNullOrEmpty(statusMessage) 
+        ? instructions 
+        : $"{statusMessage}  |  {instructions}";
+    
+    var statusBar = new HStackWidget([
+        new TextBlockWidget(statusText),
+    ]);
+
+    return Task.FromResult<CustardWidget>(new VStackWidget(
+        [content, statusBar],
+        [SizeHint.Fill, SizeHint.Content]  // Content fills, status bar is content-sized
+    ));
 }
 
 // Mutable contact model

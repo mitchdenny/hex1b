@@ -109,11 +109,9 @@ public sealed class VStackNode : CustardNode
     {
         for (int i = 0; i < Children.Count; i++)
         {
+            // Position cursor at child's bounds
+            context.SetCursorPosition(Children[i].Bounds.X, Children[i].Bounds.Y);
             Children[i].Render(context);
-            if (i < Children.Count - 1)
-            {
-                context.Write("\n");
-            }
         }
     }
 

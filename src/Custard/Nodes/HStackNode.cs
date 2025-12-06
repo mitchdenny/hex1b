@@ -95,9 +95,10 @@ public sealed class HStackNode : CustardNode
 
     public override void Render(CustardRenderContext context)
     {
-        // Render children horizontally (no separator, just concatenate)
+        // Render children at their positioned bounds
         for (int i = 0; i < Children.Count; i++)
         {
+            context.SetCursorPosition(Children[i].Bounds.X, Children[i].Bounds.Y);
             Children[i].Render(context);
         }
     }
