@@ -1,3 +1,4 @@
+using Custard.Layout;
 using Custard.Theming;
 
 namespace Custard;
@@ -9,6 +10,14 @@ public sealed class ButtonNode : CustardNode
     public bool IsFocused { get; set; } = false;
 
     public override bool IsFocusable => true;
+
+    public override Size Measure(Constraints constraints)
+    {
+        // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
+        var width = Label.Length + 4;
+        var height = 1;
+        return constraints.Constrain(new Size(width, height));
+    }
 
     public override void Render(CustardRenderContext context)
     {

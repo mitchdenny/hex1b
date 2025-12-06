@@ -1,3 +1,4 @@
+using Custard.Layout;
 using Custard.Theming;
 using Custard.Widgets;
 
@@ -9,6 +10,19 @@ public sealed class ListNode : CustardNode
     public bool IsFocused { get; set; } = false;
 
     public override bool IsFocusable => true;
+
+    public override Size Measure(Constraints constraints)
+    {
+        // List: width is max item length + indicator (2 chars), height is item count
+        var items = State.Items;
+        var maxWidth = 0;
+        foreach (var item in items)
+        {
+            maxWidth = Math.Max(maxWidth, item.Text.Length + 2); // "> " indicator
+        }
+        var height = Math.Max(items.Count, 1);
+        return constraints.Constrain(new Size(maxWidth, height));
+    }
 
     public override void Render(CustardRenderContext context)
     {

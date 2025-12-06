@@ -1,3 +1,4 @@
+using Custard.Layout;
 using Custard.Theming;
 using Custard.Widgets;
 
@@ -67,7 +68,16 @@ public class CustardApp : IDisposable
         // Step 2: Reconcile - update the node tree to match the widget tree
         _rootNode = Reconcile(_rootNode, widgetTree);
 
-        // Step 3: Render the node tree to the terminal
+        // Step 3: Layout - measure and arrange the node tree
+        if (_rootNode != null)
+        {
+            var terminalSize = new Size(_context.Width, _context.Height);
+            var constraints = Constraints.Tight(terminalSize);
+            _rootNode.Measure(constraints);
+            _rootNode.Arrange(Rect.FromSize(terminalSize));
+        }
+
+        // Step 4: Render the node tree to the terminal
         _context.Clear();
         _rootNode?.Render(_context);
     }

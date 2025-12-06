@@ -1,3 +1,4 @@
+using Custard.Layout;
 using Custard.Theming;
 using Custard.Widgets;
 
@@ -9,6 +10,15 @@ public sealed class TextBoxNode : CustardNode
     public bool IsFocused { get; set; } = false;
 
     public override bool IsFocusable => true;
+
+    public override Size Measure(Constraints constraints)
+    {
+        // TextBox renders as "[text]" - 2 chars for brackets + text length (or at least 1 for cursor)
+        var textWidth = Math.Max(State.Text.Length, 1);
+        var width = textWidth + 2;
+        var height = 1;
+        return constraints.Constrain(new Size(width, height));
+    }
 
     public override void Render(CustardRenderContext context)
     {

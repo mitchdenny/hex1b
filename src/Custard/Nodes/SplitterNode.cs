@@ -1,3 +1,4 @@
+using Custard.Layout;
 using Custard.Theming;
 
 namespace Custard;
@@ -9,6 +10,37 @@ public sealed class SplitterNode : CustardNode
     public int LeftWidth { get; set; } = 30;
     private int _focusedIndex = 0;
     private List<CustardNode>? _focusableNodes;
+
+    public override Size Measure(Constraints constraints)
+    {
+        // Splitter: left width + divider (3 chars " │ ") + right content
+        var leftSize = Left?.Measure(Constraints.Unbounded) ?? Size.Zero;
+        var rightSize = Right?.Measure(Constraints.Unbounded) ?? Size.Zero;
+        
+        var width = LeftWidth + 3 + rightSize.Width;
+        var height = Math.Max(leftSize.Height, rightSize.Height);
+        
+        return constraints.Constrain(new Size(width, height));
+    }
+
+    public override void Arrange(Rect bounds)
+    {
+        base.Arrange(bounds);
+        
+        // Left pane gets LeftWidth
+        if (Left != null)
+        {
+            Left.Arrange(new Rect(bounds.X, bounds.Y, LeftWidth, bounds.Height));
+        }
+        
+        // Right pane gets remaining width (minus 3 for divider)
+        if (Right != null)
+        {
+            var rightX = bounds.X + LeftWidth + 3;
+            var rightWidth = Math.Max(0, bounds.Width - LeftWidth - 3);
+            Right.Arrange(new Rect(rightX, bounds.Y, rightWidth, bounds.Height));
+        }
+    }
 
     public override IEnumerable<CustardNode> GetFocusableNodes()
     {
