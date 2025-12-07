@@ -1,41 +1,69 @@
-var builder = WebApplication.CreateBuilder(args);
+using System.Net.WebSockets;
+using System.Text;
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+var builder = WebApplication.CreateBuilder(args);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+// Enable WebSockets
+app.UseWebSockets();
 
-app.UseHttpsRedirection();
+// Serve static files (index.html)
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
-var summaries = new[]
+// WebSocket endpoint for terminal apps
+app.Map("/apps/{appName}", async (HttpContext context, string appName) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("WebSocket connection required");
+        return;
+    }
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+    await HandleTerminalSession(webSocket, appName);
+});
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+async Task HandleTerminalSession(WebSocket webSocket, string appName)
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    var buffer = new byte[1024 * 4];
+    
+    // Send hello world message
+    var helloMessage = $"\x1b[32mHello World!\x1b[0m\r\n\r\nConnected to: {appName}\r\n";
+    var helloBytes = Encoding.UTF8.GetBytes(helloMessage);
+    await webSocket.SendAsync(helloBytes, WebSocketMessageType.Text, true, CancellationToken.None);
+
+    // Echo loop - receive input and echo it back
+    try
+    {
+        while (webSocket.State == WebSocketState.Open)
+        {
+            var result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
+            
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                break;
+            }
+
+            if (result.MessageType == WebSocketMessageType.Text)
+            {
+                var input = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                // Echo the input back to the terminal
+                await webSocket.SendAsync(
+                    Encoding.UTF8.GetBytes(input),
+                    WebSocketMessageType.Text,
+                    true,
+                    CancellationToken.None);
+            }
+        }
+    }
+    catch (WebSocketException)
+    {
+        // Connection closed unexpectedly
+    }
 }

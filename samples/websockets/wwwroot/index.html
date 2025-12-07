@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex1b Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .terminal-container {
+            background: #0f0f1a;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 
+                0 4px 6px rgba(0, 0, 0, 0.3),
+                0 10px 40px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 12px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27ca40; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            margin-right: 48px;
+        }
+
+        .terminal-viewport {
+            width: fit-content;
+            height: fit-content;
+        }
+
+        .xterm-viewport::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <div class="terminal-title">app1 — /apps/app1</div>
+        </div>
+        <div id="terminal1" class="terminal-viewport"></div>
+    </div>
+
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <div class="terminal-title">app2 — /apps/app2</div>
+        </div>
+        <div id="terminal2" class="terminal-viewport"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script>
+        const terminalTheme = {
+            background: '#0f0f1a',
+            foreground: '#e0e0e0',
+            cursor: '#e0e0e0',
+            cursorAccent: '#0f0f1a',
+            selectionBackground: 'rgba(255, 255, 255, 0.2)',
+            black: '#1a1a2e',
+            red: '#ff6b6b',
+            green: '#4ecdc4',
+            yellow: '#ffe66d',
+            blue: '#4a90d9',
+            magenta: '#c56cf0',
+            cyan: '#67e8f9',
+            white: '#e0e0e0',
+            brightBlack: '#4a4a5e',
+            brightRed: '#ff8787',
+            brightGreen: '#6ee7de',
+            brightYellow: '#fff089',
+            brightBlue: '#6ba3e0',
+            brightMagenta: '#d98bf0',
+            brightCyan: '#89f0ff',
+            brightWhite: '#ffffff'
+        };
+
+        function createTerminal(elementId, appName) {
+            const term = new Terminal({
+                cols: 80,
+                rows: 24,
+                theme: terminalTheme,
+                fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+                fontSize: 14,
+                lineHeight: 1.2,
+                cursorBlink: true,
+                cursorStyle: 'block'
+            });
+
+            term.open(document.getElementById(elementId));
+
+            // Connect to WebSocket
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/apps/${appName}`;
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log(`WebSocket connected: ${appName}`);
+            };
+
+            ws.onmessage = (event) => {
+                term.write(event.data);
+            };
+
+            ws.onclose = () => {
+                term.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+            };
+
+            ws.onerror = (error) => {
+                console.error(`WebSocket error (${appName}):`, error);
+                term.write('\r\n\x1b[31m[Connection error]\x1b[0m\r\n');
+            };
+
+            // Send terminal input to server
+            term.onData((data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                }
+            });
+
+            return { term, ws };
+        }
+
+        // Create both terminals
+        const terminal1 = createTerminal('terminal1', 'app1');
+        const terminal2 = createTerminal('terminal2', 'app2');
+    </script>
+</body>
+</html>
