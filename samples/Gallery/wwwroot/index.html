@@ -310,6 +310,169 @@
                 0 0 20px rgba(78, 205, 196, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
+
+        /* Terminal resize handles */
+        .resize-handle {
+            position: absolute;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .terminal-container:hover .resize-handle {
+            opacity: 1;
+        }
+
+        .resize-handle::before {
+            content: '';
+            position: absolute;
+            background: rgba(78, 205, 196, 0.4);
+            border-radius: 2px;
+            transition: background 0.2s ease;
+        }
+
+        .resize-handle:hover::before,
+        .resize-handle.active::before {
+            background: rgba(78, 205, 196, 0.8);
+        }
+
+        /* Edge handles */
+        .resize-handle-n,
+        .resize-handle-s {
+            left: 20%;
+            right: 20%;
+            height: 12px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle-n {
+            top: -6px;
+        }
+
+        .resize-handle-s {
+            bottom: -6px;
+        }
+
+        .resize-handle-n::before,
+        .resize-handle-s::before {
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 4px;
+            top: 4px;
+        }
+
+        .resize-handle-e,
+        .resize-handle-w {
+            top: 20%;
+            bottom: 20%;
+            width: 12px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle-e {
+            right: -6px;
+        }
+
+        .resize-handle-w {
+            left: -6px;
+        }
+
+        .resize-handle-e::before,
+        .resize-handle-w::before {
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 40px;
+            left: 4px;
+        }
+
+        /* Corner handles */
+        .resize-handle-nw,
+        .resize-handle-ne,
+        .resize-handle-sw,
+        .resize-handle-se {
+            width: 16px;
+            height: 16px;
+        }
+
+        .resize-handle-nw {
+            top: -8px;
+            left: -8px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-ne {
+            top: -8px;
+            right: -8px;
+            cursor: nesw-resize;
+        }
+
+        .resize-handle-sw {
+            bottom: -8px;
+            left: -8px;
+            cursor: nesw-resize;
+        }
+
+        .resize-handle-se {
+            bottom: -8px;
+            right: -8px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-nw::before,
+        .resize-handle-ne::before,
+        .resize-handle-sw::before,
+        .resize-handle-se::before {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            top: 4px;
+            left: 4px;
+        }
+
+        /* Resize overlay */
+        .resize-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(78, 205, 196, 0.1);
+            border: 2px dashed rgba(78, 205, 196, 0.5);
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+            backdrop-filter: blur(2px);
+        }
+
+        .resize-overlay.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .resize-overlay-info {
+            background: rgba(15, 15, 26, 0.95);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(78, 205, 196, 0.5);
+            color: #4ecdc4;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+        }
+
+        /* Prevent text selection during resize */
+        body.resizing {
+            user-select: none;
+            cursor: inherit;
+        }
+
+        body.resizing * {
+            cursor: inherit !important;
+        }
     </style>
 </head>
 <body>
@@ -494,6 +657,17 @@
 
             wrapper.innerHTML = `
                 <div class="terminal-container" id="main-container-${exhibit.id}">
+                    <div class="resize-handle resize-handle-n" data-direction="n"></div>
+                    <div class="resize-handle resize-handle-s" data-direction="s"></div>
+                    <div class="resize-handle resize-handle-e" data-direction="e"></div>
+                    <div class="resize-handle resize-handle-w" data-direction="w"></div>
+                    <div class="resize-handle resize-handle-nw" data-direction="nw"></div>
+                    <div class="resize-handle resize-handle-ne" data-direction="ne"></div>
+                    <div class="resize-handle resize-handle-sw" data-direction="sw"></div>
+                    <div class="resize-handle resize-handle-se" data-direction="se"></div>
+                    <div class="resize-overlay" id="resize-overlay-${exhibit.id}">
+                        <div class="resize-overlay-info" id="resize-info-${exhibit.id}">80×24</div>
+                    </div>
                     <div class="terminal-header">
                         <div class="terminal-title">${exhibit.title}</div>
                         <div class="header-spacer"></div>
@@ -545,6 +719,9 @@
 
             websockets[exhibit.id] = ws;
             terminalSizes[exhibit.id] = 0; // Default to first size
+
+            // Initialize resize handles
+            initResizeHandles(exhibit.id);
 
             // Scale to fit initially, then focus
             setTimeout(() => {
@@ -678,6 +855,236 @@
                 focusTerminal(activeExhibit);
             }
         });
+
+        // Drag-to-resize functionality
+        let resizeState = null;
+
+        function getTerminalCellSize(id) {
+            const term = mainTerminals[id];
+            if (!term) return { cellWidth: 8.4, cellHeight: 17 };
+            
+            const viewport = document.getElementById(`main-term-${id}`);
+            if (!viewport) return { cellWidth: 8.4, cellHeight: 17 };
+            
+            // Calculate cell size from terminal dimensions
+            const termElement = viewport.querySelector('.xterm-screen');
+            if (termElement) {
+                const cellWidth = termElement.offsetWidth / term.cols;
+                const cellHeight = termElement.offsetHeight / term.rows;
+                return { cellWidth, cellHeight };
+            }
+            
+            return { cellWidth: 8.4, cellHeight: 17 };
+        }
+
+        function initResizeHandles(exhibitId) {
+            const container = document.getElementById(`main-container-${exhibitId}`);
+            if (!container) return;
+
+            const handles = container.querySelectorAll('.resize-handle');
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', (e) => startResize(e, exhibitId, handle.dataset.direction));
+            });
+        }
+
+        function startResize(e, exhibitId, direction) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const term = mainTerminals[exhibitId];
+            const container = document.getElementById(`main-container-${exhibitId}`);
+            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
+            const info = document.getElementById(`resize-info-${exhibitId}`);
+            const wrapper = document.getElementById(`main-wrapper-${exhibitId}`);
+
+            if (!term || !container || !overlay) return;
+
+            // Get current dimensions
+            const { cellWidth, cellHeight } = getTerminalCellSize(exhibitId);
+            const startCols = term.cols;
+            const startRows = term.rows;
+
+            // Get current scale from wrapper
+            const computedStyle = window.getComputedStyle(wrapper);
+            const matrix = new DOMMatrix(computedStyle.transform);
+            const scale = matrix.a || 1;
+
+            resizeState = {
+                exhibitId,
+                direction,
+                startX: e.clientX,
+                startY: e.clientY,
+                startCols,
+                startRows,
+                cellWidth,
+                cellHeight,
+                cols: startCols,
+                rows: startRows,
+                scale,
+                handle: e.target
+            };
+
+            // Show overlay
+            overlay.classList.add('active');
+            info.textContent = `${startCols}×${startRows}`;
+
+            // Add active class to handle
+            e.target.classList.add('active');
+
+            // Prevent text selection
+            document.body.classList.add('resizing');
+            document.body.style.cursor = getCursorForDirection(direction);
+
+            document.addEventListener('mousemove', onResizeMove);
+            document.addEventListener('mouseup', onResizeEnd);
+        }
+
+        function getCursorForDirection(direction) {
+            const cursors = {
+                'n': 'ns-resize',
+                's': 'ns-resize',
+                'e': 'ew-resize',
+                'w': 'ew-resize',
+                'nw': 'nwse-resize',
+                'ne': 'nesw-resize',
+                'sw': 'nesw-resize',
+                'se': 'nwse-resize'
+            };
+            return cursors[direction] || 'default';
+        }
+
+        function onResizeMove(e) {
+            if (!resizeState) return;
+
+            const { direction, startX, startY, startCols, startRows, cellWidth, cellHeight, scale, exhibitId } = resizeState;
+            
+            // Calculate mouse delta, accounting for scale
+            const deltaX = (e.clientX - startX) / scale;
+            const deltaY = (e.clientY - startY) / scale;
+
+            let newCols = startCols;
+            let newRows = startRows;
+
+            // Determine column changes
+            if (direction.includes('e')) {
+                newCols = Math.max(40, Math.min(200, startCols + Math.round(deltaX / cellWidth)));
+            } else if (direction.includes('w')) {
+                newCols = Math.max(40, Math.min(200, startCols - Math.round(deltaX / cellWidth)));
+            }
+
+            // Determine row changes
+            if (direction.includes('s')) {
+                newRows = Math.max(10, Math.min(60, startRows + Math.round(deltaY / cellHeight)));
+            } else if (direction.includes('n')) {
+                newRows = Math.max(10, Math.min(60, startRows - Math.round(deltaY / cellHeight)));
+            }
+
+            resizeState.cols = newCols;
+            resizeState.rows = newRows;
+
+            // Update overlay position to follow the mouse/edge
+            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
+            if (overlay) {
+                // Calculate pixel offsets based on column/row changes
+                const colDelta = newCols - startCols;
+                const rowDelta = newRows - startRows;
+                const pixelDeltaX = colDelta * cellWidth;
+                const pixelDeltaY = rowDelta * cellHeight;
+
+                // Reset overlay position
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.right = '0';
+                overlay.style.bottom = '0';
+
+                // Adjust overlay edges based on resize direction
+                if (direction.includes('e')) {
+                    overlay.style.right = `${-pixelDeltaX}px`;
+                }
+                if (direction.includes('w')) {
+                    overlay.style.left = `${-pixelDeltaX}px`;
+                }
+                if (direction.includes('s')) {
+                    overlay.style.bottom = `${-pixelDeltaY}px`;
+                }
+                if (direction.includes('n')) {
+                    overlay.style.top = `${-pixelDeltaY}px`;
+                }
+            }
+
+            // Update overlay info
+            const info = document.getElementById(`resize-info-${resizeState.exhibitId}`);
+            if (info) {
+                info.textContent = `${newCols}×${newRows}`;
+            }
+        }
+
+        function onResizeEnd(e) {
+            if (!resizeState) return;
+
+            const { exhibitId, cols, rows, handle } = resizeState;
+
+            // Hide overlay and reset its position
+            const overlay = document.getElementById(`resize-overlay-${exhibitId}`);
+            if (overlay) {
+                overlay.classList.remove('active');
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.right = '0';
+                overlay.style.bottom = '0';
+            }
+
+            // Remove active class from handle
+            if (handle) {
+                handle.classList.remove('active');
+            }
+
+            // Remove body classes
+            document.body.classList.remove('resizing');
+            document.body.style.cursor = '';
+
+            // Apply the new size
+            const term = mainTerminals[exhibitId];
+            if (term && (cols !== term.cols || rows !== term.rows)) {
+                term.resize(cols, rows);
+
+                // Clear size button active states since we're using custom size
+                const buttonsContainer = document.getElementById(`size-buttons-${exhibitId}`);
+                if (buttonsContainer) {
+                    buttonsContainer.querySelectorAll('.size-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    // Check if new size matches a preset
+                    TERMINAL_SIZES.forEach((size, idx) => {
+                        if (size.cols === cols && size.rows === rows) {
+                            buttonsContainer.querySelectorAll('.size-btn')[idx]?.classList.add('active');
+                            terminalSizes[exhibitId] = idx;
+                        }
+                    });
+                }
+
+                // Send resize to server
+                const ws = websockets[exhibitId];
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'resize',
+                        cols: cols,
+                        rows: rows
+                    }));
+                }
+
+                // Re-scale to fit
+                setTimeout(() => {
+                    scaleTerminalToFit(exhibitId);
+                    focusTerminal(exhibitId);
+                }, 50);
+            }
+
+            // Clean up
+            document.removeEventListener('mousemove', onResizeMove);
+            document.removeEventListener('mouseup', onResizeEnd);
+            resizeState = null;
+        }
     </script>
 </body>
 </html>
