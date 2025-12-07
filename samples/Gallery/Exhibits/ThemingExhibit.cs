@@ -93,8 +93,20 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                 Right: new VStackWidget([
                     new TextBlockWidget("═══ Widget Preview ═══"),
                     new TextBlockWidget(""),
-                    new TextBlockWidget("TextBlock:"),
-                    new TextBlockWidget("  Hello, themed world!"),
+                    new BorderWidget(
+                        new VStackWidget([
+                            new TextBlockWidget("  Content inside border"),
+                            new TextBlockWidget("  with multiple lines")
+                        ]),
+                        Title: "Border"
+                    ),
+                    new TextBlockWidget(""),
+                    new PanelWidget(
+                        new VStackWidget([
+                            new TextBlockWidget("  Panel with styled background"),
+                            new TextBlockWidget("  (theme-dependent colors)")
+                        ])
+                    ),
                     new TextBlockWidget(""),
                     new TextBlockWidget("TextBox (Tab to focus):"),
                     new TextBoxWidget(session.SampleTextBoxState),
@@ -140,7 +152,13 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             .Set(ListTheme.SelectedIndicator, "♣ ")
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(34, 139, 34))
-            .Set(SplitterTheme.DividerCharacter, "┃");
+            .Set(SplitterTheme.DividerCharacter, "┃")
+            // Border
+            .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(34, 139, 34))
+            .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(144, 238, 144))
+            // Panel
+            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 50, 0))
+            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144));
     }
 
     private static Hex1bTheme CreateNeonTheme()
@@ -164,7 +182,19 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             .Set(ListTheme.SelectedIndicator, "* ")
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(255, 0, 255))
-            .Set(SplitterTheme.DividerCharacter, "║");
+            .Set(SplitterTheme.DividerCharacter, "║")
+            // Border
+            .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(255, 0, 255))
+            .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(0, 255, 255))
+            .Set(BorderTheme.TopLeftCorner, "╔")
+            .Set(BorderTheme.TopRightCorner, "╗")
+            .Set(BorderTheme.BottomLeftCorner, "╚")
+            .Set(BorderTheme.BottomRightCorner, "╝")
+            .Set(BorderTheme.HorizontalLine, "═")
+            .Set(BorderTheme.VerticalLine, "║")
+            // Panel
+            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
+            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255));
     }
 
     private class ThemingSessionState

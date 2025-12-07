@@ -129,6 +129,8 @@ public class Hex1bApp : IDisposable
             VStackWidget vStackWidget => ReconcileVStack(existingNode as VStackNode, vStackWidget),
             HStackWidget hStackWidget => ReconcileHStack(existingNode as HStackNode, hStackWidget),
             NavigatorWidget navigatorWidget => ReconcileNavigator(existingNode as NavigatorNode, navigatorWidget),
+            BorderWidget borderWidget => ReconcileBorder(existingNode as BorderNode, borderWidget),
+            PanelWidget panelWidget => ReconcilePanel(existingNode as PanelNode, panelWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
 #pragma warning restore HEX1B001
@@ -263,6 +265,21 @@ public class Hex1bApp : IDisposable
         return node;
     }
 
+    private static BorderNode ReconcileBorder(BorderNode? existingNode, BorderWidget widget)
+    {
+        var node = existingNode ?? new BorderNode();
+        node.Child = Reconcile(node.Child, widget.Child, node);
+        node.Title = widget.Title;
+        return node;
+    }
+
+    private static PanelNode ReconcilePanel(PanelNode? existingNode, PanelWidget widget)
+    {
+        var node = existingNode ?? new PanelNode();
+        node.Child = Reconcile(node.Child, widget.Child, node);
+        return node;
+    }
+
 #pragma warning disable HEX1B001 // Experimental API
     private static NavigatorNode ReconcileNavigator(NavigatorNode? existingNode, NavigatorWidget widget)
     {
@@ -384,6 +401,12 @@ public class Hex1bApp : IDisposable
                 {
                     SyncContainerFocusIndices(navigator.CurrentChild);
                 }
+                break;
+            case BorderNode border:
+                if (border.Child != null) SyncContainerFocusIndices(border.Child);
+                break;
+            case PanelNode panel:
+                if (panel.Child != null) SyncContainerFocusIndices(panel.Child);
                 break;
         }
     }

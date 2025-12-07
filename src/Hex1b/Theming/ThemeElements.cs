@@ -107,3 +107,45 @@ public static class GlobalTheme
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
         new("Global.BackgroundColor", () => Hex1bColor.Default);
 }
+
+/// <summary>
+/// Theme elements for Border widgets.
+/// </summary>
+public static class BorderTheme
+{
+    public static readonly Hex1bThemeElement<Hex1bColor> BorderColor = 
+        new("Border.BorderColor", () => Hex1bColor.Gray);
+    
+    public static readonly Hex1bThemeElement<Hex1bColor> TitleColor = 
+        new("Border.TitleColor", () => Hex1bColor.White);
+    
+    public static readonly Hex1bThemeElement<string> TopLeftCorner = 
+        new("Border.TopLeftCorner", () => "┌");
+    
+    public static readonly Hex1bThemeElement<string> TopRightCorner = 
+        new("Border.TopRightCorner", () => "┐");
+    
+    public static readonly Hex1bThemeElement<string> BottomLeftCorner = 
+        new("Border.BottomLeftCorner", () => "└");
+    
+    public static readonly Hex1bThemeElement<string> BottomRightCorner = 
+        new("Border.BottomRightCorner", () => "┘");
+    
+    public static readonly Hex1bThemeElement<string> HorizontalLine = 
+        new("Border.HorizontalLine", () => "─");
+    
+    public static readonly Hex1bThemeElement<string> VerticalLine = 
+        new("Border.VerticalLine", () => "│");
+}
+
+/// <summary>
+/// Theme elements for Panel widgets.
+/// </summary>
+public static class PanelTheme
+{
+    public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
+        new("Panel.ForegroundColor", () => Hex1bColor.Default);
+    
+    public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
+        new("Panel.BackgroundColor", () => Hex1bColor.Default);
+}
