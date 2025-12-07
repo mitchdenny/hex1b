@@ -1,11 +1,11 @@
-# Custard
+# Hex1b
 
-Custard is a .NET library for creating beautiful TUI apps with an API surface which is inspired by React-like client rendering frameworks.
+Hex1b is a .NET library for creating beautiful TUI apps with an API surface which is inspired by React-like client rendering frameworks.
 
 ## Installation
 
 ```dotnetcli
-dotnet add Custard
+dotnet add Hex1b
 ```
 
 ## Usage

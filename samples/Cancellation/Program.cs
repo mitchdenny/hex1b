@@ -1,8 +1,8 @@
-﻿using Custard;
-using Custard.Input;
-using Custard.Layout;
-using Custard.Theming;
-using Custard.Widgets;
+﻿using Hex1b;
+using Hex1b.Input;
+using Hex1b.Layout;
+using Hex1b.Theming;
+using Hex1b.Widgets;
 
 // Set up cancellation with Ctrl+C
 using var cts = new CancellationTokenSource();
@@ -73,11 +73,11 @@ if (listState.SelectedItem != null)
 }
 
 // Create and run the app
-using var app = new CustardApp(ct => App(listState, nameState, emailState, Save, () => statusMessage, cts, ct), CustardThemes.Sunset);
+using var app = new Hex1bApp(ct => App(listState, nameState, emailState, Save, () => statusMessage, cts, ct), Hex1bThemes.Sunset);
 await app.RunAsync(cts.Token);
 
 // The root component - master-detail layout with status bar
-static Task<CustardWidget> App(
+static Task<Hex1bWidget> App(
     ListState listState, 
     TextBoxState nameState, 
     TextBoxState emailState,
@@ -116,7 +116,7 @@ static Task<CustardWidget> App(
         new TextBlockWidget(statusText),
     ]);
 
-    return Task.FromResult<CustardWidget>(new VStackWidget(
+    return Task.FromResult<Hex1bWidget>(new VStackWidget(
         [content, statusBar],
         [SizeHint.Fill, SizeHint.Content]  // Content fills, status bar is content-sized
     ));

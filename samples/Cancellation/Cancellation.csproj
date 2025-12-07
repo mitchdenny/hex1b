@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Custard\Custard.csproj" />
+    <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
   </ItemGroup>
 
   <ItemGroup>
