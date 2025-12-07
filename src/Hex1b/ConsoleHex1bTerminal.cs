@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
 namespace Hex1b;
@@ -17,6 +18,9 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     private readonly Channel<Hex1bInputEvent> _inputChannel;
     private readonly CancellationTokenSource _inputLoopCts;
     private readonly Task _inputLoopTask;
+    private PosixSignalRegistration? _sigwinchRegistration;
+    private int _lastWidth;
+    private int _lastHeight;
 
     public ConsoleHex1bTerminal()
     {
@@ -25,7 +29,38 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
         
         _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
         _inputLoopCts = new CancellationTokenSource();
+        
+        // Track initial size for resize detection
+        _lastWidth = Console.WindowWidth;
+        _lastHeight = Console.WindowHeight;
+        
+        // Register for SIGWINCH on supported platforms (Linux, macOS)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            _sigwinchRegistration = PosixSignalRegistration.Create(PosixSignal.SIGWINCH, OnSigwinch);
+        }
+        // TODO: Windows support - could poll for size changes or use Console APIs
+        
         _inputLoopTask = Task.Run(() => ReadInputLoopAsync(_inputLoopCts.Token));
+    }
+    
+    private void OnSigwinch(PosixSignalContext context)
+    {
+        // Don't cancel the default behavior
+        context.Cancel = false;
+        
+        var newWidth = Console.WindowWidth;
+        var newHeight = Console.WindowHeight;
+        
+        // Only send event if size actually changed
+        if (newWidth != _lastWidth || newHeight != _lastHeight)
+        {
+            _lastWidth = newWidth;
+            _lastHeight = newHeight;
+            
+            // Write resize event to the channel (non-blocking)
+            _inputChannel.Writer.TryWrite(new ResizeInputEvent(newWidth, newHeight));
+        }
     }
 
     public ChannelReader<Hex1bInputEvent> InputEvents => _inputChannel.Reader;
@@ -102,6 +137,7 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
 
     public void Dispose()
     {
+        _sigwinchRegistration?.Dispose();
         _inputLoopCts.Cancel();
         _inputLoopCts.Dispose();
         // Don't await the task in Dispose, just let it complete
