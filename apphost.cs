@@ -4,6 +4,6 @@
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddCSharpApp("websockets", "./samples/websockets");
+builder.AddCSharpApp("gallery", "./samples/Gallery");
 
 builder.Build().Run();
