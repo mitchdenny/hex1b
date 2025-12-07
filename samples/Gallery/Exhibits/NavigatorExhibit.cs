@@ -15,8 +15,8 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
 {
     private readonly ILogger<NavigatorExhibit> _logger = logger;
 
-    public override string Id => "navigator";
-    public override string Title => "Navigator - CRM Demo";
+    public override string Id => "navigation";
+    public override string Title => "Navigation";
     public override string Description => "A simple CRM system demonstrating stack-based navigation.";
 
     #region Domain Model
