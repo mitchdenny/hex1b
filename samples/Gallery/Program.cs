@@ -1,6 +1,4 @@
 using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
 using Gallery;
 using Gallery.Exhibits;
 using Hex1b;
@@ -9,11 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Register all gallery exhibits
 builder.Services.AddSingleton<IGalleryExhibit, HelloWorldExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ColorPaletteExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, ProgressBarExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, SpinnerExhibit>();
-builder.Services.AddSingleton<IGalleryExhibit, BoxDrawingExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, TextInputExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, ThemingExhibit>();
 
 var app = builder.Build();
 
@@ -60,37 +55,8 @@ app.Map("/apps/{exhibitId}", async (HttpContext context, string exhibitId, IEnum
 
     using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
 
-    if (exhibit.UsesHex1b)
-    {
-        // Handle Hex1b-based exhibit
-        await HandleHex1bExhibitAsync(webSocket, exhibit, context.RequestAborted);
-    }
-    else
-    {
-        // Handle legacy raw WebSocket exhibit
-        var session = new TerminalSession();
-        
-        // Start a task to handle resize messages
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
-        var resizeHandler = HandleResizeMessagesAsync(webSocket, session, cts.Token);
-        
-        try
-        {
-            await exhibit.HandleSessionAsync(webSocket, session, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Client disconnected
-        }
-        catch (WebSocketException)
-        {
-            // Connection closed unexpectedly
-        }
-        finally
-        {
-            cts.Cancel();
-        }
-    }
+    // Handle Hex1b-based exhibit
+    await HandleHex1bExhibitAsync(webSocket, exhibit, context.RequestAborted);
 });
 
 app.Run();
@@ -101,12 +67,10 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24);
     
     var widgetBuilder = exhibit.CreateWidgetBuilder();
-    if (widgetBuilder == null)
-    {
-        throw new InvalidOperationException($"Exhibit {exhibit.Id} claims UsesHex1b but CreateWidgetBuilder returned null");
-    }
-
-    using var hex1bApp = new Hex1bApp(widgetBuilder, terminal);
+    var themeProvider = exhibit.CreateThemeProvider();
+    using var hex1bApp = themeProvider != null
+        ? new Hex1bApp(widgetBuilder, terminal, themeProvider)
+        : new Hex1bApp(widgetBuilder, terminal);
     
     // Run input processing and the Hex1b app concurrently
     var inputTask = terminal.ProcessInputAsync(cts.Token);
@@ -128,48 +92,5 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     finally
     {
         cts.Cancel();
-    }
-}
-
-async Task HandleResizeMessagesAsync(WebSocket webSocket, TerminalSession session, CancellationToken cancellationToken)
-{
-    var buffer = new byte[256];
-    
-    try
-    {
-        while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
-        {
-            var result = await webSocket.ReceiveAsync(buffer, cancellationToken);
-            
-            if (result.MessageType == WebSocketMessageType.Text)
-            {
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                
-                // Try to parse as resize message
-                try
-                {
-                    using var doc = JsonDocument.Parse(message);
-                    if (doc.RootElement.TryGetProperty("type", out var typeElement) && 
-                        typeElement.GetString() == "resize")
-                    {
-                        var cols = doc.RootElement.GetProperty("cols").GetInt32();
-                        var rows = doc.RootElement.GetProperty("rows").GetInt32();
-                        session.Resize(cols, rows);
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Not a JSON message, ignore
-                }
-            }
-        }
-    }
-    catch (OperationCanceledException)
-    {
-        // Expected when cancelled
-    }
-    catch (WebSocketException)
-    {
-        // Connection closed
     }
 }

@@ -12,7 +12,7 @@ public class Hex1bRenderContext
         Theme = theme ?? Hex1bThemes.Default;
     }
 
-    public Hex1bTheme Theme { get; }
+    public Hex1bTheme Theme { get; set; }
 
     public void EnterAlternateScreen() => _output.EnterAlternateScreen();
     public void ExitAlternateScreen() => _output.ExitAlternateScreen();

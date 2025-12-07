@@ -24,7 +24,7 @@ public class TextInputExhibit : Hex1bExhibit
         await app.RunAsync();
         """;
 
-    public override Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder()
+    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
     {
         var textBoxState = new TextBoxState();
         

@@ -23,7 +23,7 @@ public class HelloWorldExhibit : Hex1bExhibit
         await app.RunAsync();
         """;
 
-    public override Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder()
+    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
     {
         return ct => Task.FromResult<Hex1bWidget>(
             new VStackWidget([

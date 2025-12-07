@@ -7,6 +7,7 @@ namespace Hex1b;
 public class Hex1bApp : IDisposable
 {
     private readonly Func<CancellationToken, Task<Hex1bWidget>> _rootComponent;
+    private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bTerminal _terminal;
     private readonly Hex1bRenderContext _context;
     private readonly bool _ownsTerminal;
@@ -20,6 +21,19 @@ public class Hex1bApp : IDisposable
         _rootComponent = rootComponent;
         _terminal = terminal;
         _context = new Hex1bRenderContext(terminal, theme);
+        _ownsTerminal = ownsTerminal;
+    }
+
+    /// <summary>
+    /// Creates a Hex1bApp with a custom terminal implementation and a dynamic theme provider.
+    /// The theme provider is called on each render to get the current theme.
+    /// </summary>
+    public Hex1bApp(Func<CancellationToken, Task<Hex1bWidget>> rootComponent, IHex1bTerminal terminal, Func<Hex1bTheme> themeProvider, bool ownsTerminal = false)
+    {
+        _rootComponent = rootComponent;
+        _themeProvider = themeProvider;
+        _terminal = terminal;
+        _context = new Hex1bRenderContext(terminal, themeProvider());
         _ownsTerminal = ownsTerminal;
     }
 
@@ -62,6 +76,12 @@ public class Hex1bApp : IDisposable
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
+        // Update theme if we have a dynamic theme provider
+        if (_themeProvider != null)
+        {
+            _context.Theme = _themeProvider();
+        }
+
         // Step 1: Call the root component to get the widget tree
         var widgetTree = await _rootComponent(cancellationToken);
 

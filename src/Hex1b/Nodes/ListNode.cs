@@ -38,6 +38,9 @@ public sealed class ListNode : Hex1bNode
             var item = items[i];
             var isSelected = i == State.SelectedIndex;
 
+            // Position cursor for this row
+            context.SetCursorPosition(Bounds.X, Bounds.Y + i);
+
             if (isSelected && IsFocused)
             {
                 // Focused and selected: use theme colors
@@ -52,11 +55,6 @@ public sealed class ListNode : Hex1bNode
             {
                 // Not selected
                 context.Write($"{unselectedIndicator}{item.Text}");
-            }
-
-            if (i < items.Count - 1)
-            {
-                context.Write("\n");
             }
         }
     }

@@ -297,12 +297,17 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             'D' => ConsoleKey.LeftArrow,
             'H' => ConsoleKey.Home,
             'F' => ConsoleKey.End,
+            'Z' => ConsoleKey.Tab, // Shift+Tab (backtab)
             '~' => ParseTildeSequence(param1),
             _ => ConsoleKey.NoName
         };
 
         if (key == ConsoleKey.NoName)
             return (null, i - start);
+
+        // For 'Z' (Shift+Tab), always set shift=true
+        if (finalChar == 'Z')
+            shift = true;
 
         return (new KeyInputEvent(key, '\0', shift, alt, control), i - start);
     }
