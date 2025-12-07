@@ -337,6 +337,56 @@
             padding: 40px;
             color: rgba(255, 255, 255, 0.4);
         }
+
+        /* Focus ripple effect */
+        .terminal-container::before,
+        .terminal-container::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 16px;
+            border: 2px solid #4ecdc4;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .terminal-container.focus-ripple::before {
+            animation: focusRipple 0.6s ease-out forwards;
+        }
+
+        .terminal-container.focus-ripple::after {
+            animation: focusRipple 0.6s ease-out 0.1s forwards;
+        }
+
+        @keyframes focusRipple {
+            0% {
+                opacity: 0.8;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+            }
+            100% {
+                opacity: 0;
+                top: -20px;
+                left: -20px;
+                right: -20px;
+                bottom: -20px;
+            }
+        }
+
+        /* Subtle glow when terminal is focused */
+        .terminal-container.focused {
+            box-shadow: 
+                0 4px 6px rgba(0, 0, 0, 0.3),
+                0 10px 40px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(78, 205, 196, 0.3),
+                0 0 20px rgba(78, 205, 196, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
 <body>
@@ -467,9 +517,12 @@
             // Hide welcome, show terminal
             document.getElementById('welcome').style.display = 'none';
 
-            // Hide all main terminals
+            // Hide all main terminals and remove focused state
             document.querySelectorAll('.terminal-wrapper.main').forEach(el => {
                 el.classList.remove('active');
+            });
+            document.querySelectorAll('.terminal-container').forEach(el => {
+                el.classList.remove('focused');
             });
 
             // Create or show main terminal
@@ -480,6 +533,32 @@
             }
 
             activeExhibit = id;
+
+            // Focus the terminal after a short delay to ensure it's visible
+            setTimeout(() => focusTerminal(id), 100);
+        }
+
+        function focusTerminal(id) {
+            const term = mainTerminals[id];
+            const container = document.getElementById(`main-container-${id}`);
+            if (!term || !container) return;
+
+            // Focus the xterm.js terminal
+            term.focus();
+
+            // Add focused state for subtle glow
+            container.classList.add('focused');
+
+            // Trigger ripple animation
+            container.classList.remove('focus-ripple');
+            // Force reflow to restart animation
+            void container.offsetWidth;
+            container.classList.add('focus-ripple');
+
+            // Remove ripple class after animation completes
+            setTimeout(() => {
+                container.classList.remove('focus-ripple');
+            }, 700);
         }
 
         function createMainTerminal(exhibit) {
@@ -562,8 +641,11 @@
             websockets[exhibit.id] = ws;
             terminalSizes[exhibit.id] = 0; // Default to first size
 
-            // Scale to fit initially
-            setTimeout(() => scaleTerminalToFit(exhibit.id), 50);
+            // Scale to fit initially, then focus
+            setTimeout(() => {
+                scaleTerminalToFit(exhibit.id);
+                focusTerminal(exhibit.id);
+            }, 50);
         }
 
         function scaleTerminalToFit(id) {
@@ -684,6 +766,9 @@
             });
 
             websockets[id] = ws;
+
+            // Focus terminal after refresh
+            setTimeout(() => focusTerminal(id), 100);
         }
 
         // Initialize
@@ -698,6 +783,15 @@
         window.addEventListener('resize', () => {
             if (activeExhibit) {
                 scaleTerminalToFit(activeExhibit);
+            }
+        });
+
+        // Focus terminal when clicking anywhere in main area
+        document.querySelector('.main-area').addEventListener('click', (e) => {
+            // Don't focus if clicking on buttons or controls
+            if (e.target.closest('button') || e.target.closest('.header-controls')) return;
+            if (activeExhibit) {
+                focusTerminal(activeExhibit);
             }
         });
     </script>

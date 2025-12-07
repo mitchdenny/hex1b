@@ -170,4 +170,29 @@ public sealed class VStackNode : Hex1bNode
                 break;
         }
     }
+
+    /// <summary>
+    /// Syncs _focusedIndex to match which child node has IsFocused = true.
+    /// Call this after externally setting focus on a child node.
+    /// </summary>
+    public void SyncFocusIndex()
+    {
+        var focusables = GetFocusableNodesList();
+        for (int i = 0; i < focusables.Count; i++)
+        {
+            var node = focusables[i];
+            bool isFocused = node switch
+            {
+                TextBoxNode textBox => textBox.IsFocused,
+                ButtonNode button => button.IsFocused,
+                ListNode list => list.IsFocused,
+                _ => false
+            };
+            if (isFocused)
+            {
+                _focusedIndex = i;
+                return;
+            }
+        }
+    }
 }

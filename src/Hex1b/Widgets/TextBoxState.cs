@@ -5,8 +5,30 @@ namespace Hex1b.Widgets;
 /// </summary>
 public class TextBoxState
 {
-    public string Text { get; set; } = "";
-    public int CursorPosition { get; set; } = 0;
+    private string _text = "";
+    private int _cursorPosition = 0;
+
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            _text = value ?? "";
+            // Clamp cursor position to valid range when text changes
+            _cursorPosition = Math.Clamp(_cursorPosition, 0, _text.Length);
+            // Also clamp selection anchor if it exists
+            if (SelectionAnchor.HasValue)
+            {
+                SelectionAnchor = Math.Clamp(SelectionAnchor.Value, 0, _text.Length);
+            }
+        }
+    }
+
+    public int CursorPosition
+    {
+        get => _cursorPosition;
+        set => _cursorPosition = Math.Clamp(value, 0, _text.Length);
+    }
     
     /// <summary>
     /// The anchor position for text selection. If null, no selection is active.
@@ -51,8 +73,8 @@ public class TextBoxState
         
         var start = SelectionStart;
         var end = SelectionEnd;
-        Text = Text[..start] + Text[end..];
-        CursorPosition = start;
+        _text = _text[..start] + _text[end..];
+        _cursorPosition = start;
         ClearSelection();
     }
 
@@ -82,10 +104,10 @@ public class TextBoxState
                 {
                     DeleteSelection();
                 }
-                else if (CursorPosition > 0)
+                else if (_cursorPosition > 0)
                 {
-                    Text = Text.Remove(CursorPosition - 1, 1);
-                    CursorPosition--;
+                    _text = _text.Remove(_cursorPosition - 1, 1);
+                    _cursorPosition--;
                 }
                 break;
 
@@ -94,9 +116,9 @@ public class TextBoxState
                 {
                     DeleteSelection();
                 }
-                else if (CursorPosition < Text.Length)
+                else if (_cursorPosition < _text.Length)
                 {
-                    Text = Text.Remove(CursorPosition, 1);
+                    _text = _text.Remove(_cursorPosition, 1);
                 }
                 break;
 
@@ -195,8 +217,8 @@ public class TextBoxState
                     {
                         DeleteSelection();
                     }
-                    Text = Text.Insert(CursorPosition, evt.KeyChar.ToString());
-                    CursorPosition++;
+                    _text = _text.Insert(_cursorPosition, evt.KeyChar.ToString());
+                    _cursorPosition++;
                 }
                 break;
         }

@@ -1,6 +1,7 @@
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Microsoft.Extensions.Logging;
 
 namespace Gallery.Exhibits;
 
@@ -8,8 +9,10 @@ namespace Gallery.Exhibits;
 /// An exhibit that demonstrates Hex1b theming by showing a theme selector on the left
 /// and widget examples on the right that update dynamically as themes are selected.
 /// </summary>
-public class ThemingExhibit : Hex1bExhibit
+public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
 {
+    private readonly ILogger<ThemingExhibit> _logger = logger;
+
     public override string Id => "theming";
     public override string Title => "Theming";
     public override string Description => "Dynamic theme switching with live widget preview.";

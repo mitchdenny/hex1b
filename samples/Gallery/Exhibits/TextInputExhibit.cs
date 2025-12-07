@@ -1,10 +1,12 @@
-using System.Net.WebSockets;
 using Hex1b.Widgets;
+using Microsoft.Extensions.Logging;
 
 namespace Gallery.Exhibits;
 
-public class TextInputExhibit : Hex1bExhibit
+public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
 {
+    private readonly ILogger<TextInputExhibit> _logger = logger;
+
     public override string Id => "text-input";
     public override string Title => "Text Input";
     public override string Description => "Interactive text input using Hex1b TextBox widget.";

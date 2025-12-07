@@ -5,10 +5,13 @@ using Hex1b;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 // Register all gallery exhibits
 builder.Services.AddSingleton<IGalleryExhibit, HelloWorldExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, TextInputExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ThemingExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, NavigatorExhibit>();
 
 var app = builder.Build();
 
@@ -59,10 +62,14 @@ app.Map("/apps/{exhibitId}", async (HttpContext context, string exhibitId, IEnum
     await HandleHex1bExhibitAsync(webSocket, exhibit, context.RequestAborted);
 });
 
+app.MapDefaultEndpoints();
+
 app.Run();
 
 async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit, CancellationToken cancellationToken)
 {
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24);
     
@@ -78,8 +85,9 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     
     try
     {
-        // Wait for either to complete (usually the app exits first on user action)
-        await Task.WhenAny(inputTask, appTask);
+        // Wait for either to complete and observe any exceptions
+        var completedTask = await Task.WhenAny(inputTask, appTask);
+        await completedTask; // This will throw if the completed task faulted
     }
     catch (OperationCanceledException)
     {
@@ -88,6 +96,11 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     catch (WebSocketException)
     {
         // Connection closed
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error in exhibit {ExhibitId}", exhibit.Id);
+        throw;
     }
     finally
     {

@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -117,6 +118,7 @@ public class Hex1bApp : IDisposable
         // If the node type matches the widget type, update it.
         // Otherwise, create a new node.
 
+#pragma warning disable HEX1B001 // Experimental Navigator API
         Hex1bNode node = widget switch
         {
             TextBlockWidget textWidget => ReconcileTextBlock(existingNode as TextBlockNode, textWidget),
@@ -126,8 +128,10 @@ public class Hex1bApp : IDisposable
             SplitterWidget splitterWidget => ReconcileSplitter(existingNode as SplitterNode, splitterWidget),
             VStackWidget vStackWidget => ReconcileVStack(existingNode as VStackNode, vStackWidget),
             HStackWidget hStackWidget => ReconcileHStack(existingNode as HStackNode, hStackWidget),
+            NavigatorWidget navigatorWidget => ReconcileNavigator(existingNode as NavigatorNode, navigatorWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
+#pragma warning restore HEX1B001
 
         // Set parent and shortcuts on the reconciled node
         node.Parent = parent;
@@ -258,6 +262,143 @@ public class Hex1bApp : IDisposable
 
         return node;
     }
+
+#pragma warning disable HEX1B001 // Experimental API
+    private static NavigatorNode ReconcileNavigator(NavigatorNode? existingNode, NavigatorWidget widget)
+    {
+        var node = existingNode ?? new NavigatorNode();
+        node.State = widget.State;
+
+        // Detect if the route has changed
+        var newRouteId = widget.State.CurrentRoute.Id;
+        var routeChanged = node.CurrentRouteId != newRouteId;
+        
+        // Check if we have a pending focus restore (from a pop)
+        var pendingFocusRestore = widget.State.PendingFocusRestore;
+        // Check if we need to save focus to a previous entry (from a push)
+        var entryToSaveFocusTo = widget.State.EntryToSaveFocusTo;
+        widget.State.ClearPendingFocusRestore();
+        
+        node.CurrentRouteId = newRouteId;
+
+        // If route changed, save focus index to the previous entry and clear focus from old child
+        if (routeChanged && node.CurrentChild != null)
+        {
+            // Save the current focus index to the entry we're navigating away from (only on push)
+            if (entryToSaveFocusTo != null)
+            {
+                var oldFocusables = node.CurrentChild.GetFocusableNodes().ToList();
+                Console.Error.WriteLine($"[Navigator] Route changed, saving focus. Old focusables count: {oldFocusables.Count}");
+                bool foundFocused = false;
+                for (int i = 0; i < oldFocusables.Count; i++)
+                {
+                    var isFocused = IsNodeFocused(oldFocusables[i]);
+                    Console.Error.WriteLine($"[Navigator]   [{i}] {oldFocusables[i].GetType().Name}: IsFocused={isFocused}");
+                    if (isFocused)
+                    {
+                        entryToSaveFocusTo.SavedFocusIndex = i;
+                        foundFocused = true;
+                        Console.Error.WriteLine($"[Navigator] Saved focus index: {i}");
+                        break;
+                    }
+                }
+                if (!foundFocused)
+                {
+                    Console.Error.WriteLine($"[Navigator] WARNING: No focused element found!");
+                }
+            }
+
+            foreach (var focusable in node.CurrentChild.GetFocusableNodes())
+            {
+                SetNodeFocus(focusable, false);
+            }
+            // Force creation of new child by not passing existing
+            node.CurrentChild = null;
+        }
+
+        // Build the current route's widget and reconcile it as the child
+        var currentWidget = widget.State.BuildCurrentWidget();
+        node.CurrentChild = Reconcile(node.CurrentChild, currentWidget, node);
+
+        // Set focus based on whether we're returning from pop or navigating forward
+        if (existingNode is null || routeChanged)
+        {
+            var focusables = node.GetFocusableNodes().ToList();
+            Console.Error.WriteLine($"[Navigator] Setting focus. Focusables count: {focusables.Count}, pendingFocusRestore: {pendingFocusRestore}");
+            if (focusables.Count > 0)
+            {
+                // Clear all existing focus first
+                foreach (var focusable in focusables)
+                {
+                    SetNodeFocus(focusable, false);
+                }
+                
+                int focusIndex = 0;
+                
+                // If returning from pop, restore saved focus index
+                if (pendingFocusRestore.HasValue && pendingFocusRestore.Value < focusables.Count)
+                {
+                    focusIndex = pendingFocusRestore.Value;
+                    Console.Error.WriteLine($"[Navigator] Restoring focus to index: {focusIndex}");
+                }
+                
+                SetNodeFocus(focusables[focusIndex], true);
+                Console.Error.WriteLine($"[Navigator] Set focus to: {focusables[focusIndex].GetType().Name}");
+                
+                // After setting focus, sync the internal focus index on container nodes
+                if (node.CurrentChild != null)
+                {
+                    SyncContainerFocusIndices(node.CurrentChild);
+                }
+            }
+        }
+
+        return node;
+    }
+
+    private static void SyncContainerFocusIndices(Hex1bNode node)
+    {
+        // Recursively sync focus indices on all container nodes
+        switch (node)
+        {
+            case VStackNode vstack:
+                vstack.SyncFocusIndex();
+                foreach (var child in vstack.Children)
+                {
+                    SyncContainerFocusIndices(child);
+                }
+                break;
+            case HStackNode hstack:
+                foreach (var child in hstack.Children)
+                {
+                    SyncContainerFocusIndices(child);
+                }
+                break;
+            case SplitterNode splitter:
+                splitter.SyncFocusIndex();
+                if (splitter.Left != null) SyncContainerFocusIndices(splitter.Left);
+                if (splitter.Right != null) SyncContainerFocusIndices(splitter.Right);
+                break;
+            case NavigatorNode navigator:
+                if (navigator.CurrentChild != null)
+                {
+                    SyncContainerFocusIndices(navigator.CurrentChild);
+                }
+                break;
+        }
+    }
+
+    private static bool IsNodeFocused(Hex1bNode node)
+    {
+        return node switch
+        {
+            TextBoxNode textBox => textBox.IsFocused,
+            ButtonNode button => button.IsFocused,
+            ListNode list => list.IsFocused,
+            _ => false
+        };
+    }
+#pragma warning restore HEX1B001
 
     public void Dispose()
     {
