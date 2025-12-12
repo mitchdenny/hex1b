@@ -1,5 +1,6 @@
 namespace Hex1b;
 
+using Hex1b.Layout;
 using Hex1b.Widgets;
 
 /// <summary>
@@ -21,6 +22,21 @@ public static class VStackExtensions
         var childCtx = new WidgetContext<VStackWidget, TState>(ctx.State);
         var children = builder(childCtx);
         return new VStackWidget(children);
+    }
+
+    /// <summary>
+    /// Creates a VStack where the callback returns an array of children, with size hints for each child.
+    /// Use collection expression syntax: v => [v.Text("a"), v.Button("b", () => {})]
+    /// </summary>
+    public static VStackWidget VStack<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        Func<WidgetContext<VStackWidget, TState>, Hex1bWidget[]> builder,
+        IReadOnlyList<SizeHint> childHeightHints)
+        where TParent : Hex1bWidget
+    {
+        var childCtx = new WidgetContext<VStackWidget, TState>(ctx.State);
+        var children = builder(childCtx);
+        return new VStackWidget(children, childHeightHints);
     }
 
     /// <summary>

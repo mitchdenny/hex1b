@@ -305,9 +305,23 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 _logger.LogDebug("Building NavigatorWidget via fluent API, customer count: {Count}", 
                     state.Customers.Count);
                 
-                // Create root context and build the navigator widget
+                // Create root context and build the navigator widget with info bar
                 var ctx = new RootContext<CrmAppState>(state);
-                return Task.FromResult<Hex1bWidget>(ctx.Navigator(s => s.Navigator));
+                var navigator = ctx.Navigator(s => s.Navigator);
+                
+                // Build info bar with navigation hints
+                var infoBar = InfoBarExtensions.InfoBar([
+                    new InfoBarSection(" Mini CRM "),
+                    new InfoBarSection(" | "),
+                    new InfoBarSection($"Customers: {state.Customers.Count}"),
+                    new InfoBarSection(" | "),
+                    new InfoBarSection("Tab: Navigate  Enter: Select  Esc: Back")
+                ]);
+                
+                return Task.FromResult<Hex1bWidget>(ctx.VStack(
+                    v => [navigator, infoBar],
+                    [SizeHint.Fill, SizeHint.Content]
+                ));
             }
             catch (Exception ex)
             {

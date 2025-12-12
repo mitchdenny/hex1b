@@ -186,6 +186,7 @@ public class Hex1bApp<TState> : IDisposable
             LayoutWidget layoutWidget => ReconcileLayout(existingNode as LayoutNode, layoutWidget),
             SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
             ResponsiveWidget responsiveWidget => ReconcileResponsive(existingNode as ResponsiveNode, responsiveWidget),
+            InfoBarWidget infoBarWidget => ReconcileInfoBar(existingNode as InfoBarNode, infoBarWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
 #pragma warning restore HEX1B001
@@ -370,6 +371,14 @@ public class Hex1bApp<TState> : IDisposable
             }
         }
         
+        return node;
+    }
+
+    private static InfoBarNode ReconcileInfoBar(InfoBarNode? existingNode, InfoBarWidget widget)
+    {
+        var node = existingNode ?? new InfoBarNode();
+        node.Sections = widget.Sections;
+        node.InvertColors = widget.InvertColors;
         return node;
     }
 
