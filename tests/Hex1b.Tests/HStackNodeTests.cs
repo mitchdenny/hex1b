@@ -338,7 +338,7 @@ public class HStackNodeTests
                     h.Text("Right")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -365,7 +365,7 @@ public class HStackNodeTests
                     h.Button("Btn2", () => button2Clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab to second button and click
@@ -393,7 +393,7 @@ public class HStackNodeTests
                     h.Text("C")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -423,7 +423,7 @@ public class HStackNodeTests
                     ])
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -451,7 +451,7 @@ public class HStackNodeTests
                     h.Button("Submit", () => clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type in textbox then tab to button and click
@@ -477,7 +477,7 @@ public class HStackNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => Array.Empty<Hex1bWidget>())
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -500,7 +500,7 @@ public class HStackNodeTests
                     h.Text("AndAnother")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -521,7 +521,7 @@ public class HStackNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => items.Select(item => h.Text($"[{item}]")).ToArray())
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

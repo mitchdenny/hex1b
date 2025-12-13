@@ -359,7 +359,7 @@ public class VStackNodeTests
                     v.Text("Footer")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -388,7 +388,7 @@ public class VStackNodeTests
                     v.TextBox(state3)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type in first box
@@ -423,7 +423,7 @@ public class VStackNodeTests
                     v.TextBox(state2)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab forward then shift-tab back
@@ -452,7 +452,7 @@ public class VStackNodeTests
                     v.Text("Very long text indeed")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -479,7 +479,7 @@ public class VStackNodeTests
                     v.Button("Submit", () => clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab to button and click
@@ -510,7 +510,7 @@ public class VStackNodeTests
                     v.Text("Outer 2")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -532,7 +532,7 @@ public class VStackNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -553,7 +553,7 @@ public class VStackNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

@@ -96,7 +96,7 @@ var widget = new SplitterWidget(left, right, 25) with
 Apply built-in themes or create your own:
 
 ```csharp
-using var app = new Hex1bApp<object>(new object(), builder, Hex1bThemes.Sunset);
+using var app = new Hex1bApp<object>(new object(), builder, new Hex1bAppOptions { Theme = Hex1bThemes.Sunset });
 ```
 
 ## 🏗️ Architecture

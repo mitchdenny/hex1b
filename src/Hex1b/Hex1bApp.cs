@@ -27,51 +27,24 @@ public class Hex1bApp<TState> : IDisposable
     public TState State { get; }
 
     /// <summary>
-    /// Creates a Hex1bApp with typed state and a custom terminal implementation.
+    /// Creates a Hex1bApp with typed state and an async widget builder.
     /// </summary>
     public Hex1bApp(
         TState state,
         Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
-        IHex1bTerminal terminal,
-        Hex1bTheme? theme = null,
-        bool ownsTerminal = false)
+        Hex1bAppOptions? options = null)
     {
+        options ??= new Hex1bAppOptions();
+        
         State = state;
         _rootContext = new RootContext<TState>(state);
         _rootComponent = builder;
-        _terminal = terminal;
-        _context = new Hex1bRenderContext(terminal, theme);
-        _ownsTerminal = ownsTerminal;
-    }
-
-    /// <summary>
-    /// Creates a Hex1bApp with typed state, a custom terminal, and a dynamic theme provider.
-    /// </summary>
-    public Hex1bApp(
-        TState state,
-        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
-        IHex1bTerminal terminal,
-        Func<Hex1bTheme> themeProvider,
-        bool ownsTerminal = false)
-    {
-        State = state;
-        _rootContext = new RootContext<TState>(state);
-        _rootComponent = builder;
-        _themeProvider = themeProvider;
-        _terminal = terminal;
-        _context = new Hex1bRenderContext(terminal, themeProvider());
-        _ownsTerminal = ownsTerminal;
-    }
-
-    /// <summary>
-    /// Creates a Hex1bApp with typed state and the default console terminal.
-    /// </summary>
-    public Hex1bApp(
-        TState state,
-        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
-        Hex1bTheme? theme = null)
-        : this(state, builder, new ConsoleHex1bTerminal(), theme, ownsTerminal: true)
-    {
+        _themeProvider = options.ThemeProvider;
+        _terminal = options.Terminal ?? new ConsoleHex1bTerminal();
+        _ownsTerminal = options.OwnsTerminal ?? (options.Terminal == null);
+        
+        var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
+        _context = new Hex1bRenderContext(_terminal, initialTheme);
     }
 
     /// <summary>
@@ -80,9 +53,8 @@ public class Hex1bApp<TState> : IDisposable
     public Hex1bApp(
         TState state,
         Func<RootContext<TState>, Hex1bWidget> builder,
-        IHex1bTerminal? terminal = null,
-        Hex1bTheme? theme = null)
-        : this(state, (ctx, ct) => Task.FromResult(builder(ctx)), terminal ?? new ConsoleHex1bTerminal(), theme, ownsTerminal: terminal == null)
+        Hex1bAppOptions? options = null)
+        : this(state, (ctx, ct) => Task.FromResult(builder(ctx)), options)
     {
     }
 

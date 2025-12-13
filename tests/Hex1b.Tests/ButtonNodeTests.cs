@@ -326,7 +326,7 @@ public class ButtonNodeTests
                     v.Button("Click Me", () => { })
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -348,7 +348,7 @@ public class ButtonNodeTests
                     v.Button("Submit", () => clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -372,7 +372,7 @@ public class ButtonNodeTests
                     v.Button("Submit", () => clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Spacebar, ' ');
@@ -397,7 +397,7 @@ public class ButtonNodeTests
                     v.Button("Increment", () => counter++)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Click the button 3 times
@@ -427,7 +427,7 @@ public class ButtonNodeTests
                     v.Button("Button 2", () => button2Clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab to second button and press Enter
@@ -454,7 +454,7 @@ public class ButtonNodeTests
                     v.Button("OK", () => clicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -478,7 +478,7 @@ public class ButtonNodeTests
                     v.Button("Click Here Now", () => { })
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -503,7 +503,7 @@ public class ButtonNodeTests
                     v.Button("Submit", () => buttonClicked = true)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type in text box
@@ -534,7 +534,7 @@ public class ButtonNodeTests
                     v.Button("Click", () => clickCount++)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Click 5 times rapidly
@@ -562,7 +562,7 @@ public class ButtonNodeTests
                     v.Button($"Clicked {counter} times", () => counter++)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');

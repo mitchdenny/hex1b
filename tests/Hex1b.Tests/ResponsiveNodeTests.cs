@@ -474,7 +474,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -497,7 +497,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact View"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -521,7 +521,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -547,7 +547,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Narrow"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -570,7 +570,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small Screen"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -595,7 +595,7 @@ public class ResponsiveNodeTests
                     "Container"
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -620,7 +620,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -644,7 +644,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.TypeText("Responsive input");
@@ -671,7 +671,7 @@ public class ResponsiveNodeTests
                     v.Text("Footer")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -696,7 +696,7 @@ public class ResponsiveNodeTests
                     // No Otherwise fallback - neither condition matches
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -724,7 +724,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow for list"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.DownArrow);
@@ -757,7 +757,7 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -791,7 +791,7 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -819,7 +819,7 @@ public class ResponsiveNodeTests
                     leftWidth: 40
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -842,7 +842,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text(state.Message))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

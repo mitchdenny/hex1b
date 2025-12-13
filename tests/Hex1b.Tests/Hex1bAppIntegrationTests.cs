@@ -15,7 +15,7 @@ public class Hex1bAppIntegrationTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Complete input immediately to end the app
@@ -35,7 +35,7 @@ public class Hex1bAppIntegrationTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello World")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -59,7 +59,7 @@ public class Hex1bAppIntegrationTests
                     new TextBoxWidget(textState)
                 })
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Send some keys then complete
@@ -87,7 +87,7 @@ public class Hex1bAppIntegrationTests
                     new ButtonWidget("Click Me", () => clicked = true)
                 })
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -107,7 +107,7 @@ public class Hex1bAppIntegrationTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         var runTask = app.RunAsync(cts.Token);
@@ -137,7 +137,7 @@ public class Hex1bAppIntegrationTests
                     new TextBlockWidget("Line 3")
                 })
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -164,7 +164,7 @@ public class Hex1bAppIntegrationTests
                     new TextBoxWidget(textState2)
                 })
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type in first box
@@ -204,7 +204,7 @@ public class Hex1bAppIntegrationTests
                     new ListWidget(listState)
                 })
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Navigate down twice
@@ -234,7 +234,7 @@ public class Hex1bAppIntegrationTests
                 });
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Click the button twice
@@ -257,8 +257,7 @@ public class Hex1bAppIntegrationTests
         var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
-            terminal,
-            ownsTerminal: true
+            new Hex1bAppOptions { Terminal = terminal, OwnsTerminal = true }
         );
 
         terminal.CompleteInput();

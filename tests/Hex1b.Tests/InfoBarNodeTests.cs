@@ -265,7 +265,7 @@ public class InfoBarNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 InfoBarExtensions.InfoBar("Ready")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -290,7 +290,7 @@ public class InfoBarNodeTests
                     new InfoBarSection("Ln 42, Col 7")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -314,7 +314,7 @@ public class InfoBarNodeTests
                     InfoBarExtensions.InfoBar("Status Bar")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -337,8 +337,7 @@ public class InfoBarNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 new InfoBarWidget([new InfoBarSection("Themed")], InvertColors: false)
             ),
-            terminal,
-            theme
+            new Hex1bAppOptions { Terminal = terminal, Theme = theme }
         );
 
         terminal.CompleteInput();

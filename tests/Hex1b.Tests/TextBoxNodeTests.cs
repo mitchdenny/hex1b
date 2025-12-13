@@ -396,7 +396,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -418,7 +418,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.H, 'H', shift: true);
@@ -446,7 +446,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.End, '\0');
@@ -473,7 +473,7 @@ public class TextBoxNodeTests
                     v.TextBox(state2)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type in first box
@@ -505,7 +505,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.End, '\0');
@@ -531,7 +531,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Go to start, then right, then insert
@@ -558,7 +558,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Oem4, '@');
@@ -584,7 +584,7 @@ public class TextBoxNodeTests
                     v.TextBox(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

@@ -279,7 +279,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Panel Content"))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -302,7 +302,7 @@ public class PanelNodeTests
                     v.Text("Line 3")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -324,7 +324,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Button("Click Me", () => clicked = true))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -345,7 +345,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.TextBox(textBoxState))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.TypeText("Hello Panel");
@@ -365,7 +365,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -388,8 +388,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Themed"))
             ),
-            terminal,
-            theme
+            new Hex1bAppOptions { Terminal = terminal, Theme = theme }
         );
 
         terminal.CompleteInput();
@@ -409,7 +408,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -432,7 +431,7 @@ public class PanelNodeTests
                     v.Text("Footer")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -458,7 +457,7 @@ public class PanelNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.List(listState))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.SendKey(ConsoleKey.DownArrow);

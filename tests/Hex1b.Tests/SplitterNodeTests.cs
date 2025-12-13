@@ -631,7 +631,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -656,7 +656,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -683,7 +683,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Enter clicks the focused button
@@ -709,7 +709,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab through: left -> splitter -> right, then Enter
@@ -736,7 +736,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
@@ -771,7 +771,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Down arrow navigates the list
@@ -797,7 +797,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.TypeText("Hello Splitter");
@@ -824,7 +824,7 @@ public class SplitterNodeTests
                     "Split View"
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

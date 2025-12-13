@@ -378,7 +378,7 @@ public class TextBlockNodeTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -401,7 +401,7 @@ public class TextBlockNodeTests
                     v.Text("Third Line")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -443,7 +443,7 @@ public class TextBlockNodeTests
                     ])
                 );
             },
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Press Enter to trigger button (causes re-render)
@@ -470,7 +470,7 @@ public class TextBlockNodeTests
                     v.Text("A longer text here")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -493,7 +493,7 @@ public class TextBlockNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Text(s => s)
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -510,7 +510,7 @@ public class TextBlockNodeTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -528,7 +528,7 @@ public class TextBlockNodeTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

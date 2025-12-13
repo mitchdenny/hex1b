@@ -637,7 +637,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Hello World"))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -661,7 +661,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Content"), title: "My Panel")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -686,7 +686,7 @@ public class BorderNodeTests
                     v.Text("Line 3")
                 ], title: "List")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -709,7 +709,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.TextBox(textBoxState), title: "Input")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Type into the textbox then complete
@@ -734,7 +734,7 @@ public class BorderNodeTests
                     title: "Outer"
                 )
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -755,7 +755,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -779,7 +779,7 @@ public class BorderNodeTests
                     h.Border(ctx.Text("Right"), title: "R")
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -802,7 +802,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Button("Click Me", () => clicked = true), title: "Action")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Press enter to click the button then complete
@@ -828,7 +828,7 @@ public class BorderNodeTests
                     v.Button("Second", () => clickedButton = "Second")
                 ], title: "Buttons")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         // Tab to second button, then click it
@@ -854,7 +854,7 @@ public class BorderNodeTests
                     v.Border(ctx.Text("Content"))
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();
@@ -876,7 +876,7 @@ public class BorderNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text(""))
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
 
         terminal.CompleteInput();

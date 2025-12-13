@@ -681,7 +681,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         terminal.CompleteInput();
@@ -702,7 +702,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         terminal.CompleteInput();
@@ -724,7 +724,7 @@ public class ListNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.List(s => s), "Menu")
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         terminal.CompleteInput();
@@ -746,7 +746,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         // Simulate down arrow then complete
@@ -769,7 +769,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         // Simulate Enter key then complete
@@ -794,7 +794,7 @@ public class ListNodeTests
                     v.List(s => s)
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         terminal.CompleteInput();
@@ -814,8 +814,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal,
-            Hex1bThemes.HighContrast
+            new Hex1bAppOptions { Terminal = terminal, Theme = Hex1bThemes.HighContrast }
         );
         
         terminal.CompleteInput();
@@ -835,7 +834,7 @@ public class ListNodeTests
         using var app = new Hex1bApp<ListState>(
             listState,
             (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         // Navigate down twice
@@ -863,7 +862,7 @@ public class ListNodeTests
                     v.Button("OK", () => { })
                 ])
             ),
-            terminal
+            new Hex1bAppOptions { Terminal = terminal }
         );
         
         terminal.CompleteInput();
