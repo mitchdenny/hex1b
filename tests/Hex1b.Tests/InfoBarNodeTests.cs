@@ -263,7 +263,7 @@ public class InfoBarNodeTests
         using var app = new Hex1bApp<object>(
             new object(),
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
-                InfoBarExtensions.InfoBar("Ready")
+                ctx.InfoBar("Ready")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -311,7 +311,7 @@ public class InfoBarNodeTests
             (ctx, ct) => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Main Content"),
-                    InfoBarExtensions.InfoBar("Status Bar")
+                    v.InfoBar("Status Bar")
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }

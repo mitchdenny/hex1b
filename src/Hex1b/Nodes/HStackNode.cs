@@ -5,7 +5,6 @@ namespace Hex1b;
 public sealed class HStackNode : Hex1bNode
 {
     public List<Hex1bNode> Children { get; set; } = new();
-    public List<SizeHint> ChildWidthHints { get; set; } = new();
     private int _focusedIndex = 0;
     private List<Hex1bNode>? _focusableNodes;
 
@@ -73,7 +72,7 @@ public sealed class HStackNode : Hex1bNode
         // First pass: measure content-sized and fixed children
         for (int i = 0; i < Children.Count; i++)
         {
-            var hint = i < ChildWidthHints.Count ? ChildWidthHints[i] : SizeHint.Content;
+            var hint = Children[i].WidthHint ?? SizeHint.Content;
 
             if (hint.IsFixed)
             {
@@ -98,7 +97,7 @@ public sealed class HStackNode : Hex1bNode
         {
             for (int i = 0; i < Children.Count; i++)
             {
-                var hint = i < ChildWidthHints.Count ? ChildWidthHints[i] : SizeHint.Content;
+                var hint = Children[i].WidthHint ?? SizeHint.Content;
                 if (hint.IsFill)
                 {
                     childSizes[i] = remaining * hint.FillWeight / totalWeight;

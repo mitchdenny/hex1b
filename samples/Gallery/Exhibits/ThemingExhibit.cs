@@ -58,7 +58,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             var ctx = new RootContext<ThemingState>(state);
             var currentTheme = state.Themes[state.ThemeList.SelectedIndex];
             
-            var infoBar = InfoBarExtensions.InfoBar([
+            var infoBar = ctx.InfoBar([
                 new InfoBarSection($" Theme: {currentTheme.Name} "),
                 new InfoBarSection(" | "),
                 new InfoBarSection(" ↑↓: Change  Tab: Focus  Enter: Click ")
@@ -100,9 +100,9 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                         ])
                     ]),
                     leftWidth: 20
-                ),
+                ).FillHeight(),
                 infoBar
-            ], [SizeHint.Fill, SizeHint.Content]);
+            ]);
 
             return Task.FromResult<Hex1bWidget>(widget);
         };

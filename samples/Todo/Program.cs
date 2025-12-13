@@ -100,7 +100,7 @@ using var app = new Hex1bApp<object>(
                             new ListWidget(listState),
                             new TextBlockWidget(""),
                             new TextBlockWidget("↑↓ Nav  Space: Toggle  Del: Remove")
-                        ]), "Tasks"),
+                        ]), "Tasks") { WidthHint = SizeHint.Weighted(2) },
                         
                         // Right: Add + Stats combined
                         new VStackWidget([
@@ -115,10 +115,10 @@ using var app = new Hex1bApp<object>(
                                 new TextBlockWidget($"Todo:  {todoCount} ○"),
                                 new TextBlockWidget(""),
                                 new TextBlockWidget(GetProgressBar())
-                            ]), "Stats"),
+                            ]), "Stats") { HeightHint = SizeHint.Fill },
                             new ButtonWidget("Quit", () => cts.Cancel())
-                        ], [SizeHint.Content, SizeHint.Fill, SizeHint.Content])
-                    ], [SizeHint.Weighted(2), SizeHint.Weighted(1)])),
+                        ]) { WidthHint = SizeHint.Weighted(1) }
+                    ])),
 
                 // Compact layout (< 100 cols): Single column
                 new ConditionalWidget((w, h) => true,
@@ -126,19 +126,17 @@ using var app = new Hex1bApp<object>(
                         new TextBlockWidget($"📋 Todo [{completedCount}/{totalCount}]"),
                         new TextBlockWidget(GetProgressBar()),
                         new TextBlockWidget(""),
-                        new ListWidget(listState),
+                        new ListWidget(listState) { HeightHint = SizeHint.Fill },
                         new TextBlockWidget(""),
                         new HStackWidget([
-                            new TextBoxWidget(newItemInput),
+                            new TextBoxWidget(newItemInput) { WidthHint = SizeHint.Fill },
                             new ButtonWidget("[+]", AddItem)
-                        ], [SizeHint.Fill, SizeHint.Content]),
+                        ]),
                         new TextBlockWidget(""),
                         new ButtonWidget("Quit", () => cts.Cancel()),
                         new TextBlockWidget(""),
                         new TextBlockWidget("↑↓:Move  Space:Toggle  Del:Remove  Tab:Focus")
-                    ], [SizeHint.Content, SizeHint.Content, SizeHint.Content, SizeHint.Fill, 
-                        SizeHint.Content, SizeHint.Content, SizeHint.Content, SizeHint.Content, 
-                        SizeHint.Content, SizeHint.Content]))
+                    ]))
             ]),
             $"Hex1b Todo ({terminalSize})"
         ) with { Shortcuts = [new Shortcut(KeyBinding.Plain(ConsoleKey.Delete), DeleteSelected, "Delete selected item")] };

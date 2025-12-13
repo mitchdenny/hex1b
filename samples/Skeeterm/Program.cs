@@ -39,11 +39,17 @@ public static class AppExtensions
         return new Hex1bApp<AppState>(state,
             async (context, ct) => {
                 var vstack = context.VStack(v => [
-                    v.Text("Hello, Hex1b!"),
+                    v.ContentPanel().Fill(),
+                    v.InfoBar("Skeetterm"),
                     v.Button("Exit", () => Environment.Exit(0))
                 ]);
                 return vstack;
             }
         );
+    }
+
+    private static Hex1bWidget ContentPanel(this WidgetContext<VStackWidget, AppState> context)
+    {
+        return context.Panel(context => [context.Text("Hello world!")]);
     }
 }

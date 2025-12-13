@@ -166,6 +166,8 @@ public class Hex1bApp<TState> : IDisposable
         // Set parent and shortcuts on the reconciled node
         node.Parent = parent;
         node.Shortcuts = widget.Shortcuts ?? [];
+        node.WidthHint = widget.WidthHint;
+        node.HeightHint = widget.HeightHint;
 
         return node;
     }
@@ -209,9 +211,6 @@ public class Hex1bApp<TState> : IDisposable
             }
         }
         node.Children = newChildren;
-        
-        // Pass size hints from widget to node
-        node.ChildHeightHints = widget.ChildHeightHints?.ToList() ?? [];
 
         // Invalidate focus cache since children changed
         node.InvalidateFocusCache();
@@ -302,9 +301,6 @@ public class Hex1bApp<TState> : IDisposable
             }
         }
         node.Children = newChildren;
-        
-        // Pass size hints from widget to node
-        node.ChildWidthHints = widget.ChildWidthHints?.ToList() ?? [];
 
         return node;
     }

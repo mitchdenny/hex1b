@@ -11,11 +11,14 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates an InfoBar widget with the specified sections.
     /// </summary>
+    /// <param name="ctx">The widget context.</param>
     /// <param name="sections">The sections to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
-    public static InfoBarWidget InfoBar(
+    public static InfoBarWidget InfoBar<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
         IReadOnlyList<InfoBarSection> sections,
         bool invertColors = true)
+        where TParent : Hex1bWidget
     {
         return new InfoBarWidget(sections, invertColors);
     }
@@ -23,8 +26,12 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates an InfoBar widget with text sections.
     /// </summary>
+    /// <param name="ctx">The widget context.</param>
     /// <param name="texts">The text strings to display as sections.</param>
-    public static InfoBarWidget InfoBar(params string[] texts)
+    public static InfoBarWidget InfoBar<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        params string[] texts)
+        where TParent : Hex1bWidget
     {
         var sections = texts.Select(t => new InfoBarSection(t)).ToList();
         return new InfoBarWidget(sections);
@@ -33,9 +40,14 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates an InfoBar widget with a single text section.
     /// </summary>
+    /// <param name="ctx">The widget context.</param>
     /// <param name="text">The text to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
-    public static InfoBarWidget InfoBar(string text, bool invertColors = true)
+    public static InfoBarWidget InfoBar<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        string text,
+        bool invertColors = true)
+        where TParent : Hex1bWidget
     {
         return new InfoBarWidget([new InfoBarSection(text)], invertColors);
     }

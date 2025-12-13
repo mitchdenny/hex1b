@@ -1,6 +1,5 @@
 ﻿using Hex1b;
 using Hex1b.Input;
-using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -89,40 +88,38 @@ static Task<Hex1bWidget> App(
     CancellationTokenSource cts, 
     CancellationToken cancellationToken)
 {
-    var masterPane = new VStackWidget([
-        new ListWidget(listState)
-    ]);
-
-    var detailPane = new VStackWidget([
-        new HStackWidget([new TextBlockWidget("Name:  "), new TextBoxWidget(nameState)]),
-        new HStackWidget([new TextBlockWidget("Email: "), new TextBoxWidget(emailState)]),
-        new TextBlockWidget(""),
-        new ButtonWidget("Save", onSave),
-        new ButtonWidget("Close", () => cts.Cancel())
-    ]);
-
-    var content = new SplitterWidget(masterPane, detailPane, 25) with
-    {
-        Shortcuts = [
-            new Shortcut(KeyBinding.WithCtrl(ConsoleKey.S), onSave, "Save contact"),
-            new Shortcut(KeyBinding.WithCtrl(ConsoleKey.Q), () => cts.Cancel(), "Quit application"),
-        ]
-    };
+    var ctx = new RootContext<object>(new object());
     
     var statusMessage = getStatusMessage();
     var instructions = "Tab: Next  |  Esc: Back  |  Ctrl+S: Save  |  Ctrl+Q: Quit";
     var statusText = string.IsNullOrEmpty(statusMessage) 
         ? instructions 
         : $"{statusMessage}  |  {instructions}";
-    
-    var statusBar = new HStackWidget([
-        new TextBlockWidget(statusText),
+
+    var widget = ctx.VStack(v => [
+        v.Splitter(
+            v.VStack(master => [
+                master.List(listState)
+            ]),
+            v.VStack(detail => [
+                detail.HStack(h => [h.Text("Name:  "), h.TextBox(nameState)]),
+                detail.HStack(h => [h.Text("Email: "), h.TextBox(emailState)]),
+                detail.Text(""),
+                detail.Button("Save", onSave),
+                detail.Button("Close", () => cts.Cancel())
+            ]),
+            leftWidth: 25
+        ).FillHeight() with
+        {
+            Shortcuts = [
+                new Shortcut(KeyBinding.WithCtrl(ConsoleKey.S), onSave, "Save contact"),
+                new Shortcut(KeyBinding.WithCtrl(ConsoleKey.Q), () => cts.Cancel(), "Quit application"),
+            ]
+        },
+        v.HStack(h => [h.Text(statusText)])
     ]);
 
-    return Task.FromResult<Hex1bWidget>(new VStackWidget(
-        [content, statusBar],
-        [SizeHint.Fill, SizeHint.Content]  // Content fills, status bar is content-sized
-    ));
+    return Task.FromResult<Hex1bWidget>(widget);
 }
 
 // Mutable contact model

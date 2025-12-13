@@ -310,7 +310,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 var navigator = ctx.Navigator(s => s.Navigator);
                 
                 // Build info bar with navigation hints
-                var infoBar = InfoBarExtensions.InfoBar([
+                var infoBar = ctx.InfoBar([
                     new InfoBarSection(" Mini CRM "),
                     new InfoBarSection(" | "),
                     new InfoBarSection($"Customers: {state.Customers.Count}"),
@@ -319,8 +319,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 ]);
                 
                 return Task.FromResult<Hex1bWidget>(ctx.VStack(
-                    v => [navigator, infoBar],
-                    [SizeHint.Fill, SizeHint.Content]
+                    v => [navigator.FillHeight(), infoBar]
                 ));
             }
             catch (Exception ex)

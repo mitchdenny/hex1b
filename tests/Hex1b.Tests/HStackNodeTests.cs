@@ -97,11 +97,10 @@ public class HStackNodeTests
     public void Arrange_WithFillHints_DistributesWidth()
     {
         var child1 = new TextBlockNode { Text = "A" };
-        var child2 = new TextBlockNode { Text = "B" };
+        var child2 = new TextBlockNode { Text = "B", WidthHint = SizeHint.Fill };
         var node = new HStackNode
         {
-            Children = new List<Hex1bNode> { child1, child2 },
-            ChildWidthHints = new List<SizeHint> { SizeHint.Content, SizeHint.Fill }
+            Children = new List<Hex1bNode> { child1, child2 }
         };
 
         node.Measure(Constraints.Tight(20, 10));
@@ -116,12 +115,11 @@ public class HStackNodeTests
     [Fact]
     public void Arrange_WithFixedHints_UsesExactSize()
     {
-        var child1 = new TextBlockNode { Text = "Fixed1" };
-        var child2 = new TextBlockNode { Text = "Fixed2" };
+        var child1 = new TextBlockNode { Text = "Fixed1", WidthHint = SizeHint.Fixed(10) };
+        var child2 = new TextBlockNode { Text = "Fixed2", WidthHint = SizeHint.Fixed(15) };
         var node = new HStackNode
         {
-            Children = new List<Hex1bNode> { child1, child2 },
-            ChildWidthHints = new List<SizeHint> { SizeHint.Fixed(10), SizeHint.Fixed(15) }
+            Children = new List<Hex1bNode> { child1, child2 }
         };
 
         node.Measure(Constraints.Tight(40, 10));
@@ -134,13 +132,12 @@ public class HStackNodeTests
     [Fact]
     public void Arrange_WithMixedHints_DistributesCorrectly()
     {
-        var child1 = new TextBlockNode { Text = "Fixed" };
-        var child2 = new TextBlockNode { Text = "Fill 1" };
-        var child3 = new TextBlockNode { Text = "Fill 2" };
+        var child1 = new TextBlockNode { Text = "Fixed", WidthHint = SizeHint.Fixed(10) };
+        var child2 = new TextBlockNode { Text = "Fill 1", WidthHint = SizeHint.Fill };
+        var child3 = new TextBlockNode { Text = "Fill 2", WidthHint = SizeHint.Fill };
         var node = new HStackNode
         {
-            Children = new List<Hex1bNode> { child1, child2, child3 },
-            ChildWidthHints = new List<SizeHint> { SizeHint.Fixed(10), SizeHint.Fill, SizeHint.Fill }
+            Children = new List<Hex1bNode> { child1, child2, child3 }
         };
 
         node.Measure(Constraints.Tight(40, 10));

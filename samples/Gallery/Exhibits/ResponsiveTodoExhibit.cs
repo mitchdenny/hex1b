@@ -1,5 +1,4 @@
 using Hex1b;
-using Hex1b.Layout;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
@@ -133,38 +132,38 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
         var totalCount = state.Items.Count;
         var todoCount = totalCount - completedCount;
         
-        return new HStackWidget([
+        return ctx.HStack(h => [
             // Left: Todo list
-            new BorderWidget(new VStackWidget([
-                new TextBlockWidget("📋 Todo Items"),
-                new TextBlockWidget(""),
-                new ListWidget(state.ListState),
-                new TextBlockWidget(""),
-                new TextBlockWidget("↑↓ Navigate  Space: Toggle")
-            ]), "Tasks"),
+            h.Border(b => [
+                b.Text("📋 Todo Items"),
+                b.Text(""),
+                b.List(s => s.ListState),
+                b.Text(""),
+                b.Text("↑↓ Navigate  Space: Toggle")
+            ], title: "Tasks").FillWidth(2),
             
             // Middle: Add new item
-            new BorderWidget(new VStackWidget([
-                new TextBlockWidget("➕ Add New Task"),
-                new TextBlockWidget(""),
-                new TextBoxWidget(state.NewItemInput),
-                new TextBlockWidget(""),
-                new ButtonWidget("Add Task", () => state.AddItem()),
-                new TextBlockWidget(""),
-                new TextBlockWidget("Type and click Add")
-            ]), "New Task"),
+            h.Border(b => [
+                b.Text("➕ Add New Task"),
+                b.Text(""),
+                b.TextBox(s => s.NewItemInput),
+                b.Text(""),
+                b.Button("Add Task", () => state.AddItem()),
+                b.Text(""),
+                b.Text("Type and click Add")
+            ], title: "New Task").FillWidth(1),
             
             // Right: Statistics
-            new BorderWidget(new VStackWidget([
-                new TextBlockWidget("📊 Statistics"),
-                new TextBlockWidget(""),
-                new TextBlockWidget($"Total: {totalCount} items"),
-                new TextBlockWidget($"Done:  {completedCount} ✓"),
-                new TextBlockWidget($"Todo:  {todoCount} ○"),
-                new TextBlockWidget(""),
-                new TextBlockWidget($"Progress: {GetProgressBar(state)}")
-            ]), "Stats")
-        ], [SizeHint.Weighted(2), SizeHint.Weighted(1), SizeHint.Weighted(1)]);
+            h.Border(b => [
+                b.Text("📊 Statistics"),
+                b.Text(""),
+                b.Text($"Total: {totalCount} items"),
+                b.Text($"Done:  {completedCount} ✓"),
+                b.Text($"Todo:  {todoCount} ○"),
+                b.Text(""),
+                b.Text($"Progress: {GetProgressBar(state)}")
+            ], title: "Stats").FillWidth(1)
+        ]);
     }
 
     /// <summary>
@@ -176,29 +175,29 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
-        return new HStackWidget([
+        return ctx.HStack(h => [
             // Left: Todo list
-            new BorderWidget(new VStackWidget([
-                new TextBlockWidget("📋 Todo Items"),
-                new TextBlockWidget(""),
-                new ListWidget(state.ListState),
-                new TextBlockWidget(""),
-                new TextBlockWidget("↑↓ Nav  Space: Toggle")
-            ]), "Tasks"),
+            h.Border(b => [
+                b.Text("📋 Todo Items"),
+                b.Text(""),
+                b.List(s => s.ListState),
+                b.Text(""),
+                b.Text("↑↓ Nav  Space: Toggle")
+            ], title: "Tasks").FillWidth(2),
             
             // Right: Add + Stats combined
-            new VStackWidget([
-                new BorderWidget(new VStackWidget([
-                    new TextBlockWidget("➕ Add Task"),
-                    new TextBoxWidget(state.NewItemInput),
-                    new ButtonWidget("Add", () => state.AddItem())
-                ]), "New"),
-                new BorderWidget(new VStackWidget([
-                    new TextBlockWidget($"Done: {completedCount}/{totalCount}"),
-                    new TextBlockWidget(GetProgressBar(state))
-                ]), "Progress")
-            ], [SizeHint.Content, SizeHint.Fill])
-        ], [SizeHint.Weighted(2), SizeHint.Weighted(1)]);
+            h.VStack(v => [
+                v.Border(b => [
+                    b.Text("➕ Add Task"),
+                    b.TextBox(s => s.NewItemInput),
+                    b.Button("Add", () => state.AddItem())
+                ], title: "New"),
+                v.Border(b => [
+                    b.Text($"Done: {completedCount}/{totalCount}"),
+                    b.Text(GetProgressBar(state))
+                ], title: "Progress").FillHeight()
+            ]).FillWidth(1)
+        ]);
     }
 
     /// <summary>
@@ -210,21 +209,23 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
-        return new VStackWidget([
-            new BorderWidget(new VStackWidget([
-                new TextBlockWidget("📋 Responsive Todo List"),
-                new TextBlockWidget($"[{completedCount}/{totalCount} complete]")
-            ]), "Todo"),
+        return ctx.VStack(v => [
+            v.Border(b => [
+                b.Text("📋 Responsive Todo List"),
+                b.Text($"[{completedCount}/{totalCount} complete]")
+            ], title: "Todo"),
             
-            new BorderWidget(new ListWidget(state.ListState), "Items"),
+            v.Border(b => [
+                b.List(s => s.ListState)
+            ], title: "Items").FillHeight(),
             
-            new HStackWidget([
-                new TextBoxWidget(state.NewItemInput),
-                new ButtonWidget("[+]", () => state.AddItem())
-            ], [SizeHint.Fill, SizeHint.Content]),
+            v.HStack(h => [
+                h.TextBox(s => s.NewItemInput).FillWidth(),
+                h.Button("[+]", () => state.AddItem())
+            ]),
             
-            new TextBlockWidget("↑↓:Move  Space:Toggle  Tab:Focus")
-        ], [SizeHint.Content, SizeHint.Fill, SizeHint.Content, SizeHint.Content]);
+            v.Text("↑↓:Move  Space:Toggle  Tab:Focus")
+        ]);
     }
 
     /// <summary>
@@ -236,14 +237,14 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
-        return new VStackWidget([
-            new TextBlockWidget($"Todo [{completedCount}/{totalCount}]"),
-            new TextBlockWidget("────────────────────"),
-            new ListWidget(state.ListState),
-            new TextBlockWidget("────────────────────"),
-            new TextBoxWidget(state.NewItemInput),
-            new ButtonWidget("+ Add", () => state.AddItem())
-        ], [SizeHint.Content, SizeHint.Content, SizeHint.Fill, SizeHint.Content, SizeHint.Content, SizeHint.Content]);
+        return ctx.VStack(v => [
+            v.Text($"Todo [{completedCount}/{totalCount}]"),
+            v.Text("────────────────────"),
+            v.List(s => s.ListState).FillHeight(),
+            v.Text("────────────────────"),
+            v.TextBox(s => s.NewItemInput),
+            v.Button("+ Add", () => state.AddItem())
+        ]);
     }
 
     private static string GetProgressBar(TodoState state)

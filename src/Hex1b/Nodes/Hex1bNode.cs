@@ -21,6 +21,18 @@ public abstract class Hex1bNode
     public IReadOnlyList<Shortcut> Shortcuts { get; set; } = [];
 
     /// <summary>
+    /// Hint for how this node should be sized horizontally within its parent.
+    /// Used by HStack to distribute width among children.
+    /// </summary>
+    public SizeHint? WidthHint { get; set; }
+
+    /// <summary>
+    /// Hint for how this node should be sized vertically within its parent.
+    /// Used by VStack to distribute height among children.
+    /// </summary>
+    public SizeHint? HeightHint { get; set; }
+
+    /// <summary>
     /// Measures the desired size of this node given the constraints.
     /// </summary>
     public abstract Size Measure(Constraints constraints);
