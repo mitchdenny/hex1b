@@ -54,12 +54,10 @@ public sealed class SixelNode : Hex1bNode
 
     /// <summary>
     /// Start of Sixel data (DCS - Device Control String).
-    /// Format: DCS P1 ; P2 ; P3 q [sixel data] ST
-    /// - P1: pixel aspect ratio (0 = default 1:1)
-    /// - P2: background select (0 = use current background)
-    /// - P3: horizontal grid size (0 = default)
+    /// Format: DCS q [sixel data] ST
+    /// Using minimal DCS header (parameters default to 0 anyway).
     /// </summary>
-    private const string SixelStart = "\x1bP0;0;0q";
+    private const string SixelStart = "\x1bPq";
 
     /// <summary>
     /// End of Sixel data (ST - String Terminator).
@@ -102,8 +100,8 @@ public sealed class SixelNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // If showing fallback, delegate to fallback's focusable nodes
-        if (Fallback != null)
+        // Only return fallback focusables if Sixel is NOT supported (fallback is being shown)
+        if (_sixelSupported != true && Fallback != null)
         {
             foreach (var focusable in Fallback.GetFocusableNodes())
             {
@@ -127,7 +125,6 @@ public sealed class SixelNode : Hex1bNode
             if (elapsed > QueryTimeout)
             {
                 // Timed out waiting for response - assume Sixel is not supported
-                Console.Error.WriteLine($"[Sixel] Query timed out after {elapsed.TotalMilliseconds}ms");
                 _globalSixelSupported = false;
                 _sixelSupported = false;
             }
@@ -136,11 +133,10 @@ public sealed class SixelNode : Hex1bNode
         // If support status is still unknown and we haven't queried yet, send the probe
         if (!_sixelSupported.HasValue && !_globalQuerySent)
         {
-            Console.Error.WriteLine("[Sixel] Sending DA1 probe...");
             SendSixelProbe(context);
             // Show a brief loading state
             context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write("Detecting graphics support...");
+            context.Write("Checking Sixel support...");
             return;
         }
 
@@ -148,19 +144,17 @@ public sealed class SixelNode : Hex1bNode
         if (!_sixelSupported.HasValue)
         {
             context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write("Detecting graphics support...");
+            context.Write("Checking Sixel support...");
             return;
         }
 
         // Now we know the support status - render appropriately
         if (_sixelSupported == true)
         {
-            Console.Error.WriteLine("[Sixel] Rendering Sixel graphics");
             RenderSixel(context);
         }
         else
         {
-            Console.Error.WriteLine("[Sixel] Rendering fallback (Sixel not supported)");
             RenderFallback(context);
         }
     }
@@ -221,10 +215,12 @@ public sealed class SixelNode : Hex1bNode
 
     /// <summary>
     /// Reset this node's Sixel support detection.
+    /// Also resets global state to allow re-probing.
     /// </summary>
     public void ResetSixelDetection()
     {
         _sixelSupported = null;
+        ResetGlobalSixelDetection();
     }
 
     private void RenderSixel(Hex1bRenderContext context)
@@ -239,9 +235,13 @@ public sealed class SixelNode : Hex1bNode
         // Position cursor at the image location
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
-        // Output the Sixel data
-        // The ImageData should already be in Sixel format with DCS header
-        if (ImageData.StartsWith("\x1bP") || ImageData.StartsWith("\x90"))
+        // Check if data already has a DCS header
+        // Use explicit character comparison instead of StartsWith to avoid escape char issues
+        var startsWithEscP = ImageData.Length >= 2 && ImageData[0] == '\x1b' && ImageData[1] == 'P';
+        var startsWithDCS = ImageData.Length >= 1 && ImageData[0] == '\x90';
+        var hasHeader = startsWithEscP || startsWithDCS;
+        
+        if (hasHeader)
         {
             // Already has DCS header
             context.Write(ImageData);

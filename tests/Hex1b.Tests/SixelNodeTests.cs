@@ -6,8 +6,20 @@ using Hex1b.Nodes;
 
 namespace Hex1b.Tests;
 
-public class SixelNodeTests
+public class SixelNodeTests : IDisposable
 {
+    public SixelNodeTests()
+    {
+        // Reset global state before each test for proper isolation
+        SixelNode.ResetGlobalSixelDetection();
+    }
+
+    public void Dispose()
+    {
+        // Also reset after each test to be safe
+        SixelNode.ResetGlobalSixelDetection();
+    }
+
     [Fact]
     public void Measure_WithRequestedDimensions_ReturnsRequestedSize()
     {
@@ -238,7 +250,7 @@ public class SixelNodeTests
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        // Should wrap in Sixel DCS sequence
+        // Should wrap in Sixel DCS sequence: ESC P q ... ESC \
         Assert.Contains("\x1bPq", mockOutput.Output);
         Assert.Contains("\x1b\\", mockOutput.Output);
     }
