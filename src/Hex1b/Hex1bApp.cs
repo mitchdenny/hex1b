@@ -210,6 +210,7 @@ public class Hex1bApp<TState> : IDisposable
             SixelWidget sixelWidget => ReconcileSixel(existingNode as SixelNode, sixelWidget),
             ResponsiveWidget responsiveWidget => ReconcileResponsive(existingNode as ResponsiveNode, responsiveWidget),
             InfoBarWidget infoBarWidget => ReconcileInfoBar(existingNode as InfoBarNode, infoBarWidget),
+            ToggleSwitchWidget toggleSwitchWidget => ReconcileToggleSwitch(existingNode as ToggleSwitchNode, toggleSwitchWidget),
             _ => throw new NotSupportedException($"Unknown widget type: {widget.GetType()}")
         };
 #pragma warning restore HEX1B001
@@ -294,6 +295,9 @@ public class Hex1bApp<TState> : IDisposable
                 break;
             case SplitterNode splitter:
                 splitter.IsFocused = focused;
+                break;
+            case ToggleSwitchNode toggleSwitch:
+                toggleSwitch.IsFocused = focused;
                 break;
         }
     }
@@ -398,6 +402,14 @@ public class Hex1bApp<TState> : IDisposable
         var node = existingNode ?? new InfoBarNode();
         node.Sections = widget.Sections;
         node.InvertColors = widget.InvertColors;
+        return node;
+    }
+
+    private static ToggleSwitchNode ReconcileToggleSwitch(ToggleSwitchNode? existingNode, ToggleSwitchWidget widget)
+    {
+        var node = existingNode ?? new ToggleSwitchNode();
+        node.State = widget.State;
+        // Note: IsFocused is managed by the parent container, not set here
         return node;
     }
 
@@ -595,6 +607,7 @@ public class Hex1bApp<TState> : IDisposable
             ButtonNode button => button.IsFocused,
             ListNode list => list.IsFocused,
             SplitterNode splitter => splitter.IsFocused,
+            ToggleSwitchNode toggleSwitch => toggleSwitch.IsFocused,
             _ => false
         };
     }
@@ -614,6 +627,9 @@ public class Hex1bApp<TState> : IDisposable
                 break;
             case SplitterNode splitter:
                 splitter.IsFocused = focused;
+                break;
+            case ToggleSwitchNode toggleSwitch:
+                toggleSwitch.IsFocused = focused;
                 break;
         }
     }

@@ -46,7 +46,13 @@ public static class Hex1bThemes
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
             // Splitter
-            .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(0, 120, 200));
+            .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(0, 120, 200))
+            // ToggleSwitch
+            .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 50, 90))
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(100, 200, 255));
     }
 
     private static Hex1bTheme CreateHighContrastTheme()
@@ -67,7 +73,15 @@ public static class Hex1bThemes
             .Set(ListTheme.SelectedIndicator, "► ")
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.White)
-            .Set(SplitterTheme.DividerCharacter, "║");
+            .Set(SplitterTheme.DividerCharacter, "║")
+            // ToggleSwitch
+            .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Yellow)
+            .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.Black)
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(128, 128, 0))
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.Yellow)
+            .Set(ToggleSwitchTheme.LeftBracket, "◄ ")
+            .Set(ToggleSwitchTheme.RightBracket, " ►");
     }
 
     private static Hex1bTheme CreateSunsetTheme()
@@ -85,6 +99,12 @@ public static class Hex1bThemes
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
             // Splitter
-            .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(255, 140, 60));
+            .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(255, 140, 60))
+            // ToggleSwitch
+            .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(255, 180, 100))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(100, 40, 20))
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(255, 180, 100));
     }
 }

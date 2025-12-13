@@ -1,0 +1,580 @@
+using Hex1b.Layout;
+using Hex1b.Theming;
+using Hex1b.Widgets;
+
+namespace Hex1b.Tests;
+
+/// <summary>
+/// Tests for ToggleSwitchNode rendering and input handling.
+/// </summary>
+public class ToggleSwitchNodeTests
+{
+    #region Measurement Tests
+
+    [Fact]
+    public void Measure_ReturnsCorrectSize_ThreeOptions()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["Manual", "Auto", "Delayed"]
+            }
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "< Manual | Auto | Delayed >" 
+        // = 2 (< ) + 6 (Manual) + 3 ( | ) + 4 (Auto) + 3 ( | ) + 7 (Delayed) + 2 ( >) = 27
+        Assert.Equal(27, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Measure_EmptyOptions_ReturnsZeroWidth()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = [] }
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.Equal(0, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Measure_SingleOption_ReturnsCorrectSize()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["Only"] }
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "< Only >" = 2 + 4 + 2 = 8
+        Assert.Equal(8, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Measure_TwoOptions_ReturnsCorrectSize()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["On", "Off"] }
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "< On | Off >" = 2 + 2 + 3 + 3 + 2 = 12
+        Assert.Equal(12, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Measure_RespectsMaxWidthConstraint()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["VeryLongOption1", "VeryLongOption2"]
+            }
+        };
+
+        var size = node.Measure(new Constraints(0, 20, 0, 5));
+
+        Assert.Equal(20, size.Width);
+    }
+
+    #endregion
+
+    #region Rendering Tests
+
+    [Fact]
+    public void Render_Unfocused_ShowsOptions()
+    {
+        using var terminal = new Hex1bTerminal(40, 5);
+        var context = new Hex1bRenderContext(terminal);
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B", "C"],
+                SelectedIndex = 1
+            },
+            IsFocused = false
+        };
+        node.Arrange(new Rect(0, 0, 40, 1));
+
+        node.Render(context);
+
+        var line = terminal.GetLineTrimmed(0);
+        Assert.Contains("A", line);
+        Assert.Contains("B", line);
+        Assert.Contains("C", line);
+    }
+
+    [Fact]
+    public void Render_Focused_ContainsAnsiCodes()
+    {
+        using var terminal = new Hex1bTerminal(40, 5);
+        var context = new Hex1bRenderContext(terminal);
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["On", "Off"],
+                SelectedIndex = 0
+            },
+            IsFocused = true
+        };
+        node.Arrange(new Rect(0, 0, 40, 1));
+
+        node.Render(context);
+
+        // Should contain ANSI escape codes for styling
+        Assert.Contains("\x1b[", terminal.RawOutput);
+    }
+
+    [Fact]
+    public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
+    {
+        using var focusedTerminal = new Hex1bTerminal(40, 5);
+        using var unfocusedTerminal = new Hex1bTerminal(40, 5);
+        var focusedContext = new Hex1bRenderContext(focusedTerminal);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal);
+
+        var focusedNode = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["A", "B"] },
+            IsFocused = true
+        };
+        var unfocusedNode = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["A", "B"] },
+            IsFocused = false
+        };
+        focusedNode.Arrange(new Rect(0, 0, 40, 1));
+        unfocusedNode.Arrange(new Rect(0, 0, 40, 1));
+
+        focusedNode.Render(focusedContext);
+        unfocusedNode.Render(unfocusedContext);
+
+        Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
+    }
+
+    [Fact]
+    public void Render_EmptyOptions_DoesNotThrow()
+    {
+        using var terminal = new Hex1bTerminal(40, 5);
+        var context = new Hex1bRenderContext(terminal);
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = [] },
+            IsFocused = true
+        };
+        node.Arrange(new Rect(0, 0, 40, 1));
+
+        var exception = Record.Exception(() => node.Render(context));
+
+        Assert.Null(exception);
+    }
+
+    #endregion
+
+    #region Input Handling Tests
+
+    [Fact]
+    public void HandleInput_RightArrow_MovesToNextOption()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B", "C"],
+                SelectedIndex = 0
+            },
+            IsFocused = true
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(1, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_LeftArrow_MovesToPreviousOption()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B", "C"],
+                SelectedIndex = 2
+            },
+            IsFocused = true
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(1, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_RightArrow_WrapsToFirstOption()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B", "C"],
+                SelectedIndex = 2
+            },
+            IsFocused = true
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(0, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_LeftArrow_WrapsToLastOption()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B", "C"],
+                SelectedIndex = 0
+            },
+            IsFocused = true
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(2, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_OtherKey_NotHandled()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B"],
+                SelectedIndex = 0
+            },
+            IsFocused = true
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(0, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_NotFocused_NotHandled()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["A", "B"],
+                SelectedIndex = 0
+            },
+            IsFocused = false
+        };
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(0, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleInput_SelectionChanged_CallsCallback()
+    {
+        var callbackInvoked = false;
+        var callbackIndex = -1;
+        var callbackValue = "";
+        
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState
+            {
+                Options = ["Manual", "Auto", "Delayed"],
+                SelectedIndex = 0,
+                OnSelectionChanged = (index, value) =>
+                {
+                    callbackInvoked = true;
+                    callbackIndex = index;
+                    callbackValue = value;
+                }
+            },
+            IsFocused = true
+        };
+
+        node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+
+        Assert.True(callbackInvoked);
+        Assert.Equal(1, callbackIndex);
+        Assert.Equal("Auto", callbackValue);
+    }
+
+    #endregion
+
+    #region Focus Tests
+
+    [Fact]
+    public void IsFocusable_ReturnsTrue()
+    {
+        var node = new ToggleSwitchNode();
+
+        Assert.True(node.IsFocusable);
+    }
+
+    #endregion
+
+    #region Layout Tests
+
+    [Fact]
+    public void Arrange_SetsBounds()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["A", "B"] }
+        };
+        var bounds = new Rect(5, 10, 20, 1);
+
+        node.Arrange(bounds);
+
+        Assert.Equal(bounds, node.Bounds);
+    }
+
+    #endregion
+
+    #region State Tests
+
+    [Fact]
+    public void State_SelectedOption_ReturnsCorrectValue()
+    {
+        var state = new ToggleSwitchState
+        {
+            Options = ["Manual", "Auto", "Delayed"],
+            SelectedIndex = 1
+        };
+
+        Assert.Equal("Auto", state.SelectedOption);
+    }
+
+    [Fact]
+    public void State_SelectedOption_EmptyOptions_ReturnsNull()
+    {
+        var state = new ToggleSwitchState { Options = [] };
+
+        Assert.Null(state.SelectedOption);
+    }
+
+    [Fact]
+    public void State_SetSelection_UpdatesIndex()
+    {
+        var state = new ToggleSwitchState
+        {
+            Options = ["A", "B", "C"],
+            SelectedIndex = 0
+        };
+
+        state.SetSelection(2);
+
+        Assert.Equal(2, state.SelectedIndex);
+        Assert.Equal("C", state.SelectedOption);
+    }
+
+    [Fact]
+    public void State_SetSelection_InvalidIndex_DoesNotChange()
+    {
+        var state = new ToggleSwitchState
+        {
+            Options = ["A", "B"],
+            SelectedIndex = 0
+        };
+
+        state.SetSelection(5);
+
+        Assert.Equal(0, state.SelectedIndex);
+    }
+
+    [Fact]
+    public void State_SetSelection_NegativeIndex_DoesNotChange()
+    {
+        var state = new ToggleSwitchState
+        {
+            Options = ["A", "B"],
+            SelectedIndex = 1
+        };
+
+        state.SetSelection(-1);
+
+        Assert.Equal(1, state.SelectedIndex);
+    }
+
+    #endregion
+
+    #region Integration Tests with Hex1bApp
+
+    [Fact]
+    public async Task Integration_ToggleSwitch_RendersViaHex1bApp()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var state = new ToggleSwitchState
+        {
+            Options = ["Manual", "Auto", "Delayed"]
+        };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.ToggleSwitch(state)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(terminal.ContainsText("Manual"));
+        Assert.True(terminal.ContainsText("Auto"));
+        Assert.True(terminal.ContainsText("Delayed"));
+    }
+
+    [Fact]
+    public async Task Integration_ToggleSwitch_ArrowNavigates()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var state = new ToggleSwitchState
+        {
+            Options = ["Off", "On"]
+        };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.ToggleSwitch(state)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal("On", state.SelectedOption);
+    }
+
+    [Fact]
+    public async Task Integration_ToggleSwitch_MultipleNavigations()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var state = new ToggleSwitchState
+        {
+            Options = ["Low", "Medium", "High"]
+        };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.ToggleSwitch(state)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        Assert.Equal(2, state.SelectedIndex);
+        Assert.Equal("High", state.SelectedOption);
+    }
+
+    [Fact]
+    public async Task Integration_ToggleSwitch_WithOtherWidgets_TabNavigates()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var toggleState = new ToggleSwitchState { Options = ["A", "B"] };
+        var buttonClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.ToggleSwitch(toggleState),
+                    v.Button("Click", () => buttonClicked = true)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Navigate right on toggle, then tab to button, then click
+        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        terminal.SendKey(ConsoleKey.Tab, '\t');
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        Assert.Equal(1, toggleState.SelectedIndex);
+        Assert.True(buttonClicked);
+    }
+
+    [Fact]
+    public async Task Integration_ToggleSwitch_CallbackTriggered()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var lastSelectedValue = "";
+        var state = new ToggleSwitchState
+        {
+            Options = ["Mode1", "Mode2"],
+            OnSelectionChanged = (idx, val) => lastSelectedValue = val
+        };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.ToggleSwitch(state)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.RightArrow, '\0');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        Assert.Equal("Mode2", lastSelectedValue);
+    }
+
+    #endregion
+}

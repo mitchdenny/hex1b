@@ -289,6 +289,9 @@ public sealed class SplitterNode : Hex1bNode
             case SplitterNode splitter:
                 splitter.IsFocused = focused;
                 break;
+            case ToggleSwitchNode toggleSwitch:
+                toggleSwitch.IsFocused = focused;
+                break;
         }
     }
 
@@ -308,6 +311,7 @@ public sealed class SplitterNode : Hex1bNode
                 ButtonNode button => button.IsFocused,
                 ListNode list => list.IsFocused,
                 SplitterNode splitter => splitter.IsFocused,
+                ToggleSwitchNode toggleSwitch => toggleSwitch.IsFocused,
                 _ => false
             };
             if (isFocused)

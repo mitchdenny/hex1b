@@ -27,6 +27,10 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
         public ListState ThemeList { get; } = new();
         public TextBoxState SampleTextBox { get; } = new() { Text = "Sample text" };
         public bool ButtonClicked { get; set; }
+        public ToggleSwitchState ModeSwitch { get; } = new()
+        {
+            Options = ["Manual", "Auto", "Delayed"]
+        };
     }
 
     // Thread-local session state for each websocket connection
@@ -94,6 +98,9 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                             right.Button(
                                 state.ButtonClicked ? "Clicked!" : "Click Me",
                                 () => state.ButtonClicked = !state.ButtonClicked),
+                            right.Text(""),
+                            right.Text("Toggle Switch (←/→ to change):"),
+                            right.ToggleSwitch(s => s.ModeSwitch),
                             right.Text(""),
                             right.Text("InfoBar (shown at bottom):"),
                             right.Text("  Displays theme name & hints")
@@ -178,7 +185,15 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(144, 238, 144))
             // Panel
             .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 50, 0))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144));
+            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
+            // ToggleSwitch
+            .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(34, 139, 34))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(17, 70, 17))
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
+            .Set(ToggleSwitchTheme.LeftBracket, "♣ ")
+            .Set(ToggleSwitchTheme.RightBracket, " ♣");
     }
 
     private static Hex1bTheme CreateNeonTheme()
@@ -214,6 +229,15 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
             .Set(BorderTheme.VerticalLine, "║")
             // Panel
             .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255));
+            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
+            // ToggleSwitch
+            .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 80, 80))
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(255, 0, 255))
+            .Set(ToggleSwitchTheme.LeftBracket, "<< ")
+            .Set(ToggleSwitchTheme.RightBracket, " >>")
+            .Set(ToggleSwitchTheme.Separator, " ║ ");
     }
 }
