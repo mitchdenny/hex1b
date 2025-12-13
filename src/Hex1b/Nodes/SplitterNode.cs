@@ -5,22 +5,46 @@ namespace Hex1b;
 
 public sealed class SplitterNode : Hex1bNode
 {
-    public Hex1bNode? Left { get; set; }
-    public Hex1bNode? Right { get; set; }
-    public int LeftWidth { get; set; } = 30;
+    /// <summary>
+    /// The first child (left for horizontal, top for vertical).
+    /// </summary>
+    public Hex1bNode? First { get; set; }
+    
+    /// <summary>
+    /// The second child (right for horizontal, bottom for vertical).
+    /// </summary>
+    public Hex1bNode? Second { get; set; }
+    
+    /// <summary>
+    /// The size of the first pane in characters (width for horizontal, height for vertical).
+    /// </summary>
+    public int FirstSize { get; set; } = 30;
+    
+    /// <summary>
+    /// The orientation of the splitter.
+    /// </summary>
+    public SplitterOrientation Orientation { get; set; } = SplitterOrientation.Horizontal;
+    
+    // Legacy property aliases for backward compatibility
+    public Hex1bNode? Left { get => First; set => First = value; }
+    public Hex1bNode? Right { get => Second; set => Second = value; }
+    public int LeftWidth { get => FirstSize; set => FirstSize = value; }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
     
     /// <summary>
-    /// The amount to move the splitter when pressing left/right arrow keys.
+    /// The amount to move the splitter when pressing arrow keys.
     /// </summary>
     public int ResizeStep { get; set; } = 2;
     
     /// <summary>
-    /// Minimum width for the left pane.
+    /// Minimum size for the first pane (width for horizontal, height for vertical).
     /// </summary>
-    public int MinLeftWidth { get; set; } = 5;
+    public int MinFirstSize { get; set; } = 5;
+    
+    // Legacy property alias
+    public int MinLeftWidth { get => MinFirstSize; set => MinFirstSize = value; }
     
     private int _focusedIndex = 0;
     private List<Hex1bNode>? _focusableNodes;
@@ -29,6 +53,11 @@ public sealed class SplitterNode : Hex1bNode
 
     /// <inheritdoc />
     public override bool ManagesChildFocus => true;
+
+    /// <summary>
+    /// The width of the divider in characters (3 for horizontal: " │ ", 1 for vertical: "─").
+    /// </summary>
+    private int DividerSize => Orientation == SplitterOrientation.Horizontal ? 3 : 1;
 
     /// <summary>
     /// Computes a contrasting color (black or white) based on the luminance of the input color.
@@ -43,35 +72,75 @@ public sealed class SplitterNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        // Splitter: left width + divider (3 chars " │ ") + right content.
-        // IMPORTANT: propagate bounded width constraints to children so text wrapping can work.
-        const int dividerWidth = 3;
+        var dividerSize = DividerSize;
 
+        if (Orientation == SplitterOrientation.Horizontal)
+        {
+            return MeasureHorizontal(constraints, dividerSize);
+        }
+        else
+        {
+            return MeasureVertical(constraints, dividerSize);
+        }
+    }
+
+    private Size MeasureHorizontal(Constraints constraints, int dividerWidth)
+    {
         if (constraints.MaxWidth == int.MaxValue && constraints.MaxHeight == int.MaxValue)
         {
             // Unbounded measure: keep legacy behavior.
-            var leftSizeUnbounded = Left?.Measure(Constraints.Unbounded) ?? Size.Zero;
-            var rightSizeUnbounded = Right?.Measure(Constraints.Unbounded) ?? Size.Zero;
+            var firstSizeUnbounded = First?.Measure(Constraints.Unbounded) ?? Size.Zero;
+            var secondSizeUnbounded = Second?.Measure(Constraints.Unbounded) ?? Size.Zero;
 
-            var widthUnbounded = LeftWidth + dividerWidth + rightSizeUnbounded.Width;
-            var heightUnbounded = Math.Max(leftSizeUnbounded.Height, rightSizeUnbounded.Height);
+            var widthUnbounded = FirstSize + dividerWidth + secondSizeUnbounded.Width;
+            var heightUnbounded = Math.Max(firstSizeUnbounded.Height, secondSizeUnbounded.Height);
             return constraints.Constrain(new Size(widthUnbounded, heightUnbounded));
         }
 
         var maxWidth = constraints.MaxWidth;
         var maxHeight = constraints.MaxHeight;
 
-        var leftMaxWidth = Math.Max(0, Math.Min(LeftWidth, maxWidth));
-        var rightMaxWidth = Math.Max(0, maxWidth - LeftWidth - dividerWidth);
+        var firstMaxWidth = Math.Max(0, Math.Min(FirstSize, maxWidth));
+        var secondMaxWidth = Math.Max(0, maxWidth - FirstSize - dividerWidth);
 
-        var leftConstraints = new Constraints(0, leftMaxWidth, 0, maxHeight);
-        var rightConstraints = new Constraints(0, rightMaxWidth, 0, maxHeight);
+        var firstConstraints = new Constraints(0, firstMaxWidth, 0, maxHeight);
+        var secondConstraints = new Constraints(0, secondMaxWidth, 0, maxHeight);
 
-        var leftSize = Left?.Measure(leftConstraints) ?? Size.Zero;
-        var rightSize = Right?.Measure(rightConstraints) ?? Size.Zero;
+        var firstSize = First?.Measure(firstConstraints) ?? Size.Zero;
+        var secondSize = Second?.Measure(secondConstraints) ?? Size.Zero;
 
-        var width = LeftWidth + dividerWidth + rightSize.Width;
-        var height = Math.Max(leftSize.Height, rightSize.Height);
+        var width = FirstSize + dividerWidth + secondSize.Width;
+        var height = Math.Max(firstSize.Height, secondSize.Height);
+        return constraints.Constrain(new Size(width, height));
+    }
+
+    private Size MeasureVertical(Constraints constraints, int dividerHeight)
+    {
+        if (constraints.MaxWidth == int.MaxValue && constraints.MaxHeight == int.MaxValue)
+        {
+            // Unbounded measure
+            var firstSizeUnbounded = First?.Measure(Constraints.Unbounded) ?? Size.Zero;
+            var secondSizeUnbounded = Second?.Measure(Constraints.Unbounded) ?? Size.Zero;
+
+            var widthUnbounded = Math.Max(firstSizeUnbounded.Width, secondSizeUnbounded.Width);
+            var heightUnbounded = FirstSize + dividerHeight + secondSizeUnbounded.Height;
+            return constraints.Constrain(new Size(widthUnbounded, heightUnbounded));
+        }
+
+        var maxWidth = constraints.MaxWidth;
+        var maxHeight = constraints.MaxHeight;
+
+        var firstMaxHeight = Math.Max(0, Math.Min(FirstSize, maxHeight));
+        var secondMaxHeight = Math.Max(0, maxHeight - FirstSize - dividerHeight);
+
+        var firstConstraints = new Constraints(0, maxWidth, 0, firstMaxHeight);
+        var secondConstraints = new Constraints(0, maxWidth, 0, secondMaxHeight);
+
+        var firstSize = First?.Measure(firstConstraints) ?? Size.Zero;
+        var secondSize = Second?.Measure(secondConstraints) ?? Size.Zero;
+
+        var width = Math.Max(firstSize.Width, secondSize.Width);
+        var height = FirstSize + dividerHeight + secondSize.Height;
         return constraints.Constrain(new Size(width, height));
     }
 
@@ -79,26 +148,55 @@ public sealed class SplitterNode : Hex1bNode
     {
         base.Arrange(bounds);
         
-        // Left pane gets LeftWidth
-        if (Left != null)
+        if (Orientation == SplitterOrientation.Horizontal)
         {
-            Left.Arrange(new Rect(bounds.X, bounds.Y, LeftWidth, bounds.Height));
+            ArrangeHorizontal(bounds);
+        }
+        else
+        {
+            ArrangeVertical(bounds);
+        }
+    }
+
+    private void ArrangeHorizontal(Rect bounds)
+    {
+        // First pane gets FirstSize width
+        if (First != null)
+        {
+            First.Arrange(new Rect(bounds.X, bounds.Y, FirstSize, bounds.Height));
         }
         
-        // Right pane gets remaining width (minus 3 for divider)
-        if (Right != null)
+        // Second pane gets remaining width (minus 3 for divider)
+        if (Second != null)
         {
-            var rightX = bounds.X + LeftWidth + 3;
-            var rightWidth = Math.Max(0, bounds.Width - LeftWidth - 3);
-            Right.Arrange(new Rect(rightX, bounds.Y, rightWidth, bounds.Height));
+            var secondX = bounds.X + FirstSize + 3;
+            var secondWidth = Math.Max(0, bounds.Width - FirstSize - 3);
+            Second.Arrange(new Rect(secondX, bounds.Y, secondWidth, bounds.Height));
+        }
+    }
+
+    private void ArrangeVertical(Rect bounds)
+    {
+        // First pane gets FirstSize height
+        if (First != null)
+        {
+            First.Arrange(new Rect(bounds.X, bounds.Y, bounds.Width, FirstSize));
+        }
+        
+        // Second pane gets remaining height (minus 1 for divider)
+        if (Second != null)
+        {
+            var secondY = bounds.Y + FirstSize + 1;
+            var secondHeight = Math.Max(0, bounds.Height - FirstSize - 1);
+            Second.Arrange(new Rect(bounds.X, secondY, bounds.Width, secondHeight));
         }
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        if (Left != null)
+        if (First != null)
         {
-            foreach (var focusable in Left.GetFocusableNodes())
+            foreach (var focusable in First.GetFocusableNodes())
             {
                 yield return focusable;
             }
@@ -107,9 +205,9 @@ public sealed class SplitterNode : Hex1bNode
         // The splitter itself is focusable (for resizing with arrow keys)
         yield return this;
         
-        if (Right != null)
+        if (Second != null)
         {
-            foreach (var focusable in Right.GetFocusableNodes())
+            foreach (var focusable in Second.GetFocusableNodes())
             {
                 yield return focusable;
             }
@@ -139,7 +237,6 @@ public sealed class SplitterNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
         var dividerColor = theme.Get(SplitterTheme.DividerColor);
         
         // When focused, invert colors: divider color becomes background, use contrasting foreground
@@ -158,15 +255,35 @@ public sealed class SplitterNode : Hex1bNode
             dividerBg = Hex1bColor.Default;
         }
         
-        // Render left pane at its bounds
-        if (Left != null)
+        // Render first pane
+        if (First != null)
         {
-            context.SetCursorPosition(Left.Bounds.X, Left.Bounds.Y);
-            Left.Render(context);
+            context.SetCursorPosition(First.Bounds.X, First.Bounds.Y);
+            First.Render(context);
         }
         
-        // Render divider line for each row in our bounds
-        var dividerX = Bounds.X + LeftWidth + 1;
+        if (Orientation == SplitterOrientation.Horizontal)
+        {
+            RenderHorizontalDivider(context, dividerFg, dividerBg, theme);
+        }
+        else
+        {
+            RenderVerticalDivider(context, dividerFg, dividerBg, theme);
+        }
+        
+        // Render second pane
+        if (Second != null)
+        {
+            context.SetCursorPosition(Second.Bounds.X, Second.Bounds.Y);
+            Second.Render(context);
+        }
+    }
+
+    private void RenderHorizontalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
+    {
+        var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
+        var dividerX = Bounds.X + FirstSize + 1;
+        
         for (int row = 0; row < Bounds.Height; row++)
         {
             context.SetCursorPosition(dividerX, Bounds.Y + row);
@@ -179,12 +296,23 @@ public sealed class SplitterNode : Hex1bNode
                 context.Write($"{dividerFg.ToForegroundAnsi()}{dividerChar}\x1b[0m");
             }
         }
+    }
+
+    private void RenderVerticalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
+    {
+        var dividerChar = theme.Get(SplitterTheme.HorizontalDividerCharacter);
+        var dividerY = Bounds.Y + FirstSize;
         
-        // Render right pane at its bounds
-        if (Right != null)
+        context.SetCursorPosition(Bounds.X, dividerY);
+        var dividerLine = new string(dividerChar[0], Bounds.Width);
+        
+        if (IsFocused)
         {
-            context.SetCursorPosition(Right.Bounds.X, Right.Bounds.Y);
-            Right.Render(context);
+            context.Write($"{dividerFg.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{dividerLine}\x1b[0m");
+        }
+        else
+        {
+            context.Write($"{dividerFg.ToForegroundAnsi()}{dividerLine}\x1b[0m");
         }
     }
 
@@ -250,19 +378,7 @@ public sealed class SplitterNode : Hex1bNode
         // Handle splitter resize when the splitter itself is focused
         if (IsFocused && evt is KeyInputEvent resizeEvent)
         {
-            if (resizeEvent.Key == ConsoleKey.LeftArrow)
-            {
-                // Decrease left pane width
-                LeftWidth = Math.Max(MinLeftWidth, LeftWidth - ResizeStep);
-                return true;
-            }
-            else if (resizeEvent.Key == ConsoleKey.RightArrow)
-            {
-                // Increase left pane width (respect overall bounds)
-                var maxLeftWidth = Bounds.Width - 3 - MinLeftWidth; // 3 for divider, MinLeftWidth for right pane
-                LeftWidth = Math.Min(maxLeftWidth, LeftWidth + ResizeStep);
-                return true;
-            }
+            return HandleResizeInput(resizeEvent);
         }
 
         // Dispatch to focused node for regular input handling (but not to ourselves to avoid infinite recursion)
@@ -272,6 +388,44 @@ public sealed class SplitterNode : Hex1bNode
             if (focusedNode != this)
             {
                 return focusedNode.HandleInput(evt);
+            }
+        }
+
+        return false;
+    }
+
+    private bool HandleResizeInput(KeyInputEvent resizeEvent)
+    {
+        if (Orientation == SplitterOrientation.Horizontal)
+        {
+            if (resizeEvent.Key == ConsoleKey.LeftArrow)
+            {
+                // Decrease first pane width
+                FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
+                return true;
+            }
+            else if (resizeEvent.Key == ConsoleKey.RightArrow)
+            {
+                // Increase first pane width (respect overall bounds)
+                var maxFirstSize = Bounds.Width - 3 - MinFirstSize; // 3 for divider, MinFirstSize for second pane
+                FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
+                return true;
+            }
+        }
+        else // Vertical
+        {
+            if (resizeEvent.Key == ConsoleKey.UpArrow)
+            {
+                // Decrease first pane height
+                FirstSize = Math.Max(MinFirstSize, FirstSize - ResizeStep);
+                return true;
+            }
+            else if (resizeEvent.Key == ConsoleKey.DownArrow)
+            {
+                // Increase first pane height (respect overall bounds)
+                var maxFirstSize = Bounds.Height - 1 - MinFirstSize; // 1 for divider, MinFirstSize for second pane
+                FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
+                return true;
             }
         }
 
@@ -295,7 +449,7 @@ public sealed class SplitterNode : Hex1bNode
         }
         
         // Recursively sync children
-        Left?.SyncFocusIndex();
-        Right?.SyncFocusIndex();
+        First?.SyncFocusIndex();
+        Second?.SyncFocusIndex();
     }
 }

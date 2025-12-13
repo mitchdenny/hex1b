@@ -92,8 +92,17 @@ public static class SplitterTheme
     public static readonly Hex1bThemeElement<Hex1bColor> DividerColor = 
         new($"{nameof(SplitterTheme)}.{nameof(DividerColor)}", () => Hex1bColor.Gray);
     
+    /// <summary>
+    /// The character used for vertical dividers (horizontal orientation splitter).
+    /// </summary>
     public static readonly Hex1bThemeElement<string> DividerCharacter = 
         new($"{nameof(SplitterTheme)}.{nameof(DividerCharacter)}", () => "│");
+    
+    /// <summary>
+    /// The character used for horizontal dividers (vertical orientation splitter).
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> HorizontalDividerCharacter = 
+        new($"{nameof(SplitterTheme)}.{nameof(HorizontalDividerCharacter)}", () => "─");
 }
 
 /// <summary>

@@ -837,4 +837,590 @@ public class SplitterNodeTests
     }
 
     #endregion
+
+    #region Vertical Splitter - Measurement Tests
+
+    [Fact]
+    public void Measure_Vertical_ReturnsCorrectSize()
+    {
+        var top = new TextBlockNode { Text = "Top Pane" };
+        var bottom = new TextBlockNode { Text = "Bottom Pane" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 5,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // Height = FirstSize (5) + divider (1) + bottom content height (1)
+        Assert.Equal(7, size.Height);
+        // Width should be max of top and bottom
+        Assert.Equal(11, size.Width); // "Bottom Pane" is 11 chars
+    }
+
+    [Fact]
+    public void Measure_Vertical_WithNoChildren_ReturnsMinimalSize()
+    {
+        var node = new SplitterNode 
+        { 
+            First = null, 
+            Second = null, 
+            FirstSize = 10,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // Just FirstSize + divider height
+        Assert.Equal(11, size.Height); // 10 + 1
+    }
+
+    [Fact]
+    public void Measure_Vertical_RespectsConstraints()
+    {
+        var top = new TextBlockNode { Text = "Top" };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 8,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        var size = node.Measure(new Constraints(0, 20, 0, 10));
+
+        Assert.True(size.Height <= 10);
+    }
+
+    [Fact]
+    public void Measure_Vertical_WidthIsMaxOfBothPanes()
+    {
+        var top = new HStackNode
+        {
+            Children = [
+                new TextBlockNode { Text = "Wide" },
+                new TextBlockNode { Text = "Content" },
+                new TextBlockNode { Text = "Here" }
+            ]
+        };
+        var bottom = new TextBlockNode { Text = "Short" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom,
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // Width of top pane ("Wide" + "Content" + "Here" = 15)
+        Assert.Equal(15, size.Width);
+    }
+
+    #endregion
+
+    #region Vertical Splitter - Arrange Tests
+
+    [Fact]
+    public void Arrange_Vertical_FirstPaneGetsFirstSizeHeight()
+    {
+        var top = new TextBlockNode { Text = "Top" };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 8,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 50, 20));
+
+        Assert.Equal(0, top.Bounds.Y);
+        Assert.Equal(8, top.Bounds.Height);
+    }
+
+    [Fact]
+    public void Arrange_Vertical_SecondPaneGetsRemainingHeight()
+    {
+        var top = new TextBlockNode { Text = "Top" };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 8,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 50, 20));
+
+        // Bottom pane starts after top + divider (8 + 1 = 9)
+        Assert.Equal(9, bottom.Bounds.Y);
+        // Bottom pane gets remaining height (20 - 8 - 1 = 11)
+        Assert.Equal(11, bottom.Bounds.Height);
+    }
+
+    [Fact]
+    public void Arrange_Vertical_WithOffset_PositionsCorrectly()
+    {
+        var top = new TextBlockNode { Text = "Top" };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 5,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(5, 3, 40, 15));
+
+        Assert.Equal(5, top.Bounds.X);
+        Assert.Equal(3, top.Bounds.Y);
+        Assert.Equal(5, bottom.Bounds.X);
+        Assert.Equal(9, bottom.Bounds.Y); // 3 + 5 + 1
+    }
+
+    [Fact]
+    public void Arrange_Vertical_BothPanesGetFullWidth()
+    {
+        var top = new TextBlockNode { Text = "Top" };
+        var bottom = new TextBlockNode { Text = "Bottom" };
+        var node = new SplitterNode 
+        { 
+            First = top, 
+            Second = bottom, 
+            FirstSize = 5,
+            Orientation = SplitterOrientation.Vertical 
+        };
+
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 15));
+
+        Assert.Equal(40, top.Bounds.Width);
+        Assert.Equal(40, bottom.Bounds.Width);
+    }
+
+    #endregion
+
+    #region Vertical Splitter - Rendering Tests
+
+    [Fact]
+    public void Render_Vertical_ShowsHorizontalDivider()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var context = CreateContext(terminal);
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical
+        };
+
+        node.Measure(Constraints.Tight(30, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        node.Render(context);
+
+        // Default horizontal divider character is "─"
+        Assert.Contains("─", terminal.RawOutput);
+    }
+
+    [Fact]
+    public void Render_Vertical_ShowsTopContent()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var context = CreateContext(terminal);
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top Content" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical
+        };
+
+        node.Measure(Constraints.Tight(30, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        node.Render(context);
+
+        Assert.Contains("Top Content", terminal.RawOutput);
+    }
+
+    [Fact]
+    public void Render_Vertical_ShowsBottomContent()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var context = CreateContext(terminal);
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom Content" },
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical
+        };
+
+        node.Measure(Constraints.Tight(30, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        node.Render(context);
+
+        Assert.Contains("Bottom Content", terminal.RawOutput);
+    }
+
+    [Fact]
+    public void Render_Vertical_WhenFocused_InvertsDividerColors()
+    {
+        using var terminal = new Hex1bTerminal(30, 10);
+        var context = CreateContext(terminal);
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 3,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true
+        };
+
+        node.Measure(Constraints.Tight(30, 10));
+        node.Arrange(new Rect(0, 0, 30, 10));
+        node.Render(context);
+
+        // When focused, should have background color on divider
+        Assert.Contains("\x1b[48;2;", terminal.RawOutput);
+    }
+
+    #endregion
+
+    #region Vertical Splitter - Input Handling Tests
+
+    [Fact]
+    public void HandleInput_Vertical_UpArrow_WhenFocused_DecreasesFirstSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 10,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true,
+            ResizeStep = 2
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 30, 20));
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(8, node.FirstSize);
+    }
+
+    [Fact]
+    public void HandleInput_Vertical_DownArrow_WhenFocused_IncreasesFirstSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 10,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true,
+            ResizeStep = 2
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 30, 20));
+
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal(12, node.FirstSize);
+    }
+
+    [Fact]
+    public void HandleInput_Vertical_UpArrow_RespectsMinFirstSize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 6,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true,
+            ResizeStep = 5,
+            MinFirstSize = 5
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 30, 20));
+
+        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+
+        Assert.Equal(5, node.FirstSize); // Clamped to MinFirstSize
+    }
+
+    [Fact]
+    public void HandleInput_Vertical_DownArrow_RespectsMaxHeight()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 15,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true,
+            ResizeStep = 5,
+            MinFirstSize = 5
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 30, 20)); // Total 20, max first = 20 - 1 - 5 = 14
+
+        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+
+        Assert.True(node.FirstSize <= 14);
+    }
+
+    [Fact]
+    public void HandleInput_Vertical_LeftRightArrows_DoNotResize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Top" },
+            Second = new TextBlockNode { Text = "Bottom" },
+            FirstSize = 10,
+            Orientation = SplitterOrientation.Vertical,
+            IsFocused = true
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 30, 20));
+
+        // Left/right arrows shouldn't resize vertical splitter
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(10, node.FirstSize);
+    }
+
+    [Fact]
+    public void HandleInput_Horizontal_UpDownArrows_DoNotResize()
+    {
+        var node = new SplitterNode
+        {
+            First = new TextBlockNode { Text = "Left" },
+            Second = new TextBlockNode { Text = "Right" },
+            FirstSize = 20,
+            Orientation = SplitterOrientation.Horizontal,
+            IsFocused = true
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 50, 10));
+
+        // Up/down arrows shouldn't resize horizontal splitter
+        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(20, node.FirstSize);
+    }
+
+    #endregion
+
+    #region Vertical Splitter - Integration Tests
+
+    [Fact]
+    public async Task Integration_VSplitter_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(40, 15);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    ctx.Text("Top Content"),
+                    ctx.Text("Bottom Content"),
+                    topHeight: 5
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Top Content", terminal.RawOutput);
+        Assert.Contains("Bottom Content", terminal.RawOutput);
+        Assert.Contains("─", terminal.RawOutput); // Horizontal divider
+    }
+
+    [Fact]
+    public async Task Integration_VSplitterWithVStackPanes_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(40, 15);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    v => [v.Text("Top 1"), v.Text("Top 2")],
+                    v => [v.Text("Bottom 1"), v.Text("Bottom 2")],
+                    topHeight: 5
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Top 1", terminal.RawOutput);
+        Assert.Contains("Top 2", terminal.RawOutput);
+        Assert.Contains("Bottom 1", terminal.RawOutput);
+        Assert.Contains("Bottom 2", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_VSplitterWithButtons_HandlesFocus()
+    {
+        using var terminal = new Hex1bTerminal(40, 15);
+        var topClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    ctx.Button("Top", () => topClicked = true),
+                    ctx.Text("Bottom"),
+                    topHeight: 5
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Enter clicks the focused button
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(topClicked);
+    }
+
+    [Fact]
+    public async Task Integration_VSplitterNavigation_TabSwitchesFocus()
+    {
+        using var terminal = new Hex1bTerminal(40, 15);
+        var bottomClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    ctx.Button("Top", () => { }),
+                    ctx.Button("Bottom", () => bottomClicked = true),
+                    topHeight: 5
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Tab through: top -> splitter -> bottom, then Enter
+        terminal.SendKey(ConsoleKey.Tab, '\t');
+        terminal.SendKey(ConsoleKey.Tab, '\t');
+        terminal.SendKey(ConsoleKey.Enter, '\r');
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(bottomClicked);
+    }
+
+    [Fact]
+    public async Task Integration_VSplitterResize_ArrowKeysWork()
+    {
+        using var terminal = new Hex1bTerminal(40, 15);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    ctx.Text("Top"),
+                    ctx.Text("Bottom"),
+                    topHeight: 5
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Since first child is just text (not focusable), splitter gets focus
+        // Up/down arrows should resize it
+        terminal.SendKey(ConsoleKey.UpArrow);
+        terminal.SendKey(ConsoleKey.UpArrow);
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Top", terminal.RawOutput);
+        Assert.Contains("Bottom", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_VSplitterInsideBorder_RendersCorrectly()
+    {
+        using var terminal = new Hex1bTerminal(50, 15);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Border(
+                    ctx.VSplitter(
+                        ctx.Text("Top"),
+                        ctx.Text("Bottom"),
+                        topHeight: 4
+                    ),
+                    "Vertical Split"
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Vertical Split", terminal.RawOutput);
+        Assert.Contains("Top", terminal.RawOutput);
+        Assert.Contains("Bottom", terminal.RawOutput);
+        Assert.Contains("┌", terminal.RawOutput);
+    }
+
+    [Fact]
+    public async Task Integration_NestedSplitters_HorizontalInsideVertical()
+    {
+        using var terminal = new Hex1bTerminal(60, 20);
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VSplitter(
+                    ctx.Splitter(
+                        ctx.Text("Top-Left"),
+                        ctx.Text("Top-Right"),
+                        leftWidth: 20
+                    ),
+                    ctx.Text("Bottom"),
+                    topHeight: 8
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.Contains("Top-Left", terminal.RawOutput);
+        Assert.Contains("Top-Right", terminal.RawOutput);
+        Assert.Contains("Bottom", terminal.RawOutput);
+    }
+
+    #endregion
 }

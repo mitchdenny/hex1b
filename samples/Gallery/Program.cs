@@ -15,6 +15,7 @@ builder.Services.AddSingleton<IGalleryExhibit, NavigatorExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, SixelExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ResponsiveTodoExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, LayoutExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, SplittersExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ReactiveBarChartExhibit>();
 
 var app = builder.Build();
