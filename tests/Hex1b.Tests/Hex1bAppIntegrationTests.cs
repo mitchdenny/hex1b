@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -265,5 +266,156 @@ public class Hex1bAppIntegrationTests
         
         // Should not throw
         app.Dispose();
+    }
+
+    [Fact]
+    public async Task App_Invalidate_TriggersRerender()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var counter = 0;
+        
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget($"Count: {counter}")),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+        
+        // Wait for initial render
+        await Task.Delay(50);
+        Assert.Contains("Count: 0", terminal.RawOutput);
+        
+        // Change state externally and invalidate
+        counter = 42;
+        terminal.ClearRawOutput();
+        app.Invalidate();
+        
+        // Wait for re-render
+        await Task.Delay(50);
+        Assert.Contains("Count: 42", terminal.RawOutput);
+        
+        cts.Cancel();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_InvalidateMultipleTimes_CoalescesRerenders()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var renderCount = 0;
+        
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => 
+            {
+                renderCount++;
+                return Task.FromResult<Hex1bWidget>(new TextBlockWidget($"Render: {renderCount}"));
+            },
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+        
+        // Wait for initial render
+        await Task.Delay(50);
+        var initialRenderCount = renderCount;
+        
+        // Rapid-fire multiple invalidations
+        for (int i = 0; i < 100; i++)
+        {
+            app.Invalidate();
+        }
+        
+        // Wait for processing
+        await Task.Delay(100);
+        
+        // Should have coalesced - not 100 extra renders
+        // At most a few extra renders (bounded channel with size 1 drops excess)
+        Assert.True(renderCount < initialRenderCount + 10, 
+            $"Expected coalesced renders, but got {renderCount - initialRenderCount} extra renders");
+        
+        cts.Cancel();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_WithINotifyPropertyChanged_AutoRerendersOnPropertyChange()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var state = new ObservableState { Message = "Initial" };
+        
+        using var app = new Hex1bApp<ObservableState>(
+            state,
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget(ctx.State.Message)),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+        
+        // Wait for initial render
+        await Task.Delay(50);
+        Assert.Contains("Initial", terminal.RawOutput);
+        
+        // Change state - should auto-trigger re-render via INotifyPropertyChanged
+        terminal.ClearRawOutput();
+        state.Message = "Updated";
+        
+        // Wait for auto re-render
+        await Task.Delay(50);
+        Assert.Contains("Updated", terminal.RawOutput);
+        
+        cts.Cancel();
+        await runTask;
+    }
+
+    [Fact]
+    public void App_Dispose_UnsubscribesFromPropertyChanged()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var state = new ObservableState { Message = "Test" };
+        
+        var app = new Hex1bApp<ObservableState>(
+            state,
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(new TextBlockWidget(ctx.State.Message)),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // There should be one subscriber (the app)
+        Assert.Equal(1, state.SubscriberCount);
+        
+        terminal.CompleteInput();
+        app.Dispose();
+        
+        // After dispose, should have unsubscribed
+        Assert.Equal(0, state.SubscriberCount);
+    }
+
+    /// <summary>
+    /// Test state class that implements INotifyPropertyChanged.
+    /// </summary>
+    private class ObservableState : INotifyPropertyChanged
+    {
+        private string _message = "";
+        
+        public event PropertyChangedEventHandler? PropertyChanged;
+        
+        public int SubscriberCount => PropertyChanged?.GetInvocationList().Length ?? 0;
+        
+        public string Message
+        {
+            get => _message;
+            set
+            {
+                if (_message != value)
+                {
+                    _message = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Message)));
+                }
+            }
+        }
     }
 }

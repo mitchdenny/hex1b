@@ -15,6 +15,7 @@ builder.Services.AddSingleton<IGalleryExhibit, NavigatorExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, SixelExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ResponsiveTodoExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, LayoutExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, ReactiveBarChartExhibit>();
 
 var app = builder.Build();
 
@@ -75,15 +76,29 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24);
     
-    var widgetBuilder = exhibit.CreateWidgetBuilder();
-    var themeProvider = exhibit.CreateThemeProvider();
-    using var hex1bApp = themeProvider != null
-        ? new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal, ThemeProvider = themeProvider })
-        : new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal });
+    // Check if the exhibit manages its own app lifecycle
+    var runTask = exhibit.RunAsync(terminal, cts.Token);
+    
+    Task appTask;
+    if (runTask != null)
+    {
+        // Exhibit manages its own Hex1bApp
+        appTask = runTask;
+    }
+    else
+    {
+        // Use the traditional widget builder pattern
+        var widgetBuilder = exhibit.CreateWidgetBuilder()!;
+        var themeProvider = exhibit.CreateThemeProvider();
+        var hex1bApp = themeProvider != null
+            ? new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal, ThemeProvider = themeProvider })
+            : new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal });
+        
+        appTask = hex1bApp.RunAsync(cts.Token);
+    }
     
     // Run input processing and the Hex1b app concurrently
     var inputTask = terminal.ProcessInputAsync(cts.Token);
-    var appTask = hex1bApp.RunAsync(cts.Token);
     
     try
     {

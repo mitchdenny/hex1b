@@ -1,5 +1,7 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
+using System.ComponentModel;
+using System.Threading.Channels;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -20,6 +22,16 @@ public class Hex1bApp<TState> : IDisposable
     private readonly bool _ownsTerminal;
     private readonly RootContext<TState> _rootContext;
     private Hex1bNode? _rootNode;
+    
+    // Channel for signaling that a re-render is needed (from Invalidate() calls)
+    private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
+        new BoundedChannelOptions(1) 
+        { 
+            FullMode = BoundedChannelFullMode.DropOldest 
+        });
+    
+    // Track if we're subscribed to INotifyPropertyChanged for cleanup
+    private readonly PropertyChangedEventHandler? _propertyChangedHandler;
 
     /// <summary>
     /// The application state, accessible for external state mutations.
@@ -45,6 +57,13 @@ public class Hex1bApp<TState> : IDisposable
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
         _context = new Hex1bRenderContext(_terminal, initialTheme);
+        
+        // Auto-subscribe to INotifyPropertyChanged if state implements it
+        if (state is INotifyPropertyChanged notifyPropertyChanged)
+        {
+            _propertyChangedHandler = (_, _) => Invalidate();
+            notifyPropertyChanged.PropertyChanged += _propertyChangedHandler;
+        }
     }
 
     /// <summary>
@@ -59,6 +78,22 @@ public class Hex1bApp<TState> : IDisposable
     }
 
     /// <summary>
+    /// Signals that the UI should be re-rendered. 
+    /// Call this when external state changes (network events, timers, etc.).
+    /// This method is thread-safe and can be called from any thread.
+    /// </summary>
+    /// <remarks>
+    /// If the state implements <see cref="INotifyPropertyChanged"/>, this is called
+    /// automatically when properties change. For other state changes, call this manually.
+    /// Multiple rapid calls are coalesced into a single re-render.
+    /// </remarks>
+    public void Invalidate()
+    {
+        // TryWrite with DropOldest ensures we don't block and coalesce rapid invalidations
+        _invalidateChannel.Writer.TryWrite(true);
+    }
+
+    /// <summary>
     /// Runs the application until cancellation is requested.
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -69,28 +104,44 @@ public class Hex1bApp<TState> : IDisposable
             // Initial render
             await RenderFrameAsync(cancellationToken);
 
-            // React to input events - only render when input is received
-            await foreach (var inputEvent in _terminal.InputEvents.ReadAllAsync(cancellationToken))
+            // React to input events and invalidation signals
+            while (!cancellationToken.IsCancellationRequested)
             {
-                // Handle capability response events specially (e.g., DA1 for Sixel detection)
-                if (inputEvent is CapabilityResponseEvent capabilityEvent)
-                {
-                    Nodes.SixelNode.HandleDA1Response(capabilityEvent.Response);
-                    // Re-render to reflect the updated capability detection
-                    await RenderFrameAsync(cancellationToken);
-                    continue;
-                }
+                // Wait for either an input event or an invalidation signal
+                var inputTask = _terminal.InputEvents.ReadAsync(cancellationToken).AsTask();
+                var invalidateTask = _invalidateChannel.Reader.ReadAsync(cancellationToken).AsTask();
                 
-                // Dispatch input to the root node
-                _rootNode?.HandleInput(inputEvent);
+                var completedTask = await Task.WhenAny(inputTask, invalidateTask);
+                
+                if (completedTask == inputTask)
+                {
+                    var inputEvent = await inputTask;
+                    
+                    // Handle capability response events specially (e.g., DA1 for Sixel detection)
+                    if (inputEvent is CapabilityResponseEvent capabilityEvent)
+                    {
+                        Nodes.SixelNode.HandleDA1Response(capabilityEvent.Response);
+                        // Re-render to reflect the updated capability detection
+                        await RenderFrameAsync(cancellationToken);
+                        continue;
+                    }
+                    
+                    // Dispatch input to the root node
+                    _rootNode?.HandleInput(inputEvent);
+                }
+                // If invalidateTask completed, we just need to re-render (no input to handle)
 
-                // Re-render after handling input (state may have changed)
+                // Re-render after handling input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Normal cancellation, exit gracefully
+        }
+        catch (ChannelClosedException)
+        {
+            // Terminal input channel closed, exit gracefully
         }
         finally
         {
@@ -570,6 +621,15 @@ public class Hex1bApp<TState> : IDisposable
 
     public void Dispose()
     {
+        // Unsubscribe from INotifyPropertyChanged if we subscribed
+        if (_propertyChangedHandler != null && State is INotifyPropertyChanged notifyPropertyChanged)
+        {
+            notifyPropertyChanged.PropertyChanged -= _propertyChangedHandler;
+        }
+        
+        // Complete the invalidate channel
+        _invalidateChannel.Writer.TryComplete();
+        
         if (_ownsTerminal && _terminal is IDisposable disposable)
         {
             disposable.Dispose();
