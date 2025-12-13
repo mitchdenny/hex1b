@@ -27,6 +27,9 @@ public sealed class SplitterNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    /// <inheritdoc />
+    public override bool ManagesChildFocus => true;
+
     /// <summary>
     /// Computes a contrasting color (black or white) based on the luminance of the input color.
     /// </summary>

@@ -1,7 +1,5 @@
 #pragma warning disable HEX1B001 // Navigator API is experimental - internal usage is allowed
 
-using Hex1b.Nodes;
-
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -84,8 +82,8 @@ public sealed class ReconcileContext
         // because node.Parent links may not be set yet during reconciliation.
         foreach (var ancestor in _ancestors)
         {
-            // SplitterNode manages focus between its left/right panes
-            if (ancestor is SplitterNode)
+            // Check the virtual property - any container can declare it manages child focus
+            if (ancestor.ManagesChildFocus)
             {
                 return true;
             }

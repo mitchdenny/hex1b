@@ -97,6 +97,13 @@ public abstract class Hex1bNode
     public virtual void SyncFocusIndex() { }
 
     /// <summary>
+    /// Returns true if this node manages focus for its children.
+    /// When a parent manages focus, child containers should NOT set initial focus themselves.
+    /// Container nodes like SplitterNode should override this to return true.
+    /// </summary>
+    public virtual bool ManagesChildFocus => false;
+
+    /// <summary>
     /// Gets all focusable nodes in this subtree (including this node if focusable).
     /// </summary>
     public virtual IEnumerable<Hex1bNode> GetFocusableNodes()
