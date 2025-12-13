@@ -56,46 +56,53 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
         return ct =>
         {
             var ctx = new RootContext<ThemingState>(state);
+            var currentTheme = state.Themes[state.ThemeList.SelectedIndex];
             
-            var widget = ctx.Splitter(
-                ctx.Panel(leftPanel => [
-                    leftPanel.VStack(left => [
-                        left.Text("═══ Themes ═══"),
-                        left.Text(""),
-                        left.List(s => s.ThemeList)
-                    ])
-                ]),
-                ctx.Panel(rightPanel => [
-                    rightPanel.VStack(right => [
-                        right.Text("═══ Widget Preview ═══"),
-                        right.Text(""),
-                        right.Border(b => [
-                            b.Text("  Content inside border"),
-                            b.Text("  with multiple lines")
-                        ], title: "Border"),
-                        right.Text(""),
-                        right.Panel(p => [
-                            p.Text("  Panel with styled background"),
-                            p.Text("  (theme-dependent colors)")
-                        ]),
-                        right.Text(""),
-                        right.Text("TextBox (Tab to focus):"),
-                        right.TextBox(s => s.SampleTextBox),
-                        right.Text(""),
-                        right.Text("Button:"),
-                        right.Button(
-                            state.ButtonClicked ? "Clicked!" : "Click Me",
-                            () => state.ButtonClicked = !state.ButtonClicked),
-                        right.Text(""),
-                        right.Text("─────────────────────────"),
-                        right.Text(""),
-                        right.Text("Use ↑↓ to change theme"),
-                        right.Text("Tab to switch focus"),
-                        right.Text("Enter to click button")
-                    ])
-                ]),
-                leftWidth: 20
-            );
+            var infoBar = InfoBarExtensions.InfoBar([
+                new InfoBarSection($" Theme: {currentTheme.Name} "),
+                new InfoBarSection(" | "),
+                new InfoBarSection(" ↑↓: Change  Tab: Focus  Enter: Click ")
+            ]);
+            
+            var widget = ctx.VStack(root => [
+                root.Splitter(
+                    root.Panel(leftPanel => [
+                        leftPanel.VStack(left => [
+                            left.Text("═══ Themes ═══"),
+                            left.Text(""),
+                            left.List(s => s.ThemeList)
+                        ])
+                    ]),
+                    root.Panel(rightPanel => [
+                        rightPanel.VStack(right => [
+                            right.Text("═══ Widget Preview ═══"),
+                            right.Text(""),
+                            right.Border(b => [
+                                b.Text("  Content inside border"),
+                                b.Text("  with multiple lines")
+                            ], title: "Border"),
+                            right.Text(""),
+                            right.Panel(p => [
+                                p.Text("  Panel with styled background"),
+                                p.Text("  (theme-dependent colors)")
+                            ]),
+                            right.Text(""),
+                            right.Text("TextBox (Tab to focus):"),
+                            right.TextBox(s => s.SampleTextBox),
+                            right.Text(""),
+                            right.Text("Button:"),
+                            right.Button(
+                                state.ButtonClicked ? "Clicked!" : "Click Me",
+                                () => state.ButtonClicked = !state.ButtonClicked),
+                            right.Text(""),
+                            right.Text("InfoBar (shown at bottom):"),
+                            right.Text("  Displays theme name & hints")
+                        ])
+                    ]),
+                    leftWidth: 20
+                ),
+                infoBar
+            ], [SizeHint.Fill, SizeHint.Content]);
 
             return Task.FromResult<Hex1bWidget>(widget);
         };
