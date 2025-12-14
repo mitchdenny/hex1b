@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -356,5 +357,68 @@ public class FocusRingHitTestTests
                 }
             }
         }
+    }
+}
+
+public class HoverStateTests
+{
+    [Fact]
+    public void IsHovered_DefaultsToFalse()
+    {
+        var button = new ButtonNode { Label = "Test" };
+        Assert.False(button.IsHovered);
+    }
+    
+    [Fact]
+    public void IsHovered_CanBeSet()
+    {
+        var button = new ButtonNode { Label = "Test" };
+        button.IsHovered = true;
+        Assert.True(button.IsHovered);
+        
+        button.IsHovered = false;
+        Assert.False(button.IsHovered);
+    }
+    
+    [Fact]
+    public void TextBoxNode_IsHovered_CanBeSet()
+    {
+        var textBox = new TextBoxNode { State = new TextBoxState { Text = "Hello" } };
+        Assert.False(textBox.IsHovered);
+        
+        textBox.IsHovered = true;
+        Assert.True(textBox.IsHovered);
+    }
+    
+    [Fact]
+    public void ListNode_IsHovered_CanBeSet()
+    {
+        var list = new ListNode { State = new ListState { Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")] } };
+        Assert.False(list.IsHovered);
+        
+        list.IsHovered = true;
+        Assert.True(list.IsHovered);
+    }
+    
+    [Fact]
+    public void ToggleSwitchNode_IsHovered_CanBeSet()
+    {
+        var toggle = new ToggleSwitchNode { State = new ToggleSwitchState { Options = ["A", "B"] } };
+        Assert.False(toggle.IsHovered);
+        
+        toggle.IsHovered = true;
+        Assert.True(toggle.IsHovered);
+    }
+    
+    [Fact]
+    public void NonFocusableNode_IsHovered_ReturnsFalse()
+    {
+        // Create a simple non-focusable node
+        var textBlock = new TextBlockNode { Text = "Hello" };
+        Assert.False(textBlock.IsHovered);
+        
+        // Setting should be ignored (default implementation does nothing)
+        textBlock.IsHovered = true;
+        Assert.False(textBlock.IsHovered);
     }
 }

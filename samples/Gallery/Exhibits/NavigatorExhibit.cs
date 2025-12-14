@@ -191,10 +191,10 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         {
             if (customer == null)
             {
-                return ctx.VStack(v => [
+                return ctx.Layout(ctx.VStack(v => [
                     v.Text(""),
                     v.Text("  Select a customer")
-                ]);
+                ]));
             }
 
             // Get opportunity list for this customer
@@ -205,7 +205,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
 
             var totalValue = customer.Opportunities.Sum(o => o.Amount);
 
-            return ctx.VStack(v => [
+            return ctx.Layout(ctx.VStack(v => [
                 v.Text("Customer Details"),
                 v.Text("────────────────────────"),
                 v.Text(""),
@@ -222,7 +222,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                     h.Button("Delete", () => 
                         DeleteSelectedOpportunity(customer, oppList))
                 ])
-            ]);
+            ]));
         }
 
         /// <summary>

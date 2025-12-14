@@ -53,6 +53,12 @@ public static class TextBoxTheme
     public static readonly Hex1bThemeElement<Hex1bColor> SelectionBackgroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.Cyan);
     
+    public static readonly Hex1bThemeElement<Hex1bColor> HoverCursorForegroundColor = 
+        new($"{nameof(TextBoxTheme)}.{nameof(HoverCursorForegroundColor)}", () => Hex1bColor.Default);
+    
+    public static readonly Hex1bThemeElement<Hex1bColor> HoverCursorBackgroundColor = 
+        new($"{nameof(TextBoxTheme)}.{nameof(HoverCursorBackgroundColor)}", () => Hex1bColor.DarkGray);
+    
     public static readonly Hex1bThemeElement<string> LeftBracket = 
         new($"{nameof(TextBoxTheme)}.{nameof(LeftBracket)}", () => "[");
     

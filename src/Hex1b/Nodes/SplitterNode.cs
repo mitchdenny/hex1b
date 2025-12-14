@@ -33,6 +33,9 @@ public sealed class SplitterNode : Hex1bNode
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+
+    private bool _isHovered;
+    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
     
     /// <summary>
     /// The amount to move the splitter when pressing arrow keys.

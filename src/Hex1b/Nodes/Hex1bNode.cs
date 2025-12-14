@@ -105,6 +105,13 @@ public abstract class Hex1bNode
     public virtual bool IsFocused { get => false; set { } }
 
     /// <summary>
+    /// Gets or sets whether the mouse is currently hovering over this node.
+    /// Set by Hex1bApp based on mouse position during each frame.
+    /// Only set on focusable nodes (tracked via FocusRing hit testing).
+    /// </summary>
+    public virtual bool IsHovered { get => false; set { } }
+
+    /// <summary>
     /// Syncs internal focus tracking to match the current IsFocused state of child nodes.
     /// Called after externally setting focus on a child node.
     /// Container nodes should override this to update their internal focus index.

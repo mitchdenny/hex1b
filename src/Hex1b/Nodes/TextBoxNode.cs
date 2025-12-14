@@ -13,6 +13,9 @@ public sealed class TextBoxNode : Hex1bNode
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
 
+    private bool _isHovered;
+    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+
     public override bool IsFocusable => true;
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
@@ -276,6 +279,8 @@ public sealed class TextBoxNode : Hex1bNode
         var cursorBg = theme.Get(TextBoxTheme.CursorBackgroundColor);
         var selFg = theme.Get(TextBoxTheme.SelectionForegroundColor);
         var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
+        var hoverCursorFg = theme.Get(TextBoxTheme.HoverCursorForegroundColor);
+        var hoverCursorBg = theme.Get(TextBoxTheme.HoverCursorBackgroundColor);
         
         var text = State.Text;
         var cursor = State.CursorPosition;
@@ -320,6 +325,12 @@ public sealed class TextBoxNode : Hex1bNode
                 output = $"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToInherited}{after}{rightBracket}";
             }
         }
+        else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
+        {
+            // Show a hover cursor preview where clicking would position the cursor
+            output = RenderWithHoverCursor(text, leftBracket, rightBracket, 
+                inheritedColors, resetToInherited, hoverCursorFg, hoverCursorBg, context);
+        }
         else
         {
             output = $"{inheritedColors}{leftBracket}{text}{rightBracket}{resetToInherited}";
@@ -334,5 +345,60 @@ public sealed class TextBoxNode : Hex1bNode
         {
             context.Write(output);
         }
+    }
+    
+    /// <summary>
+    /// Renders the text with a faint hover cursor showing where clicking would position the cursor.
+    /// </summary>
+    private string RenderWithHoverCursor(
+        string text, 
+        string leftBracket, 
+        string rightBracket,
+        string inheritedColors,
+        string resetToInherited,
+        Hex1bColor hoverCursorFg,
+        Hex1bColor hoverCursorBg,
+        Hex1bRenderContext context)
+    {
+        // Calculate local mouse position relative to this node
+        var localMouseX = context.MouseX - Bounds.X;
+        
+        // Convert to text column (subtract 1 for '[' bracket)
+        var textColumn = localMouseX - 1;
+        
+        // If mouse is outside the text area, show cursor at the nearest edge
+        if (textColumn < 0)
+        {
+            // Mouse is on or before '[' - show cursor at start
+            textColumn = 0;
+        }
+        
+        // Find the cursor position and display column for the hover cursor
+        var hoverCursorPos = DisplayColumnToTextPosition(textColumn);
+        
+        // Get the grapheme cluster at the hover position (or space if at end)
+        string before = text[..hoverCursorPos];
+        string hoverCluster;
+        string after;
+        
+        if (hoverCursorPos < text.Length)
+        {
+            var clusterLength = GraphemeHelper.GetClusterLength(text, hoverCursorPos);
+            hoverCluster = text.Substring(hoverCursorPos, clusterLength);
+            after = text[(hoverCursorPos + clusterLength)..];
+        }
+        else
+        {
+            // At end of text - show a space as the hover target
+            hoverCluster = " ";
+            after = "";
+        }
+        
+        // Build the hover cursor color codes
+        var hoverColors = "";
+        if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
+        if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
+        
+        return $"{inheritedColors}{leftBracket}{before}{hoverColors}{hoverCluster}{resetToInherited}{after}{rightBracket}";
     }
 }

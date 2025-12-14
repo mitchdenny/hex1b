@@ -30,6 +30,9 @@ public class Hex1bApp<TState> : IDisposable
     private int _mouseY = -1;
     private bool _mouseEnabled;
     
+    // Hover tracking
+    private Hex1bNode? _hoveredNode;
+    
     // Click tracking for double/triple click detection
     private DateTime _lastClickTime;
     private int _lastClickX = -1;
@@ -183,6 +186,9 @@ public class Hex1bApp<TState> : IDisposable
                             _mouseX = mouseEvent.X;
                             _mouseY = mouseEvent.Y;
                             
+                            // Update hover state on any mouse event
+                            UpdateHoverState(mouseEvent.X, mouseEvent.Y);
+                            
                             // If a drag is active, route all events to the drag handler
                             if (_activeDragHandler != null)
                             {
@@ -258,11 +264,15 @@ public class Hex1bApp<TState> : IDisposable
         _focusRing.Rebuild(_rootNode);
         _focusRing.EnsureFocus();
 
-        // Step 5: Render the node tree to the terminal
+        // Step 5: Update render context with mouse position for hover rendering
+        _context.MouseX = _mouseX;
+        _context.MouseY = _mouseY;
+
+        // Step 6: Render the node tree to the terminal
         _context.Clear();
         _rootNode?.Render(_context);
         
-        // Step 6: Render mouse cursor overlay if enabled
+        // Step 7: Render mouse cursor overlay if enabled
         RenderMouseCursor();
     }
     
@@ -383,6 +393,35 @@ public class Hex1bApp<TState> : IDisposable
         _lastClickButton = mouseEvent.Button;
         
         return _currentClickCount;
+    }
+    
+    /// <summary>
+    /// Updates the hover state based on the current mouse position.
+    /// Clears hover from the previously hovered node and sets it on the new one.
+    /// </summary>
+    private void UpdateHoverState(int mouseX, int mouseY)
+    {
+        // Find the focusable node at the mouse position
+        var hitNode = _focusRing.HitTest(mouseX, mouseY);
+        
+        // If hover hasn't changed, nothing to do
+        if (ReferenceEquals(hitNode, _hoveredNode))
+        {
+            return;
+        }
+        
+        // Clear hover from the previous node
+        if (_hoveredNode != null)
+        {
+            _hoveredNode.IsHovered = false;
+        }
+        
+        // Set hover on the new node
+        _hoveredNode = hitNode;
+        if (_hoveredNode != null)
+        {
+            _hoveredNode.IsHovered = true;
+        }
     }
 
     /// <summary>

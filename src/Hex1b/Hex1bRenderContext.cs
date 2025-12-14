@@ -16,6 +16,16 @@ public class Hex1bRenderContext
     public Hex1bTheme Theme { get; set; }
     
     /// <summary>
+    /// The current mouse X position (0-based column), or -1 if mouse is not tracked.
+    /// </summary>
+    public int MouseX { get; set; } = -1;
+    
+    /// <summary>
+    /// The current mouse Y position (0-based row), or -1 if mouse is not tracked.
+    /// </summary>
+    public int MouseY { get; set; } = -1;
+    
+    /// <summary>
     /// The current layout provider in scope. Child nodes can use this to query
     /// whether characters should be rendered (for clipping support).
     /// </summary>
