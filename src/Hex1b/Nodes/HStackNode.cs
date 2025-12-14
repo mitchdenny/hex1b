@@ -149,21 +149,128 @@ public sealed class HStackNode : Hex1bNode
         return false;
     }
 
+    /// <summary>
+    /// Checks if we're nested inside another container (HStack/VStack) that also has focusables.
+    /// When nested, Tab at the boundary should bubble up, not wrap.
+    /// </summary>
+    private bool IsNestedInsideFocusableContainer()
+    {
+        var current = Parent;
+        while (current != null)
+        {
+            if (current is HStackNode or VStackNode)
+            {
+                // Check if the ancestor has focusables (meaning it can navigate focus)
+                if (current.GetFocusableNodes().Any())
+                {
+                    return true;
+                }
+            }
+            current = current.Parent;
+        }
+        return false;
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
+        // Don't register Tab bindings if:
+        // 1. An ancestor manages focus (Splitter) - let Tab bubble up
+        // 2. We have 0-1 focusables - nothing to cycle
+        // 3. We're nested inside another focusable container - use HandleInput for boundary-aware navigation
+        if (HasAncestorThatManagesFocus())
+        {
+            return; // Let Splitter handle Tab
+        }
+        
+        var focusableCount = GetFocusableNodesList().Count;
+        if (focusableCount <= 1)
+        {
+            return; // Nothing to cycle, let Tab bubble up
+        }
+        
+        if (IsNestedInsideFocusableContainer())
+        {
+            // We're nested - don't register bindings, use HandleInput instead
+            // This allows us to return NotHandled at boundaries
+            return;
+        }
+        
+        // Top-level container with multiple focusables - register Tab bindings (will cycle)
         bindings.Key(Hex1bKey.Tab).Action(FocusNext, "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(FocusPrevious, "Previous focusable");
     }
 
+    /// <summary>
+    /// Handles Tab/Shift+Tab for nested containers with boundary-aware navigation.
+    /// Returns NotHandled at boundaries to let parent containers navigate.
+    /// </summary>
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+    {
+        // Only handle Tab for nested containers
+        if (!IsNestedInsideFocusableContainer())
+        {
+            return InputResult.NotHandled;
+        }
+        
+        var focusables = GetFocusableNodesList();
+        if (focusables.Count <= 1)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        var isTab = keyEvent.Key == Hex1bKey.Tab && keyEvent.Modifiers == Hex1bModifiers.None;
+        var isShiftTab = keyEvent.Key == Hex1bKey.Tab && keyEvent.Modifiers == Hex1bModifiers.Shift;
+        
+        if (!isTab && !isShiftTab)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        // Find current focus index
+        var currentIndex = -1;
+        for (int i = 0; i < focusables.Count; i++)
+        {
+            if (focusables[i].IsFocused)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+        
+        if (currentIndex < 0)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        // Check if we're at a boundary
+        if (isTab && currentIndex == focusables.Count - 1)
+        {
+            // At last focusable, Tab should bubble up to parent
+            return InputResult.NotHandled;
+        }
+        
+        if (isShiftTab && currentIndex == 0)
+        {
+            // At first focusable, Shift+Tab should bubble up to parent
+            return InputResult.NotHandled;
+        }
+        
+        // Not at boundary - move focus internally
+        focusables[currentIndex].IsFocused = false;
+        var newIndex = isTab ? currentIndex + 1 : currentIndex - 1;
+        focusables[newIndex].IsFocused = true;
+        _focusedIndex = newIndex;
+        
+        return InputResult.Handled;
+    }
+
     private void FocusNext()
     {
-        if (HasAncestorThatManagesFocus()) return;
         MoveFocus(forward: true);
     }
 
     private void FocusPrevious()
     {
-        if (HasAncestorThatManagesFocus()) return;
         MoveFocus(forward: false);
     }
 

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Hex1b.Terminal;
 
 internal static class AnsiString
@@ -9,7 +11,20 @@ internal static class AnsiString
         if (string.IsNullOrEmpty(text))
             return 0;
 
-        var visible = 0;
+        // Strip ANSI codes first, then calculate display width
+        var stripped = StripAnsiCodes(text);
+        return DisplayWidth.GetStringWidth(stripped);
+    }
+
+    /// <summary>
+    /// Strips all ANSI escape codes from the text.
+    /// </summary>
+    private static string StripAnsiCodes(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "";
+            
+        var result = new System.Text.StringBuilder();
         for (var i = 0; i < text.Length;)
         {
             if (TryReadCsi(text, i, out var nextIndex))
@@ -17,12 +32,10 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
-
-            visible++;
+            result.Append(text[i]);
             i++;
         }
-
-        return visible;
+        return result.ToString();
     }
 
     public static string SliceByColumns(string text, int startColumn, int lengthColumns)
@@ -38,14 +51,16 @@ internal static class AnsiString
         var prefix = new System.Text.StringBuilder();
         var output = new System.Text.StringBuilder();
 
-        var visibleIndex = 0;
+        var currentColumn = 0;
         var started = false;
 
         var endExclusive = startColumn + lengthColumns;
 
+        // Process the text grapheme by grapheme to handle wide characters correctly
         var i = 0;
-        for (; i < text.Length;)
+        while (i < text.Length)
         {
+            // Check for ANSI escape sequences first
             if (TryReadCsi(text, i, out var nextIndex))
             {
                 var seq = text.Substring(i, nextIndex - i);
@@ -58,15 +73,38 @@ internal static class AnsiString
                 continue;
             }
 
-            if (visibleIndex < startColumn)
+            // Get the grapheme cluster at this position
+            var grapheme = GetGraphemeAt(text, i, out var graphemeLength);
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+
+            // Skip graphemes that end before our start column
+            if (currentColumn + graphemeWidth <= startColumn)
             {
-                visibleIndex++;
-                i++;
+                currentColumn += graphemeWidth;
+                i += graphemeLength;
                 continue;
             }
 
-            if (visibleIndex >= endExclusive)
+            // If we're partially into a wide character (start column is in the middle),
+            // skip it but potentially add a space placeholder
+            if (currentColumn < startColumn && currentColumn + graphemeWidth > startColumn)
+            {
+                // Skip this grapheme - it starts before our slice
+                currentColumn += graphemeWidth;
+                i += graphemeLength;
+                continue;
+            }
+
+            // Stop if adding this grapheme would exceed our length
+            if (currentColumn >= endExclusive)
                 break;
+
+            // If the grapheme would extend past our end, we might need to skip it
+            if (currentColumn + graphemeWidth > endExclusive)
+            {
+                // Wide character doesn't fully fit - stop here
+                break;
+            }
 
             if (!started)
             {
@@ -74,17 +112,16 @@ internal static class AnsiString
                 started = true;
             }
 
-            output.Append(text[i]);
-            visibleIndex++;
-            i++;
+            output.Append(grapheme);
+            currentColumn += graphemeWidth;
+            i += graphemeLength;
         }
 
         if (!started)
             return "";
 
         // Preserve any escape sequences that immediately follow the slice.
-        // (Does not include additional printable characters.)
-        for (; i < text.Length;)
+        while (i < text.Length)
         {
             if (TryReadCsi(text, i, out var nextIndex))
             {
@@ -92,11 +129,49 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
-
             break;
         }
 
         return output.ToString();
+    }
+
+    /// <summary>
+    /// Gets the grapheme cluster at the specified position in the string.
+    /// </summary>
+    private static string GetGraphemeAt(string text, int index, out int length)
+    {
+        if (index >= text.Length)
+        {
+            length = 0;
+            return "";
+        }
+
+        // Find the grapheme that contains this index
+        var enumerator = StringInfo.GetTextElementEnumerator(text);
+        while (enumerator.MoveNext())
+        {
+            if (enumerator.ElementIndex == index)
+            {
+                var grapheme = (string)enumerator.Current;
+                length = grapheme.Length;
+                return grapheme;
+            }
+            if (enumerator.ElementIndex > index)
+            {
+                // We're past the index - this shouldn't happen if index is at a grapheme boundary
+                break;
+            }
+        }
+
+        // Fallback: return single character
+        if (char.IsHighSurrogate(text[index]) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
+        {
+            length = 2;
+            return text.Substring(index, 2);
+        }
+        
+        length = 1;
+        return text[index].ToString();
     }
 
     public static string TrailingEscapeSuffix(string text)

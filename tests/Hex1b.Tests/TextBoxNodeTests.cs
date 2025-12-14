@@ -57,6 +57,54 @@ public class TextBoxNodeTests
         Assert.Equal(10, size.Width);
     }
 
+    [Fact]
+    public void Measure_WithEmoji_CalculatesDisplayWidth()
+    {
+        // "😀" is 2 cells wide
+        var node = new TextBoxNode { State = new TextBoxState { Text = "😀" } };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "[😀]" = 2 brackets + 2 display width for emoji = 4
+        Assert.Equal(4, size.Width);
+    }
+
+    [Fact]
+    public void Measure_WithCJK_CalculatesDisplayWidth()
+    {
+        // "中文" is 4 cells wide (2 + 2)
+        var node = new TextBoxNode { State = new TextBoxState { Text = "中文" } };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "[中文]" = 2 brackets + 4 display width = 6
+        Assert.Equal(6, size.Width);
+    }
+
+    [Fact]
+    public void Measure_MixedAsciiAndEmoji_CalculatesDisplayWidth()
+    {
+        // "Hi😀" = 2 + 2 = 4 cells
+        var node = new TextBoxNode { State = new TextBoxState { Text = "Hi😀" } };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "[Hi😀]" = 2 brackets + 4 display width = 6
+        Assert.Equal(6, size.Width);
+    }
+
+    [Fact]
+    public void Measure_FamilyEmoji_TreatedAsTwoColumns()
+    {
+        // "👨‍👩‍👧" is a ZWJ sequence but displays as one emoji (2 cells)
+        var node = new TextBoxNode { State = new TextBoxState { Text = "👨‍👩‍👧" } };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // "[👨‍👩‍👧]" = 2 brackets + 2 display width = 4
+        Assert.Equal(4, size.Width);
+    }
+
     #endregion
 
     #region Rendering Tests - Unfocused State

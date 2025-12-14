@@ -1428,4 +1428,167 @@ public class SplitterNodeTests
     }
 
     #endregion
+
+    #region Focus Bubbling Tests - VStack/HStack inside Splitter
+
+    /// <summary>
+    /// Regression test: When a focusable widget (e.g., List) is inside a VStack inside a Splitter,
+    /// pressing Tab should move focus to the next widget managed by the Splitter, not be swallowed
+    /// by the VStack. This tests that VStack doesn't register Tab bindings when an ancestor
+    /// (like Splitter) has ManagesChildFocus = true.
+    /// </summary>
+    [Fact]
+    public async Task Integration_TabFromListInVStackInsideSplitter_MovesFocusToNextPane()
+    {
+        using var terminal = new Hex1bTerminal(60, 15);
+        var listState = new ListState
+        {
+            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")]
+        };
+        var rightButtonClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    // Left pane: VStack containing a List (this is the key scenario)
+                    v => [v.Text("Theme List"), v.List(listState)],
+                    // Right pane: VStack with Button that we want to Tab to
+                    v => [v.Button("Right Button", () => rightButtonClicked = true)],
+                    leftWidth: 20
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // List starts focused, Tab should move through: List -> Splitter -> Right Button
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(rightButtonClicked, "Tab should have moved focus from List through Splitter to Right Button");
+    }
+
+    /// <summary>
+    /// Regression test: Same as above but with multiple buttons in left pane VStack.
+    /// Focus order: First -> Second -> Splitter -> Right
+    /// </summary>
+    [Fact]
+    public async Task Integration_TabFromSecondButtonInVStackInsideSplitter_MovesFocusToNextPane()
+    {
+        using var terminal = new Hex1bTerminal(60, 10);
+        var rightButtonClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    // Left pane: VStack containing two Buttons
+                    v => [v.Button("First", () => { }), v.Button("Second", () => { })],
+                    // Right pane: VStack with Button
+                    v => [v.Button("Right", () => rightButtonClicked = true)],
+                    leftWidth: 25
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Focus order: First -> Second -> Splitter -> Right
+        // (VStack doesn't handle Tab when inside Splitter, so it bubbles up to Splitter)
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // First -> Second
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Second -> Splitter
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button  
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(rightButtonClicked, "Tab should have moved focus from Second Button through Splitter to Right Button");
+    }
+
+    /// <summary>
+    /// Regression test: Shift+Tab should also bubble up to Splitter for reverse navigation.
+    /// </summary>
+    [Fact]
+    public async Task Integration_ShiftTabFromButtonInsideSplitter_MovesFocusToPreviousPane()
+    {
+        using var terminal = new Hex1bTerminal(60, 15);
+        var leftButtonClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    v => [v.Text("Left Pane"), v.Button("Left Button", () => leftButtonClicked = true)],
+                    v => [v.Text("Right Pane"), v.Button("Right Button", () => { })],
+                    leftWidth: 20
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Navigate to Right Button first
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Left Button -> Splitter
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
+        // Now Shift+Tab back
+        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Right Button -> Splitter
+        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Splitter -> Left Button
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(leftButtonClicked, "Shift+Tab should have moved focus back to Left Button");
+    }
+
+    /// <summary>
+    /// Regression test: Deeply nested structure - VStack inside Panel inside Splitter.
+    /// Tab should still bubble up to the Splitter.
+    /// </summary>
+    [Fact]
+    public async Task Integration_TabFromWidgetInDeepNesting_BubblesUpToSplitter()
+    {
+        using var terminal = new Hex1bTerminal(70, 15);
+        var listState = new ListState
+        {
+            Items = [new ListItem("1", "Theme 1"), new ListItem("2", "Theme 2")]
+        };
+        var rightButtonClicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.Splitter(
+                    // Left: Panel > VStack > List (deep nesting like ThemingExhibit)
+                    ctx.Panel(p => [
+                        p.VStack(v => [
+                            v.Text("═══ Themes ═══"),
+                            v.Text(""),
+                            v.List(listState)
+                        ])
+                    ]),
+                    // Right: Panel > VStack > Button
+                    ctx.Panel(p => [
+                        p.VStack(v => [
+                            v.Text("═══ Preview ═══"),
+                            v.Button("Click Me", () => rightButtonClicked = true)
+                        ])
+                    ]),
+                    leftWidth: 25
+                )
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // List is focused initially, Tab should navigate to Splitter, then to Button
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Button
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(rightButtonClicked, "Tab should bubble up from deeply nested List to Splitter");
+    }
+
+    #endregion
 }

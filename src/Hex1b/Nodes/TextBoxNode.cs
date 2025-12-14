@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -59,7 +60,8 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (State.CursorPosition > 0)
         {
-            State.CursorPosition--;
+            // Move by grapheme cluster, not by char
+            State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
     }
 
@@ -72,7 +74,8 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (State.CursorPosition < State.Text.Length)
         {
-            State.CursorPosition++;
+            // Move by grapheme cluster, not by char
+            State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
     }
 
@@ -96,7 +99,8 @@ public sealed class TextBoxNode : Hex1bNode
         }
         if (State.CursorPosition > 0)
         {
-            State.CursorPosition--;
+            // Move by grapheme cluster, not by char
+            State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
     }
 
@@ -108,7 +112,8 @@ public sealed class TextBoxNode : Hex1bNode
         }
         if (State.CursorPosition < State.Text.Length)
         {
-            State.CursorPosition++;
+            // Move by grapheme cluster, not by char
+            State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
     }
 
@@ -138,9 +143,11 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (State.CursorPosition > 0)
         {
-            var newCursor = State.CursorPosition - 1;
-            State.Text = State.Text.Remove(newCursor, 1);
-            State.CursorPosition = newCursor;
+            // Delete the entire grapheme cluster, not just one char
+            var clusterStart = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
+            var clusterLength = State.CursorPosition - clusterStart;
+            State.Text = State.Text.Remove(clusterStart, clusterLength);
+            State.CursorPosition = clusterStart;
         }
     }
 
@@ -152,7 +159,10 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (State.CursorPosition < State.Text.Length)
         {
-            State.Text = State.Text.Remove(State.CursorPosition, 1);
+            // Delete the entire grapheme cluster, not just one char
+            var clusterEnd = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
+            var clusterLength = clusterEnd - State.CursorPosition;
+            State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
         }
     }
 
@@ -170,9 +180,10 @@ public sealed class TextBoxNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        // TextBox renders as "[text]" - 2 chars for brackets + text length (or at least 1 for cursor)
-        var textWidth = Math.Max(State.Text.Length, 1);
-        var width = textWidth + 2;
+        // TextBox renders as "[text]" - 2 chars for brackets + text display width (or at least 1 for cursor)
+        // Use display width to account for wide characters (emoji, CJK)
+        var textDisplayWidth = Math.Max(DisplayWidth.GetStringWidth(State.Text), 1);
+        var width = textDisplayWidth + 2; // +2 for brackets
         var height = 1;
         return constraints.Constrain(new Size(width, height));
     }
@@ -211,11 +222,23 @@ public sealed class TextBoxNode : Hex1bNode
             else
             {
                 // Show text with cursor as themed block
+                // Get the entire grapheme cluster at cursor position for proper rendering
                 var before = text[..cursor];
-                var cursorChar = cursor < text.Length ? text[cursor].ToString() : " ";
-                var after = cursor < text.Length ? text[(cursor + 1)..] : "";
+                string cursorCluster;
+                string after;
+                if (cursor < text.Length)
+                {
+                    var clusterLength = GraphemeHelper.GetClusterLength(text, cursor);
+                    cursorCluster = text.Substring(cursor, clusterLength);
+                    after = text[(cursor + clusterLength)..];
+                }
+                else
+                {
+                    cursorCluster = " ";
+                    after = "";
+                }
                 
-                output = $"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorChar}{resetToInherited}{after}{rightBracket}";
+                output = $"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToInherited}{after}{rightBracket}";
             }
         }
         else

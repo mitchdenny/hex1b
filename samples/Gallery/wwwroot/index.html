@@ -490,6 +490,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-image@0.8.0/lib/addon-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@0.8.0/lib/addon-unicode11.min.js"></script>
     <script>
         const terminalTheme = {
             background: '#0f0f1a',
@@ -698,6 +699,13 @@
             });
 
             term.open(document.getElementById(`main-term-${exhibit.id}`));
+            
+            // Load Unicode11 addon for proper wide character width handling (emoji, CJK)
+            if (window.Unicode11Addon) {
+                const unicode11Addon = new Unicode11Addon.Unicode11Addon();
+                term.loadAddon(unicode11Addon);
+                term.unicode.activeVersion = '11';
+            }
             
             // Load Sixel/image addon for graphics support
             if (window.ImageAddon) {

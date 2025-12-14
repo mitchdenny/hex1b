@@ -530,5 +530,146 @@ public class HStackNodeTests
         Assert.True(terminal.ContainsText("[C]"));
     }
 
+    [Fact]
+    public async Task Integration_TabFromSingleFocusableVStackInHStack_BubblesUpToHStack()
+    {
+        // Scenario: HStack with children that are VStacks, each containing only one focusable.
+        // Tab should bubble up from the VStack to the HStack since there's nothing to cycle within.
+        // This simulates the ResponsiveTodoExhibit Extra Wide layout.
+        using var terminal = new Hex1bTerminal(80, 24);
+        var rightButtonClicked = false;
+        var listState = new ListState { Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")] };
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.HStack(h => [
+                    // Left VStack: only one focusable (List)
+                    h.VStack(v => [v.Text("Header"), v.List(listState)]),
+                    // Right VStack: only one focusable (Button)
+                    h.VStack(v => [v.Text("Actions"), v.Button("Add", () => rightButtonClicked = true)])
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // List starts focused; Tab should bubble up to HStack and move to Button
+        terminal.SendKey(ConsoleKey.Tab, '\t');
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(rightButtonClicked, "Tab should have moved focus from List in left VStack to Button in right VStack");
+    }
+
+    [Fact]
+    public async Task Integration_VStackWithMultipleFocusables_HandleTabInternally()
+    {
+        // Scenario: VStack with 2 focusables should handle Tab itself, not bubble up
+        using var terminal = new Hex1bTerminal(80, 24);
+        var button1Clicked = false;
+        var button2Clicked = false;
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("Button 1", () => button1Clicked = true),
+                    v.Button("Button 2", () => button2Clicked = true)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Button 1 starts focused
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Button 1 -> Button 2
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click Button 2
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.False(button1Clicked);
+        Assert.True(button2Clicked, "Tab should have moved focus from Button 1 to Button 2 within VStack");
+    }
+
+    [Fact]
+    public async Task Integration_NestedVStackWithMultipleFocusables_TabEscapesAtBoundary()
+    {
+        // Scenario: VStack with 2 focusables nested inside an HStack.
+        // Tab should cycle within the VStack, but escape at the last item.
+        // This is the ResponsiveTodoExhibit "New" panel scenario.
+        using var terminal = new Hex1bTerminal(80, 24);
+        var listClicked = false;
+        var addButtonClicked = false;
+        var otherButtonClicked = false;
+        var textBoxState = new TextBoxState();
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.HStack(h => [
+                    // Left: List
+                    h.Button("List", () => listClicked = true),
+                    // Middle: VStack with TextBox + Button (like "New" panel)
+                    h.VStack(v => [
+                        v.Text("New Task"),
+                        v.TextBox(textBoxState),
+                        v.Button("Add", () => addButtonClicked = true)
+                    ]),
+                    // Right: Another button
+                    h.Button("Other", () => otherButtonClicked = true)
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // List button starts focused
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> TextBox (enters VStack)
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // TextBox -> Add (within VStack)
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // Add -> Other (escapes VStack at boundary!)
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click Other button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.False(listClicked);
+        Assert.False(addButtonClicked);
+        Assert.True(otherButtonClicked, "Tab at VStack boundary should escape to next HStack child");
+    }
+
+    [Fact]
+    public async Task Integration_NestedVStackWithMultipleFocusables_ShiftTabEscapesAtBoundary()
+    {
+        // Scenario: Same as above but with Shift+Tab escaping at the first item.
+        using var terminal = new Hex1bTerminal(80, 24);
+        var listClicked = false;
+        var textBoxState = new TextBoxState();
+
+        using var app = new Hex1bApp<object>(
+            new object(),
+            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+                ctx.HStack(h => [
+                    // Left: Button
+                    h.Button("List", () => listClicked = true),
+                    // Right: VStack with TextBox + Button
+                    h.VStack(v => [
+                        v.Text("New Task"),
+                        v.TextBox(textBoxState),
+                        v.Button("Add", () => { })
+                    ])
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // List button starts focused
+        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> TextBox (enters VStack)
+        // Now Shift+Tab should go back to List (escape VStack at first boundary)
+        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // TextBox -> List (escapes VStack!)
+        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click List button
+        terminal.CompleteInput();
+        await app.RunAsync();
+
+        Assert.True(listClicked, "Shift+Tab at first VStack item should escape back to previous HStack child");
+    }
+
     #endregion
 }

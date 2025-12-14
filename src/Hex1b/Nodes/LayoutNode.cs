@@ -98,9 +98,16 @@ public sealed class LayoutNode : Hex1bNode, ILayoutProvider
             return (x, "");
 
         var sliceLength = endColumnExclusive - startColumn;
-        var clippedText = AnsiString.SliceByColumns(text, startColumn, sliceLength);
-        if (clippedText.Length == 0)
+        
+        // Use SliceByDisplayWidth to properly handle wide characters and get padding info
+        var (slicedText, _, paddingBefore, paddingAfter) = 
+            DisplayWidth.SliceByDisplayWidthWithAnsi(text, startColumn, sliceLength);
+        
+        if (slicedText.Length == 0 && paddingBefore == 0)
             return (x, "");
+
+        // Build the result with padding if needed
+        var clippedText = new string(' ', paddingBefore) + slicedText + new string(' ', paddingAfter);
 
         // If we clipped away printable characters on the right, preserve any trailing
         // escape suffix (typically a reset-to-inherited) to avoid style leaking.
