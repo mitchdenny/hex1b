@@ -34,6 +34,20 @@ public sealed class TextBoxNode : Hex1bNode
         
         // Selection
         bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+        
+        // Character input - matches any printable character
+        bindings.AnyCharacter().Action(InsertCharacter, "Type character");
+    }
+
+    private void InsertCharacter(char c)
+    {
+        // If there's a selection, delete it first
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+        State.Text = State.Text.Insert(State.CursorPosition, c.ToString());
+        State.CursorPosition++;
     }
 
     private void MoveLeft()
@@ -218,25 +232,5 @@ public sealed class TextBoxNode : Hex1bNode
         {
             context.Write(output);
         }
-    }
-
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
-    {
-        if (!IsFocused) return InputResult.NotHandled;
-
-        // Only handle printable characters - everything else is bindings
-        if (!char.IsControl(keyEvent.Character))
-        {
-            // If there's a selection, delete it first
-            if (State.HasSelection)
-            {
-                DeleteSelection();
-            }
-            State.Text = State.Text.Insert(State.CursorPosition, keyEvent.Character.ToString());
-            State.CursorPosition++;
-            return InputResult.Handled;
-        }
-
-        return InputResult.NotHandled;
     }
 }

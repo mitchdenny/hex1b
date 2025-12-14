@@ -80,30 +80,39 @@ public static class InputRouter
             var builder = node.BuildBindings();
             var bindings = builder.Build();
             
-            if (bindings.Count == 0) continue;
-            
-            var trie = ChordTrie.Build(bindings);
-            var result = trie.Lookup(keyEvent);
-            
-            if (result.IsNoMatch) continue;
-            
-            // Found a match at this layer
-            if (result.IsLeaf)
+            if (bindings.Count > 0)
             {
-                // Leaf node - execute and done
-                result.Execute();
-                ResetChordState();
-                return InputResult.Handled;
+                var trie = ChordTrie.Build(bindings);
+                var result = trie.Lookup(keyEvent);
+                
+                if (!result.IsNoMatch)
+                {
+                    // Found a match at this layer
+                    if (result.IsLeaf)
+                    {
+                        // Leaf node - execute and done
+                        result.Execute();
+                        ResetChordState();
+                        return InputResult.Handled;
+                    }
+                    
+                    if (result.HasChildren)
+                    {
+                        // Internal node - start a chord, anchor to this layer
+                        _chordNode = result.Node;
+                        _chordAnchorPath = path;
+                        _chordLayerIndex = i;
+                        OnChordStateChanged?.Invoke();
+                        return InputResult.Handled;  // waiting for more keys
+                    }
+                }
             }
             
-            if (result.HasChildren)
+            // No key binding matched at this layer, try character bindings
+            // Character bindings only trigger on the focused node (not bubbling)
+            if (i == path.Count - 1 && TryHandleCharacterBinding(builder.CharacterBindings, keyEvent))
             {
-                // Internal node - start a chord, anchor to this layer
-                _chordNode = result.Node;
-                _chordAnchorPath = path;
-                _chordLayerIndex = i;
-                OnChordStateChanged?.Invoke();
-                return InputResult.Handled;  // waiting for more keys
+                return InputResult.Handled;
             }
         }
 
@@ -221,8 +230,38 @@ public static class InputRouter
             }
         }
         
+        // No key binding matched, try character bindings (only if node is focusable and focused)
+        // This matches real routing where we only reach focused nodes
+        if (node.IsFocusable && node.IsFocused && TryHandleCharacterBinding(builder.CharacterBindings, keyEvent))
+        {
+            return InputResult.Handled;
+        }
+        
         // No binding matched, fall through to HandleInput
         return node.HandleInput(keyEvent);
+    }
+    
+    /// <summary>
+    /// Tries to find and execute a matching character binding.
+    /// </summary>
+    private static bool TryHandleCharacterBinding(IReadOnlyList<CharacterBinding> characterBindings, Hex1bKeyEvent keyEvent)
+    {
+        if (characterBindings.Count == 0) return false;
+        
+        var c = keyEvent.Character;
+        if (c == '\0') return false;  // No character in this event
+        
+        // Check each character binding in order (first match wins)
+        foreach (var binding in characterBindings)
+        {
+            if (binding.Matches(c))
+            {
+                binding.Execute(c);
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /// <summary>

@@ -7,12 +7,19 @@ namespace Hex1b.Input;
 public sealed class InputBindingsBuilder
 {
     private readonly List<InputBinding> _bindings = [];
+    private readonly List<CharacterBinding> _characterBindings = [];
 
     /// <summary>
-    /// Gets all bindings currently configured.
+    /// Gets all key bindings currently configured.
     /// Inspect this at debug time to see default bindings.
     /// </summary>
     public IReadOnlyList<InputBinding> Bindings => _bindings;
+
+    /// <summary>
+    /// Gets all character bindings currently configured.
+    /// Character bindings are checked after key bindings as a fallback.
+    /// </summary>
+    public IReadOnlyList<CharacterBinding> CharacterBindings => _characterBindings;
 
     /// <summary>
     /// Creates an empty builder.
@@ -42,11 +49,29 @@ public sealed class InputBindingsBuilder
     public KeyStepBuilder Key(Hex1bKey key) => new KeyStepBuilder(this).Key(key);
 
     /// <summary>
+    /// Starts building a character binding that matches any printable character.
+    /// </summary>
+    public CharacterStepBuilder AnyCharacter() => new CharacterStepBuilder(this, c => !char.IsControl(c));
+
+    /// <summary>
+    /// Starts building a character binding with a custom predicate.
+    /// </summary>
+    public CharacterStepBuilder Character(Func<char, bool> predicate) => new CharacterStepBuilder(this, predicate);
+
+    /// <summary>
     /// Adds a pre-built binding directly.
     /// </summary>
     internal void AddBinding(InputBinding binding)
     {
         _bindings.Add(binding);
+    }
+
+    /// <summary>
+    /// Adds a pre-built character binding directly.
+    /// </summary>
+    internal void AddCharacterBinding(CharacterBinding binding)
+    {
+        _characterBindings.Add(binding);
     }
 
     /// <summary>

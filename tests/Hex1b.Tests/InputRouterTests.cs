@@ -334,4 +334,287 @@ public class InputRouterTests
         Assert.Equal("hel", state.Text);
         Assert.Equal(3, state.CursorPosition);
     }
+
+    #region CharacterBinding Tests
+
+    [Fact]
+    public void CharacterBinding_MatchesPrintableCharacter()
+    {
+        // Arrange
+        char received = '\0';
+        var binding = new CharacterBinding(c => !char.IsControl(c), c => received = c, "Insert char");
+
+        // Act & Assert
+        Assert.True(binding.Matches('a'));
+        Assert.True(binding.Matches('Z'));
+        Assert.True(binding.Matches('5'));
+        Assert.True(binding.Matches(' '));
+        Assert.False(binding.Matches('\n'));
+        Assert.False(binding.Matches('\t'));
+        Assert.False(binding.Matches('\b'));
+        
+        binding.Execute('X');
+        Assert.Equal('X', received);
+    }
+
+    [Fact]
+    public void CharacterBinding_CustomPredicate_MatchesDigitsOnly()
+    {
+        // Arrange
+        char received = '\0';
+        var binding = new CharacterBinding(char.IsDigit, c => received = c, "Insert digit");
+
+        // Act & Assert
+        Assert.True(binding.Matches('0'));
+        Assert.True(binding.Matches('9'));
+        Assert.False(binding.Matches('a'));
+        Assert.False(binding.Matches(' '));
+        
+        binding.Execute('7');
+        Assert.Equal('7', received);
+    }
+
+    [Fact]
+    public void InputBindingsBuilder_AnyCharacter_CreatesCharacterBinding()
+    {
+        // Arrange
+        var builder = new InputBindingsBuilder();
+        char received = '\0';
+
+        // Act
+        builder.AnyCharacter().Action(c => received = c, "Type");
+
+        // Assert
+        Assert.Single(builder.CharacterBindings);
+        Assert.Empty(builder.Bindings);  // Key bindings list should be empty
+        
+        var binding = builder.CharacterBindings[0];
+        Assert.True(binding.Matches('a'));
+        Assert.False(binding.Matches('\n'));
+        Assert.Equal("Type", binding.Description);
+    }
+
+    [Fact]
+    public void InputBindingsBuilder_Character_WithCustomPredicate()
+    {
+        // Arrange
+        var builder = new InputBindingsBuilder();
+        char received = '\0';
+
+        // Act
+        builder.Character(char.IsLetter).Action(c => received = c, "Letters only");
+
+        // Assert
+        Assert.Single(builder.CharacterBindings);
+        
+        var binding = builder.CharacterBindings[0];
+        Assert.True(binding.Matches('a'));
+        Assert.True(binding.Matches('Z'));
+        Assert.False(binding.Matches('5'));
+        Assert.False(binding.Matches(' '));
+    }
+
+    [Fact]
+    public void InputBindingsBuilder_MixedBindings_KeyAndCharacter()
+    {
+        // Arrange
+        var builder = new InputBindingsBuilder();
+
+        // Act
+        builder.Key(Hex1bKey.Enter).Action(() => { }, "Submit");
+        builder.AnyCharacter().Action(_ => { }, "Type");
+
+        // Assert
+        Assert.Single(builder.Bindings);
+        Assert.Single(builder.CharacterBindings);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_InsertsCharacter()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("helloX", state.Text);
+        Assert.Equal(6, state.CursorPosition);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_MultipleCharacters()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "", CursorPosition = 0 };
+        var node = new TextBoxNode { State = state, IsFocused = true };
+
+        // Act
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.H, 'H', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None));
+        InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal("Hi!", state.Text);
+        Assert.Equal(3, state.CursorPosition);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_NotFocused_NotHandled()
+    {
+        // Arrange
+        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
+        var node = new TextBoxNode { State = state, IsFocused = false };
+
+        // Act
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal(InputResult.NotHandled, result);
+        Assert.Equal("hello", state.Text);  // Text unchanged
+    }
+
+    [Fact]
+    public void RouteInputToNode_KeyBindingTakesPrecedence_OverCharacterBinding()
+    {
+        // Arrange - node with both a key binding for 'A' and a character binding
+        bool keyBindingCalled = false;
+        char charReceived = '\0';
+        
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings =>
+        {
+            bindings.Key(Hex1bKey.A).Action(() => keyBindingCalled = true, "A key");
+            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+        };
+
+        // Act
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+
+        // Assert - key binding should win
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(keyBindingCalled);
+        Assert.Equal('\0', charReceived);  // Character binding should not have been called
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_FallsBackWhenNoKeyBinding()
+    {
+        // Arrange - node with key binding for Enter, but typing 'x'
+        bool enterPressed = false;
+        char charReceived = '\0';
+        
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings =>
+        {
+            bindings.Key(Hex1bKey.Enter).Action(() => enterPressed = true, "Submit");
+            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+        };
+
+        // Act
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+
+        // Assert - character binding should handle it
+        Assert.Equal(InputResult.Handled, result);
+        Assert.False(enterPressed);
+        Assert.Equal('x', charReceived);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_NullCharacter_NotHandled()
+    {
+        // Arrange - key event with no character
+        char charReceived = '\0';
+        
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings =>
+        {
+            bindings.AnyCharacter().Action(c => charReceived = c, "Type");
+        };
+
+        // Act - F1 key has no character
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None));
+
+        // Assert - character binding should not match
+        Assert.Equal(InputResult.Handled, result);  // Handled by HandleInput fallback
+        Assert.Equal('\0', charReceived);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_FirstMatchWins()
+    {
+        // Arrange - multiple character bindings, first matching one wins
+        string handler = "";
+        
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings =>
+        {
+            bindings.Character(char.IsDigit).Action(c => handler = "digit", "Digits");
+            bindings.AnyCharacter().Action(c => handler = "any", "Any char");
+        };
+
+        // Act - '5' matches both, but digit comes first
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("digit", handler);
+    }
+
+    [Fact]
+    public void RouteInputToNode_CharacterBinding_SecondMatchWhenFirstFails()
+    {
+        // Arrange - digit binding first, but typing a letter
+        string handler = "";
+        
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings =>
+        {
+            bindings.Character(char.IsDigit).Action(c => handler = "digit", "Digits");
+            bindings.AnyCharacter().Action(c => handler = "any", "Any char");
+        };
+
+        // Act - 'a' doesn't match digit, falls through to any
+        var result = InputRouter.RouteInputToNode(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal("any", handler);
+    }
+
+    [Fact]
+    public void RouteInput_CharacterBinding_OnlyOnFocusedNode()
+    {
+        // Arrange - parent has character binding, child is focused
+        char parentReceived = '\0';
+        char childReceived = '\0';
+        
+        var container = new MockContainerNode();
+        container.BindingsConfig = bindings =>
+        {
+            bindings.AnyCharacter().Action(c => parentReceived = c, "Parent type");
+        };
+        
+        var child = new MockFocusableNode { IsFocused = true };
+        child.BindingsConfig = bindings =>
+        {
+            bindings.AnyCharacter().Action(c => childReceived = c, "Child type");
+        };
+        
+        container.Children.Add(child);
+        child.Parent = container;
+
+        // Act
+        var result = InputRouter.RouteInput(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+
+        // Assert - only child's character binding should fire (not parent's)
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal('x', childReceived);
+        Assert.Equal('\0', parentReceived);  // Parent's character binding should NOT have been called
+    }
+
+    #endregion
 }
