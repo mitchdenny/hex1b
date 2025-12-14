@@ -19,6 +19,9 @@ public sealed class ButtonNode : Hex1bNode
         // Enter and Space trigger the button
         bindings.Key(Hex1bKey.Enter).Action(Click, "Activate button");
         bindings.Key(Hex1bKey.Spacebar).Action(Click, "Activate button");
+        
+        // Left click activates the button
+        bindings.Mouse(MouseButton.Left).Action(Click, "Click button");
     }
 
     private void Click()

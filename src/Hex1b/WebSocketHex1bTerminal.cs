@@ -22,6 +22,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     private int _width;
     private int _height;
     private bool _disposed;
+    private bool _mouseEnabled;
 
     /// <summary>
     /// Event raised when the terminal is resized by the client.
@@ -34,11 +35,13 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     /// <param name="webSocket">The WebSocket connection to the client.</param>
     /// <param name="width">Initial terminal width in characters.</param>
     /// <param name="height">Initial terminal height in lines.</param>
-    public WebSocketHex1bTerminal(WebSocket webSocket, int width = 80, int height = 24)
+    /// <param name="enableMouse">Whether to enable mouse tracking.</param>
+    public WebSocketHex1bTerminal(WebSocket webSocket, int width = 80, int height = 24, bool enableMouse = false)
     {
         _webSocket = webSocket ?? throw new ArgumentNullException(nameof(webSocket));
         _width = width;
         _height = height;
+        _mouseEnabled = enableMouse;
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>();
         _disposeCts = new CancellationTokenSource();
         
@@ -83,13 +86,25 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     /// <inheritdoc />
     public void EnterAlternateScreen()
     {
-        Write("\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H");
+        var escapes = "\x1b[?1049h\x1b[?25l";
+        if (_mouseEnabled)
+        {
+            escapes += MouseParser.EnableMouseTracking;
+        }
+        escapes += "\x1b[2J\x1b[H";
+        Write(escapes);
     }
 
     /// <inheritdoc />
     public void ExitAlternateScreen()
     {
-        Write("\x1b[?25h\x1b[?1049l");
+        var escapes = "";
+        if (_mouseEnabled)
+        {
+            escapes += MouseParser.DisableMouseTracking;
+        }
+        escapes += "\x1b[?25h\x1b[?1049l";
+        Write(escapes);
     }
 
     /// <summary>
@@ -160,6 +175,19 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             // Check for ANSI escape sequence
             if (message[i] == '\x1b' && i + 1 < message.Length && message[i + 1] == '[')
             {
+                // Check for SGR mouse sequence: ESC [ < ...
+                if (i + 2 < message.Length && message[i + 2] == '<')
+                {
+                    // SGR mouse sequence - find the terminator (M or m)
+                    var (mouseEvent, mouseConsumed) = ParseSgrMouseSequence(message, i);
+                    if (mouseEvent != null)
+                    {
+                        await _inputChannel.Writer.WriteAsync(mouseEvent, cancellationToken);
+                        i += mouseConsumed;
+                        continue;
+                    }
+                }
+                
                 var (inputEvent, consumed) = ParseAnsiSequence(message, i);
                 if (inputEvent != null)
                 {
@@ -413,6 +441,47 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             return (null, 3);
 
         return (new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None), 3);
+    }
+
+    /// <summary>
+    /// Parses an SGR mouse escape sequence (ESC [ &lt; Cb ; Cx ; Cy M/m).
+    /// </summary>
+    private static (Hex1bMouseEvent? Event, int Consumed) ParseSgrMouseSequence(string message, int start)
+    {
+        // Minimum sequence is ESC [ < N ; N ; N M (at least 9 chars for single digits)
+        // e.g., \x1b[<0;1;1M = 9 characters
+        if (start + 8 >= message.Length)
+            return (null, 3);
+
+        var i = start + 3; // Skip ESC [ <
+        
+        // Find the terminator (M or m)
+        var terminatorIdx = -1;
+        for (var j = i; j < message.Length; j++)
+        {
+            if (message[j] == 'M' || message[j] == 'm')
+            {
+                terminatorIdx = j;
+                break;
+            }
+            // If we hit something that's not a digit, semicolon, or terminator, abort
+            if (!char.IsDigit(message[j]) && message[j] != ';')
+            {
+                return (null, 3);
+            }
+        }
+        
+        if (terminatorIdx < 0)
+            return (null, 3);
+        
+        // Extract the parameter part and parse with MouseParser
+        var sgrPart = message.Substring(i, terminatorIdx - i + 1);
+        if (MouseParser.TryParseSgr(sgrPart, out var mouseEvent))
+        {
+            return (mouseEvent, terminatorIdx - start + 1);
+        }
+        
+        return (null, 3);
     }
 
     /// <inheritdoc />

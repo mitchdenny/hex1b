@@ -17,6 +17,7 @@ builder.Services.AddSingleton<IGalleryExhibit, ResponsiveTodoExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, LayoutExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, SplittersExhibit>();
 builder.Services.AddSingleton<IGalleryExhibit, ReactiveBarChartExhibit>();
+builder.Services.AddSingleton<IGalleryExhibit, MouseExhibit>();
 
 var app = builder.Build();
 
@@ -75,7 +76,7 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24);
+    using var terminal = new WebSocketHex1bTerminal(webSocket, 80, 24, enableMouse: exhibit.EnableMouse);
     
     // Check if the exhibit manages its own app lifecycle
     var runTask = exhibit.RunAsync(terminal, cts.Token);
@@ -91,9 +92,13 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
         // Use the traditional widget builder pattern
         var widgetBuilder = exhibit.CreateWidgetBuilder()!;
         var themeProvider = exhibit.CreateThemeProvider();
-        var hex1bApp = themeProvider != null
-            ? new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal, ThemeProvider = themeProvider })
-            : new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), new Hex1bAppOptions { Terminal = terminal });
+        var options = new Hex1bAppOptions 
+        { 
+            Terminal = terminal, 
+            ThemeProvider = themeProvider,
+            EnableMouse = exhibit.EnableMouse
+        };
+        var hex1bApp = new Hex1bApp<object>(new object(), (ctx, ct) => widgetBuilder(ct), options);
         
         appTask = hex1bApp.RunAsync(cts.Token);
     }

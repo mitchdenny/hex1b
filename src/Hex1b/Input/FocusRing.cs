@@ -127,4 +127,31 @@ public sealed class FocusRing
             current = current.Parent;
         }
     }
+    
+    /// <summary>
+    /// Finds the focusable node at the given screen coordinates.
+    /// Returns the topmost (last in render order) focusable node whose bounds contain the point.
+    /// </summary>
+    /// <param name="x">X coordinate (0-based column).</param>
+    /// <param name="y">Y coordinate (0-based row).</param>
+    /// <returns>The focusable node at the position, or null if none.</returns>
+    public Hex1bNode? HitTest(int x, int y)
+    {
+        // Search in reverse order (last rendered = topmost)
+        for (int i = _focusables.Count - 1; i >= 0; i--)
+        {
+            var node = _focusables[i];
+            // Use HitTestBounds which may be more specific than Bounds
+            // (e.g., SplitterNode returns only the divider area)
+            var bounds = node.HitTestBounds;
+            
+            if (x >= bounds.X && x < bounds.Right && 
+                y >= bounds.Y && y < bounds.Bottom)
+            {
+                return node;
+            }
+        }
+        
+        return null;
+    }
 }

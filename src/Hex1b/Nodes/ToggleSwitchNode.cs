@@ -27,6 +27,37 @@ public sealed class ToggleSwitchNode : Hex1bNode
     private void MovePrevious() => State.MovePrevious();
     private void MoveNext() => State.MoveNext();
 
+    /// <summary>
+    /// Handles mouse click by selecting the option at the clicked X position.
+    /// </summary>
+    public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
+    {
+        var options = State.Options;
+        if (options.Count == 0) return InputResult.NotHandled;
+
+        // Calculate which option was clicked based on the X position
+        // Format: "[ Option1 | Option2 | Option3 ]"
+        // Left bracket takes 2 chars: "[ "
+        var currentX = 2; // Start after "[ "
+        
+        for (int i = 0; i < options.Count; i++)
+        {
+            var optionWidth = options[i].Length;
+            var endX = currentX + optionWidth;
+            
+            if (localX >= currentX && localX < endX)
+            {
+                State.SelectedIndex = i;
+                return InputResult.Handled;
+            }
+            
+            // Move past this option and the separator " | " (3 chars)
+            currentX = endX + 3;
+        }
+        
+        return InputResult.NotHandled;
+    }
+
     public override Size Measure(Constraints constraints)
     {
         var options = State.Options;

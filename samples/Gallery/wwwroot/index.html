@@ -698,6 +698,9 @@
                 allowProposedApi: true
             });
 
+            // The server will send escape sequences to enable mouse tracking
+            // xterm.js will then report mouse events via onData/onBinary
+
             term.open(document.getElementById(`main-term-${exhibit.id}`));
             
             // Load Unicode11 addon for proper wide character width handling (emoji, CJK)
@@ -747,6 +750,17 @@
                 }
             });
 
+            // Enable mouse reporting - xterm.js uses onBinary for mouse events in SGR mode
+            // Note: We need to adjust mouse coordinates when CSS scaling is applied,
+            // as xterm.js calculates coordinates based on the visual (scaled) size.
+            term.onBinary((data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    // Check if this is an SGR mouse sequence and adjust for scale
+                    const adjusted = adjustMouseCoordinatesForScale(data, exhibit.id);
+                    ws.send(adjusted);
+                }
+            });
+
             websockets[exhibit.id] = ws;
             terminalSizes[exhibit.id] = 0; // Default to first size
 
@@ -759,29 +773,26 @@
                 focusTerminal(exhibit.id);
             }, 50);
         }
+        
+        // Pass through mouse coordinates without adjustment.
+        // CSS scaling is disabled to avoid xterm.js mouse coordinate issues.
+        function adjustMouseCoordinatesForScale(data, exhibitId) {
+            return data;
+        }
 
         function scaleTerminalToFit(id) {
+            // DISABLED: CSS transform scaling breaks xterm.js mouse coordinate calculation.
+            // xterm.js uses getBoundingClientRect() which returns scaled dimensions,
+            // causing mouse coordinates to be incorrect when CSS transforms are applied.
+            // See: https://github.com/xtermjs/xterm.js/issues/2488
+            // 
+            // Instead, we let terminals render at their native size.
+            // Users can use the size buttons or drag-resize to choose a size that fits.
             const wrapper = document.getElementById(`main-wrapper-${id}`);
-            const mainArea = document.querySelector('.main-area');
-            if (!wrapper || !mainArea) return;
-
-            // Reset scale to measure natural size
-            wrapper.style.transform = 'scale(1)';
-
-            // Get available space (with padding buffer)
-            const availableWidth = mainArea.clientWidth - 48;
-            const availableHeight = mainArea.clientHeight - 48;
-
-            // Get wrapper size (includes terminal + source panel if open)
-            const wrapperWidth = wrapper.offsetWidth;
-            const wrapperHeight = wrapper.offsetHeight;
-
-            // Calculate scale to fit
-            const scaleX = availableWidth / wrapperWidth;
-            const scaleY = availableHeight / wrapperHeight;
-            const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
-
-            wrapper.style.transform = `scale(${scale})`;
+            if (wrapper) {
+                wrapper.style.transform = 'scale(1)';
+                wrapper.dataset.scale = '1';
+            }
         }
 
         function resizeTerminal(id, sizeIdx, event) {
@@ -833,8 +844,9 @@
             }
 
             // Clear and reset terminal
-            if (mainTerminals[id]) {
-                mainTerminals[id].reset();
+            const term = mainTerminals[id];
+            if (term) {
+                term.reset();
             }
 
             // Reconnect websocket
@@ -843,16 +855,25 @@
             const ws = new WebSocket(wsUrl);
 
             ws.onmessage = (event) => {
-                mainTerminals[id].write(event.data);
+                term.write(event.data);
             };
 
             ws.onclose = () => {
-                mainTerminals[id].write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+                term.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
             };
 
-            mainTerminals[id].onData((data) => {
+            term.onData((data) => {
                 if (ws.readyState === WebSocket.OPEN) {
                     ws.send(data);
+                }
+            });
+
+            // Enable mouse reporting - xterm.js uses onBinary for mouse events in SGR mode
+            // Adjust coordinates for CSS scaling
+            term.onBinary((data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    const adjusted = adjustMouseCoordinatesForScale(data, id);
+                    ws.send(adjusted);
                 }
             });
 

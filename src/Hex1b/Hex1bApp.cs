@@ -25,6 +25,11 @@ public class Hex1bApp<TState> : IDisposable
     private readonly FocusRing _focusRing = new();
     private Hex1bNode? _rootNode;
     
+    // Mouse tracking
+    private int _mouseX = -1;
+    private int _mouseY = -1;
+    private bool _mouseEnabled;
+    
     // Channel for signaling that a re-render is needed (from Invalidate() calls)
     private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) 
@@ -54,7 +59,19 @@ public class Hex1bApp<TState> : IDisposable
         _rootContext = new RootContext<TState>(state);
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
-        _terminal = options.Terminal ?? new ConsoleHex1bTerminal();
+        
+        // Check if mouse is enabled in options
+        _mouseEnabled = options.EnableMouse;
+        
+        // Create terminal with mouse support if enabled
+        if (options.Terminal != null)
+        {
+            _terminal = options.Terminal;
+        }
+        else
+        {
+            _terminal = new ConsoleHex1bTerminal(enableMouse: _mouseEnabled);
+        }
         _ownsTerminal = options.OwnsTerminal ?? (options.Terminal == null);
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
@@ -138,6 +155,18 @@ public class Hex1bApp<TState> : IDisposable
                             // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
                             InputRouter.RouteInput(_rootNode, keyEvent, _focusRing);
                             break;
+                        
+                        // Mouse events: update cursor position and handle clicks
+                        case Hex1bMouseEvent mouseEvent:
+                            _mouseX = mouseEvent.X;
+                            _mouseY = mouseEvent.Y;
+                            
+                            // Handle click events (button down)
+                            if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
+                            {
+                                HandleMouseClick(mouseEvent);
+                            }
+                            break;
                     }
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)
@@ -191,6 +220,69 @@ public class Hex1bApp<TState> : IDisposable
         // Step 5: Render the node tree to the terminal
         _context.Clear();
         _rootNode?.Render(_context);
+        
+        // Step 6: Render mouse cursor overlay if enabled
+        RenderMouseCursor();
+    }
+    
+    /// <summary>
+    /// Renders the mouse cursor overlay at the current mouse position.
+    /// </summary>
+    private void RenderMouseCursor()
+    {
+        if (!_mouseEnabled || _mouseX < 0 || _mouseY < 0) return;
+        if (_mouseX >= _context.Width || _mouseY >= _context.Height) return;
+        
+        var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
+        if (!showCursor) return;
+        
+        var fgColor = _context.Theme.Get(MouseTheme.CursorForegroundColor);
+        var bgColor = _context.Theme.Get(MouseTheme.CursorBackgroundColor);
+        
+        // Position cursor and render a highlighted block
+        // We use a special marker character or just change the colors at that position
+        _context.SetCursorPosition(_mouseX, _mouseY);
+        
+        var colorCodes = "";
+        if (!fgColor.IsDefault) colorCodes += fgColor.ToForegroundAnsi();
+        if (!bgColor.IsDefault) colorCodes += bgColor.ToBackgroundAnsi();
+        
+        // Render a visible cursor marker (block cursor style)
+        // Using a space with background color, or a special character
+        _context.Write($"{colorCodes} \x1b[0m");
+    }
+    
+    /// <summary>
+    /// Handles a mouse click by hit testing and routing through bindings.
+    /// </summary>
+    private void HandleMouseClick(Hex1bMouseEvent mouseEvent)
+    {
+        // Find the focusable node at the click position
+        var hitNode = _focusRing.HitTest(mouseEvent.X, mouseEvent.Y);
+        
+        if (hitNode == null) return;
+        
+        // Focus the clicked node (if not already focused)
+        if (!hitNode.IsFocused)
+        {
+            _focusRing.Focus(hitNode);
+        }
+        
+        // Check if the node has a mouse binding for this event
+        var builder = hitNode.BuildBindings();
+        foreach (var mouseBinding in builder.MouseBindings)
+        {
+            if (mouseBinding.Matches(mouseEvent))
+            {
+                mouseBinding.Execute();
+                return; // First match wins
+            }
+        }
+        
+        // No binding matched - call the node's HandleMouseClick with local coordinates
+        var localX = mouseEvent.X - hitNode.Bounds.X;
+        var localY = mouseEvent.Y - hitNode.Bounds.Y;
+        hitNode.HandleMouseClick(localX, localY, mouseEvent);
     }
 
     /// <summary>

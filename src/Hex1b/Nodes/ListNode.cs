@@ -36,6 +36,21 @@ public sealed class ListNode : Hex1bNode
         }
     }
 
+    /// <summary>
+    /// Handles mouse click by selecting the item at the clicked row.
+    /// </summary>
+    public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
+    {
+        var items = State.Items;
+        if (localY >= 0 && localY < items.Count)
+        {
+            State.SelectedIndex = localY;
+            ActivateItem();
+            return InputResult.Handled;
+        }
+        return InputResult.NotHandled;
+    }
+
     public override Size Measure(Constraints constraints)
     {
         // List: width is max item length + indicator (2 chars), height is item count

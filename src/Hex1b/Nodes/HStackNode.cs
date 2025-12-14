@@ -7,6 +7,11 @@ public sealed class HStackNode : Hex1bNode
 {
     public List<Hex1bNode> Children { get; set; } = new();
 
+    /// <summary>
+    /// HStack manages focus for its descendants, so nested containers don't independently set focus.
+    /// </summary>
+    public override bool ManagesChildFocus => true;
+
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
         foreach (var child in Children)

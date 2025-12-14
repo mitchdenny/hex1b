@@ -83,6 +83,17 @@ public abstract class Hex1bNode
     public virtual InputResult HandleInput(Hex1bKeyEvent keyEvent) => InputResult.NotHandled;
 
     /// <summary>
+    /// Handles a mouse click event (after mouse bindings have been checked).
+    /// Override this in nodes to handle clicks that weren't matched by any mouse binding.
+    /// The coordinates in the event are local to this node's bounds (0,0 is top-left of node).
+    /// </summary>
+    /// <param name="localX">The X coordinate relative to this node's bounds.</param>
+    /// <param name="localY">The Y coordinate relative to this node's bounds.</param>
+    /// <param name="mouseEvent">The original mouse event (with absolute coordinates).</param>
+    /// <returns>Handled if the click was consumed, NotHandled otherwise.</returns>
+    public virtual InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent) => InputResult.NotHandled;
+
+    /// <summary>
     /// Returns true if this node can receive focus.
     /// </summary>
     public virtual bool IsFocusable => false;
@@ -123,4 +134,11 @@ public abstract class Hex1bNode
     /// Container nodes should override this to return their children.
     /// </summary>
     public virtual IEnumerable<Hex1bNode> GetChildren() => [];
+
+    /// <summary>
+    /// Gets the bounds used for mouse hit testing.
+    /// By default, returns the full Bounds. Override in nodes where only a portion
+    /// of the bounds should respond to clicks (e.g., SplitterNode's divider).
+    /// </summary>
+    public virtual Rect HitTestBounds => Bounds;
 }

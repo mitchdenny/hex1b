@@ -94,3 +94,43 @@ public sealed record Hex1bResizeEvent(int Width, int Height) : Hex1bEvent;
 /// </summary>
 /// <param name="Response">The raw terminal response string.</param>
 public sealed record Hex1bTerminalEvent(string Response) : Hex1bEvent;
+
+/// <summary>
+/// The type of mouse button involved in a mouse event.
+/// </summary>
+public enum MouseButton
+{
+    None = 0,
+    Left = 1,
+    Middle = 2,
+    Right = 3,
+    ScrollUp = 4,
+    ScrollDown = 5,
+}
+
+/// <summary>
+/// The type of mouse action.
+/// </summary>
+public enum MouseAction
+{
+    Move,
+    Down,
+    Up,
+    Drag,
+}
+
+/// <summary>
+/// A mouse input event.
+/// </summary>
+/// <param name="Button">The mouse button involved (None for move events).</param>
+/// <param name="Action">The type of mouse action.</param>
+/// <param name="X">The X coordinate (0-based column).</param>
+/// <param name="Y">The Y coordinate (0-based row).</param>
+/// <param name="Modifiers">The modifier keys held during the event.</param>
+public sealed record Hex1bMouseEvent(
+    MouseButton Button,
+    MouseAction Action,
+    int X,
+    int Y,
+    Hex1bModifiers Modifiers
+) : Hex1bEvent;

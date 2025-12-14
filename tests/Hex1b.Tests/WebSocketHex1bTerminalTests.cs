@@ -233,6 +233,72 @@ public class WebSocketHex1bTerminalTests
         Assert.Equal(expectedKey, receivedEvent.Key);
     }
 
+    [Theory]
+    [InlineData("\x1b[<0;10;5M", MouseButton.Left, MouseAction.Down, 9, 4)]  // Left click at (10,5) -> 0-based (9,4)
+    [InlineData("\x1b[<2;20;10M", MouseButton.Right, MouseAction.Down, 19, 9)]  // Right click
+    [InlineData("\x1b[<35;15;8M", MouseButton.None, MouseAction.Move, 14, 7)]  // Mouse move (35 = 32 + 3)
+    [InlineData("\x1b[<0;5;5m", MouseButton.Left, MouseAction.Up, 4, 4)]  // Left release (lowercase m)
+    public async Task ProcessInputAsync_ParsesMouseEvents(string sequence, MouseButton expectedButton, MouseAction expectedAction, int expectedX, int expectedY)
+    {
+        // Arrange
+        using var mockWebSocket = new MockWebSocket();
+        mockWebSocket.QueueMessage(sequence);
+        using var terminal = new WebSocketHex1bTerminal(mockWebSocket, enableMouse: true);
+        
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        
+        // Act
+        var processTask = terminal.ProcessInputAsync(cts.Token);
+        
+        Hex1bMouseEvent? receivedEvent = null;
+        try
+        {
+            receivedEvent = await terminal.InputEvents.ReadAsync(cts.Token) as Hex1bMouseEvent;
+        }
+        catch (OperationCanceledException) { }
+        
+        // Assert
+        Assert.NotNull(receivedEvent);
+        Assert.Equal(expectedButton, receivedEvent.Button);
+        Assert.Equal(expectedAction, receivedEvent.Action);
+        Assert.Equal(expectedX, receivedEvent.X);
+        Assert.Equal(expectedY, receivedEvent.Y);
+    }
+
+    [Fact]
+    public void EnterAlternateScreen_WithMouse_SendsMouseTrackingEscapes()
+    {
+        // Arrange
+        using var mockWebSocket = new MockWebSocket();
+        using var terminal = new WebSocketHex1bTerminal(mockWebSocket, enableMouse: true);
+
+        // Act
+        terminal.EnterAlternateScreen();
+
+        // Assert - should contain mouse tracking enable sequences
+        var sent = mockWebSocket.SentData;
+        Assert.Contains("\x1b[?1000h", sent);  // Enable mouse button events
+        Assert.Contains("\x1b[?1003h", sent);  // Enable all motion events
+        Assert.Contains("\x1b[?1006h", sent);  // Enable SGR extended mode
+    }
+
+    [Fact]
+    public void ExitAlternateScreen_WithMouse_SendsMouseTrackingDisableEscapes()
+    {
+        // Arrange
+        using var mockWebSocket = new MockWebSocket();
+        using var terminal = new WebSocketHex1bTerminal(mockWebSocket, enableMouse: true);
+
+        // Act
+        terminal.ExitAlternateScreen();
+
+        // Assert - should contain mouse tracking disable sequences
+        var sent = mockWebSocket.SentData;
+        Assert.Contains("\x1b[?1000l", sent);  // Disable mouse button events
+        Assert.Contains("\x1b[?1003l", sent);  // Disable all motion events
+        Assert.Contains("\x1b[?1006l", sent);  // Disable SGR extended mode
+    }
+
     /// <summary>
     /// Mock WebSocket for testing that captures sent data and can queue messages to receive.
     /// </summary>

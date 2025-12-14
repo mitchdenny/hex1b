@@ -8,6 +8,7 @@ public sealed class InputBindingsBuilder
 {
     private readonly List<InputBinding> _bindings = [];
     private readonly List<CharacterBinding> _characterBindings = [];
+    private readonly List<MouseBinding> _mouseBindings = [];
 
     /// <summary>
     /// Gets all key bindings currently configured.
@@ -20,6 +21,11 @@ public sealed class InputBindingsBuilder
     /// Character bindings are checked after key bindings as a fallback.
     /// </summary>
     public IReadOnlyList<CharacterBinding> CharacterBindings => _characterBindings;
+    
+    /// <summary>
+    /// Gets all mouse bindings currently configured.
+    /// </summary>
+    public IReadOnlyList<MouseBinding> MouseBindings => _mouseBindings;
 
     /// <summary>
     /// Creates an empty builder.
@@ -47,6 +53,11 @@ public sealed class InputBindingsBuilder
     /// Starts building a key step with the given key (no modifiers).
     /// </summary>
     public KeyStepBuilder Key(Hex1bKey key) => new KeyStepBuilder(this).Key(key);
+
+    /// <summary>
+    /// Starts building a mouse binding for the given button.
+    /// </summary>
+    public MouseStepBuilder Mouse(MouseButton button) => new MouseStepBuilder(this, button);
 
     /// <summary>
     /// Starts building a character binding that matches any printable text.
@@ -79,6 +90,14 @@ public sealed class InputBindingsBuilder
     internal void AddCharacterBinding(CharacterBinding binding)
     {
         _characterBindings.Add(binding);
+    }
+
+    /// <summary>
+    /// Adds a pre-built mouse binding directly.
+    /// </summary>
+    internal void AddMouseBinding(MouseBinding binding)
+    {
+        _mouseBindings.Add(binding);
     }
 
     /// <summary>

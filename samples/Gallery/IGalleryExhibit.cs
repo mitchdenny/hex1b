@@ -23,6 +23,11 @@ public interface IGalleryExhibit
     /// Brief description of what this exhibit demonstrates.
     /// </summary>
     string Description { get; }
+    
+    /// <summary>
+    /// Whether this exhibit requires mouse support.
+    /// </summary>
+    bool EnableMouse => true;
 
     /// <summary>
     /// Creates the Hex1b widget builder for this exhibit.

@@ -60,6 +60,27 @@ public sealed class SplitterNode : Hex1bNode
     /// </summary>
     private int DividerSize => Orientation == SplitterOrientation.Horizontal ? 3 : 1;
 
+    /// <summary>
+    /// Returns the bounds of just the divider for mouse hit testing.
+    /// This prevents clicks on child panes from being captured by the splitter.
+    /// </summary>
+    public override Rect HitTestBounds
+    {
+        get
+        {
+            if (Orientation == SplitterOrientation.Horizontal)
+            {
+                // Divider is a vertical strip at position FirstSize
+                return new Rect(Bounds.X + FirstSize, Bounds.Y, DividerSize, Bounds.Height);
+            }
+            else
+            {
+                // Divider is a horizontal strip at position FirstSize
+                return new Rect(Bounds.X, Bounds.Y + FirstSize, Bounds.Width, DividerSize);
+            }
+        }
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Resize bindings

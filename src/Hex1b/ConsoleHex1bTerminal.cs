@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
 
@@ -22,9 +23,12 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     private PosixSignalRegistration? _sigwinchRegistration;
     private int _lastWidth;
     private int _lastHeight;
+    private readonly bool _enableMouse;
 
-    public ConsoleHex1bTerminal()
+    public ConsoleHex1bTerminal(bool enableMouse = false)
     {
+        _enableMouse = enableMouse;
+        
         // Disable Ctrl+C handling at Console level so we get the key event
         Console.TreatControlCAsInput = true;
         
@@ -88,6 +92,10 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     {
         Console.Write(EnterAlternateBuffer);
         Console.Write(HideCursor);
+        if (_enableMouse)
+        {
+            Console.Write(MouseParser.EnableMouseTracking);
+        }
         Console.Write(ClearScreen);
         Console.Write(MoveCursorHome);
         Console.Out.Flush();
@@ -95,6 +103,10 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
 
     public void ExitAlternateScreen()
     {
+        if (_enableMouse)
+        {
+            Console.Write(MouseParser.DisableMouseTracking);
+        }
         Console.Write(ShowCursor);
         Console.Write(ExitAlternateBuffer);
         Console.Out.Flush();
@@ -104,27 +116,145 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     {
         try
         {
+            // Use a StringBuilder to accumulate escape sequences
+            var escapeBuffer = new StringBuilder();
+            var inEscapeSequence = false;
+            var inMouseSequence = false;
+            
             while (!cancellationToken.IsCancellationRequested)
             {
-                // Console.KeyAvailable is non-blocking check
-                if (Console.KeyAvailable)
+                if (_enableMouse)
                 {
-                    var keyInfo = Console.ReadKey(intercept: true);
-                    var evt = new Hex1bKeyEvent(
-                        KeyMapper.ToHex1bKey(keyInfo.Key),
-                        keyInfo.KeyChar,
-                        KeyMapper.ToHex1bModifiers(
-                            (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
-                            (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
-                            (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
-                        )
-                    );
-                    await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
+                    // For mouse support, we need to read raw bytes to capture escape sequences
+                    if (Console.KeyAvailable)
+                    {
+                        var keyInfo = Console.ReadKey(intercept: true);
+                        
+                        // Check for escape character
+                        if (keyInfo.Key == ConsoleKey.Escape || keyInfo.KeyChar == '\x1b')
+                        {
+                            // Start of escape sequence
+                            inEscapeSequence = true;
+                            escapeBuffer.Clear();
+                            escapeBuffer.Append('\x1b');
+                            
+                            // Read the rest of the escape sequence with a small timeout
+                            var sequenceStart = DateTime.UtcNow;
+                            while ((DateTime.UtcNow - sequenceStart).TotalMilliseconds < 50)
+                            {
+                                if (Console.KeyAvailable)
+                                {
+                                    var nextKey = Console.ReadKey(intercept: true);
+                                    escapeBuffer.Append(nextKey.KeyChar);
+                                    
+                                    // Check if this is a mouse sequence start
+                                    if (escapeBuffer.Length == 2 && nextKey.KeyChar == '[')
+                                    {
+                                        // Could be CSI sequence
+                                    }
+                                    else if (escapeBuffer.Length == 3 && escapeBuffer[2] == '<')
+                                    {
+                                        // SGR mouse sequence
+                                        inMouseSequence = true;
+                                    }
+                                    
+                                    // Check if sequence is complete
+                                    if (inMouseSequence)
+                                    {
+                                        if (nextKey.KeyChar == 'M' || nextKey.KeyChar == 'm')
+                                        {
+                                            // Mouse sequence complete
+                                            var sequence = escapeBuffer.ToString();
+                                            if (sequence.StartsWith("\x1b[<"))
+                                            {
+                                                var sgrPart = sequence[3..]; // Remove \e[<
+                                                if (MouseParser.TryParseSgr(sgrPart, out var mouseEvent) && mouseEvent != null)
+                                                {
+                                                    await _inputChannel.Writer.WriteAsync(mouseEvent, cancellationToken);
+                                                }
+                                            }
+                                            inEscapeSequence = false;
+                                            inMouseSequence = false;
+                                            escapeBuffer.Clear();
+                                            break;
+                                        }
+                                    }
+                                    else if (!char.IsDigit(nextKey.KeyChar) && nextKey.KeyChar != ';' && nextKey.KeyChar != '<' && nextKey.KeyChar != '[')
+                                    {
+                                        // Some other CSI sequence (arrow keys, etc.) - pass as key event
+                                        var evt = new Hex1bKeyEvent(
+                                            KeyMapper.ToHex1bKey(keyInfo.Key),
+                                            keyInfo.KeyChar,
+                                            KeyMapper.ToHex1bModifiers(
+                                                (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
+                                                (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
+                                                (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
+                                            )
+                                        );
+                                        await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
+                                        inEscapeSequence = false;
+                                        escapeBuffer.Clear();
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    await Task.Delay(1, cancellationToken);
+                                }
+                            }
+                            
+                            // If we timed out without completing, send as plain Escape
+                            if (inEscapeSequence && !inMouseSequence)
+                            {
+                                var evt = new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None);
+                                await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
+                                inEscapeSequence = false;
+                                escapeBuffer.Clear();
+                            }
+                        }
+                        else
+                        {
+                            // Regular key
+                            var evt = new Hex1bKeyEvent(
+                                KeyMapper.ToHex1bKey(keyInfo.Key),
+                                keyInfo.KeyChar,
+                                KeyMapper.ToHex1bModifiers(
+                                    (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
+                                    (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
+                                    (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
+                                )
+                            );
+                            await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        // Small delay to avoid busy-waiting
+                        await Task.Delay(10, cancellationToken);
+                    }
                 }
                 else
                 {
-                    // Small delay to avoid busy-waiting
-                    await Task.Delay(10, cancellationToken);
+                    // Original simple key reading (no mouse support)
+                    if (Console.KeyAvailable)
+                    {
+                        var keyInfo = Console.ReadKey(intercept: true);
+                        var evt = new Hex1bKeyEvent(
+                            KeyMapper.ToHex1bKey(keyInfo.Key),
+                            keyInfo.KeyChar,
+                            KeyMapper.ToHex1bModifiers(
+                                (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
+                                (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
+                                (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
+                            )
+                        );
+                        await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
+                    }
+                    else
+                    {
+                        // Small delay to avoid busy-waiting
+                        await Task.Delay(10, cancellationToken);
+                    }
                 }
             }
         }

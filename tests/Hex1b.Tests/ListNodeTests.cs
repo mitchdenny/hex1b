@@ -881,4 +881,61 @@ public class ListNodeTests
     }
 
     #endregion
+
+    #region Mouse Click Tests
+
+    [Fact]
+    public void HandleMouseClick_SelectsClickedItem()
+    {
+        string? activatedItem = null;
+        var node = new ListNode
+        {
+            State = CreateListState("First", "Second", "Third")
+        };
+        node.State.OnItemActivated = item => activatedItem = item?.Text;
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 20, 3));
+
+        // Click on the second item (row 1)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 1, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(5, 1, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(1, node.State.SelectedIndex);
+        Assert.Equal("Second", activatedItem);
+    }
+
+    [Fact]
+    public void HandleMouseClick_OutOfBounds_ReturnsNotHandled()
+    {
+        var node = new ListNode
+        {
+            State = CreateListState("First", "Second")
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 20, 2));
+
+        // Click outside the list bounds (row 5)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 5, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(5, 5, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+        Assert.Equal(0, node.State.SelectedIndex); // Unchanged
+    }
+
+    [Fact]
+    public void HandleMouseClick_NegativeY_ReturnsNotHandled()
+    {
+        var node = new ListNode
+        {
+            State = CreateListState("First", "Second")
+        };
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, -1, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(5, -1, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+    }
+
+    #endregion
 }

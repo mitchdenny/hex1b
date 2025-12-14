@@ -581,4 +581,80 @@ public class ToggleSwitchNodeTests
     }
 
     #endregion
+
+    #region Mouse Click Tests
+
+    [Fact]
+    public void HandleMouseClick_SelectsClickedOption()
+    {
+        // Format: "[ Manual | Auto | Delayed ]"
+        // Positions: 0-1="[ ", 2-7="Manual", 8-10=" | ", 11-14="Auto", 15-17=" | ", 18-24="Delayed", 25-26=" ]"
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["Manual", "Auto", "Delayed"] }
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 27, 1));
+
+        // Click on "Auto" (local X position within "Auto" range: starts at 11)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 12, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(12, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(1, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleMouseClick_FirstOption_SelectsIndex0()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["On", "Off"] }
+        };
+        node.State.SelectedIndex = 1; // Start with second selected
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 13, 1));
+
+        // Click on "On" (starts at X=2)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(3, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.State.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleMouseClick_OnBracket_ReturnsNotHandled()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = ["On", "Off"] }
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 13, 1));
+
+        // Click on the left bracket (X=0 or 1)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(0, 0, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+    }
+
+    [Fact]
+    public void HandleMouseClick_EmptyOptions_ReturnsNotHandled()
+    {
+        var node = new ToggleSwitchNode
+        {
+            State = new ToggleSwitchState { Options = [] }
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(5, 0, mouseEvent);
+
+        Assert.Equal(InputResult.NotHandled, result);
+    }
+
+    #endregion
 }

@@ -27,4 +27,11 @@ public class Hex1bAppOptions
     /// Defaults to true if Terminal is null (app creates its own terminal).
     /// </summary>
     public bool? OwnsTerminal { get; set; }
+    
+    /// <summary>
+    /// Whether to enable mouse support. When enabled, the terminal will track mouse
+    /// movement and clicks, rendering a visible cursor at the mouse position.
+    /// Default is false.
+    /// </summary>
+    public bool EnableMouse { get; set; }
 }
