@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -200,9 +201,9 @@ public class HStackNodeTests
         };
         node.InvalidateFocusCache();
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.False(button1.IsFocused);
         Assert.True(button2.IsFocused);
     }
@@ -210,8 +211,8 @@ public class HStackNodeTests
     [Fact]
     public void HandleInput_ShiftTab_MovesFocusBackward()
     {
-        var button1 = new ButtonNode { Label = "1", IsFocused = false };
-        var button2 = new ButtonNode { Label = "2", IsFocused = true };
+        var button1 = new ButtonNode { Label = "1", IsFocused = true };
+        var button2 = new ButtonNode { Label = "2", IsFocused = false };
 
         var node = new HStackNode
         {
@@ -219,12 +220,11 @@ public class HStackNodeTests
         };
         node.InvalidateFocusCache();
 
-        // Tab forward then shift-tab back
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', true, false, false));
+        // Shift-tab from button1 should wrap to button2
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
 
-        Assert.True(button1.IsFocused);
-        Assert.False(button2.IsFocused);
+        Assert.False(button1.IsFocused);
+        Assert.True(button2.IsFocused);
     }
 
     [Fact]
@@ -236,7 +236,8 @@ public class HStackNodeTests
         var node = new HStackNode { Children = new List<Hex1bNode> { button } };
         node.InvalidateFocusCache();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        // Use InputRouter to route input to the focused child
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
         Assert.True(clicked);
     }

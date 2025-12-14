@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -22,8 +23,8 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState();
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.H, 'h', false, false, false));
-        state.HandleInput(new KeyInputEvent(ConsoleKey.I, 'i', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.H, 'h', Hex1bModifiers.None));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None));
         
         Assert.Equal("hi", state.Text);
         Assert.Equal(2, state.CursorPosition);
@@ -34,7 +35,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Backspace, '\b', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
         
         Assert.Equal("hell", state.Text);
         Assert.Equal(4, state.CursorPosition);
@@ -45,7 +46,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Backspace, '\b', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
         
         Assert.Equal("hello", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -56,7 +57,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Delete, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
         
         Assert.Equal("ello", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -67,7 +68,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Delete, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
         
         Assert.Equal("hello", state.Text);
         Assert.Equal(5, state.CursorPosition);
@@ -78,7 +79,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(2, state.CursorPosition);
     }
@@ -88,7 +89,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(0, state.CursorPosition);
     }
@@ -98,7 +99,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(3, state.CursorPosition);
     }
@@ -108,7 +109,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(5, state.CursorPosition);
     }
@@ -118,7 +119,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Home, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
         
         Assert.Equal(0, state.CursorPosition);
     }
@@ -128,7 +129,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.End, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
         
         Assert.Equal(5, state.CursorPosition);
     }
@@ -138,7 +139,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', true, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
         
         Assert.True(state.HasSelection);
         Assert.Equal(2, state.CursorPosition);
@@ -151,8 +152,8 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 1 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', true, false, false));
-        state.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', true, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
         
         Assert.True(state.HasSelection);
         Assert.Equal(3, state.CursorPosition);
@@ -166,7 +167,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 4, SelectionAnchor = 1 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
         
         Assert.False(state.HasSelection);
         Assert.Equal(1, state.CursorPosition);
@@ -177,7 +178,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello", CursorPosition = 1, SelectionAnchor = 4 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
         
         Assert.False(state.HasSelection);
         Assert.Equal(4, state.CursorPosition);
@@ -188,7 +189,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 8, SelectionAnchor = 5 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Backspace, '\b', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
         
         // Selection from 5 to 8 is " wo", so "hello world" becomes "hellorld"
         Assert.Equal("hellorld", state.Text);
@@ -201,7 +202,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 3, SelectionAnchor = 8 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Delete, '\0', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
         
         Assert.Equal("helrld", state.Text);
         Assert.Equal(3, state.CursorPosition);
@@ -213,7 +214,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 6, SelectionAnchor = 11 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.X, 'X', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
         
         Assert.Equal("hello X", state.Text);
         Assert.Equal(7, state.CursorPosition);
@@ -225,7 +226,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 3 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, true));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
         
         Assert.True(state.HasSelection);
         Assert.Equal(0, state.SelectionStart);
@@ -238,7 +239,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, true));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
         
         Assert.False(state.HasSelection);
     }
@@ -248,7 +249,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 6 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.Home, '\0', true, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.Shift));
         
         Assert.True(state.HasSelection);
         Assert.Equal(0, state.SelectionStart);
@@ -260,7 +261,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hello world", CursorPosition = 3 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.End, '\0', true, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Shift));
         
         Assert.True(state.HasSelection);
         Assert.Equal(3, state.SelectionStart);
@@ -294,7 +295,7 @@ public class TextBoxStateTests
     {
         var state = new TextBoxState { Text = "hllo", CursorPosition = 1 };
         
-        state.HandleInput(new KeyInputEvent(ConsoleKey.E, 'e', false, false, false));
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.E, 'e', Hex1bModifiers.None));
         
         Assert.Equal("hello", state.Text);
         Assert.Equal(2, state.CursorPosition);

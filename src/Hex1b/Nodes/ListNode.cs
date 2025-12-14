@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -77,30 +78,27 @@ public sealed class ListNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
     {
-        if (!IsFocused) return false;
+        if (!IsFocused) return InputResult.NotHandled;
 
-        if (evt is KeyInputEvent keyEvent)
+        switch (keyEvent.Key)
         {
-            switch (keyEvent.Key)
-            {
-                case ConsoleKey.UpArrow:
-                    State.MoveUp();
-                    return true;
-                case ConsoleKey.DownArrow:
-                    State.MoveDown();
-                    return true;
-                case ConsoleKey.Enter:
-                case ConsoleKey.Spacebar:
-                    // Trigger item activated on Enter or Space
-                    if (State.SelectedItem != null)
-                    {
-                        State.OnItemActivated?.Invoke(State.SelectedItem);
-                    }
-                    return true;
-            }
+            case Hex1bKey.UpArrow:
+                State.MoveUp();
+                return InputResult.Handled;
+            case Hex1bKey.DownArrow:
+                State.MoveDown();
+                return InputResult.Handled;
+            case Hex1bKey.Enter:
+            case Hex1bKey.Spacebar:
+                // Trigger item activated on Enter or Space
+                if (State.SelectedItem != null)
+                {
+                    State.OnItemActivated?.Invoke(State.SelectedItem);
+                }
+                return InputResult.Handled;
         }
-        return false;
+        return InputResult.NotHandled;
     }
 }

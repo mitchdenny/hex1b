@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
@@ -319,9 +320,10 @@ public class ResponsiveNodeTests
         };
 
         node.Measure(Constraints.Unbounded);
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        // Use InputRouter to route input to the focused child
+        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
@@ -341,9 +343,9 @@ public class ResponsiveNodeTests
         };
 
         node.Measure(Constraints.Unbounded);
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'A', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]

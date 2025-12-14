@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 
 namespace Hex1b;
@@ -24,10 +25,15 @@ public sealed class HStackNode : Hex1bNode
         if (_focusableNodes == null)
         {
             _focusableNodes = GetFocusableNodes().ToList();
-            // Auto-focus the first focusable node if none are focused
-            if (_focusableNodes.Count > 0 && _focusedIndex == 0)
+            // Sync _focusedIndex to match any node that's already focused
+            // (focus is set externally during reconciliation)
+            for (int i = 0; i < _focusableNodes.Count; i++)
             {
-                _focusableNodes[0].IsFocused = true;
+                if (_focusableNodes[i].IsFocused)
+                {
+                    _focusedIndex = i;
+                    break;
+                }
             }
         }
         return _focusableNodes;
@@ -125,10 +131,29 @@ public sealed class HStackNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    /// <summary>
+    /// Checks if any ancestor node manages child focus.
+    /// When an ancestor manages focus, this container should NOT handle Tab.
+    /// </summary>
+    private bool HasAncestorThatManagesFocus()
     {
-        // Handle Tab to move focus
-        if (evt is KeyInputEvent keyEvent && keyEvent.Key == ConsoleKey.Tab)
+        var current = Parent;
+        while (current != null)
+        {
+            if (current.ManagesChildFocus)
+            {
+                return true;
+            }
+            current = current.Parent;
+        }
+        return false;
+    }
+
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+    {
+        // Handle Tab to move focus only if no ancestor manages focus
+        // If an ancestor (like SplitterNode) manages focus, let Tab bubble up to it
+        if (keyEvent.Key == Hex1bKey.Tab && !HasAncestorThatManagesFocus())
         {
             var focusables = GetFocusableNodesList();
             if (focusables.Count > 0)
@@ -140,7 +165,7 @@ public sealed class HStackNode : Hex1bNode
                 }
 
                 // Move focus
-                if (keyEvent.Shift)
+                if (keyEvent.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
                     _focusedIndex = _focusedIndex <= 0 ? focusables.Count - 1 : _focusedIndex - 1;
                 }
@@ -151,18 +176,11 @@ public sealed class HStackNode : Hex1bNode
 
                 // Set new focus
                 focusables[_focusedIndex].IsFocused = true;
-                return true;
+                return InputResult.Handled;
             }
         }
 
-        // Dispatch to focused node
-        var focusablesList = GetFocusableNodesList();
-        if (_focusedIndex >= 0 && _focusedIndex < focusablesList.Count)
-        {
-            return focusablesList[_focusedIndex].HandleInput(evt);
-        }
-
-        return false;
+        return InputResult.NotHandled;
     }
 
     /// <summary>
@@ -187,4 +205,9 @@ public sealed class HStackNode : Hex1bNode
             child.SyncFocusIndex();
         }
     }
+
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren() => Children;
 }

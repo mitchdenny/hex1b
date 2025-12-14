@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -194,9 +195,9 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
@@ -211,9 +212,9 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Spacebar, ' ', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
@@ -228,9 +229,9 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
     }
 
@@ -245,9 +246,9 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
     }
 
@@ -261,9 +262,9 @@ public class ButtonNodeTests
             OnClick = null
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
     }
 
     [Fact]
@@ -277,9 +278,9 @@ public class ButtonNodeTests
             OnClick = () => clicked = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.False(clicked);
     }
 

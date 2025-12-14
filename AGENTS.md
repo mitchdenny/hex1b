@@ -62,7 +62,7 @@ Build widgets → Reconcile → Measure → Arrange → Render → Wait for inpu
 
 ### Widget Definition Pattern
 ```csharp
-// Widgets are records with optional Shortcuts
+// Widgets are records with optional InputBindings
 public record ButtonWidget(string Label, Action OnClick) : Hex1bWidget;
 ```
 
@@ -103,10 +103,10 @@ public void MethodName_Scenario_ExpectedBehavior()
     var node = new ButtonNode { Label = "Test" };
     
     // Act
-    node.HandleInput(new Hex1bInputEvent { Key = ConsoleKey.Enter });
+    var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
     
     // Assert
-    Assert.True(clicked);
+    Assert.Equal(InputResult.Handled, result);
 }
 ```
 
@@ -145,9 +145,9 @@ dotnet run --project apphost.cs
 - Parent containers manage focus among children
 
 ### Input Handling
-- Input flows from `IHex1bTerminal` → `Hex1bApp` → focused `Node`
-- Shortcuts are checked before standard input handling
-- Return `true` from `HandleInput` if the input was consumed
+- Input flows from `IHex1bTerminal` → `Hex1bApp` → `InputRouter` → focused `Node`
+- InputBindings are checked before standard input handling
+- Return `InputResult.Handled` from `HandleInput` if the input was consumed
 
 ## 🎯 When Making Changes
 
@@ -179,7 +179,7 @@ dotnet run --project apphost.cs
 
 ### Unit Testing Nodes
 - Create node directly, set properties, verify behavior
-- Use `Hex1bInputEvent` to simulate input
+- Use `Hex1bKeyEvent` to simulate input
 - Check measured size after `Measure()`
 - Verify rendering output if needed
 

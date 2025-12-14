@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -79,15 +80,10 @@ public sealed class TextBoxNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
     {
-        if (!IsFocused) return false;
+        if (!IsFocused) return InputResult.NotHandled;
 
-        if (evt is KeyInputEvent keyEvent)
-        {
-            State.HandleInput(keyEvent);
-            return true;
-        }
-        return false;
+        return State.HandleInput(keyEvent) ? InputResult.Handled : InputResult.NotHandled;
     }
 }

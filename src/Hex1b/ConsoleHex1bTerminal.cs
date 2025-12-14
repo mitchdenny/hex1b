@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using Hex1b.Input;
 
 namespace Hex1b;
 
@@ -15,7 +16,7 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
     private const string HideCursor = "\x1b[?25l";
     private const string ShowCursor = "\x1b[?25h";
 
-    private readonly Channel<Hex1bInputEvent> _inputChannel;
+    private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly CancellationTokenSource _inputLoopCts;
     private readonly Task _inputLoopTask;
     private PosixSignalRegistration? _sigwinchRegistration;
@@ -27,7 +28,7 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
         // Disable Ctrl+C handling at Console level so we get the key event
         Console.TreatControlCAsInput = true;
         
-        _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
+        _inputChannel = Channel.CreateUnbounded<Hex1bEvent>();
         _inputLoopCts = new CancellationTokenSource();
         
         // Track initial size for resize detection
@@ -59,11 +60,11 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
             _lastHeight = newHeight;
             
             // Write resize event to the channel (non-blocking)
-            _inputChannel.Writer.TryWrite(new ResizeInputEvent(newWidth, newHeight));
+            _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(newWidth, newHeight));
         }
     }
 
-    public ChannelReader<Hex1bInputEvent> InputEvents => _inputChannel.Reader;
+    public ChannelReader<Hex1bEvent> InputEvents => _inputChannel.Reader;
 
     public int Width => Console.WindowWidth;
     public int Height => Console.WindowHeight;
@@ -109,12 +110,14 @@ public sealed class ConsoleHex1bTerminal : IHex1bTerminal, IDisposable
                 if (Console.KeyAvailable)
                 {
                     var keyInfo = Console.ReadKey(intercept: true);
-                    var evt = new KeyInputEvent(
-                        keyInfo.Key,
+                    var evt = new Hex1bKeyEvent(
+                        KeyMapper.ToHex1bKey(keyInfo.Key),
                         keyInfo.KeyChar,
-                        (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
-                        (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
-                        (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
+                        KeyMapper.ToHex1bModifiers(
+                            (keyInfo.Modifiers & ConsoleModifiers.Shift) != 0,
+                            (keyInfo.Modifiers & ConsoleModifiers.Alt) != 0,
+                            (keyInfo.Modifiers & ConsoleModifiers.Control) != 0
+                        )
                     );
                     await _inputChannel.Writer.WriteAsync(evt, cancellationToken);
                 }

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.Channels;
+using Hex1b.Input;
 using Hex1b.Theming;
 
 namespace Hex1b;
@@ -19,7 +20,7 @@ public readonly record struct TerminalCell(char Character, Hex1bColor? Foregroun
 /// </summary>
 public sealed class Hex1bTerminal : IHex1bTerminal, IDisposable
 {
-    private readonly Channel<Hex1bInputEvent> _inputChannel;
+    private readonly Channel<Hex1bEvent> _inputChannel;
     private TerminalCell[,] _screenBuffer;
     private readonly StringBuilder _rawOutput;
     private int _cursorX;
@@ -39,7 +40,7 @@ public sealed class Hex1bTerminal : IHex1bTerminal, IDisposable
         Height = height;
         _screenBuffer = new TerminalCell[height, width];
         _rawOutput = new StringBuilder();
-        _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
+        _inputChannel = Channel.CreateUnbounded<Hex1bEvent>();
         ClearBuffer();
     }
 
@@ -50,7 +51,7 @@ public sealed class Hex1bTerminal : IHex1bTerminal, IDisposable
     public int Height { get; private set; }
 
     /// <inheritdoc />
-    public ChannelReader<Hex1bInputEvent> InputEvents => _inputChannel.Reader;
+    public ChannelReader<Hex1bEvent> InputEvents => _inputChannel.Reader;
 
     /// <summary>
     /// Gets whether the terminal is currently in alternate screen mode.
@@ -210,7 +211,7 @@ public sealed class Hex1bTerminal : IHex1bTerminal, IDisposable
     /// </summary>
     public async ValueTask SendKeyAsync(ConsoleKey key, char keyChar = '\0', bool shift = false, bool alt = false, bool control = false)
     {
-        var evt = new KeyInputEvent(key, keyChar, shift, alt, control);
+        var evt = KeyMapper.ToHex1bKeyEvent(key, keyChar, shift, alt, control);
         await _inputChannel.Writer.WriteAsync(evt);
     }
 
@@ -219,7 +220,25 @@ public sealed class Hex1bTerminal : IHex1bTerminal, IDisposable
     /// </summary>
     public void SendKey(ConsoleKey key, char keyChar = '\0', bool shift = false, bool alt = false, bool control = false)
     {
-        var evt = new KeyInputEvent(key, keyChar, shift, alt, control);
+        var evt = KeyMapper.ToHex1bKeyEvent(key, keyChar, shift, alt, control);
+        _inputChannel.Writer.TryWrite(evt);
+    }
+
+    /// <summary>
+    /// Injects a key input event using the new Hex1bKey type.
+    /// </summary>
+    public async ValueTask SendKeyAsync(Hex1bKey key, char keyChar = '\0', Hex1bModifiers modifiers = Hex1bModifiers.None)
+    {
+        var evt = new Hex1bKeyEvent(key, keyChar, modifiers);
+        await _inputChannel.Writer.WriteAsync(evt);
+    }
+
+    /// <summary>
+    /// Injects a key input event using the new Hex1bKey type synchronously.
+    /// </summary>
+    public void SendKey(Hex1bKey key, char keyChar = '\0', Hex1bModifiers modifiers = Hex1bModifiers.None)
+    {
+        var evt = new Hex1bKeyEvent(key, keyChar, modifiers);
         _inputChannel.Writer.TryWrite(evt);
     }
 

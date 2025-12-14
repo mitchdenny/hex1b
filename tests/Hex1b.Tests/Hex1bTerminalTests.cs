@@ -1,3 +1,5 @@
+using Hex1b.Input;
+
 namespace Hex1b.Tests;
 
 /// <summary>
@@ -158,19 +160,19 @@ public class Hex1bTerminalTests
     {
         using var terminal = new Hex1bTerminal(20, 5);
         
-        await terminal.SendKeyAsync(ConsoleKey.A, 'a');
+        await terminal.SendKeyAsync(Hex1bKey.A, 'a');
         terminal.CompleteInput();
         
-        var events = new List<Hex1bInputEvent>();
+        var events = new List<Hex1bEvent>();
         await foreach (var evt in terminal.InputEvents.ReadAllAsync())
         {
             events.Add(evt);
         }
         
         Assert.Single(events);
-        var keyEvent = Assert.IsType<KeyInputEvent>(events[0]);
-        Assert.Equal(ConsoleKey.A, keyEvent.Key);
-        Assert.Equal('a', keyEvent.KeyChar);
+        var keyEvent = Assert.IsType<Hex1bKeyEvent>(events[0]);
+        Assert.Equal(Hex1bKey.A, keyEvent.Key);
+        Assert.Equal('a', keyEvent.Character);
     }
 
     [Fact]
@@ -181,7 +183,7 @@ public class Hex1bTerminalTests
         await terminal.TypeTextAsync("abc");
         terminal.CompleteInput();
         
-        var events = new List<Hex1bInputEvent>();
+        var events = new List<Hex1bEvent>();
         await foreach (var evt in terminal.InputEvents.ReadAllAsync())
         {
             events.Add(evt);

@@ -102,9 +102,11 @@ public sealed class ResponsiveNode : Hex1bNode
         ActiveChild?.Render(context);
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
     {
-        // Pass input to the active child
-        return ActiveChild?.HandleInput(evt) ?? false;
+        if (ActiveChild != null) yield return ActiveChild;
     }
 }

@@ -77,16 +77,16 @@ new VStackWidget(
 - `SizeHint.Content` - Size to fit content
 - `SizeHint.Fixed(n)` - Fixed size of n units
 
-## 🎹 Input & Shortcuts
+## 🎹 Input Bindings
 
-Define keyboard shortcuts at any level of your widget tree:
+Define keyboard bindings at any level of your widget tree:
 
 ```csharp
 var widget = new SplitterWidget(left, right, 25) with
 {
-    Shortcuts = [
-        new Shortcut(KeyBinding.WithCtrl(ConsoleKey.S), Save, "Save"),
-        new Shortcut(KeyBinding.WithCtrl(ConsoleKey.Q), Quit, "Quit"),
+    InputBindings = [
+        InputBinding.Ctrl(Hex1bKey.S, Save, "Save"),
+        InputBinding.Ctrl(Hex1bKey.Q, Quit, "Quit"),
     ]
 };
 ```
@@ -165,7 +165,7 @@ hex1b/
 │       ├── Nodes/          # Render nodes (mutable, stateful)
 │       ├── Widgets/        # Widget definitions (immutable config)
 │       ├── Theming/        # Theme system and built-in themes
-│       └── Input/          # Keyboard input and shortcuts
+│       └── Input/          # Keyboard input and bindings
 ├── samples/                # Example applications
 ├── tests/
 │   └── Hex1b.Tests/        # Unit tests

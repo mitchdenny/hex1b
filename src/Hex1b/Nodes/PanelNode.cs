@@ -82,9 +82,11 @@ public sealed class PanelNode : Hex1bNode
         context.InheritedBackground = previousBackground;
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
     {
-        // Pass input to child
-        return Child?.HandleInput(evt) ?? false;
+        if (Child != null) yield return Child;
     }
 }

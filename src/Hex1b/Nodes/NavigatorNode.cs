@@ -52,13 +52,6 @@ public sealed class NavigatorNode : Hex1bNode
     }
 
     /// <inheritdoc />
-    public override bool HandleInput(Hex1bInputEvent evt)
-    {
-        // Delegate input handling to the current child
-        return CurrentChild?.HandleInput(evt) ?? false;
-    }
-
-    /// <inheritdoc />
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
         if (CurrentChild != null)
@@ -68,5 +61,13 @@ public sealed class NavigatorNode : Hex1bNode
                 yield return node;
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (CurrentChild != null) yield return CurrentChild;
     }
 }

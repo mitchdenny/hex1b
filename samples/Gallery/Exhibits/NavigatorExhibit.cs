@@ -133,8 +133,8 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 new ButtonWidget("Save Customer", () => SaveNewCustomer(nav))
             ])
             {
-                Shortcuts = [new Shortcut(
-                    KeyBinding.Plain(ConsoleKey.Escape),
+                InputBindings = [InputBinding.Plain(
+                    Hex1bKey.Escape,
                     () => nav.Pop(),
                     "Cancel")]
             };
@@ -250,8 +250,8 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 new ButtonWidget("Save Opportunity", () => SaveNewOpportunity(nav, customer))
             ])
             {
-                Shortcuts = [new Shortcut(
-                    KeyBinding.Plain(ConsoleKey.Escape),
+                InputBindings = [InputBinding.Plain(
+                    Hex1bKey.Escape,
                     () => nav.Pop(),
                     "Cancel")]
             };

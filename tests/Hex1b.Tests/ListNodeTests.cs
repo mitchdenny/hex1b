@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -428,9 +429,9 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
     }
 
@@ -441,9 +442,9 @@ public class ListNodeTests
         state.SelectedIndex = 2;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.SelectedIndex);
     }
 
@@ -454,7 +455,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(0, state.SelectedIndex);
     }
@@ -466,7 +467,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
@@ -478,9 +479,9 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(3, state.SelectedIndex);
     }
@@ -492,8 +493,8 @@ public class ListNodeTests
         state.SelectedIndex = 3;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(1, state.SelectedIndex);
     }
@@ -511,9 +512,9 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
         Assert.Equal("Item 2", activatedItem.Text);
     }
@@ -527,9 +528,9 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Spacebar, ' ', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
         Assert.Equal("Item 1", activatedItem.Text);
     }
@@ -542,9 +543,9 @@ public class ListNodeTests
         // No OnItemActivated callback set
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
     }
 
     [Fact]
@@ -555,9 +556,9 @@ public class ListNodeTests
         state.OnItemActivated = item => activatedItem = item;
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Null(activatedItem); // No item to activate
     }
 
@@ -574,7 +575,7 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 2", selectedItem.Text);
@@ -589,7 +590,7 @@ public class ListNodeTests
         state.SelectedIndex = 1;
         var node = new ListNode { State = state, IsFocused = true };
         
-        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
         Assert.Equal("Item 1", selectedItem.Text);
@@ -606,9 +607,9 @@ public class ListNodeTests
         state.SelectedIndex = 0;
         var node = new ListNode { State = state, IsFocused = false };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(0, state.SelectedIndex);
     }
 
@@ -618,9 +619,9 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
         
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
@@ -629,9 +630,9 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
         
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
@@ -640,9 +641,9 @@ public class ListNodeTests
         var state = CreateListState("Item 1", "Item 2");
         var node = new ListNode { State = state, IsFocused = true };
         
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Escape, '\x1b', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
         
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     #endregion

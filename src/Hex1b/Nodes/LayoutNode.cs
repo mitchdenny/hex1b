@@ -148,8 +148,11 @@ public sealed class LayoutNode : Hex1bNode, ILayoutProvider
         context.CurrentLayoutProvider = previousLayout;
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
     {
-        return Child?.HandleInput(evt) ?? false;
+        if (Child != null) yield return Child;
     }
 }

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -248,9 +249,9 @@ public class InfoBarNodeTests
             Sections = [new InfoBarSection("Status")]
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'A', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     #region Integration Tests with Hex1bApp

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 
@@ -56,19 +57,16 @@ public sealed class ButtonNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
     {
-        if (!IsFocused) return false;
+        if (!IsFocused) return InputResult.NotHandled;
 
-        if (evt is KeyInputEvent keyEvent)
+        // Enter or Space triggers the button
+        if (keyEvent.Key == Hex1bKey.Enter || keyEvent.Key == Hex1bKey.Spacebar)
         {
-            // Enter or Space triggers the button
-            if (keyEvent.Key == ConsoleKey.Enter || keyEvent.Key == ConsoleKey.Spacebar)
-            {
-                OnClick?.Invoke();
-                return true;
-            }
+            OnClick?.Invoke();
+            return InputResult.Handled;
         }
-        return false;
+        return InputResult.NotHandled;
     }
 }

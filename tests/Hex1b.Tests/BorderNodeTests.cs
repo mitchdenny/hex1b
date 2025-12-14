@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -593,9 +594,10 @@ public class BorderNodeTests
         var textBox = new TextBoxNode { State = state, IsFocused = true };
         var node = new BorderNode { Child = textBox };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'A', false, false, false));
+        // Use InputRouter to dispatch input through the node tree
+        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal("testA", state.Text);
     }
 
@@ -604,9 +606,9 @@ public class BorderNodeTests
     {
         var node = new BorderNode { Child = null };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'A', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     [Fact]
@@ -616,10 +618,10 @@ public class BorderNodeTests
         var textBox = new TextBoxNode { State = state, IsFocused = false };
         var node = new BorderNode { Child = textBox };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'A', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
         // TextBox should not handle input when not focused
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal("test", state.Text);
     }
 

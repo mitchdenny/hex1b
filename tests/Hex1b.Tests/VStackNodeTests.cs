@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -204,9 +205,9 @@ public class VStackNodeTests
         // Need to invalidate to refresh focusable cache
         node.InvalidateFocusCache();
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.False(textBox1.IsFocused);
         Assert.True(textBox2.IsFocused);
     }
@@ -224,7 +225,7 @@ public class VStackNodeTests
         node.InvalidateFocusCache();
 
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', true, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
 
         Assert.True(textBox1.IsFocused);
         Assert.False(textBox2.IsFocused);
@@ -239,7 +240,8 @@ public class VStackNodeTests
         var node = new VStackNode { Children = new List<Hex1bNode> { textBox } };
         node.InvalidateFocusCache();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.X, 'X', false, false, false));
+        // Use InputRouter to route input to the focused child
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         Assert.Equal("helloX", state.Text);
     }
@@ -257,7 +259,7 @@ public class VStackNodeTests
         node.InvalidateFocusCache();
 
         // button2 starts focused at index 1, one Tab wraps to index 0
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         Assert.True(button1.IsFocused);
         Assert.False(button2.IsFocused);

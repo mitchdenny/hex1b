@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading.Channels;
+using Hex1b.Input;
 using Xunit;
 
 namespace Hex1b.Tests;
@@ -78,11 +79,11 @@ public class WebSocketHex1bTerminalTests
         // Act
         terminal.Resize(120, 40);
 
-        // Assert - check that a ResizeInputEvent was pushed to the channel
+        // Assert - check that a Hex1bResizeEvent was pushed to the channel
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
         var inputEvent = await terminal.InputEvents.ReadAsync(cts.Token);
         
-        var resizeEvent = Assert.IsType<ResizeInputEvent>(inputEvent);
+        var resizeEvent = Assert.IsType<Hex1bResizeEvent>(inputEvent);
         Assert.Equal(120, resizeEvent.Width);
         Assert.Equal(40, resizeEvent.Height);
     }
@@ -164,22 +165,22 @@ public class WebSocketHex1bTerminalTests
     }
 
     [Theory]
-    [InlineData("\x1b[A", ConsoleKey.UpArrow, false, false, false)]
-    [InlineData("\x1b[B", ConsoleKey.DownArrow, false, false, false)]
-    [InlineData("\x1b[C", ConsoleKey.RightArrow, false, false, false)]
-    [InlineData("\x1b[D", ConsoleKey.LeftArrow, false, false, false)]
-    [InlineData("\x1b[1;2A", ConsoleKey.UpArrow, true, false, false)]    // Shift+Up
-    [InlineData("\x1b[1;2B", ConsoleKey.DownArrow, true, false, false)]  // Shift+Down
-    [InlineData("\x1b[1;2C", ConsoleKey.RightArrow, true, false, false)] // Shift+Right
-    [InlineData("\x1b[1;2D", ConsoleKey.LeftArrow, true, false, false)]  // Shift+Left
-    [InlineData("\x1b[1;3C", ConsoleKey.RightArrow, false, true, false)] // Alt+Right
-    [InlineData("\x1b[1;5C", ConsoleKey.RightArrow, false, false, true)] // Ctrl+Right
-    [InlineData("\x1b[1;6C", ConsoleKey.RightArrow, true, false, true)]  // Shift+Ctrl+Right
-    [InlineData("\x1b[H", ConsoleKey.Home, false, false, false)]
-    [InlineData("\x1b[F", ConsoleKey.End, false, false, false)]
-    [InlineData("\x1b[1;2H", ConsoleKey.Home, true, false, false)]       // Shift+Home
-    [InlineData("\x1b[1;2F", ConsoleKey.End, true, false, false)]        // Shift+End
-    public async Task ProcessInputAsync_ParsesAnsiSequences(string sequence, ConsoleKey expectedKey, bool shift, bool alt, bool control)
+    [InlineData("\x1b[A", Hex1bKey.UpArrow, Hex1bModifiers.None)]
+    [InlineData("\x1b[B", Hex1bKey.DownArrow, Hex1bModifiers.None)]
+    [InlineData("\x1b[C", Hex1bKey.RightArrow, Hex1bModifiers.None)]
+    [InlineData("\x1b[D", Hex1bKey.LeftArrow, Hex1bModifiers.None)]
+    [InlineData("\x1b[1;2A", Hex1bKey.UpArrow, Hex1bModifiers.Shift)]    // Shift+Up
+    [InlineData("\x1b[1;2B", Hex1bKey.DownArrow, Hex1bModifiers.Shift)]  // Shift+Down
+    [InlineData("\x1b[1;2C", Hex1bKey.RightArrow, Hex1bModifiers.Shift)] // Shift+Right
+    [InlineData("\x1b[1;2D", Hex1bKey.LeftArrow, Hex1bModifiers.Shift)]  // Shift+Left
+    [InlineData("\x1b[1;3C", Hex1bKey.RightArrow, Hex1bModifiers.Alt)] // Alt+Right
+    [InlineData("\x1b[1;5C", Hex1bKey.RightArrow, Hex1bModifiers.Control)] // Ctrl+Right
+    [InlineData("\x1b[1;6C", Hex1bKey.RightArrow, Hex1bModifiers.Shift | Hex1bModifiers.Control)]  // Shift+Ctrl+Right
+    [InlineData("\x1b[H", Hex1bKey.Home, Hex1bModifiers.None)]
+    [InlineData("\x1b[F", Hex1bKey.End, Hex1bModifiers.None)]
+    [InlineData("\x1b[1;2H", Hex1bKey.Home, Hex1bModifiers.Shift)]       // Shift+Home
+    [InlineData("\x1b[1;2F", Hex1bKey.End, Hex1bModifiers.Shift)]        // Shift+End
+    public async Task ProcessInputAsync_ParsesAnsiSequences(string sequence, Hex1bKey expectedKey, Hex1bModifiers expectedModifiers)
     {
         // Arrange
         using var mockWebSocket = new MockWebSocket();
@@ -191,26 +192,24 @@ public class WebSocketHex1bTerminalTests
         // Act
         var processTask = terminal.ProcessInputAsync(cts.Token);
         
-        KeyInputEvent? receivedEvent = null;
+        Hex1bKeyEvent? receivedEvent = null;
         try
         {
-            receivedEvent = await terminal.InputEvents.ReadAsync(cts.Token) as KeyInputEvent;
+            receivedEvent = await terminal.InputEvents.ReadAsync(cts.Token) as Hex1bKeyEvent;
         }
         catch (OperationCanceledException) { }
         
         // Assert
         Assert.NotNull(receivedEvent);
         Assert.Equal(expectedKey, receivedEvent.Key);
-        Assert.Equal(shift, receivedEvent.Shift);
-        Assert.Equal(alt, receivedEvent.Alt);
-        Assert.Equal(control, receivedEvent.Control);
+        Assert.Equal(expectedModifiers, receivedEvent.Modifiers);
     }
 
     [Theory]
-    [InlineData("\x1b[3~", ConsoleKey.Delete)]
-    [InlineData("\x1b[5~", ConsoleKey.PageUp)]
-    [InlineData("\x1b[6~", ConsoleKey.PageDown)]
-    public async Task ProcessInputAsync_ParsesTildeSequences(string sequence, ConsoleKey expectedKey)
+    [InlineData("\x1b[3~", Hex1bKey.Delete)]
+    [InlineData("\x1b[5~", Hex1bKey.PageUp)]
+    [InlineData("\x1b[6~", Hex1bKey.PageDown)]
+    public async Task ProcessInputAsync_ParsesTildeSequences(string sequence, Hex1bKey expectedKey)
     {
         // Arrange
         using var mockWebSocket = new MockWebSocket();
@@ -222,10 +221,10 @@ public class WebSocketHex1bTerminalTests
         // Act
         var processTask = terminal.ProcessInputAsync(cts.Token);
         
-        KeyInputEvent? receivedEvent = null;
+        Hex1bKeyEvent? receivedEvent = null;
         try
         {
-            receivedEvent = await terminal.InputEvents.ReadAsync(cts.Token) as KeyInputEvent;
+            receivedEvent = await terminal.InputEvents.ReadAsync(cts.Token) as Hex1bKeyEvent;
         }
         catch (OperationCanceledException) { }
         

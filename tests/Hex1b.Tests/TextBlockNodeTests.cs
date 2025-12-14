@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -361,9 +362,9 @@ public class TextBlockNodeTests
     {
         var node = new TextBlockNode { Text = "Test" };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
     }
 
     #endregion

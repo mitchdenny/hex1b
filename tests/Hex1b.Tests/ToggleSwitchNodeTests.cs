@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -201,9 +202,9 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
     }
 
@@ -220,9 +221,9 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.State.SelectedIndex);
     }
 
@@ -239,9 +240,9 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, node.State.SelectedIndex);
     }
 
@@ -258,9 +259,9 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(2, node.State.SelectedIndex);
     }
 
@@ -277,9 +278,9 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(0, node.State.SelectedIndex);
     }
 
@@ -296,9 +297,9 @@ public class ToggleSwitchNodeTests
             IsFocused = false
         };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(0, node.State.SelectedIndex);
     }
 
@@ -325,7 +326,7 @@ public class ToggleSwitchNodeTests
             IsFocused = true
         };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(callbackInvoked);
         Assert.Equal(1, callbackIndex);

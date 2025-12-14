@@ -1,3 +1,5 @@
+using Hex1b.Input;
+
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -88,18 +90,28 @@ public class TextBoxState
         CursorPosition = Text.Length;
     }
 
-    public void HandleInput(KeyInputEvent evt)
+    /// <summary>
+    /// Handles keyboard input for the text box.
+    /// Returns true if the input was handled, false if it should be passed to parent containers.
+    /// </summary>
+    public bool HandleInput(Hex1bKeyEvent evt)
     {
+        // Tab is never handled by TextBox - let it bubble up for focus navigation
+        if (evt.Key == Hex1bKey.Tab)
+        {
+            return false;
+        }
+
         // Ctrl+A: Select all
-        if (evt.Control && evt.Key == ConsoleKey.A)
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control) && evt.Key == Hex1bKey.A)
         {
             SelectAll();
-            return;
+            return true;
         }
 
         switch (evt.Key)
         {
-            case ConsoleKey.Backspace:
+            case Hex1bKey.Backspace:
                 if (HasSelection)
                 {
                     DeleteSelection();
@@ -109,9 +121,9 @@ public class TextBoxState
                     _text = _text.Remove(_cursorPosition - 1, 1);
                     _cursorPosition--;
                 }
-                break;
+                return true;
 
-            case ConsoleKey.Delete:
+            case Hex1bKey.Delete:
                 if (HasSelection)
                 {
                     DeleteSelection();
@@ -120,10 +132,10 @@ public class TextBoxState
                 {
                     _text = _text.Remove(_cursorPosition, 1);
                 }
-                break;
+                return true;
 
-            case ConsoleKey.LeftArrow:
-                if (evt.Shift)
+            case Hex1bKey.LeftArrow:
+                if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
                     // Start or extend selection
                     if (!SelectionAnchor.HasValue)
@@ -148,10 +160,10 @@ public class TextBoxState
                         CursorPosition--;
                     }
                 }
-                break;
+                return true;
 
-            case ConsoleKey.RightArrow:
-                if (evt.Shift)
+            case Hex1bKey.RightArrow:
+                if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
                     // Start or extend selection
                     if (!SelectionAnchor.HasValue)
@@ -176,10 +188,10 @@ public class TextBoxState
                         CursorPosition++;
                     }
                 }
-                break;
+                return true;
 
-            case ConsoleKey.Home:
-                if (evt.Shift)
+            case Hex1bKey.Home:
+                if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
                     if (!SelectionAnchor.HasValue)
                     {
@@ -191,10 +203,10 @@ public class TextBoxState
                     ClearSelection();
                 }
                 CursorPosition = 0;
-                break;
+                return true;
 
-            case ConsoleKey.End:
-                if (evt.Shift)
+            case Hex1bKey.End:
+                if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
                     if (!SelectionAnchor.HasValue)
                     {
@@ -206,21 +218,23 @@ public class TextBoxState
                     ClearSelection();
                 }
                 CursorPosition = Text.Length;
-                break;
+                return true;
 
             default:
                 // Insert printable characters
-                if (!char.IsControl(evt.KeyChar))
+                if (!char.IsControl(evt.Character))
                 {
                     // If there's a selection, delete it first
                     if (HasSelection)
                     {
                         DeleteSelection();
                     }
-                    _text = _text.Insert(_cursorPosition, evt.KeyChar.ToString());
+                    _text = _text.Insert(_cursorPosition, evt.Character.ToString());
                     _cursorPosition++;
+                    return true;
                 }
-                break;
+                // Non-printable, non-handled key
+                return false;
         }
     }
 }

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -149,22 +150,19 @@ public sealed class ToggleSwitchNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
     {
-        if (!IsFocused) return false;
+        if (!IsFocused) return InputResult.NotHandled;
 
-        if (evt is KeyInputEvent keyEvent)
+        switch (keyEvent.Key)
         {
-            switch (keyEvent.Key)
-            {
-                case ConsoleKey.LeftArrow:
-                    State.MovePrevious();
-                    return true;
-                case ConsoleKey.RightArrow:
-                    State.MoveNext();
-                    return true;
-            }
+            case Hex1bKey.LeftArrow:
+                State.MovePrevious();
+                return InputResult.Handled;
+            case Hex1bKey.RightArrow:
+                State.MoveNext();
+                return InputResult.Handled;
         }
-        return false;
+        return InputResult.NotHandled;
     }
 }

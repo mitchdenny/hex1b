@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Hex1b.Input;
 using Hex1b.Nodes;
 using Hex1b.Theming;
 
@@ -16,7 +17,7 @@ namespace Hex1b;
 public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
 {
     private readonly WebSocket _webSocket;
-    private readonly Channel<Hex1bInputEvent> _inputChannel;
+    private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly CancellationTokenSource _disposeCts;
     private int _width;
     private int _height;
@@ -38,7 +39,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         _webSocket = webSocket ?? throw new ArgumentNullException(nameof(webSocket));
         _width = width;
         _height = height;
-        _inputChannel = Channel.CreateUnbounded<Hex1bInputEvent>();
+        _inputChannel = Channel.CreateUnbounded<Hex1bEvent>();
         _disposeCts = new CancellationTokenSource();
         
         // Reset Sixel detection for new terminal session
@@ -53,7 +54,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     public int Height => _height;
 
     /// <inheritdoc />
-    public ChannelReader<Hex1bInputEvent> InputEvents => _inputChannel.Reader;
+    public ChannelReader<Hex1bEvent> InputEvents => _inputChannel.Reader;
 
     /// <inheritdoc />
     public void Write(string text)
@@ -223,9 +224,9 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     /// DA1 response format: ESC [ ? {params} c
     /// If it contains ";4" it indicates Sixel graphics support.
     /// </summary>
-    private static bool TryParseDA1Response(string message, out CapabilityResponseEvent? capabilityEvent)
+    private static bool TryParseDA1Response(string message, out Hex1bTerminalEvent? terminalEvent)
     {
-        capabilityEvent = null;
+        terminalEvent = null;
         
         // DA1 response starts with ESC [ ? and ends with c
         // Example: \x1b[?62;4;6;22c
@@ -234,7 +235,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
             // This is a DA1 response - pass it to SixelNode for processing
             Console.Error.WriteLine($"[Sixel] Received DA1 response: {message.Replace("\x1b", "ESC")}");
             Nodes.SixelNode.HandleDA1Response(message);
-            capabilityEvent = new CapabilityResponseEvent(message);
+            terminalEvent = new Hex1bTerminalEvent(message);
             return true;
         }
 
@@ -251,25 +252,25 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         OnResize?.Invoke(cols, rows);
         
         // Push a resize event to trigger re-render
-        _inputChannel.Writer.TryWrite(new ResizeInputEvent(cols, rows));
+        _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(cols, rows));
     }
 
-    private static KeyInputEvent? ParseKeyInput(char c)
+    private static Hex1bKeyEvent? ParseKeyInput(char c)
     {
         // Handle special characters
         return c switch
         {
-            '\r' or '\n' => new KeyInputEvent(ConsoleKey.Enter, c, false, false, false),
-            '\t' => new KeyInputEvent(ConsoleKey.Tab, c, false, false, false),
-            '\x1b' => new KeyInputEvent(ConsoleKey.Escape, c, false, false, false),
-            '\x7f' or '\b' => new KeyInputEvent(ConsoleKey.Backspace, c, false, false, false),
-            ' ' => new KeyInputEvent(ConsoleKey.Spacebar, c, false, false, false),
-            >= 'a' and <= 'z' => new KeyInputEvent((ConsoleKey)((int)ConsoleKey.A + (c - 'a')), c, false, false, false),
-            >= 'A' and <= 'Z' => new KeyInputEvent((ConsoleKey)((int)ConsoleKey.A + (c - 'A')), c, true, false, false),
-            >= '0' and <= '9' => new KeyInputEvent((ConsoleKey)((int)ConsoleKey.D0 + (c - '0')), c, false, false, false),
+            '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, c, Hex1bModifiers.None),
+            '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, c, Hex1bModifiers.None),
+            '\x1b' => new Hex1bKeyEvent(Hex1bKey.Escape, c, Hex1bModifiers.None),
+            '\x7f' or '\b' => new Hex1bKeyEvent(Hex1bKey.Backspace, c, Hex1bModifiers.None),
+            ' ' => new Hex1bKeyEvent(Hex1bKey.Spacebar, c, Hex1bModifiers.None),
+            >= 'a' and <= 'z' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'a'))), c, Hex1bModifiers.None),
+            >= 'A' and <= 'Z' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Shift),
+            >= '0' and <= '9' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.None),
             // Control characters (Ctrl+A through Ctrl+Z)
-            >= '\x01' and <= '\x1a' => new KeyInputEvent((ConsoleKey)((int)ConsoleKey.A + (c - '\x01')), c, false, false, true),
-            _ when c >= ' ' && c <= '~' => new KeyInputEvent(ConsoleKey.NoName, c, false, false, false),
+            >= '\x01' and <= '\x1a' => new Hex1bKeyEvent(KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - '\x01'))), c, Hex1bModifiers.Control),
+            _ when c >= ' ' && c <= '~' => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
             _ => null
         };
     }
@@ -281,7 +282,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     ///   - With modifiers: ESC [ 1 ; modifier code (e.g., ESC [ 1 ; 2 C for Shift+Right)
     /// Modifier codes: 2=Shift, 3=Alt, 4=Shift+Alt, 5=Ctrl, 6=Shift+Ctrl, 7=Alt+Ctrl, 8=Shift+Alt+Ctrl
     /// </summary>
-    private static (KeyInputEvent? Event, int Consumed) ParseAnsiSequence(string message, int start)
+    private static (Hex1bKeyEvent? Event, int Consumed) ParseAnsiSequence(string message, int start)
     {
         // Minimum sequence is ESC [ X (3 chars)
         if (start + 2 >= message.Length)
@@ -321,55 +322,53 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         i++; // Include final char in consumed count
 
         // Parse modifiers from param2 (modifier code - 1 gives the modifier bits)
-        var shift = false;
-        var alt = false;
-        var control = false;
+        var modifiers = Hex1bModifiers.None;
 
         if (hasParam2 && param2 >= 2)
         {
             var modifierBits = param2 - 1;
-            shift = (modifierBits & 1) != 0;
-            alt = (modifierBits & 2) != 0;
-            control = (modifierBits & 4) != 0;
+            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
+            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
+            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
         }
 
         var key = finalChar switch
         {
-            'A' => ConsoleKey.UpArrow,
-            'B' => ConsoleKey.DownArrow,
-            'C' => ConsoleKey.RightArrow,
-            'D' => ConsoleKey.LeftArrow,
-            'H' => ConsoleKey.Home,
-            'F' => ConsoleKey.End,
-            'Z' => ConsoleKey.Tab, // Shift+Tab (backtab)
+            'A' => Hex1bKey.UpArrow,
+            'B' => Hex1bKey.DownArrow,
+            'C' => Hex1bKey.RightArrow,
+            'D' => Hex1bKey.LeftArrow,
+            'H' => Hex1bKey.Home,
+            'F' => Hex1bKey.End,
+            'Z' => Hex1bKey.Tab, // Shift+Tab (backtab)
             '~' => ParseTildeSequence(param1),
-            _ => ConsoleKey.NoName
+            _ => Hex1bKey.None
         };
 
-        if (key == ConsoleKey.NoName)
+        if (key == Hex1bKey.None)
             return (null, i - start);
 
-        // For 'Z' (Shift+Tab), always set shift=true
+        // For 'Z' (Shift+Tab), always set shift
         if (finalChar == 'Z')
-            shift = true;
+            modifiers |= Hex1bModifiers.Shift;
 
-        return (new KeyInputEvent(key, '\0', shift, alt, control), i - start);
+        return (new Hex1bKeyEvent(key, '\0', modifiers), i - start);
     }
 
     /// <summary>
     /// Parses tilde sequences like ESC [ 1 ~ (Home), ESC [ 4 ~ (End), etc.
     /// </summary>
-    private static ConsoleKey ParseTildeSequence(int param)
+    private static Hex1bKey ParseTildeSequence(int param)
     {
         return param switch
         {
-            1 => ConsoleKey.Home,
-            2 => ConsoleKey.Insert,
-            3 => ConsoleKey.Delete,
-            4 => ConsoleKey.End,
-            5 => ConsoleKey.PageUp,
-            6 => ConsoleKey.PageDown,
-            _ => ConsoleKey.NoName
+            1 => Hex1bKey.Home,
+            2 => Hex1bKey.Insert,
+            3 => Hex1bKey.Delete,
+            4 => Hex1bKey.End,
+            5 => Hex1bKey.PageUp,
+            6 => Hex1bKey.PageDown,
+            _ => Hex1bKey.None
         };
     }
 
@@ -377,7 +376,7 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
     /// Parses an SS3 escape sequence (ESC O ...).
     /// Some terminals send arrow keys this way in application mode.
     /// </summary>
-    private static (KeyInputEvent? Event, int Consumed) ParseSS3Sequence(string message, int start)
+    private static (Hex1bKeyEvent? Event, int Consumed) ParseSS3Sequence(string message, int start)
     {
         // Minimum sequence is ESC O X (3 chars)
         if (start + 2 >= message.Length)
@@ -387,23 +386,23 @@ public sealed class WebSocketHex1bTerminal : IHex1bTerminal, IDisposable
         
         var key = finalChar switch
         {
-            'A' => ConsoleKey.UpArrow,
-            'B' => ConsoleKey.DownArrow,
-            'C' => ConsoleKey.RightArrow,
-            'D' => ConsoleKey.LeftArrow,
-            'H' => ConsoleKey.Home,
-            'F' => ConsoleKey.End,
-            'P' => ConsoleKey.F1,
-            'Q' => ConsoleKey.F2,
-            'R' => ConsoleKey.F3,
-            'S' => ConsoleKey.F4,
-            _ => ConsoleKey.NoName
+            'A' => Hex1bKey.UpArrow,
+            'B' => Hex1bKey.DownArrow,
+            'C' => Hex1bKey.RightArrow,
+            'D' => Hex1bKey.LeftArrow,
+            'H' => Hex1bKey.Home,
+            'F' => Hex1bKey.End,
+            'P' => Hex1bKey.F1,
+            'Q' => Hex1bKey.F2,
+            'R' => Hex1bKey.F3,
+            'S' => Hex1bKey.F4,
+            _ => Hex1bKey.None
         };
 
-        if (key == ConsoleKey.NoName)
+        if (key == Hex1bKey.None)
             return (null, 3);
 
-        return (new KeyInputEvent(key, '\0', false, false, false), 3);
+        return (new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None), 3);
     }
 
     /// <inheritdoc />

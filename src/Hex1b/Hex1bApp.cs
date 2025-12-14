@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using System.Threading.Channels;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -117,17 +118,26 @@ public class Hex1bApp<TState> : IDisposable
                 {
                     var inputEvent = await inputTask;
                     
-                    // Handle capability response events specially (e.g., DA1 for Sixel detection)
-                    if (inputEvent is CapabilityResponseEvent capabilityEvent)
+                    switch (inputEvent)
                     {
-                        Nodes.SixelNode.HandleDA1Response(capabilityEvent.Response);
-                        // Re-render to reflect the updated capability detection
-                        await RenderFrameAsync(cancellationToken);
-                        continue;
+                        // Terminal capability events (e.g., DA1 for Sixel detection) are handled at app level
+                        case Hex1bTerminalEvent terminalEvent:
+                            Nodes.SixelNode.HandleDA1Response(terminalEvent.Response);
+                            // Re-render to reflect the updated capability detection
+                            await RenderFrameAsync(cancellationToken);
+                            continue;
+                        
+                        // Resize events trigger a re-layout and re-render
+                        case Hex1bResizeEvent:
+                            // Just re-render - the terminal's Width/Height properties will reflect the new size
+                            break;
+                        
+                        // Key events are routed to the focused node through the tree
+                        case Hex1bKeyEvent keyEvent when _rootNode != null:
+                            // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
+                            InputRouter.RouteInput(_rootNode, keyEvent);
+                            break;
                     }
-                    
-                    // Dispatch input to the root node
-                    _rootNode?.HandleInput(inputEvent);
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)
 
@@ -198,7 +208,7 @@ public class Hex1bApp<TState> : IDisposable
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
-        node.Shortcuts = widget.Shortcuts ?? [];
+        node.InputBindings = widget.InputBindings ?? [];
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
 

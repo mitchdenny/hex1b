@@ -1,5 +1,7 @@
 #pragma warning disable HEX1B001 // Navigator API is experimental - internal usage is allowed
 
+using Hex1b.Input;
+
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -65,7 +67,7 @@ public sealed class ReconcileContext
 
         // Set common properties on the reconciled node
         node.Parent = parent;
-        node.Shortcuts = widget.Shortcuts ?? [];
+        node.InputBindings = widget.InputBindings ?? [];
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
 

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -240,9 +241,9 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.X, 'X', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal("helloX", state.Text);
     }
 
@@ -252,9 +253,9 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello" };
         var node = new TextBoxNode { State = state, IsFocused = false };
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.X, 'X', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal("hello", state.Text);
     }
 
@@ -264,7 +265,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Backspace, '\b', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
 
         Assert.Equal("hell", state.Text);
         Assert.Equal(4, state.CursorPosition);
@@ -276,7 +277,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Delete, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
 
         Assert.Equal("ello", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -288,7 +289,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(2, state.CursorPosition);
     }
@@ -299,7 +300,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(4, state.CursorPosition);
     }
@@ -310,7 +311,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Home, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
 
         Assert.Equal(0, state.CursorPosition);
     }
@@ -321,7 +322,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.End, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, state.CursorPosition);
     }
@@ -332,7 +333,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', true, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
 
         Assert.Equal(2, state.CursorPosition);
         Assert.True(state.HasSelection);
@@ -345,7 +346,7 @@ public class TextBoxNodeTests
         var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, true));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
 
         Assert.True(state.HasSelection);
         Assert.Equal(0, state.SelectionAnchor);

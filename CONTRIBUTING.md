@@ -43,7 +43,7 @@ hex1b/
 │   ├── Nodes/              # Render nodes - mutable, handle input & rendering
 │   ├── Widgets/            # Widget definitions - immutable configuration
 │   ├── Theming/            # Theme system and built-in themes
-│   ├── Input/              # Keyboard input handling and shortcuts
+│   ├── Input/              # Keyboard input handling and key bindings
 │   ├── Hex1bApp.cs         # Main application entry point
 │   ├── Hex1bRenderContext.cs   # Terminal rendering abstraction
 │   └── IHex1bTerminal.cs   # Terminal interface for testing
@@ -115,8 +115,9 @@ public void HandleInput_EnterKey_TriggersOnClick()
     var clicked = false;
     var node = new ButtonNode { Label = "Test", OnClick = () => clicked = true };
     
-    node.HandleInput(new Hex1bInputEvent { Key = ConsoleKey.Enter });
+    var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
     
+    Assert.Equal(InputResult.Handled, result);
     Assert.True(clicked);
 }
 ```

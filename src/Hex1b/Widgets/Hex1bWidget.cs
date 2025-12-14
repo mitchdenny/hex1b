@@ -7,9 +7,10 @@ namespace Hex1b.Widgets;
 public abstract record Hex1bWidget
 {
     /// <summary>
-    /// Keyboard shortcuts for this widget. Processed hierarchically from focused widget to root.
+    /// Input bindings for this widget. These are collected during input routing,
+    /// with bindings closer to the focused node taking precedence over ancestors.
     /// </summary>
-    public IReadOnlyList<Shortcut>? Shortcuts { get; init; }
+    public IReadOnlyList<InputBinding>? InputBindings { get; init; }
 
     /// <summary>
     /// Hint for how this widget should be sized horizontally within its parent.
@@ -142,6 +143,19 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
 
+        // Invalidate focus cache since children changed
+        node.InvalidateFocusCache();
+
+        // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
+        if (context.IsNew && !context.ParentManagesFocus())
+        {
+            var focusables = node.GetFocusableNodes().ToList();
+            if (focusables.Count > 0)
+            {
+                ReconcileContext.SetNodeFocus(focusables[0], true);
+            }
+        }
+        
         return node;
     }
 

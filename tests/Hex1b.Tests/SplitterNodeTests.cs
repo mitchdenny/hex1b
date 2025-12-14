@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -398,9 +399,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(18, node.LeftWidth);
     }
 
@@ -418,9 +419,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(22, node.LeftWidth);
     }
 
@@ -439,7 +440,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10));
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, node.LeftWidth); // Clamped to MinLeftWidth
     }
@@ -459,7 +460,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 50, 10)); // Total 50, max left = 50 - 3 - 5 = 42
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.RightArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(node.LeftWidth <= 42);
     }
@@ -478,7 +479,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
 
         // Arrow keys won't resize when not focused
-        node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(20, node.LeftWidth);
     }
@@ -499,7 +500,7 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         // Focus moves from left button to splitter itself
         Assert.False(leftButton.IsFocused);
@@ -518,7 +519,7 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', true, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift));
 
         // Focus moves from right button to splitter
         Assert.False(rightButton.IsFocused);
@@ -537,7 +538,7 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.Tab, '\t', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
 
         // Focus wraps from right button to left button
         Assert.True(leftButton.IsFocused);
@@ -556,9 +557,9 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Escape, '\x1b', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.True(leftButton.IsFocused);
         Assert.False(rightButton.IsFocused);
     }
@@ -584,9 +585,10 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false));
+        // Use InputRouter to route input to the focused child
+        var result = InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
     }
 
@@ -606,9 +608,10 @@ public class SplitterNodeTests
         };
         node.SyncFocusIndex();
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.A, 'a', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.B, 'b', false, false, false));
-        node.HandleInput(new KeyInputEvent(ConsoleKey.C, 'c', false, false, false));
+        // Use InputRouter to route input to the focused child
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.B, 'b', Hex1bModifiers.None));
+        InputRouter.RouteInput(node, new Hex1bKeyEvent(Hex1bKey.C, 'c', Hex1bModifiers.None));
 
         Assert.Equal("abc", textBoxState.Text);
     }
@@ -1116,9 +1119,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(8, node.FirstSize);
     }
 
@@ -1137,9 +1140,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(12, node.FirstSize);
     }
 
@@ -1159,7 +1162,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
         Assert.Equal(5, node.FirstSize); // Clamped to MinFirstSize
     }
@@ -1180,7 +1183,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 20)); // Total 20, max first = 20 - 1 - 5 = 14
 
-        node.HandleInput(new KeyInputEvent(ConsoleKey.DownArrow, '\0', false, false, false));
+        node.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
 
         Assert.True(node.FirstSize <= 14);
     }
@@ -1200,9 +1203,9 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 20));
 
         // Left/right arrows shouldn't resize vertical splitter
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.LeftArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(10, node.FirstSize);
     }
 
@@ -1221,9 +1224,9 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
 
         // Up/down arrows shouldn't resize horizontal splitter
-        var handled = node.HandleInput(new KeyInputEvent(ConsoleKey.UpArrow, '\0', false, false, false));
+        var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
 
-        Assert.False(handled);
+        Assert.Equal(InputResult.NotHandled, result);
         Assert.Equal(20, node.FirstSize);
     }
 

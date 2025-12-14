@@ -111,9 +111,9 @@ static Task<Hex1bWidget> App(
             leftWidth: 25
         ).FillHeight() with
         {
-            Shortcuts = [
-                new Shortcut(KeyBinding.WithCtrl(ConsoleKey.S), onSave, "Save contact"),
-                new Shortcut(KeyBinding.WithCtrl(ConsoleKey.Q), () => cts.Cancel(), "Quit application"),
+            InputBindings = [
+                InputBinding.Ctrl(Hex1bKey.S, onSave, "Save contact"),
+                InputBinding.Ctrl(Hex1bKey.Q, () => cts.Cancel(), "Quit application"),
             ]
         },
         v.HStack(h => [h.Text(statusText)])

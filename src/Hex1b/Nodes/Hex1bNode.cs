@@ -16,9 +16,10 @@ public abstract class Hex1bNode
     public Hex1bNode? Parent { get; set; }
 
     /// <summary>
-    /// Keyboard shortcuts for this node.
+    /// Input bindings for this node. These are collected during input routing,
+    /// with bindings closer to the focused node taking precedence over ancestors.
     /// </summary>
-    public IReadOnlyList<Shortcut> Shortcuts { get; set; } = [];
+    public IReadOnlyList<InputBinding> InputBindings { get; set; } = [];
 
     /// <summary>
     /// Hint for how this node should be sized horizontally within its parent.
@@ -51,32 +52,12 @@ public abstract class Hex1bNode
     public abstract void Render(Hex1bRenderContext context);
 
     /// <summary>
-    /// Handles an input event. Returns true if the event was handled.
+    /// Handles a key input event (after bindings have been checked).
+    /// Override this in nodes to handle input that wasn't matched by any binding.
     /// </summary>
-    public virtual bool HandleInput(Hex1bInputEvent evt) => false;
-
-    /// <summary>
-    /// Tries to handle the event as a shortcut, bubbling up to ancestors.
-    /// Returns true if a shortcut was matched and executed.
-    /// </summary>
-    public bool TryHandleShortcut(Hex1bInputEvent evt)
-    {
-        if (evt is not KeyInputEvent keyEvent)
-            return false;
-
-        // Try this node's shortcuts first
-        foreach (var shortcut in Shortcuts)
-        {
-            if (shortcut.Matches(keyEvent))
-            {
-                shortcut.Execute();
-                return true;
-            }
-        }
-
-        // Bubble up to parent
-        return Parent?.TryHandleShortcut(evt) ?? false;
-    }
+    /// <param name="keyEvent">The key event to handle.</param>
+    /// <returns>Handled if the input was consumed, NotHandled otherwise.</returns>
+    public virtual InputResult HandleInput(Hex1bKeyEvent keyEvent) => InputResult.NotHandled;
 
     /// <summary>
     /// Returns true if this node can receive focus.
@@ -113,4 +94,10 @@ public abstract class Hex1bNode
             yield return this;
         }
     }
+
+    /// <summary>
+    /// Gets the direct children of this node. Used for input routing and tree traversal.
+    /// Container nodes should override this to return their children.
+    /// </summary>
+    public virtual IEnumerable<Hex1bNode> GetChildren() => [];
 }

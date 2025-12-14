@@ -139,7 +139,7 @@ using var app = new Hex1bApp<object>(
                     ]))
             ]),
             $"Hex1b Todo ({terminalSize})"
-        ) with { Shortcuts = [new Shortcut(KeyBinding.Plain(ConsoleKey.Delete), DeleteSelected, "Delete selected item")] };
+        ) with { InputBindings = [InputBinding.Plain(Hex1bKey.Delete, DeleteSelected, "Delete selected item")] };
     }
 );
 

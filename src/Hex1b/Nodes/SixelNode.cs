@@ -269,9 +269,13 @@ public sealed class SixelNode : Hex1bNode
         }
     }
 
-    public override bool HandleInput(Hex1bInputEvent evt)
+    /// <summary>
+    /// Gets the direct children of this container for input routing.
+    /// Only returns fallback children when Sixel is not supported (fallback is shown).
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
     {
-        // Always delegate input to fallback since it may have focusable elements
-        return Fallback?.HandleInput(evt) ?? false;
+        // Only return fallback as a child when Sixel is NOT supported (fallback is being shown)
+        if (_sixelSupported != true && Fallback != null) yield return Fallback;
     }
 }

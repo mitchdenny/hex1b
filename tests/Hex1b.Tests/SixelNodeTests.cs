@@ -1,6 +1,7 @@
 #pragma warning disable HEX1B_SIXEL // Testing experimental Sixel API
 
 using Hex1b;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 
@@ -229,10 +230,11 @@ public class SixelNodeTests : IDisposable
         var node = new SixelNode { Fallback = buttonNode };
         node.SetSixelSupport(false);
         
-        var enterEvent = new KeyInputEvent(ConsoleKey.Enter, '\r', false, false, false);
-        var handled = node.HandleInput(enterEvent);
+        // Use InputRouter to route input to the focused child in the fallback
+        var enterEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
+        var result = InputRouter.RouteInput(node, enterEvent);
         
-        Assert.True(handled);
+        Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, clickedCount);
     }
 
