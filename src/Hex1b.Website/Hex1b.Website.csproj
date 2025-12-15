@@ -14,8 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
-    <ProjectReference Include="..\..\src\Hex1b.ServiceDefaults\Hex1b.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Hex1b\Hex1b.csproj" />
+    <ProjectReference Include="..\Hex1b.ServiceDefaults\Hex1b.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

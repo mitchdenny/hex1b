@@ -1,6 +1,6 @@
 using System.Net.WebSockets;
-using Gallery;
-using Gallery.Exhibits;
+using Hex1b.Website;
+using Hex1b.Website.Exhibits;
 using Hex1b;
 
 var builder = WebApplication.CreateBuilder(args);

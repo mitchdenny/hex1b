@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 #pragma warning disable HEX1B001 // Experimental Navigator API
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// A CRM demo using the fluent context-based API demonstrating stack-based navigation.

@@ -1,7 +1,7 @@
 using SkiaSharp;
 using Svg.Skia;
 
-namespace Gallery;
+namespace Hex1b.Website;
 
 /// <summary>
 /// Encodes images to Sixel format for terminal display.

@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// A simple hello world using the fluent context-based API.

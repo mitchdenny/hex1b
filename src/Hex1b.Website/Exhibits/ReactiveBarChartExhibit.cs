@@ -4,7 +4,7 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// Demonstrates reactive rendering with external events (timer-based updates).

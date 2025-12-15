@@ -5,9 +5,9 @@
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var gallery = builder.AddCSharpApp("gallery", "./samples/Gallery");
+var website = builder.AddCSharpApp("website", "./src/Hex1b.Website");
 
 var tunnel = builder.AddDevTunnel("tunnel")
-    .WithReference(gallery);
+    .WithReference(website);
 
 builder.Build().Run();

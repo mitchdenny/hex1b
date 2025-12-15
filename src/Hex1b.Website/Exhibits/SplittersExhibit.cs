@@ -3,7 +3,7 @@ using Hex1b.Layout;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// An exhibit demonstrating horizontal and vertical splitters.

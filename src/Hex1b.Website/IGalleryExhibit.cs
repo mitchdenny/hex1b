@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
-namespace Gallery;
+namespace Hex1b.Website;
 
 /// <summary>
 /// Represents a gallery exhibit that can be displayed in the terminal gallery.

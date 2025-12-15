@@ -1,7 +1,7 @@
 using Hex1b;
 using Hex1b.Widgets;
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// Demonstrates mouse tracking and click-to-focus support in Hex1b.

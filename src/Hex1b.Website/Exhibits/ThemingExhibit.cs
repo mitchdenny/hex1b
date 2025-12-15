@@ -4,7 +4,7 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
-namespace Gallery.Exhibits;
+namespace Hex1b.Website.Exhibits;
 
 /// <summary>
 /// An exhibit that demonstrates Hex1b theming by showing a theme selector on the left
