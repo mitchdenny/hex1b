@@ -6,7 +6,7 @@
     "generate-docs": "node scripts/generate-api-docs.mjs",
     "dev": "npm run generate-docs && astro dev",
     "start": "npm run generate-docs && astro dev",
-    "build": "npm run generate-docs && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
