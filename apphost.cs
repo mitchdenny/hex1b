@@ -32,6 +32,7 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
 
 
 var content = builder.AddViteApp("content", "./src/content")
+    .WithViteConfig("./src/content/docs/.vitepress/config.ts")
     .WithReference(website)
     .WaitFor(website);
 

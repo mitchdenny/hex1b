@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev docs",
-    "build": "vitepress build docs",
-    "preview": "vitepress preview docs"
+    "dev": "vitepress dev",
+    "build": "vitepress build --outDir dist",
+    "preview": "vitepress preview"
   },
   "devDependencies": {
     "vitepress": "^1.5.0",
