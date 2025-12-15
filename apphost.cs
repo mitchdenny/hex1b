@@ -1,12 +1,16 @@
 ﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.25611.1
 #:package Aspire.Hosting.JavaScript@13.2.0-preview.1.25611.1
-#:package Aspire.Hosting.Docker@13.2.0-preview.1.25611.1
+#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.25611.1
 
 #pragma warning disable ASPIRECSHARPAPPS001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddDockerComposeEnvironment("env");
+// Conditionally adds parameters to app model if config values are specified.
+var customDomainValue = builder.Configuration["Parameters:customDomain"];
+var certificateNameValue = builder.Configuration["Parameters:certificateName"];
+
+builder.AddAzureContainerAppEnvironment("env");
 
 // Build Hex1b library first to generate XML documentation
 var hexlib = builder.AddExecutable("hexlib-build", "dotnet", "./src/Hex1b", "build", "--no-restore");

@@ -10,213 +10,213 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-pullrequest:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    environment: pullrequest
-    concurrency:
-      group: deploy-pr-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write
+  # deploy-pullrequest:
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   environment: pullrequest
+  #   concurrency:
+  #     group: deploy-pr-${{ github.event.pull_request.number }}
+  #     cancel-in-progress: true
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #     pull-requests: write
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+  #     - name: Setup .NET
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: '10.0.x'
 
-      - name: Download and install Aspire CLI
-        run: |
-          set -e
-          curl -sSL https://aspire.dev/install.sh | bash -s
-          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+  #     - name: Download and install Aspire CLI
+  #       run: |
+  #         set -e
+  #         curl -sSL https://aspire.dev/install.sh | bash -s
+  #         echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
-      - name: Show Aspire CLI version
-        run: |
-          set -e
-          aspire --version
+  #     - name: Show Aspire CLI version
+  #       run: |
+  #         set -e
+  #         aspire --version
 
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Azure Login
+  #       uses: azure/login@v2
+  #       with:
+  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Run aspire deploy
-        env:
-          AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE__LOCATION: 'westus3'
-          AZURE__RESOURCEGROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
-        run: |
-          set -e
-          aspire deploy
+  #     - name: Run aspire deploy
+  #       env:
+  #         AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         AZURE__LOCATION: 'westus3'
+  #         AZURE__RESOURCEGROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
+  #       run: |
+  #         set -e
+  #         aspire deploy
 
-      - name: Get Azure resource details
-        id: azure-resources
-        env:
-          RESOURCE_GROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
-          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        run: |
-          set -e
-          # Get the container app environment name (assume there's only one)
-          CAE_NAME=$(az containerapp env list \
-            --resource-group "$RESOURCE_GROUP" \
-            --subscription "$SUBSCRIPTION_ID" \
-            --query "[0].name" -o tsv)
+  #     - name: Get Azure resource details
+  #       id: azure-resources
+  #       env:
+  #         RESOURCE_GROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
+  #         SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #       run: |
+  #         set -e
+  #         # Get the container app environment name (assume there's only one)
+  #         CAE_NAME=$(az containerapp env list \
+  #           --resource-group "$RESOURCE_GROUP" \
+  #           --subscription "$SUBSCRIPTION_ID" \
+  #           --query "[0].name" -o tsv)
 
-          if [ -z "$CAE_NAME" ]; then
-            echo "Warning: No container app environment found in resource group"
-            echo "cae-name=Not available" >> $GITHUB_OUTPUT
-          else
-            echo "cae-name=$CAE_NAME" >> $GITHUB_OUTPUT
-          fi
+  #         if [ -z "$CAE_NAME" ]; then
+  #           echo "Warning: No container app environment found in resource group"
+  #           echo "cae-name=Not available" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "cae-name=$CAE_NAME" >> $GITHUB_OUTPUT
+  #         fi
 
-          # Get the website container app URL
-          WEBSITE_URL=$(az containerapp list \
-            --resource-group "$RESOURCE_GROUP" \
-            --subscription "$SUBSCRIPTION_ID" \
-            --query "[?contains(name, 'website')].properties.configuration.ingress.fqdn" -o tsv)
+  #         # Get the website container app URL
+  #         WEBSITE_URL=$(az containerapp list \
+  #           --resource-group "$RESOURCE_GROUP" \
+  #           --subscription "$SUBSCRIPTION_ID" \
+  #           --query "[?contains(name, 'website')].properties.configuration.ingress.fqdn" -o tsv)
 
-          if [ -n "$WEBSITE_URL" ]; then
-            echo "website-url=https://$WEBSITE_URL" >> $GITHUB_OUTPUT
-          else
-            echo "website-url=Not available" >> $GITHUB_OUTPUT
-          fi
+  #         if [ -n "$WEBSITE_URL" ]; then
+  #           echo "website-url=https://$WEBSITE_URL" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "website-url=Not available" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Post deployment info to PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RESOURCE_GROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
-          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          CAE_NAME: ${{ steps.azure-resources.outputs.cae-name }}
-          WEBSITE_URL: ${{ steps.azure-resources.outputs.website-url }}
-        run: |
-          set -e
-          # Delete previous deployment comments to avoid noise
-          # Get all comments from the PR and filter for deployment comments, then delete them
-          gh pr view ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --json comments \
-            --jq '.comments[]? | select(.body | startswith("## 🚀 Deployment Successful")) | .databaseId' 2>/dev/null | \
-          while IFS= read -r comment_id; do
-            if [ -n "$comment_id" ]; then
-              echo "Deleting old deployment comment: $comment_id"
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/comments/$comment_id" || true
-            fi
-          done
+  #     - name: Post deployment info to PR
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #         RESOURCE_GROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
+  #         SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         CAE_NAME: ${{ steps.azure-resources.outputs.cae-name }}
+  #         WEBSITE_URL: ${{ steps.azure-resources.outputs.website-url }}
+  #       run: |
+  #         set -e
+  #         # Delete previous deployment comments to avoid noise
+  #         # Get all comments from the PR and filter for deployment comments, then delete them
+  #         gh pr view ${{ github.event.pull_request.number }} \
+  #           --repo ${{ github.repository }} \
+  #           --json comments \
+  #           --jq '.comments[]? | select(.body | startswith("## 🚀 Deployment Successful")) | .databaseId' 2>/dev/null | \
+  #         while IFS= read -r comment_id; do
+  #           if [ -n "$comment_id" ]; then
+  #             echo "Deleting old deployment comment: $comment_id"
+  #             gh api \
+  #               --method DELETE \
+  #               -H "Accept: application/vnd.github+json" \
+  #               -H "X-GitHub-Api-Version: 2022-11-28" \
+  #               "/repos/${{ github.repository }}/issues/comments/$comment_id" || true
+  #           fi
+  #         done
 
-          # Generate Azure Portal URLs
-          RG_URL="https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/overview"
+  #         # Generate Azure Portal URLs
+  #         RG_URL="https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/overview"
 
-          # Create comment body
-          cat > /tmp/pr_comment.md << 'EOF'
-          ## 🚀 Deployment Successful
+  #         # Create comment body
+  #         cat > /tmp/pr_comment.md << 'EOF'
+  #         ## 🚀 Deployment Successful
 
-          Your PR environment has been deployed to Azure!
+  #         Your PR environment has been deployed to Azure!
 
-          ### Resources
-          - 📦 [Resource Group: `RESOURCE_GROUP_PLACEHOLDER`](RG_URL_PLACEHOLDER)
-          EOF
+  #         ### Resources
+  #         - 📦 [Resource Group: `RESOURCE_GROUP_PLACEHOLDER`](RG_URL_PLACEHOLDER)
+  #         EOF
 
-          # Strip leading spaces (10 spaces of indentation)
-          sed -i 's/^          //' /tmp/pr_comment.md
+  #         # Strip leading spaces (10 spaces of indentation)
+  #         sed -i 's/^          //' /tmp/pr_comment.md
 
-          # Add CAE link only if available
-          if [ "$CAE_NAME" != "Not available" ]; then
-            CAE_URL="https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${CAE_NAME}/overview"
-            echo "- 🏗️ [Container App Environment: \`${CAE_NAME}\`](${CAE_URL})" >> /tmp/pr_comment.md
-          else
-            echo "- 🏗️ Container App Environment: ${CAE_NAME}" >> /tmp/pr_comment.md
-          fi
+  #         # Add CAE link only if available
+  #         if [ "$CAE_NAME" != "Not available" ]; then
+  #           CAE_URL="https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${CAE_NAME}/overview"
+  #           echo "- 🏗️ [Container App Environment: \`${CAE_NAME}\`](${CAE_URL})" >> /tmp/pr_comment.md
+  #         else
+  #           echo "- 🏗️ Container App Environment: ${CAE_NAME}" >> /tmp/pr_comment.md
+  #         fi
 
-          # Add website URL (conditionally format as link)
-          if [ "$WEBSITE_URL" != "Not available" ]; then
-            echo "- 🌐 [Website URL](${WEBSITE_URL})" >> /tmp/pr_comment.md
-          else
-            echo "- 🌐 Website URL: ${WEBSITE_URL}" >> /tmp/pr_comment.md
-          fi
+  #         # Add website URL (conditionally format as link)
+  #         if [ "$WEBSITE_URL" != "Not available" ]; then
+  #           echo "- 🌐 [Website URL](${WEBSITE_URL})" >> /tmp/pr_comment.md
+  #         else
+  #           echo "- 🌐 Website URL: ${WEBSITE_URL}" >> /tmp/pr_comment.md
+  #         fi
 
-          # Add footer
-          cat >> /tmp/pr_comment.md << 'EOF'
+  #         # Add footer
+  #         cat >> /tmp/pr_comment.md << 'EOF'
 
-          ---
-          *Deployment completed at TIMESTAMP_PLACEHOLDER*
-          EOF
+  #         ---
+  #         *Deployment completed at TIMESTAMP_PLACEHOLDER*
+  #         EOF
 
-          # Strip leading spaces from footer
-          tail -n 3 /tmp/pr_comment.md | sed 's/^          //' > /tmp/pr_comment_footer.md
-          head -n -3 /tmp/pr_comment.md > /tmp/pr_comment_body.md
-          cat /tmp/pr_comment_body.md /tmp/pr_comment_footer.md > /tmp/pr_comment.md
+  #         # Strip leading spaces from footer
+  #         tail -n 3 /tmp/pr_comment.md | sed 's/^          //' > /tmp/pr_comment_footer.md
+  #         head -n -3 /tmp/pr_comment.md > /tmp/pr_comment_body.md
+  #         cat /tmp/pr_comment_body.md /tmp/pr_comment_footer.md > /tmp/pr_comment.md
 
-          # Replace placeholders
-          sed -i "s|RESOURCE_GROUP_PLACEHOLDER|${RESOURCE_GROUP}|g" /tmp/pr_comment.md
-          sed -i "s|RG_URL_PLACEHOLDER|${RG_URL}|g" /tmp/pr_comment.md
-          sed -i "s|TIMESTAMP_PLACEHOLDER|$(date -u '+%Y-%m-%d %H:%M:%S UTC')|g" /tmp/pr_comment.md
+  #         # Replace placeholders
+  #         sed -i "s|RESOURCE_GROUP_PLACEHOLDER|${RESOURCE_GROUP}|g" /tmp/pr_comment.md
+  #         sed -i "s|RG_URL_PLACEHOLDER|${RG_URL}|g" /tmp/pr_comment.md
+  #         sed -i "s|TIMESTAMP_PLACEHOLDER|$(date -u '+%Y-%m-%d %H:%M:%S UTC')|g" /tmp/pr_comment.md
 
-          # Post comment to PR
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body-file /tmp/pr_comment.md \
-            --repo ${{ github.repository }}
+  #         # Post comment to PR
+  #         gh pr comment ${{ github.event.pull_request.number }} \
+  #           --body-file /tmp/pr_comment.md \
+  #           --repo ${{ github.repository }}
 
-  deploy-preview:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    environment: preview
-    concurrency:
-      group: deploy-preview
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      id-token: write
+  # deploy-preview:
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+  #   environment: preview
+  #   concurrency:
+  #     group: deploy-preview
+  #     cancel-in-progress: false
+  #   permissions:
+  #     contents: read
+  #     id-token: write
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+  #     - name: Setup .NET
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: '10.0.x'
 
-      - name: Download and install Aspire CLI
-        run: |
-          set -e
-          curl -sSL https://aspire.dev/install.sh | bash -s
-          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+  #     - name: Download and install Aspire CLI
+  #       run: |
+  #         set -e
+  #         curl -sSL https://aspire.dev/install.sh | bash -s
+  #         echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
-      - name: Show Aspire CLI version
-        run: |
-          set -e
-          aspire --version
+  #     - name: Show Aspire CLI version
+  #       run: |
+  #         set -e
+  #         aspire --version
 
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Azure Login
+  #       uses: azure/login@v2
+  #       with:
+  #         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Run aspire deploy
-        env:
-          AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE__LOCATION: 'westus3'
-          AZURE__RESOURCEGROUP: 'hex1b-preview'
-          Parameters__customDomain: ${{ vars.CUSTOM_DOMAIN }}
-          Parameters__certificateName: ${{ secrets.CERTIFICATE_NAME }}
-        run: |
-          set -e
-          aspire deploy
+  #     - name: Run aspire deploy
+  #       env:
+  #         AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #         AZURE__LOCATION: 'westus3'
+  #         AZURE__RESOURCEGROUP: 'hex1b-preview'
+  #         Parameters__customDomain: ${{ vars.CUSTOM_DOMAIN }}
+  #         Parameters__certificateName: ${{ secrets.CERTIFICATE_NAME }}
+  #       run: |
+  #         set -e
+  #         aspire deploy
 
   deploy-production:
     runs-on: ubuntu-latest
@@ -242,7 +242,7 @@ jobs:
       - name: Download and install Aspire CLI
         run: |
           set -e
-          curl -sSL https://aspire.dev/install.sh | bash -s
+          curl -sSL https://aspire.dev/install.sh | bash -s -q dev
           echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Show Aspire CLI version
