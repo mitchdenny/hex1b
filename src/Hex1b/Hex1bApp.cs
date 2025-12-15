@@ -14,6 +14,37 @@ namespace Hex1b;
 /// A Hex1bApp with typed state management.
 /// </summary>
 /// <typeparam name="TState">The application state type.</typeparam>
+/// <example>
+/// <para>Create a minimal Hex1b application with a text box and button:</para>
+/// <code>
+/// using Hex1b;
+/// using static Hex1b.Hex1bWidgets;
+/// 
+/// // Define your application state
+/// record AppState(TextBoxState Input = null!)
+/// {
+///     public AppState() : this(new TextBoxState()) { }
+/// }
+/// 
+/// // Create the app with state and a widget builder
+/// var app = new Hex1bApp&lt;AppState&gt;(new AppState(), ctx =&gt;
+///     VStack(
+///         Text("Hello, Hex1b!").Bold(),
+///         TextBox(ctx.State.Input)
+///             .Placeholder("Type something..."),
+///         Button("Submit", () =&gt; Console.WriteLine(ctx.State.Input.Text))
+///     ).Gap(1).Padding(2)
+/// );
+/// 
+/// // Run the application
+/// await app.RunAsync();
+/// </code>
+/// </example>
+/// <remarks>
+/// The Hex1bApp is the main entry point for building terminal UI applications.
+/// It manages the render loop, input handling, focus management, and reconciliation
+/// between widgets (immutable declarations) and nodes (mutable render state).
+/// </remarks>
 public class Hex1bApp<TState> : IDisposable
 {
     private readonly Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> _rootComponent;

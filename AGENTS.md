@@ -127,10 +127,72 @@ dotnet test
 dotnet run --project samples/Cancellation
 ```
 
+## 🚀 .NET Aspire
+
+Aspire is the orchestrator for the entire application, handling dependency configuration, building, and running. Resources are defined in `apphost.cs`.
+
 ### Running with Aspire
 ```bash
-dotnet run --project apphost.cs
+aspire run
 ```
+
+If there is already an instance running, it will prompt to stop the existing instance. You only need to restart if `apphost.cs` changes, but restarting can reset everything to a known state.
+
+### General Aspire Workflow
+1. **Before making changes**: Run `aspire run` and inspect resource state to build from a known state
+2. **Make changes incrementally**: Validate with `aspire run` after each change
+3. **Use MCP tools**: Check resource status and debug issues using Aspire MCP tools
+
+### Aspire MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `list_resources` | Check status of resources in the app model |
+| `execute_resource_command` | Restart resources or perform other actions |
+| `list_integrations` | Get available integrations with versions |
+| `get_integration_docs` | Fetch documentation for specific integrations |
+| `list_structured_logs` | Get structured log details for debugging |
+| `list_console_logs` | Get console log output for debugging |
+| `list_traces` | Get distributed trace information |
+| `list_trace_structured_logs` | Get logs related to a specific trace |
+| `select_apphost` | Switch between multiple app hosts |
+| `list_apphosts` | View active app hosts |
+
+### Adding Integrations
+**IMPORTANT**: When adding a resource to the app model:
+1. Use `list_integrations` to get current versions of available integrations
+2. Match the integration version to the Aspire.AppHost.Sdk version (some may have preview suffix)
+3. Use `get_integration_docs` to fetch the latest documentation
+4. Follow documentation links for additional guidance
+
+### Debugging with Aspire
+Aspire captures rich logs and telemetry. Use diagnostic tools **before** making changes:
+1. `list_structured_logs` - Detailed structured logs
+2. `list_console_logs` - Console output
+3. `list_traces` - Distributed traces
+4. `list_trace_structured_logs` - Logs related to a specific trace
+
+### Updating Aspire
+```bash
+aspire update
+```
+This updates the apphost and some Aspire packages. You may need to manually update other packages. Consider using `dotnet-outdated` with user consent:
+```bash
+dotnet tool install --global dotnet-outdated-tool
+```
+
+### Aspire Constraints
+- ⚠️ **Persistent containers**: Avoid early in development to prevent state management issues
+- ⚠️ **Aspire workload is OBSOLETE**: Never install or use the Aspire workload
+- ✅ Changes to `apphost.cs` require application restart
+
+### Playwright Integration
+The Playwright MCP server is configured for functional testing. Use `list_resources` to get endpoints for navigation with Playwright.
+
+### Official Aspire Documentation
+1. https://aspire.dev
+2. https://learn.microsoft.com/dotnet/aspire
+3. https://nuget.org (for integration package details)
 
 ## ⚠️ Important Constraints
 
