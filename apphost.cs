@@ -3,6 +3,7 @@
 #:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.25611.1
 
 #pragma warning disable ASPIRECSHARPAPPS001
+#pragma warning disable ASPIREACADOMAINS001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -10,11 +11,25 @@ var builder = DistributedApplication.CreateBuilder(args);
 var customDomainValue = builder.Configuration["Parameters:customDomain"];
 var certificateNameValue = builder.Configuration["Parameters:certificateName"];
 
+var customDomain = !string.IsNullOrEmpty(customDomainValue) ? builder.AddParameter("customDomain") : null;
+var certificateName = !string.IsNullOrEmpty(certificateNameValue) ? builder.AddParameter("certificateName") : null;
+
 builder.AddAzureContainerAppEnvironment("env");
 
 var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
     .WithHttpHealthCheck("/health")
-    .WithExternalHttpEndpoints();
+    .WithExternalHttpEndpoints()
+    .PublishAsAzureContainerApp((infra, app) =>
+    {
+        app.Template.Scale.MinReplicas = 0;
+        app.Template.Scale.MaxReplicas = 1;
+
+        if (customDomain is not null && certificateName is not null)
+        {
+            app.ConfigureCustomDomain(customDomain, certificateName);
+        }
+    });
+
 
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
