@@ -9,7 +9,6 @@ interface Exhibit {
 }
 
 const exhibits = ref<Exhibit[]>([])
-const activeExhibit = ref<Exhibit | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
@@ -26,14 +25,6 @@ async function loadExhibits() {
     error.value = 'Failed to load gallery exhibits. Make sure the backend is running.'
     isLoading.value = false
   }
-}
-
-function selectExhibit(exhibit: Exhibit) {
-  activeExhibit.value = exhibit
-}
-
-function closeExhibit() {
-  activeExhibit.value = null
 }
 
 onMounted(() => {
@@ -54,35 +45,21 @@ onMounted(() => {
         {{ error }}
       </div>
       
-      <!-- Gallery grid -->
-      <div v-else-if="!activeExhibit" class="gallery-grid">
+      <!-- Gallery grid with FloatingTerminal triggers -->
+      <div v-else class="gallery-grid">
         <div 
           v-for="exhibit in exhibits" 
           :key="exhibit.id"
-          class="gallery-card"
-          @click="selectExhibit(exhibit)"
+          class="gallery-card-wrapper"
         >
-          <div class="gallery-card-preview">
-            <div class="gallery-card-placeholder">
-              <span>{{ exhibit.title }}</span>
-            </div>
-          </div>
+          <FloatingTerminal 
+            :exhibit="exhibit.id" 
+            :title="exhibit.title" 
+          />
           <div class="gallery-card-info">
-            <div class="gallery-card-title">{{ exhibit.title }}</div>
             <div class="gallery-card-description">{{ exhibit.description }}</div>
           </div>
         </div>
-      </div>
-      
-      <!-- Active exhibit view -->
-      <div v-else class="gallery-active">
-        <button class="gallery-back" @click="closeExhibit">
-          ← Back to Gallery
-        </button>
-        <TerminalDemo 
-          :exhibit="activeExhibit.id" 
-          :title="activeExhibit.title" 
-        />
       </div>
     </div>
     
@@ -108,29 +85,25 @@ onMounted(() => {
   color: #ff6b6b;
 }
 
-.gallery-card-placeholder {
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.gallery-card-wrapper {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--vp-c-text-3);
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gallery-card-info {
+  padding: 0 8px;
+}
+
+.gallery-card-description {
+  color: var(--vp-c-text-2);
   font-size: 14px;
-}
-
-.gallery-back {
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  color: var(--vp-c-text-1);
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  margin-bottom: 16px;
-  transition: all 0.2s;
-}
-
-.gallery-back:hover {
-  border-color: var(--vp-c-brand-1);
-  color: var(--vp-c-brand-1);
+  line-height: 1.5;
 }
 </style>
