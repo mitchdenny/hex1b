@@ -21,11 +21,9 @@ let websocket: WebSocket | null = null
 // Floating window state
 const position = ref({ x: 100, y: 100 })
 const terminalSize = ref({ cols: props.cols || 80, rows: props.rows || 24 })
-const isDragging = ref(false)
 const isResizing = ref(false)
 const isAnimating = ref(false)
 const resizeDirection = ref('')
-const dragOffset = ref({ x: 0, y: 0 })
 const resizeOffset = ref({ top: 0, left: 0, right: 0, bottom: 0 })
 let recentlyInteracted = false
 const resizeState = ref<{
@@ -69,12 +67,14 @@ const TERMINAL_SIZES = [
 
 function openTerminal() {
   isOpen.value = true
-  // Center the terminal on screen
-  position.value = {
-    x: Math.max(50, (window.innerWidth - 700) / 2),
-    y: Math.max(50, (window.innerHeight - 500) / 2)
-  }
-  nextTick(() => initTerminal())
+  
+  // Constrain terminal size to fit window and center
+  nextTick(() => {
+    initTerminal().then(() => {
+      constrainTerminalSize()
+      centerTerminal()
+    })
+  })
 }
 
 function closeTerminal() {
@@ -201,40 +201,6 @@ function refresh() {
   websocket?.close()
   terminal?.reset()
   connectWebSocket()
-}
-
-// Drag functionality
-function startDrag(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('.terminal-controls')) return
-  
-  isDragging.value = true
-  const rect = containerEl.value?.getBoundingClientRect()
-  if (rect) {
-    dragOffset.value = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    }
-  }
-  
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', stopDrag)
-  e.preventDefault()
-}
-
-function onDrag(e: MouseEvent) {
-  if (!isDragging.value) return
-  
-  position.value = {
-    x: Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.value.x)),
-    y: Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.value.y))
-  }
-}
-
-function stopDrag() {
-  isDragging.value = false
-  recentlyInteracted = true
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
 }
 
 // Resize functionality
@@ -433,7 +399,7 @@ function constrainTerminalSize() {
 }
 
 function handleWindowResize() {
-  if (isOpen.value && !isDragging.value && !isResizing.value) {
+  if (isOpen.value && !isResizing.value) {
     constrainTerminalSize()
     centerTerminal()
   }
@@ -476,7 +442,7 @@ watch(() => props.exhibit, () => {
         <div 
           ref="containerEl"
           class="floating-terminal"
-          :class="{ 'is-dragging': isDragging, 'is-resizing': isResizing, 'is-animating': isAnimating }"
+          :class="{ 'is-resizing': isResizing, 'is-animating': isAnimating }"
           :style="{ left: position.x + 'px', top: position.y + 'px' }"
         >
           <!-- Resize handles -->
@@ -503,8 +469,8 @@ watch(() => props.exhibit, () => {
             <div class="resize-overlay-info">{{ displaySize }}</div>
           </div>
           
-          <!-- Header (draggable) -->
-          <div class="terminal-header" @mousedown="startDrag">
+          <!-- Header -->
+          <div class="terminal-header">
             <div class="terminal-dots">
               <span class="terminal-dot red" @click.stop="closeTerminal"></span>
               <span class="terminal-dot yellow"></span>
@@ -638,11 +604,6 @@ watch(() => props.exhibit, () => {
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: visible;
-}
-
-.floating-terminal.is-dragging {
-  cursor: grabbing;
-  user-select: none;
 }
 
 .floating-terminal.is-resizing {
@@ -790,7 +751,6 @@ watch(() => props.exhibit, () => {
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: grab;
   user-select: none;
 }
 
