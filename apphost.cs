@@ -1,6 +1,6 @@
-﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.25611.1
-#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.25611.1
-#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.25611.1
+﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.25615.6
+#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.25615.6
+#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.25615.6
 
 #pragma warning disable ASPIRECSHARPAPPS001
 #pragma warning disable ASPIREACADOMAINS001
