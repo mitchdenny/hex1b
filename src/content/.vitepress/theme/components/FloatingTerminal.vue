@@ -59,11 +59,57 @@ const terminalTheme = {
   brightWhite: '#ffffff'
 }
 
-const TERMINAL_SIZES = [
-  { name: '80×24', cols: 80, rows: 24 },
-  { name: '120×30', cols: 120, rows: 30 },
-  { name: '132×43', cols: 132, rows: 43 }
-]
+// Compute dynamic terminal sizes based on available window space
+const availableSizes = computed(() => {
+  const { maxCols, maxRows } = getMaxTerminalSizeStatic()
+  
+  // Define size tiers from smallest to largest
+  const tiers = [
+    { cols: 80, rows: 24 },
+    { cols: 100, rows: 30 },
+    { cols: 120, rows: 36 },
+    { cols: 140, rows: 42 },
+    { cols: 160, rows: 48 },
+    { cols: 180, rows: 54 },
+    { cols: 200, rows: 60 }
+  ]
+  
+  // Filter to sizes that fit, always include 80×24
+  const validSizes = tiers.filter(s => s.cols <= maxCols && s.rows <= maxRows)
+  
+  // If max size is larger than any tier, add a "Max" option
+  const largestTier = tiers[tiers.length - 1]
+  if (maxCols > largestTier.cols || maxRows > largestTier.rows) {
+    const effectiveMaxCols = Math.min(maxCols, 200)
+    const effectiveMaxRows = Math.min(maxRows, 60)
+    // Only add if it's different from the largest valid tier
+    const lastValid = validSizes[validSizes.length - 1]
+    if (!lastValid || effectiveMaxCols > lastValid.cols || effectiveMaxRows > lastValid.rows) {
+      validSizes.push({ cols: effectiveMaxCols, rows: effectiveMaxRows })
+    }
+  }
+  
+  // Format with names
+  return validSizes.map(s => ({
+    name: `${s.cols}×${s.rows}`,
+    cols: s.cols,
+    rows: s.rows
+  }))
+})
+
+// Static version for use before terminal is initialized
+function getMaxTerminalSizeStatic(): { maxCols: number; maxRows: number } {
+  // Use default cell sizes before terminal exists
+  const cellWidth = 8.4
+  const cellHeight = 17
+  const maxWidth = window.innerWidth * 0.9 - 40
+  const maxHeight = window.innerHeight * 0.9 - 100
+  
+  const maxCols = Math.floor(maxWidth / cellWidth)
+  const maxRows = Math.floor(maxHeight / cellHeight)
+  
+  return { maxCols: Math.max(40, maxCols), maxRows: Math.max(10, maxRows) }
+}
 
 function openTerminal() {
   isOpen.value = true
@@ -480,7 +526,7 @@ watch(() => props.exhibit, () => {
             <div class="terminal-controls">
               <div class="size-buttons">
                 <button 
-                  v-for="size in TERMINAL_SIZES" 
+                  v-for="size in availableSizes" 
                   :key="size.name"
                   class="size-btn"
                   :class="{ active: terminalSize.cols === size.cols && terminalSize.rows === size.rows }"
