@@ -685,7 +685,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -706,7 +706,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -726,7 +726,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.List(s => s), "Menu")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -750,7 +750,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -773,7 +773,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -793,7 +793,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Select an option:"),
                     v.List(s => s)
@@ -818,7 +818,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal, Theme = Hex1bThemes.HighContrast }
         );
         
@@ -838,7 +838,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -860,7 +860,7 @@ public class ListNodeTests
         // Use object as state, with listState captured in closure
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Welcome"),
                     v.Border(ctx.List(listState), "Options"),

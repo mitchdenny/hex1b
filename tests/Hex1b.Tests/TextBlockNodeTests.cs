@@ -378,7 +378,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
             new Hex1bAppOptions { Terminal = terminal }
         );
 
@@ -395,7 +395,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("First Line"),
                     v.Text("Second Line"),
@@ -434,7 +434,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) =>
+            ctx =>
             {
                 counter++;
                 return Task.FromResult<Hex1bWidget>(
@@ -465,7 +465,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Short"),
                     v.Text("A longer text here")
@@ -491,7 +491,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<string>(
             message,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Text(s => s)
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -510,7 +510,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("")),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Text("")),
             new Hex1bAppOptions { Terminal = terminal }
         );
 
@@ -528,7 +528,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
             new Hex1bAppOptions { Terminal = terminal }
         );
 

@@ -20,11 +20,11 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
         public TextBoxState Input { get; } = new();
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         var state = new TextInputState();
         
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<TextInputState>(state);
             
@@ -37,7 +37,7 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
                 v.Text("Type something! Use Backspace to delete.")
             ]);
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 }

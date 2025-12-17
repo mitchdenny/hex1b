@@ -104,7 +104,7 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
         // Create the app with our observable state
         using var app = new Hex1bApp<ChartState>(
             state,
-            (ctx, ct) => Task.FromResult(BuildChart(ctx)),
+            ctx => BuildChart(ctx),
             new Hex1bAppOptions 
             { 
                 Terminal = terminal,

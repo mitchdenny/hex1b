@@ -36,13 +36,13 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         }
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating layout exhibit widget builder");
 
         var state = new LayoutState();
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<LayoutState>(state);
 
@@ -66,7 +66,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
                 leftWidth: 22
             );
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

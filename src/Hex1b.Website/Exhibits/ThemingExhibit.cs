@@ -37,7 +37,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     [ThreadStatic]
     private static ThemingState? _currentSession;
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         var themes = new Hex1bTheme[]
         {
@@ -57,7 +57,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
         
         _currentSession = state;
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<ThemingState>(state);
             var currentTheme = state.Themes[state.ThemeList.SelectedIndex];
@@ -114,7 +114,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                 infoBar
             ]);
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

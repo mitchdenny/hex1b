@@ -47,7 +47,7 @@ namespace Hex1b;
 /// </remarks>
 public class Hex1bApp<TState> : IDisposable
 {
-    private readonly Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> _rootComponent;
+    private readonly Func<RootContext<TState>, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bTerminal _terminal;
     private readonly Hex1bRenderContext _context;
@@ -112,7 +112,7 @@ public class Hex1bApp<TState> : IDisposable
     /// </summary>
     public Hex1bApp(
         TState state,
-        Func<RootContext<TState>, CancellationToken, Task<Hex1bWidget>> builder,
+        Func<RootContext<TState>, Task<Hex1bWidget>> builder,
         Hex1bAppOptions? options = null)
     {
         options ??= new Hex1bAppOptions();
@@ -159,7 +159,7 @@ public class Hex1bApp<TState> : IDisposable
         TState state,
         Func<RootContext<TState>, Hex1bWidget> builder,
         Hex1bAppOptions? options = null)
-        : this(state, (ctx, ct) => Task.FromResult(builder(ctx)), options)
+        : this(state, ctx => Task.FromResult(builder(ctx)), options)
     {
     }
 
@@ -287,11 +287,14 @@ public class Hex1bApp<TState> : IDisposable
             _context.Theme = _themeProvider();
         }
 
+        // Update the cancellation token on the root context
+        _rootContext.CancellationToken = cancellationToken;
+
         // Step 1: Call the root component to get the widget tree
         Hex1bWidget widgetTree;
         try
         {
-            widgetTree = await _rootComponent(_rootContext, cancellationToken);
+            widgetTree = await _rootComponent(_rootContext);
         }
         catch (Exception ex) when (_rescueEnabled)
         {

@@ -90,13 +90,13 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
 
     private record TodoItem(string Title, bool IsComplete);
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating responsive todo widget builder");
 
         var state = new TodoState();
 
-        return ct =>
+        return () =>
         {
             // Update list items before each render
             state.UpdateListItems();
@@ -118,7 +118,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
                 r.Otherwise(r => BuildCompactLayout(r))
             ]);
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

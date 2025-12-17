@@ -36,13 +36,13 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         }
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating splitters exhibit widget builder");
 
         var state = new SplittersState();
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<SplittersState>(state);
 
@@ -62,7 +62,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
                 leftWidth: 22
             );
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

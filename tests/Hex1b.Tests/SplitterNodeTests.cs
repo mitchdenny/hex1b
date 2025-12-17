@@ -639,7 +639,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Text("Left Content"),
                     ctx.Text("Right Content"),
@@ -664,7 +664,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     v => [v.Text("Left 1"), v.Text("Left 2")],
                     v => [v.Text("Right 1"), v.Text("Right 2")],
@@ -691,7 +691,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Button("Left", () => leftClicked = true),
                     ctx.Text("Right"),
@@ -717,7 +717,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Button("Left", () => { }),
                     ctx.Button("Right", () => rightClicked = true),
@@ -744,7 +744,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Text("Left"),
                     ctx.Text("Right"),
@@ -779,7 +779,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.List(listState),
                     ctx.Text("Details"),
@@ -805,7 +805,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.TextBox(textBoxState),
                     ctx.Text("Right"),
@@ -829,7 +829,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.Splitter(
                         ctx.Text("Left"),
@@ -1255,7 +1255,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     ctx.Text("Top Content"),
                     ctx.Text("Bottom Content"),
@@ -1280,7 +1280,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     v => [v.Text("Top 1"), v.Text("Top 2")],
                     v => [v.Text("Bottom 1"), v.Text("Bottom 2")],
@@ -1307,7 +1307,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     ctx.Button("Top", () => topClicked = true),
                     ctx.Text("Bottom"),
@@ -1333,7 +1333,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     ctx.Button("Top", () => { }),
                     ctx.Button("Bottom", () => bottomClicked = true),
@@ -1360,7 +1360,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     ctx.Text("Top"),
                     ctx.Text("Bottom"),
@@ -1388,7 +1388,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.VSplitter(
                         ctx.Text("Top"),
@@ -1417,7 +1417,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VSplitter(
                     ctx.Splitter(
                         ctx.Text("Top-Left"),
@@ -1461,7 +1461,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left pane: VStack containing a List (this is the key scenario)
                     v => [v.Text("Theme List"), v.List(listState)],
@@ -1495,7 +1495,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left pane: VStack containing two Buttons
                     v => [v.Button("First", () => { }), v.Button("Second", () => { })],
@@ -1530,7 +1530,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     v => [v.Text("Left Pane"), v.Button("Left Button", () => leftButtonClicked = true)],
                     v => [v.Text("Right Pane"), v.Button("Right Button", () => { })],
@@ -1569,7 +1569,7 @@ public class SplitterNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left: Panel > VStack > List (deep nesting like ThemingExhibit)
                     ctx.Panel(p => [
@@ -1791,7 +1791,7 @@ public class SplitterNodeTests
         // Focus should go to the OUTER left button (first focusable), not the inner splitter's button.
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Outer left: button that should get initial focus
                     ctx.Button("Outer Left", () => outerLeftClicked = true),
@@ -1826,7 +1826,7 @@ public class SplitterNodeTests
         
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Button("Outer Left", () => outerLeftClicked = true),
                     ctx.VSplitter(
@@ -1858,7 +1858,7 @@ public class SplitterNodeTests
         
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Button("Level 1", () => level1Clicked = true),
                     ctx.Splitter(

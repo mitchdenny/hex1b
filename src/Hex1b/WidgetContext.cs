@@ -53,5 +53,11 @@ public class WidgetContext<TParentWidget, TState>
 /// </summary>
 public class RootContext<TState> : WidgetContext<RootWidget, TState>
 {
+    /// <summary>
+    /// The cancellation token for the application lifecycle.
+    /// Use this to observe when the application is shutting down.
+    /// </summary>
+    public CancellationToken CancellationToken { get; internal set; }
+
     public RootContext(TState state) : base(state) { }
 }

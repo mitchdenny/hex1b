@@ -18,9 +18,9 @@ public class MouseExhibit : IGalleryExhibit
     
     private int _clickCount = 0;
 
-    public Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        return ct => Task.FromResult<Hex1bWidget>(
+        return () =>
             new BorderWidget(
                 new VStackWidget([
                     new TextBlockWidget("🖱️  Mouse Click-to-Focus Demo"),
@@ -57,7 +57,6 @@ public class MouseExhibit : IGalleryExhibit
                     new TextBlockWidget("The yellow cursor shows mouse position.")
                 ]),
                 "Mouse Test"
-            )
-        );
+            );
     }
 }

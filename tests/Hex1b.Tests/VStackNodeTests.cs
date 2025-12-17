@@ -358,7 +358,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
                     v.Text("Body Content"),
@@ -386,7 +386,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),
                     v.Text("Non-focusable label"),
@@ -423,7 +423,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),
                     v.TextBox(state2)
@@ -451,7 +451,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Short"),
                     v.Text("Medium text"),
@@ -478,7 +478,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Title"),
                     v.TextBox(textState),
@@ -506,7 +506,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Outer 1"),
                     v.VStack(inner => [
@@ -535,7 +535,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -556,7 +556,7 @@ public class VStackNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),
             new Hex1bAppOptions { Terminal = terminal }

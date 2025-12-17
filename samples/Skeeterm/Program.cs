@@ -37,7 +37,7 @@ public static class AppExtensions
     private static Hex1bApp<AppState> BuildApp(AppState state)
     {
         return new Hex1bApp<AppState>(state,
-            async (context, ct) => {
+            context => {
                 var vstack = context.VStack(v => [
                     v.ContentPanel().Fill(),
                     v.InfoBar("Skeetterm"),

@@ -886,7 +886,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
                         v.Text("Line 1"),
@@ -923,7 +923,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
                         v.Text("Line 1"),
@@ -960,7 +960,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
                         v.Text("Content"),
@@ -987,7 +987,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Text("Left Side"),
                     ctx.VScroll(
@@ -1024,7 +1024,7 @@ public class ScrollNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HScroll(
                     h => [
                         h.Text("Column1 "),

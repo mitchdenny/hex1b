@@ -52,7 +52,7 @@ public class SixelExhibit : Hex1bExhibit
                 : null;
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating widget builder for Sixel exhibit");
 
@@ -94,7 +94,7 @@ public class SixelExhibit : Hex1bExhibit
             .Select(img => new ListItem(img.Id, img.Name))
             .ToList();
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<SixelState>(state);
             var selectedImage = state.SelectedImage;
@@ -193,7 +193,7 @@ public class SixelExhibit : Hex1bExhibit
                 leftWidth: 25
             );
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 }

@@ -33,7 +33,7 @@ public interface IGalleryExhibit
     /// Creates the Hex1b widget builder for this exhibit.
     /// Returns null if this exhibit uses RunAsync instead.
     /// </summary>
-    Func<CancellationToken, Task<Hex1bWidget>>? CreateWidgetBuilder() => null;
+    Func<Hex1bWidget>? CreateWidgetBuilder() => null;
 
     /// <summary>
     /// Creates a dynamic theme provider for this exhibit.
@@ -58,7 +58,7 @@ public abstract class Hex1bExhibit : IGalleryExhibit
     public abstract string Title { get; }
     public abstract string Description { get; }
 
-    public abstract Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder();
+    public abstract Func<Hex1bWidget> CreateWidgetBuilder();
 
     public virtual Func<Hex1bTheme>? CreateThemeProvider() => null;
 }

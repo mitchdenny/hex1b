@@ -470,7 +470,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Wide View: Full Details")),
                     r.Otherwise(r => r.Text("Compact"))
@@ -493,7 +493,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Wide View")),
                     r.Otherwise(r => r.Text("Compact View"))
@@ -516,7 +516,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Large")),
                     r.WhenMinWidth(60, r => r.Text("Medium")),
@@ -542,7 +542,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenWidth(w => w > 100, r => r.Text("Very Wide")),
                     r.WhenWidth(w => w > 50, r => r.Text("Wide")),
@@ -566,7 +566,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.When((w, h) => w >= 50 && h >= 20, r => r.Text("Large Screen")),
                     r.Otherwise(r => r.Text("Small Screen"))
@@ -588,7 +588,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.Responsive(r => [
                         r.WhenMinWidth(100, r => r.Text("Wide")),
@@ -616,7 +616,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(50, r => r.Button("Click Me", () => clicked = true)),
                     r.Otherwise(r => r.Text("Too narrow"))
@@ -640,7 +640,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textBoxState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(50, r => r.TextBox(ctx.State)),
                     r.Otherwise(r => r.Text("Too narrow"))
@@ -663,7 +663,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
                     v.Responsive(r => [
@@ -691,7 +691,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Very Wide")),
                     r.WhenMinWidth(80, r => r.Text("Wide"))
@@ -720,7 +720,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<ListState>(
             listState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(50, r => r.List(ctx.State)),
                     r.Otherwise(r => r.Text("Too narrow for list"))
@@ -743,7 +743,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(80, r =>
                         r.HStack(h => [
@@ -777,7 +777,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(80, r =>
                         r.HStack(h => [
@@ -811,7 +811,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Responsive(r => [
                         r.WhenMinWidth(30, r => r.Text("Wide Left")),
@@ -839,7 +839,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp<object>(
             state,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(state, r => [
                     r.Otherwise(r => r.Text(state.Message))
                 ])

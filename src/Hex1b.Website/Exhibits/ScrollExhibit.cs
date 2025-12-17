@@ -41,13 +41,13 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         }
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating scroll exhibit widget builder");
 
         var state = new ScrollExhibitState();
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<ScrollExhibitState>(state);
 
@@ -69,7 +69,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
                 leftWidth: 22
             );
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

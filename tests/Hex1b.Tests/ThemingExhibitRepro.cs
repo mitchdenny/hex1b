@@ -34,7 +34,7 @@ public class ThemingExhibitRepro
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) =>
+            ctx =>
             {
                 var widget = ctx.VStack(root => [
                     root.Splitter(
@@ -241,7 +241,7 @@ public class ThemingExhibitRepro
         // Build the structure similar to ThemingExhibit
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) =>
+            ctx =>
             {
                 var widget = ctx.VStack(root => [
                     root.Splitter(

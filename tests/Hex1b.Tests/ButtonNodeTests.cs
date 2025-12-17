@@ -325,7 +325,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click Me", () => { })
                 ])
@@ -347,7 +347,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Submit", () => clicked = true)
                 ])
@@ -371,7 +371,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Submit", () => clicked = true)
                 ])
@@ -395,7 +395,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text($"Count: {counter}"),
                     v.Button("Increment", () => counter++)
@@ -425,7 +425,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Button 1", () => button1Clicked = true),
                     v.Button("Button 2", () => button2Clicked = true)
@@ -453,7 +453,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("OK", () => clicked = true)
                 ])
@@ -477,7 +477,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click Here Now", () => { })
                 ])
@@ -501,7 +501,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(textState),
                     v.Button("Submit", () => buttonClicked = true)
@@ -533,7 +533,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click", () => clickCount++)
                 ])
@@ -561,7 +561,7 @@ public class ButtonNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button($"Clicked {counter} times", () => counter++)
                 ])

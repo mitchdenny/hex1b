@@ -636,7 +636,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Hello World"))
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -660,7 +660,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Content"), title: "My Panel")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -681,7 +681,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
                     v.Text("Line 1"),
                     v.Text("Line 2"),
@@ -708,7 +708,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.TextBox(textBoxState), title: "Input")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -730,7 +730,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.Border(ctx.Text("Nested"), title: "Inner"),
                     title: "Outer"
@@ -754,7 +754,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -775,7 +775,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Border(ctx.Text("Left"), title: "L"),
                     h.Border(ctx.Text("Right"), title: "R")
@@ -801,7 +801,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Button("Click Me", () => clicked = true), title: "Action")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -824,7 +824,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
                     v.Button("First", () => clickedButton = "First"),
                     v.Button("Second", () => clickedButton = "Second")
@@ -850,7 +850,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
                     v.Border(ctx.Text("Content"))
@@ -875,7 +875,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text(""))
             ),
             new Hex1bAppOptions { Terminal = terminal }

@@ -586,7 +586,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -608,7 +608,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -636,7 +636,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -662,7 +662,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),
                     v.TextBox(state2)
@@ -695,7 +695,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -721,7 +721,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -748,7 +748,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])
@@ -774,7 +774,7 @@ public class TextBoxNodeTests
 
         using var app = new Hex1bApp<TextBoxState>(
             textState,
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(s => s)
                 ])

@@ -285,14 +285,14 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
 
     #endregion
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating widget builder for Navigator CRM demo");
 
         // Create fresh state for this session
         var state = new CrmAppState();
 
-        return ct =>
+        return () =>
         {
             try
             {
@@ -312,9 +312,9 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                     new InfoBarSection("Tab: Navigate  Enter: Select  Esc: Back")
                 ]);
                 
-                return Task.FromResult<Hex1bWidget>(ctx.VStack(
+                return ctx.VStack(
                     v => [navigator.FillHeight(), infoBar]
-                ));
+                );
             }
             catch (Exception ex)
             {

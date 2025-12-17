@@ -448,7 +448,7 @@ public class ToggleSwitchNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
                 ])
@@ -475,7 +475,7 @@ public class ToggleSwitchNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
                 ])
@@ -503,7 +503,7 @@ public class ToggleSwitchNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
                 ])
@@ -530,7 +530,7 @@ public class ToggleSwitchNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(toggleState),
                     v.Button("Click", () => buttonClicked = true)
@@ -564,7 +564,7 @@ public class ToggleSwitchNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
                 ])

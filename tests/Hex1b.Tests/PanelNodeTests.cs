@@ -278,7 +278,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Panel Content"))
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -297,7 +297,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(v => [
                     v.Text("Line 1"),
                     v.Text("Line 2"),
@@ -323,7 +323,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Button("Click Me", () => clicked = true))
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -344,7 +344,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.TextBox(textBoxState))
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -364,7 +364,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -387,7 +387,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Themed"))
             ),
             new Hex1bAppOptions { Terminal = terminal, Theme = theme }
@@ -407,7 +407,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -426,7 +426,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
                     v.Panel(ctx.Text("Panel Content")),
@@ -456,7 +456,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp<object>(
             new object(),
-            (ctx, ct) => Task.FromResult<Hex1bWidget>(
+            ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.List(listState))
             ),
             new Hex1bAppOptions { Terminal = terminal }

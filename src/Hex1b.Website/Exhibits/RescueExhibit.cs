@@ -109,13 +109,13 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         );
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating rescue exhibit widget builder");
 
         var state = new RescueExhibitState();
 
-        return ct =>
+        return () =>
         {
             var ctx = new RootContext<RescueExhibitState>(state);
             
@@ -135,9 +135,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
                     new("Report Issue", () => { }),
                     new("Ignore", () => { })
                 };
-                return Task.FromResult<Hex1bWidget>(
-                    new RescueFallbackWidget(state.GlobalRescueState, ShowDetails: true, Actions: globalActions)
-                );
+                return new RescueFallbackWidget(state.GlobalRescueState, ShowDetails: true, Actions: globalActions);
             }
 
             var widget = ctx.Splitter(
@@ -157,7 +155,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
                 leftWidth: 22
             );
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 

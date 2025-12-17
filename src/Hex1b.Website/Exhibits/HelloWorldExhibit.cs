@@ -23,14 +23,14 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
         public int ClickCount { get; set; }
     }
 
-    public override Func<CancellationToken, Task<Hex1bWidget>> CreateWidgetBuilder()
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
         _logger.LogInformation("Creating hello world widget builder");
 
         // Create state once, captured in closure
         var state = new HelloState();
 
-        return ct =>
+        return () =>
         {
             // Create root context with the state
             var ctx = new RootContext<HelloState>(state);
@@ -47,7 +47,7 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
                 v.Button("Click me!", () => state.ClickCount++)
             ]);
 
-            return Task.FromResult<Hex1bWidget>(widget);
+            return widget;
         };
     }
 }
