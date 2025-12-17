@@ -18,22 +18,17 @@ namespace Hex1b;
 /// <para>Create a minimal Hex1b application with a text box and button:</para>
 /// <code>
 /// using Hex1b;
-/// using static Hex1b.Hex1bWidgets;
 /// 
 /// // Define your application state
-/// record AppState(TextBoxState Input = null!)
-/// {
-///     public AppState() : this(new TextBoxState()) { }
-/// }
+/// record AppState(string UserName = "");
 /// 
 /// // Create the app with state and a widget builder
 /// var app = new Hex1bApp&lt;AppState&gt;(new AppState(), ctx =&gt;
-///     VStack(
-///         Text("Hello, Hex1b!").Bold(),
-///         TextBox(ctx.State.Input)
-///             .Placeholder("Type something..."),
-///         Button("Submit", () =&gt; Console.WriteLine(ctx.State.Input.Text))
-///     ).Gap(1).Padding(2)
+///     ctx.VStack(v => [
+///         v.Text("Hello, Hex1b!"),
+///         v.TextBox("Type something..."),
+///         v.Button("Submit", a => Console.WriteLine("Submitted!"))
+///     ])
 /// );
 /// 
 /// // Run the application
@@ -567,13 +562,12 @@ public class Hex1bApp<TState> : IDisposable where TState : class
 /// <para>Create a minimal stateless Hex1b application:</para>
 /// <code>
 /// using Hex1b;
-/// using static Hex1b.Hex1bWidgets;
 /// 
 /// var app = new Hex1bApp(ctx =&gt;
-///     VStack(
-///         Text("Hello, Hex1b!").Bold(),
-///         Button("Quit", ctx.Quit)
-///     ).Gap(1).Padding(2)
+///     ctx.VStack(v => [
+///         v.Text("Hello, Hex1b!"),
+///         v.Button("Quit", a => a.RequestStop())
+///     ])
 /// );
 /// 
 /// await app.RunAsync();

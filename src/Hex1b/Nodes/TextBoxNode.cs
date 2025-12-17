@@ -8,7 +8,19 @@ namespace Hex1b;
 
 public sealed class TextBoxNode : Hex1bNode
 {
+    /// <summary>
+    /// The text box state containing text, cursor position, and selection.
+    /// </summary>
     public TextBoxState State { get; set; } = new();
+    
+    /// <summary>
+    /// Gets or sets the text content. Convenience property that accesses State.Text.
+    /// </summary>
+    public string Text
+    {
+        get => State.Text;
+        set => State.Text = value;
+    }
     
     private bool _isFocused;
     public override bool IsFocused { get => _isFocused; set => _isFocused = value; }

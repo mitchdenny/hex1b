@@ -7,7 +7,7 @@ public static class Hex1bWidgets
 {
     public static Task<Hex1bWidget> TextBlockAsync(string text, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new TextBlockWidget(text));
 
-    public static Task<Hex1bWidget> TextBoxAsync(TextBoxState state, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new TextBoxWidget(state));
+    public static Task<Hex1bWidget> TextBoxAsync(string? initialText = null, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new TextBoxWidget(initialText));
 
     public static Task<Hex1bWidget> VStackAsync(IReadOnlyList<Hex1bWidget> children, CancellationToken cancellationToken = default) => Task.FromResult<Hex1bWidget>(new VStackWidget(children));
 

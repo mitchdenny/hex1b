@@ -54,7 +54,7 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget(textState)
+                    new TextBoxWidget(State: textState)
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -154,8 +154,8 @@ public class Hex1bAppIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget(textState1),
-                    new TextBoxWidget(textState2)
+                    new TextBoxWidget(State: textState1),
+                    new TextBoxWidget(State: textState2)
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }

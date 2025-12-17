@@ -16,13 +16,23 @@ public static class TextBoxExtensions
         => new();
 
     /// <summary>
-    /// Creates a TextBox with the specified state (controlled mode).
+    /// Creates a TextBox with initial text.
     /// </summary>
     public static TextBoxWidget TextBox<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
-        TextBoxState textBoxState)
+        string initialText)
         where TParent : Hex1bWidget
-        => new(textBoxState);
+        => new(initialText);
+
+    /// <summary>
+    /// Creates a TextBox with explicit state (controlled mode).
+    /// Use this when you need to read or manipulate the text box state externally.
+    /// </summary>
+    public static TextBoxWidget TextBox<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx,
+        TextBoxState state)
+        where TParent : Hex1bWidget
+        => new(State: state);
 
     /// <summary>
     /// Creates a TextBox with state selected from context state (controlled mode).
@@ -31,5 +41,5 @@ public static class TextBoxExtensions
         this WidgetContext<TParent, TState> ctx,
         Func<TState, TextBoxState> stateSelector)
         where TParent : Hex1bWidget
-        => new(stateSelector(ctx.State));
+        => new(State: stateSelector(ctx.State));
 }
