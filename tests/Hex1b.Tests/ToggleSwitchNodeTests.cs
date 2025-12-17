@@ -446,8 +446,7 @@ public class ToggleSwitchNodeTests
             Options = ["Manual", "Auto", "Delayed"]
         };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
@@ -473,8 +472,7 @@ public class ToggleSwitchNodeTests
             Options = ["Off", "On"]
         };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
@@ -501,8 +499,7 @@ public class ToggleSwitchNodeTests
             Options = ["Low", "Medium", "High"]
         };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)
@@ -528,8 +525,7 @@ public class ToggleSwitchNodeTests
         var toggleState = new ToggleSwitchState { Options = ["A", "B"] };
         var buttonClicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(toggleState),
@@ -562,8 +558,7 @@ public class ToggleSwitchNodeTests
             OnSelectionChanged = (idx, val) => lastSelectedValue = val
         };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.ToggleSwitch(state)

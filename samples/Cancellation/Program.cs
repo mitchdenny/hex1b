@@ -72,8 +72,7 @@ if (listState.SelectedItem != null)
 }
 
 // Create and run the app
-using var app = new Hex1bApp<object>(
-    new object(),
+using var app = new Hex1bApp(
     ctx => App(listState, nameState, emailState, Save, () => statusMessage, cts, ctx.CancellationToken),
     new Hex1bAppOptions { Theme = Hex1bThemes.Sunset });
 await app.RunAsync(cts.Token);

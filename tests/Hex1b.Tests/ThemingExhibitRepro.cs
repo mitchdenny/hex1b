@@ -32,8 +32,7 @@ public class ThemingExhibitRepro
         };
         var textBoxState = new TextBoxState { Text = "Sample text" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx =>
             {
                 var widget = ctx.VStack(root => [
@@ -239,8 +238,7 @@ public class ThemingExhibitRepro
         var buttonClicked = false;
 
         // Build the structure similar to ThemingExhibit
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx =>
             {
                 var widget = ctx.VStack(root => [

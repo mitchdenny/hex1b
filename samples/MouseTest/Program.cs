@@ -9,8 +9,7 @@ var clickCount = 0;
 
 using var cts = new CancellationTokenSource();
 
-using var app = new Hex1bApp<object>(
-    state: new object(),
+using var app = new Hex1bApp(
     builder: ctx =>
     {
         return new BorderWidget(

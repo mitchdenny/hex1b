@@ -468,8 +468,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(120, 20);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Wide View: Full Details")),
@@ -491,8 +490,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(50, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Wide View")),
@@ -514,8 +512,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(75, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Large")),
@@ -540,8 +537,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenWidth(w => w > 100, r => r.Text("Very Wide")),
@@ -564,8 +560,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(60, 30);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.When((w, h) => w >= 50 && h >= 20, r => r.Text("Large Screen")),
@@ -586,8 +581,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(50, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.Responsive(r => [
@@ -614,8 +608,7 @@ public class ResponsiveNodeTests
         using var terminal = new Hex1bTerminal(80, 10);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(50, r => r.Button("Click Me", () => clicked = true)),
@@ -661,8 +654,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
@@ -689,8 +681,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(100, r => r.Text("Very Wide")),
@@ -741,8 +732,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(100, 20);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(80, r =>
@@ -775,8 +765,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 20);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
                     r.WhenMinWidth(80, r =>
@@ -809,8 +798,7 @@ public class ResponsiveNodeTests
     {
         using var terminal = new Hex1bTerminal(100, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Responsive(r => [
@@ -837,8 +825,7 @@ public class ResponsiveNodeTests
         using var terminal = new Hex1bTerminal(80, 10);
         var state = new { Message = "Hello from state" };
 
-        using var app = new Hex1bApp<object>(
-            state,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(state, r => [
                     r.Otherwise(r => r.Text(state.Message))

@@ -660,8 +660,7 @@ public class TextBoxNodeTests
         var state1 = new TextBoxState { Text = "" };
         var state2 = new TextBoxState { Text = "" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),

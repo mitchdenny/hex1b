@@ -45,7 +45,7 @@ namespace Hex1b;
 /// It manages the render loop, input handling, focus management, and reconciliation
 /// between widgets (immutable declarations) and nodes (mutable render state).
 /// </remarks>
-public class Hex1bApp<TState> : IDisposable
+public class Hex1bApp<TState> : IDisposable where TState : class
 {
     private readonly Func<RootContext<TState>, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
@@ -540,5 +540,55 @@ public class Hex1bApp<TState> : IDisposable
         {
             disposable.Dispose();
         }
+    }
+}
+
+/// <summary>
+/// A Hex1bApp without state management for simple stateless UIs.
+/// </summary>
+/// <example>
+/// <para>Create a minimal stateless Hex1b application:</para>
+/// <code>
+/// using Hex1b;
+/// using static Hex1b.Hex1bWidgets;
+/// 
+/// var app = new Hex1bApp(ctx =&gt;
+///     VStack(
+///         Text("Hello, Hex1b!").Bold(),
+///         Button("Quit", ctx.Quit)
+///     ).Gap(1).Padding(2)
+/// );
+/// 
+/// await app.RunAsync();
+/// </code>
+/// </example>
+/// <remarks>
+/// Use this class when your UI doesn't require external state management.
+/// For applications with state, use <see cref="Hex1bApp{TState}"/> instead.
+/// </remarks>
+public class Hex1bApp : Hex1bApp<object>
+{
+    /// <summary>
+    /// Creates a stateless Hex1bApp with an async widget builder.
+    /// </summary>
+    /// <param name="builder">A function that builds the widget tree. Receives a context with cancellation token and quit action.</param>
+    /// <param name="options">Optional configuration options.</param>
+    public Hex1bApp(
+        Func<RootContext<object>, Task<Hex1bWidget>> builder,
+        Hex1bAppOptions? options = null)
+        : base(new object(), builder, options)
+    {
+    }
+
+    /// <summary>
+    /// Creates a stateless Hex1bApp with a synchronous widget builder.
+    /// </summary>
+    /// <param name="builder">A function that builds the widget tree. Receives a context with cancellation token and quit action.</param>
+    /// <param name="options">Optional configuration options.</param>
+    public Hex1bApp(
+        Func<RootContext<object>, Hex1bWidget> builder,
+        Hex1bAppOptions? options = null)
+        : base(new object(), builder, options)
+    {
     }
 }

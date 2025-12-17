@@ -634,8 +634,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Hello World"))
             ),
@@ -658,8 +657,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Content"), title: "My Panel")
             ),
@@ -679,8 +677,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
                     v.Text("Line 1"),
@@ -706,8 +703,7 @@ public class BorderNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var textBoxState = new TextBoxState();
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.TextBox(textBoxState), title: "Input")
             ),
@@ -728,8 +724,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 15);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
                     ctx.Border(ctx.Text("Nested"), title: "Inner"),
@@ -752,8 +747,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(12, 5);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
             ),
@@ -773,8 +767,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(50, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Border(ctx.Text("Left"), title: "L"),
@@ -799,8 +792,7 @@ public class BorderNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Button("Click Me", () => clicked = true), title: "Action")
             ),
@@ -822,8 +814,7 @@ public class BorderNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var clickedButton = "";
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(v => [
                     v.Button("First", () => clickedButton = "First"),
@@ -848,8 +839,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
@@ -873,8 +863,7 @@ public class BorderNodeTests
     {
         using var terminal = new Hex1bTerminal(20, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text(""))
             ),

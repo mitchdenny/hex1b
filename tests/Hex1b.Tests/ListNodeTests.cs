@@ -858,8 +858,7 @@ public class ListNodeTests
         var listState = CreateListState("Option A", "Option B");
         
         // Use object as state, with listState captured in closure
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Welcome"),

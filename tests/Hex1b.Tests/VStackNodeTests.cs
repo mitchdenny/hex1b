@@ -356,8 +356,7 @@ public class VStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
@@ -384,8 +383,7 @@ public class VStackNodeTests
         var state2 = new TextBoxState { Text = "" };
         var state3 = new TextBoxState { Text = "" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),
@@ -421,8 +419,7 @@ public class VStackNodeTests
         var state1 = new TextBoxState { Text = "" };
         var state2 = new TextBoxState { Text = "" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(state1),
@@ -449,8 +446,7 @@ public class VStackNodeTests
     {
         using var terminal = new Hex1bTerminal(15, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Short"),
@@ -476,8 +472,7 @@ public class VStackNodeTests
         var textState = new TextBoxState { Text = "editable" };
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Title"),
@@ -504,8 +499,7 @@ public class VStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Outer 1"),
@@ -533,8 +527,7 @@ public class VStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
@@ -554,8 +547,7 @@ public class VStackNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var items = new List<string> { "Item 1", "Item 2", "Item 3" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),

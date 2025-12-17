@@ -276,8 +276,7 @@ public class PanelNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Panel Content"))
             ),
@@ -295,8 +294,7 @@ public class PanelNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(v => [
                     v.Text("Line 1"),
@@ -321,8 +319,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Button("Click Me", () => clicked = true))
             ),
@@ -342,8 +339,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var textBoxState = new TextBoxState();
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.TextBox(textBoxState))
             ),
@@ -362,8 +358,7 @@ public class PanelNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
             ),
@@ -385,8 +380,7 @@ public class PanelNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Themed"))
             ),
@@ -405,8 +399,7 @@ public class PanelNodeTests
     {
         using var terminal = new Hex1bTerminal(30, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
             ),
@@ -424,8 +417,7 @@ public class PanelNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
@@ -454,8 +446,7 @@ public class PanelNodeTests
             SelectedIndex = 0
         };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.List(listState))
             ),

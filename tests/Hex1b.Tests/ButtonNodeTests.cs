@@ -323,8 +323,7 @@ public class ButtonNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click Me", () => { })
@@ -345,8 +344,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Submit", () => clicked = true)
@@ -369,8 +367,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Submit", () => clicked = true)
@@ -393,8 +390,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var counter = 0;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text($"Count: {counter}"),
@@ -423,8 +419,7 @@ public class ButtonNodeTests
         var button1Clicked = false;
         var button2Clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Button 1", () => button1Clicked = true),
@@ -451,8 +446,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(15, 5);
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("OK", () => clicked = true)
@@ -475,8 +469,7 @@ public class ButtonNodeTests
     {
         using var terminal = new Hex1bTerminal(12, 5);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click Here Now", () => { })
@@ -499,8 +492,7 @@ public class ButtonNodeTests
         var textState = new TextBoxState { Text = "" };
         var buttonClicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.TextBox(textState),
@@ -531,8 +523,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var clickCount = 0;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Click", () => clickCount++)
@@ -559,8 +550,7 @@ public class ButtonNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var counter = 0;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button($"Clicked {counter} times", () => counter++)

@@ -22,10 +22,9 @@ Create a simple "Hello World" terminal app:
 ```csharp
 using Hex1b;
 
-// Create the app with no state (using object as placeholder)
-var app = new Hex1bApp<object>(
-    initialState: new object(),
-    buildWidget: (ctx, ct) => new TextBlockWidget("Hello, Hex1b!")
+// Create the app with no state
+var app = new Hex1bApp(
+    ctx => new TextBlockWidget("Hello, Hex1b!")
 );
 
 // Run the app

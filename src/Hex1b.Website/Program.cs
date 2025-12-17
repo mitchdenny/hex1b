@@ -100,7 +100,7 @@ async Task HandleHex1bExhibitAsync(WebSocket webSocket, IGalleryExhibit exhibit,
             ThemeProvider = themeProvider,
             EnableMouse = exhibit.EnableMouse
         };
-        var hex1bApp = new Hex1bApp<object>(new object(), ctx => widgetBuilder(), options);
+        var hex1bApp = new Hex1bApp(ctx => widgetBuilder(), options);
         
         appTask = hex1bApp.RunAsync(cts.Token);
     }

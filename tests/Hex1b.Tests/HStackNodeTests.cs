@@ -333,8 +333,7 @@ public class HStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("Left"),
@@ -360,8 +359,7 @@ public class HStackNodeTests
         var button1Clicked = false;
         var button2Clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Button("Btn1", () => button1Clicked = true),
@@ -388,8 +386,7 @@ public class HStackNodeTests
     {
         using var terminal = new Hex1bTerminal(20, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("A"),
@@ -413,8 +410,7 @@ public class HStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.VStack(v => [
@@ -446,8 +442,7 @@ public class HStackNodeTests
         var textState = new TextBoxState { Text = "" };
         var clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("Label: "),
@@ -476,8 +471,7 @@ public class HStackNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => Array.Empty<Hex1bWidget>())
             ),
@@ -496,8 +490,7 @@ public class HStackNodeTests
     {
         using var terminal = new Hex1bTerminal(15, 5);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("VeryLongWord"),
@@ -520,8 +513,7 @@ public class HStackNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var items = new List<string> { "A", "B", "C" };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => items.Select(item => h.Text($"[{item}]")).ToArray())
             ),
@@ -546,8 +538,7 @@ public class HStackNodeTests
         var rightButtonClicked = false;
         var listState = new ListState { Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")] };
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left VStack: only one focusable (List)
@@ -576,8 +567,7 @@ public class HStackNodeTests
         var button1Clicked = false;
         var button2Clicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Button("Button 1", () => button1Clicked = true),
@@ -609,8 +599,7 @@ public class HStackNodeTests
         var otherButtonClicked = false;
         var textBoxState = new TextBoxState();
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: List
@@ -649,8 +638,7 @@ public class HStackNodeTests
         var listClicked = false;
         var textBoxState = new TextBoxState();
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left: Button

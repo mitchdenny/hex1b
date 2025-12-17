@@ -376,8 +376,7 @@ public class TextBlockNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -393,8 +392,7 @@ public class TextBlockNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("First Line"),
@@ -432,8 +430,7 @@ public class TextBlockNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var counter = 0;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx =>
             {
                 counter++;
@@ -463,8 +460,7 @@ public class TextBlockNodeTests
         // Very narrow terminal - 15 chars wide
         using var terminal = new Hex1bTerminal(15, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Short"),
@@ -508,8 +504,7 @@ public class TextBlockNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("")),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -526,8 +521,7 @@ public class TextBlockNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
             new Hex1bAppOptions { Terminal = terminal }
         );

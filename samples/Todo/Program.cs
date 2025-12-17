@@ -74,8 +74,7 @@ string GetProgressBar()
 using var cts = new CancellationTokenSource();
 
 // Responsive todo list demonstrating Hex1b basics
-using var app = new Hex1bApp<object>(
-    state: new object(),
+using var app = new Hex1bApp(
     builder: ctx =>
     {
         // Update list items each render

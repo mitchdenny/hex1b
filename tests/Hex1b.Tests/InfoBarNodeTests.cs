@@ -261,8 +261,7 @@ public class InfoBarNodeTests
     {
         using var terminal = new Hex1bTerminal(60, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.InfoBar("Ready")
             ),
@@ -280,8 +279,7 @@ public class InfoBarNodeTests
     {
         using var terminal = new Hex1bTerminal(80, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new InfoBarWidget([
                     new InfoBarSection("Mode: Insert"),
@@ -307,8 +305,7 @@ public class InfoBarNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 5);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Main Content"),
@@ -333,8 +330,7 @@ public class InfoBarNodeTests
             .Set(InfoBarTheme.ForegroundColor, Hex1bColor.Cyan)
             .Set(InfoBarTheme.BackgroundColor, Hex1bColor.DarkGray);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new InfoBarWidget([new InfoBarSection("Themed")], InvertColors: false)
             ),

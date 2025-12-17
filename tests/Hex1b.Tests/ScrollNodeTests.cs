@@ -884,8 +884,7 @@ public class ScrollNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -921,8 +920,7 @@ public class ScrollNodeTests
         using var terminal = new Hex1bTerminal(40, 5);
         var state = new ScrollState();
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -958,8 +956,7 @@ public class ScrollNodeTests
         using var terminal = new Hex1bTerminal(40, 10);
         var buttonClicked = false;
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VScroll(
                     v => [
@@ -985,8 +982,7 @@ public class ScrollNodeTests
     {
         using var terminal = new Hex1bTerminal(60, 15);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     ctx.Text("Left Side"),
@@ -1022,8 +1018,7 @@ public class ScrollNodeTests
     {
         using var terminal = new Hex1bTerminal(20, 5);
 
-        using var app = new Hex1bApp<object>(
-            new object(),
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HScroll(
                     h => [
