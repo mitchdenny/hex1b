@@ -8,7 +8,15 @@ using Hex1b.Widgets;
 public static class TextBoxExtensions
 {
     /// <summary>
-    /// Creates a TextBox with the specified state.
+    /// Creates a TextBox with internally managed state.
+    /// </summary>
+    public static TextBoxWidget TextBox<TParent, TState>(
+        this WidgetContext<TParent, TState> ctx)
+        where TParent : Hex1bWidget
+        => new();
+
+    /// <summary>
+    /// Creates a TextBox with the specified state (controlled mode).
     /// </summary>
     public static TextBoxWidget TextBox<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,
@@ -17,7 +25,7 @@ public static class TextBoxExtensions
         => new(textBoxState);
 
     /// <summary>
-    /// Creates a TextBox with state selected from context state.
+    /// Creates a TextBox with state selected from context state (controlled mode).
     /// </summary>
     public static TextBoxWidget TextBox<TParent, TState>(
         this WidgetContext<TParent, TState> ctx,

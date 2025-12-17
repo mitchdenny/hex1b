@@ -74,12 +74,19 @@ public sealed record TextBlockWidget(string Text, TextOverflow Overflow = TextOv
     internal override Type GetExpectedNodeType() => typeof(TextBlockNode);
 }
 
-public sealed record TextBoxWidget(TextBoxState State) : Hex1bWidget
+public sealed record TextBoxWidget(TextBoxState? State = null) : Hex1bWidget
 {
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
-        node.State = State;
+        
+        // Only override state if explicitly provided (controlled mode)
+        // Otherwise, node keeps its own internal state (uncontrolled mode)
+        if (State != null)
+        {
+            node.State = State;
+        }
+        
         return node;
     }
 

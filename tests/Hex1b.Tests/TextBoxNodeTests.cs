@@ -791,4 +791,97 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region Uncontrolled Mode Tests
+
+    [Fact]
+    public async Task Integration_TextBox_UncontrolledMode_PreservesStateAcrossRerenders()
+    {
+        // Regression test: TextBox with no state argument should preserve typed content
+        // Previously, creating new TextBoxState() inline would reset state on each render
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox()  // No state argument - internally managed
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Type some text
+        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
+        terminal.SendKey(ConsoleKey.E, 'e');
+        terminal.SendKey(ConsoleKey.L, 'l');
+        terminal.SendKey(ConsoleKey.L, 'l');
+        terminal.SendKey(ConsoleKey.O, 'o');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        // The typed text should be visible in the terminal output
+        Assert.True(terminal.ContainsText("Hello"));
+    }
+
+    [Fact]
+    public async Task Integration_TextBox_UncontrolledMode_MultipleTextBoxes_IndependentState()
+    {
+        // Each uncontrolled TextBox should have its own independent state
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(),  // First textbox
+                    v.TextBox()   // Second textbox
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Type in first box
+        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
+        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
+        // Tab to second box
+        terminal.SendKey(ConsoleKey.Tab, '\t');
+        // Type in second box
+        terminal.SendKey(ConsoleKey.B, 'B', shift: true);
+        terminal.SendKey(ConsoleKey.B, 'B', shift: true);
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        // Both texts should be visible
+        Assert.True(terminal.ContainsText("AA"));
+        Assert.True(terminal.ContainsText("BB"));
+    }
+
+    [Fact]
+    public async Task Integration_TextBox_ControlledMode_StillWorks()
+    {
+        // Controlled mode (passing explicit state) should still work as before
+        using var terminal = new Hex1bTerminal(80, 24);
+        var textState = new TextBoxState { Text = "Initial" };
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(textState)  // Controlled mode with explicit state
+                ])
+            ),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        terminal.SendKey(ConsoleKey.End, '\0');
+        terminal.SendKey(ConsoleKey.X, 'X');
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+
+        // The external state should be updated
+        Assert.Equal("InitialX", textState.Text);
+    }
+
+    #endregion
 }
