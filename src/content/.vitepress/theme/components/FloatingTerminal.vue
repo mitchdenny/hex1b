@@ -11,6 +11,7 @@ const props = defineProps<{
 const terminalEl = ref<HTMLElement | null>(null)
 const containerEl = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
+const isClosing = ref(false)
 
 // Expose openTerminal method for external use
 defineExpose({
@@ -118,19 +119,59 @@ function getMaxTerminalSizeStatic(): { maxCols: number; maxRows: number } {
 
 function openTerminal() {
   isOpen.value = true
+  isClosing.value = false
   
-  // Constrain terminal size to fit window and center
+  // Constrain terminal size to fit window and animate up from bottom
   nextTick(() => {
     initTerminal().then(() => {
       constrainTerminalSize()
-      centerTerminal()
+      
+      // After terminal is rendered, calculate correct centered X position
+      // and set starting position at bottom of screen
+      nextTick(() => {
+        const container = containerEl.value
+        if (container) {
+          const rect = container.getBoundingClientRect()
+          const centeredX = Math.max(20, (window.innerWidth - rect.width) / 2)
+          
+          // Set initial position: horizontally centered, below screen
+          position.value = {
+            x: centeredX,
+            y: window.innerHeight + 50
+          }
+          
+          // After position is set, animate up to center
+          requestAnimationFrame(() => {
+            centerTerminal()
+          })
+        }
+      })
     })
   })
 }
 
 function closeTerminal() {
-  isOpen.value = false
-  cleanup()
+  // Animate down to bottom of screen
+  isClosing.value = true
+  isAnimating.value = true
+  
+  const container = containerEl.value
+  if (container) {
+    const rect = container.getBoundingClientRect()
+    // Keep horizontal position, slide down past bottom of screen
+    position.value = {
+      x: position.value.x,
+      y: window.innerHeight + 50
+    }
+  }
+  
+  // After animation completes, actually close and cleanup
+  setTimeout(() => {
+    isOpen.value = false
+    isClosing.value = false
+    isAnimating.value = false
+    cleanup()
+  }, 400)
 }
 
 function handleOverlayClick() {
@@ -380,9 +421,11 @@ function centerTerminal() {
     isAnimating.value = true
     position.value = { x: newX, y: newY }
     
-    // Turn off animation after transition completes
+    // Turn off animation after transition completes and focus terminal
     setTimeout(() => {
       isAnimating.value = false
+      // Focus the terminal after animation completes
+      terminal?.focus()
     }, 400)
   })
 }
@@ -489,7 +532,7 @@ watch(() => props.exhibit, () => {
     
     <!-- Floating terminal modal -->
     <Teleport to="body">
-      <div v-if="isOpen" class="floating-terminal-overlay" @click.self="handleOverlayClick">
+      <div v-if="isOpen || isClosing" class="floating-terminal-overlay" :class="{ 'is-closing': isClosing }" @click.self="handleOverlayClick">
         <div 
           ref="containerEl"
           class="floating-terminal"
@@ -639,9 +682,15 @@ watch(() => props.exhibit, () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(78, 205, 196, 0.15);
   z-index: 9999;
   backdrop-filter: blur(4px);
+  transition: opacity 0.35s ease;
+}
+
+.floating-terminal-overlay.is-closing {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .floating-terminal {
@@ -649,6 +698,7 @@ watch(() => props.exhibit, () => {
   background: #0f0f1a;
   border-radius: 12px;
   box-shadow: 
+    0 0 60px 20px rgba(255, 255, 255, 0.4),
     0 4px 6px rgba(0, 0, 0, 0.3),
     0 10px 40px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(78, 205, 196, 0.3),
