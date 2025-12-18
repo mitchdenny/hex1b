@@ -134,8 +134,13 @@ onMounted(() => {
             class="demo-button" 
             @click="openDemo(sample.id)"
           >
-            <span class="demo-icon">▶</span>
-            Live Demo
+            <span class="demo-icon-box">
+              <svg class="terminal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
+            </span>
+            <span class="demo-text">Open terminal</span>
           </button>
         </ClientOnly>
       </div>
@@ -227,19 +232,16 @@ onMounted(() => {
 
 .demo-button {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
   width: fit-content;
   background: linear-gradient(135deg, #4ecdc4 0%, #44a8a0 100%);
-  color: #0f0f1a;
   border: none;
-  padding: 12px 24px;
   border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
+  overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
   margin-top: 8px;
+  padding: 0;
 }
 
 .demo-button:hover {
@@ -252,8 +254,30 @@ onMounted(() => {
   transform: translateY(0);
 }
 
-.demo-icon {
-  font-size: 12px;
+.demo-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f0f1a;
+  padding: 12px;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+}
+
+.terminal-icon {
+  width: 20px;
+  height: 20px;
+  color: #4ecdc4;
+}
+
+.demo-text {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f0f1a;
 }
 
 .code-container {

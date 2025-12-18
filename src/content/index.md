@@ -15,13 +15,12 @@ hero:
     - theme: alt
       text: View Gallery
       link: /gallery
-    - theme: alt
-      text: GitHub
-      link: https://github.com/your-username/hex1b
 ---
 
 <script setup>
 import { VPTeamMembers } from 'vitepress/theme'
 </script>
+
+<InstallGuide />
 
 <FeatureSamples />
