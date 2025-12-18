@@ -56,4 +56,12 @@ public class Hex1bAppOptions
     /// These appear as buttons at the bottom of the error display.
     /// </summary>
     public IReadOnlyList<RescueAction>? RescueActions { get; set; }
+    
+    /// <summary>
+    /// Whether to inject a default CTRL-C binding that calls RequestStop() to exit the app.
+    /// When enabled, pressing CTRL-C will gracefully exit the application.
+    /// This can be disabled if you need custom CTRL-C handling.
+    /// Default is true.
+    /// </summary>
+    public bool EnableDefaultCtrlCExit { get; set; } = true;
 }
