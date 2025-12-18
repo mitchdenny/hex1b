@@ -11,8 +11,8 @@ public static class ButtonExtensions
     /// <summary>
     /// Creates a ButtonWidget with the specified label and no action.
     /// </summary>
-    public static ButtonWidget Button<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ButtonWidget Button<TParent>(
+        this WidgetContext<TParent> ctx,
         string label)
         where TParent : Hex1bWidget
         => new(label);
@@ -20,8 +20,8 @@ public static class ButtonExtensions
     /// <summary>
     /// Creates a ButtonWidget with the specified label and synchronous click handler.
     /// </summary>
-    public static ButtonWidget Button<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ButtonWidget Button<TParent>(
+        this WidgetContext<TParent> ctx,
         string label,
         Action<ButtonClickedEventArgs> onClick)
         where TParent : Hex1bWidget
@@ -30,8 +30,8 @@ public static class ButtonExtensions
     /// <summary>
     /// Creates a ButtonWidget with the specified label and asynchronous click handler.
     /// </summary>
-    public static ButtonWidget Button<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ButtonWidget Button<TParent>(
+        this WidgetContext<TParent> ctx,
         string label,
         Func<ButtonClickedEventArgs, Task> onClick)
         where TParent : Hex1bWidget

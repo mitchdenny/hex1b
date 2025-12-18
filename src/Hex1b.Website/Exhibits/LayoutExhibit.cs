@@ -21,19 +21,19 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
     /// </summary>
     private class LayoutState
     {
-        public ListState ExampleList { get; } = new();
+        private static readonly string[] ExampleIds = ["text-wrapping", "text-clipping", "text-ellipsis", "nested-layout", "border-clipping"];
         
-        public LayoutState()
-        {
-            ExampleList.Items =
-            [
-                new ListItem("text-wrapping", "Text Wrapping"),
-                new ListItem("text-clipping", "Text Clipping"),
-                new ListItem("text-ellipsis", "Text Ellipsis"),
-                new ListItem("nested-layout", "Nested Layouts"),
-                new ListItem("border-clipping", "Border Clipping"),
-            ];
-        }
+        public int SelectedExampleIndex { get; set; } = 0;
+        public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
+        
+        public IReadOnlyList<string> ExampleItems { get; } =
+        [
+            "Text Wrapping",
+            "Text Clipping",
+            "Text Ellipsis",
+            "Nested Layouts",
+            "Border Clipping",
+        ];
     }
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
@@ -44,7 +44,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
 
         return () =>
         {
-            var ctx = new RootContext<LayoutState>(state);
+            var ctx = new RootContext();
 
             var widget = ctx.Splitter(
                 ctx.Layout(
@@ -52,7 +52,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
                         leftPanel.VStack(left => [
                             left.Text("Layout Examples"),
                             left.Text("───────────────────"),
-                            left.List(s => s.ExampleList),
+                            left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
                             left.Text(""),
                             left.Text("Use ↑↓ to navigate"),
                         ])
@@ -60,7 +60,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
                     ClipMode.Clip
                 ),
                 ctx.Layout(
-                    BuildExampleContent(ctx, state.ExampleList.SelectedItem?.Id ?? "text-wrapping"),
+                    BuildExampleContent(ctx, state.SelectedExampleId),
                     ClipMode.Clip
                 ),
                 leftWidth: 22
@@ -70,7 +70,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext<LayoutState> ctx, string exampleId)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, string exampleId)
     {
         return exampleId switch
         {
@@ -83,7 +83,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildTextWrappingExample(RootContext<LayoutState> ctx)
+    private static Hex1bWidget BuildTextWrappingExample(RootContext ctx)
     {
         var loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
         var explanation = "TextOverflow.Wrap automatically breaks text at word boundaries when it exceeds the available width.";
@@ -103,7 +103,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         ]);
     }
 
-    private static Hex1bWidget BuildTextClippingExample(RootContext<LayoutState> ctx)
+    private static Hex1bWidget BuildTextClippingExample(RootContext ctx)
     {
         // Intentionally very wide so it overflows even on large terminals (e.g. 160x50).
         const int innerWidth = 240;
@@ -148,7 +148,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         ]);
     }
 
-    private static Hex1bWidget BuildTextEllipsisExample(RootContext<LayoutState> ctx)
+    private static Hex1bWidget BuildTextEllipsisExample(RootContext ctx)
     {
         var longTitle = "This is an extremely long title that should be truncated with ellipsis";
         var longDescription = "A very detailed description that goes on and on explaining every little detail about this item";
@@ -177,7 +177,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         ]);
     }
 
-    private static Hex1bWidget BuildNestedLayoutExample(RootContext<LayoutState> ctx)
+    private static Hex1bWidget BuildNestedLayoutExample(RootContext ctx)
     {
         var innerText = "This text is inside a nested layout region with its own clipping boundary.";
 
@@ -204,7 +204,7 @@ public class LayoutExhibit(ILogger<LayoutExhibit> logger) : Hex1bExhibit
         ]);
     }
 
-    private static Hex1bWidget BuildBorderClippingExample(RootContext<LayoutState> ctx)
+    private static Hex1bWidget BuildBorderClippingExample(RootContext ctx)
     {
         var wideContent = "This line of text is intentionally very wide to demonstrate how borders handle overflow content when there isn't enough horizontal space.";
 

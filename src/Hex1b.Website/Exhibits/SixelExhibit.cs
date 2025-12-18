@@ -43,12 +43,13 @@ public class SixelExhibit : Hex1bExhibit
     /// </summary>
     private class SixelState
     {
-        public ListState ImageList { get; } = new();
+        public int SelectedImageIndex { get; set; }
         public List<SampleImage> Images { get; } = [];
+        public IReadOnlyList<string> ImageItems { get; set; } = [];
         
         public SampleImage? SelectedImage => 
-            ImageList.SelectedIndex >= 0 && ImageList.SelectedIndex < Images.Count 
-                ? Images[ImageList.SelectedIndex] 
+            SelectedImageIndex >= 0 && SelectedImageIndex < Images.Count 
+                ? Images[SelectedImageIndex] 
                 : null;
     }
 
@@ -90,13 +91,13 @@ public class SixelExhibit : Hex1bExhibit
             _logger.LogWarning("No images found in {Path}", imagesPath);
         }
 
-        state.ImageList.Items = state.Images
-            .Select(img => new ListItem(img.Id, img.Name))
+        state.ImageItems = state.Images
+            .Select(img => img.Name)
             .ToList();
 
         return () =>
         {
-            var ctx = new RootContext<SixelState>(state);
+            var ctx = new RootContext();
             var selectedImage = state.SelectedImage;
 
             // Calculate available space for the image
@@ -149,7 +150,7 @@ public class SixelExhibit : Hex1bExhibit
                 ctx.Layout(leftPanel => [
                     leftPanel.Text("═══ Images ═══"),
                     leftPanel.Text(""),
-                    leftPanel.List(s => s.ImageList),
+                    leftPanel.List(state.ImageItems, e => state.SelectedImageIndex = e.SelectedIndex, null),
                     leftPanel.Text(""),
                     leftPanel.Text("Use ↑↓ to select"),
                     leftPanel.Text("Tab to switch panels")

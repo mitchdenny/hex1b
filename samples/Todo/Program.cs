@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
@@ -14,43 +15,47 @@ var items = new List<TodoItem>
     new("Team standup meeting", true),
 };
 
-var newItemInput = new TextBoxState();
+var newItemText = "";
 
-ListState listState = null!;
-listState = new ListState
+// Track selection via callback
+int selectedIndex = 0;
+
+IReadOnlyList<string> GetListItems() =>
+    items.Select(item => FormatTodoItem(item)).ToList();
+
+void OnSelectionChanged(ListSelectionChangedEventArgs args)
 {
-    OnItemActivated = _ => ToggleSelected()
-};
+    selectedIndex = args.SelectedIndex;
+}
 
 void ToggleSelected()
 {
-    if (listState.SelectedIndex >= 0 && listState.SelectedIndex < items.Count)
+    if (selectedIndex >= 0 && selectedIndex < items.Count)
     {
-        items[listState.SelectedIndex] = items[listState.SelectedIndex] with 
+        items[selectedIndex] = items[selectedIndex] with 
         { 
-            IsComplete = !items[listState.SelectedIndex].IsComplete 
+            IsComplete = !items[selectedIndex].IsComplete 
         };
     }
 }
 
 void AddItem()
 {
-    if (!string.IsNullOrWhiteSpace(newItemInput.Text))
+    if (!string.IsNullOrWhiteSpace(newItemText))
     {
-        items.Add(new TodoItem(newItemInput.Text, false));
-        newItemInput.Text = "";
-        newItemInput.CursorPosition = 0;
+        items.Add(new TodoItem(newItemText, false));
+        newItemText = "";
     }
 }
 
 void DeleteSelected()
 {
-    if (listState.SelectedIndex >= 0 && listState.SelectedIndex < items.Count)
+    if (selectedIndex >= 0 && selectedIndex < items.Count)
     {
-        items.RemoveAt(listState.SelectedIndex);
-        if (listState.SelectedIndex >= items.Count && items.Count > 0)
+        items.RemoveAt(selectedIndex);
+        if (selectedIndex >= items.Count && items.Count > 0)
         {
-            listState.SelectedIndex = items.Count - 1;
+            selectedIndex = items.Count - 1;
         }
     }
 }
@@ -77,10 +82,7 @@ using var cts = new CancellationTokenSource();
 using var app = new Hex1bApp(
     builder: ctx =>
     {
-        // Update list items each render
-        listState.Items = items.Select((item, idx) => 
-            new ListItem(idx.ToString(), FormatTodoItem(item))).ToList();
-
+        var listItems = GetListItems();
         var terminalSize = $"{Console.WindowWidth}x{Console.WindowHeight}";
         var completedCount = items.Count(i => i.IsComplete);
         var totalCount = items.Count;
@@ -96,7 +98,7 @@ using var app = new Hex1bApp(
                         new BorderWidget(new VStackWidget([
                             new TextBlockWidget("📋 Todo Items"),
                             new TextBlockWidget(""),
-                            new ListWidget(listState),
+                            new ListWidget(listItems) { OnSelectionChanged = args => { OnSelectionChanged(args); return Task.CompletedTask; }, OnItemActivated = _ => { ToggleSelected(); return Task.CompletedTask; } },
                             new TextBlockWidget(""),
                             new TextBlockWidget("↑↓ Nav  Space: Toggle  Del: Remove")
                         ]), "Tasks") { WidthHint = SizeHint.Weighted(2) },
@@ -105,7 +107,7 @@ using var app = new Hex1bApp(
                         new VStackWidget([
                             new BorderWidget(new VStackWidget([
                                 new TextBlockWidget("➕ Add Task"),
-                                new TextBoxWidget(State: newItemInput),
+                                new TextBoxWidget(newItemText) { OnTextChanged = args => { newItemText = args.NewText; return Task.CompletedTask; } },
                                 new ButtonWidget("Add") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                             ]), "New"),
                             new BorderWidget(new VStackWidget([
@@ -125,10 +127,10 @@ using var app = new Hex1bApp(
                         new TextBlockWidget($"📋 Todo [{completedCount}/{totalCount}]"),
                         new TextBlockWidget(GetProgressBar()),
                         new TextBlockWidget(""),
-                        new ListWidget(listState) { HeightHint = SizeHint.Fill },
+                        new ListWidget(listItems) { HeightHint = SizeHint.Fill, OnSelectionChanged = args => { OnSelectionChanged(args); return Task.CompletedTask; }, OnItemActivated = _ => { ToggleSelected(); return Task.CompletedTask; } },
                         new TextBlockWidget(""),
                         new HStackWidget([
-                            new TextBoxWidget(State: newItemInput) { WidthHint = SizeHint.Fill },
+                            new TextBoxWidget(newItemText) { WidthHint = SizeHint.Fill, OnTextChanged = args => { newItemText = args.NewText; return Task.CompletedTask; } },
                             new ButtonWidget("[+]") { OnClick = _ => { AddItem(); return Task.CompletedTask; } }
                         ]),
                         new TextBlockWidget(""),

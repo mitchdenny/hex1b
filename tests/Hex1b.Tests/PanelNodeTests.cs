@@ -337,11 +337,11 @@ public class PanelNodeTests
     public async Task Integration_PanelWithTextBox_HandlesInput()
     {
         using var terminal = new Hex1bTerminal(30, 10);
-        var textBoxState = new TextBoxState();
+        var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.TextBox(textBoxState))
+                ctx.Panel(ctx.TextBox(text, onTextChanged: args => text = args.NewText))
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -350,7 +350,7 @@ public class PanelNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal("Hello Panel", textBoxState.Text);
+        Assert.Equal("Hello Panel", text);
     }
 
     [Fact]
@@ -440,15 +440,11 @@ public class PanelNodeTests
     public async Task Integration_PanelWithList_HandlesNavigation()
     {
         using var terminal = new Hex1bTerminal(30, 10);
-        var listState = new ListState
-        {
-            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")],
-            SelectedIndex = 0
-        };
+        IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.List(listState))
+                ctx.Panel(ctx.List(items))
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -457,7 +453,8 @@ public class PanelNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal(1, listState.SelectedIndex);
+        // Verify second item is selected via rendered output
+        Assert.Contains("> Item 2", terminal.RawOutput);
     }
 
     #endregion

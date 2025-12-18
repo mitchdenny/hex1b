@@ -22,15 +22,10 @@ public class ThemingExhibitRepro
     {
         using var terminal = new Hex1bTerminal(80, 24);
         
-        var listState = new ListState
-        {
-            Items = new[]
-            {
-                new ListItem("1", "Theme 1"),
-                new ListItem("2", "Theme 2"),
-            }
-        };
-        var textBoxState = new TextBoxState { Text = "Sample text" };
+        IReadOnlyList<string> items = [
+            "Theme 1",
+            "Theme 2",
+        ];
 
         using var app = new Hex1bApp(
             ctx =>
@@ -41,7 +36,7 @@ public class ThemingExhibitRepro
                         root.Panel(leftPanel => [
                             leftPanel.VStack(left => [
                                 left.Text("═══ Themes ═══"),
-                                left.List(listState)
+                                left.List(items)
                             ])
                         ]),
                         // Right: Layout -> Panel -> VStack -> TextBox
@@ -49,7 +44,7 @@ public class ThemingExhibitRepro
                             root.Panel(rightPanel => [
                                 rightPanel.VStack(right => [
                                     right.Text("═══ Widget Preview ═══"),
-                                    right.TextBox(textBoxState)
+                                    right.TextBox("Sample text")
                                 ])
                             ]),
                             ClipMode.Clip
@@ -174,7 +169,7 @@ public class ThemingExhibitRepro
         
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "test" },
+            Text = "test",
             IsFocused = false
         };
 
@@ -202,9 +197,10 @@ public class ThemingExhibitRepro
         
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "test", CursorPosition = 1 },
+            Text = "test",
             IsFocused = true
         };
+        node.State.CursorPosition = 1;
 
         node.Render(context);
 
@@ -225,16 +221,11 @@ public class ThemingExhibitRepro
     {
         using var terminal = new Hex1bTerminal(100, 30);
 
-        var listState = new ListState
-        {
-            Items = new[]
-            {
-                new ListItem("default", "Default"),
-                new ListItem("ocean", "Ocean"),
-                new ListItem("sunset", "Sunset"),
-            }
-        };
-        var textBoxState = new TextBoxState { Text = "Sample text" };
+        IReadOnlyList<string> items = [
+            "Default",
+            "Ocean",
+            "Sunset",
+        ];
         var buttonClicked = false;
 
         // Build the structure similar to ThemingExhibit
@@ -248,7 +239,7 @@ public class ThemingExhibitRepro
                             leftPanel.VStack(left => [
                                 left.Text("═══ Themes ═══"),
                                 left.Text(""),
-                                left.List(listState)
+                                left.List(items)
                             ])
                         ]),
                         // Right pane: Layout -> Panel -> VStack with TextBox and Button
@@ -258,7 +249,7 @@ public class ThemingExhibitRepro
                                     right.Text("═══ Widget Preview ═══"),
                                     right.Text(""),
                                     right.Text("TextBox (Tab to focus):"),
-                                    right.TextBox(textBoxState),
+                                    right.TextBox("Sample text"),
                                     right.Text(""),
                                     right.Text("Button:"),
                                     right.Button(

@@ -21,19 +21,19 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
     /// </summary>
     private class SplittersState
     {
-        public ListState ExampleList { get; } = new();
+        private static readonly string[] ExampleIds = ["horizontal", "vertical", "nested-hv", "nested-vh", "quad"];
         
-        public SplittersState()
-        {
-            ExampleList.Items =
-            [
-                new ListItem("horizontal", "Horizontal Split"),
-                new ListItem("vertical", "Vertical Split"),
-                new ListItem("nested-hv", "Nested (H inside V)"),
-                new ListItem("nested-vh", "Nested (V inside H)"),
-                new ListItem("quad", "Quad Split"),
-            ];
-        }
+        public int SelectedExampleIndex { get; set; } = 0;
+        public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
+        
+        public IReadOnlyList<string> ExampleItems { get; } =
+        [
+            "Horizontal Split",
+            "Vertical Split",
+            "Nested (H inside V)",
+            "Nested (V inside H)",
+            "Quad Split",
+        ];
     }
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
@@ -44,21 +44,21 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
 
         return () =>
         {
-            var ctx = new RootContext<SplittersState>(state);
+            var ctx = new RootContext();
 
             var widget = ctx.Splitter(
                 ctx.Panel(leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Splitter Examples"),
                         left.Text("─────────────────"),
-                        left.List(s => s.ExampleList),
+                        left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
                         left.Text(""),
                         left.Text("Use ↑↓ to select"),
                         left.Text("Tab to focus splitter"),
                         left.Text("←→ or ↑↓ to resize"),
                     ])
                 ]),
-                BuildExampleContent(ctx, state.ExampleList.SelectedItem?.Id ?? "horizontal"),
+                BuildExampleContent(ctx, state.SelectedExampleId),
                 leftWidth: 22
             );
 
@@ -66,7 +66,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext<SplittersState> ctx, string exampleId)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, string exampleId)
     {
         return exampleId switch
         {
@@ -79,7 +79,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildHorizontalExample(RootContext<SplittersState> ctx)
+    private static Hex1bWidget BuildHorizontalExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.Splitter(
@@ -117,7 +117,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildVerticalExample(RootContext<SplittersState> ctx)
+    private static Hex1bWidget BuildVerticalExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VSplitter(
@@ -148,7 +148,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildNestedHVExample(RootContext<SplittersState> ctx)
+    private static Hex1bWidget BuildNestedHVExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VSplitter(
@@ -187,7 +187,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildNestedVHExample(RootContext<SplittersState> ctx)
+    private static Hex1bWidget BuildNestedVHExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.Splitter(
@@ -232,7 +232,7 @@ public class SplittersExhibit(ILogger<SplittersExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildQuadExample(RootContext<SplittersState> ctx)
+    private static Hex1bWidget BuildQuadExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VSplitter(

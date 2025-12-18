@@ -701,11 +701,11 @@ public class BorderNodeTests
     public async Task Integration_BorderWithTextBox_HandlesFocus()
     {
         using var terminal = new Hex1bTerminal(30, 10);
-        var textBoxState = new TextBoxState();
+        var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.TextBox(textBoxState), title: "Input")
+                ctx.Border(ctx.TextBox(text, onTextChanged: args => text = args.NewText), title: "Input")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -716,7 +716,7 @@ public class BorderNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("Hello", textBoxState.Text);
+        Assert.Equal("Hello", text);
     }
 
     [Fact]

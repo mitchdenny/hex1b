@@ -21,24 +21,24 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
     /// </summary>
     private class ScrollExhibitState
     {
-        public ListState ExampleList { get; } = new();
+        private static readonly string[] ExampleIds = ["vertical", "horizontal", "large-content", "with-buttons", "no-scrollbar", "nested"];
+        
+        public int SelectedExampleIndex { get; set; } = 0;
+        public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
         public ScrollState VerticalScrollState { get; } = new();
         public ScrollState HorizontalScrollState { get; } = new();
         public ScrollState LargeContentScrollState { get; } = new();
         public ScrollState ButtonScrollState { get; } = new();
         
-        public ScrollExhibitState()
-        {
-            ExampleList.Items =
-            [
-                new ListItem("vertical", "Vertical Scroll"),
-                new ListItem("horizontal", "Horizontal Scroll"),
-                new ListItem("large-content", "Large Content"),
-                new ListItem("with-buttons", "With Buttons"),
-                new ListItem("no-scrollbar", "No Scrollbar"),
-                new ListItem("nested", "Nested in Border"),
-            ];
-        }
+        public IReadOnlyList<string> ExampleItems { get; } =
+        [
+            "Vertical Scroll",
+            "Horizontal Scroll",
+            "Large Content",
+            "With Buttons",
+            "No Scrollbar",
+            "Nested in Border",
+        ];
     }
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
@@ -49,14 +49,14 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
 
         return () =>
         {
-            var ctx = new RootContext<ScrollExhibitState>(state);
+            var ctx = new RootContext();
 
             var widget = ctx.Splitter(
                 ctx.Panel(leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Scroll Examples"),
                         left.Text("─────────────────"),
-                        left.List(s => s.ExampleList),
+                        left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
                         left.Text(""),
                         left.Text("Use ↑↓ to select"),
                         left.Text("Tab to focus scroll"),
@@ -65,7 +65,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
                         left.Text("Home/End for ends"),
                     ])
                 ]),
-                BuildExampleContent(ctx, state.ExampleList.SelectedItem?.Id ?? "vertical"),
+                BuildExampleContent(ctx, state, state.SelectedExampleId),
                 leftWidth: 22
             );
 
@@ -73,21 +73,21 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext<ScrollExhibitState> ctx, string exampleId)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, ScrollExhibitState state, string exampleId)
     {
         return exampleId switch
         {
-            "vertical" => BuildVerticalExample(ctx),
-            "horizontal" => BuildHorizontalExample(ctx),
-            "large-content" => BuildLargeContentExample(ctx),
-            "with-buttons" => BuildWithButtonsExample(ctx),
+            "vertical" => BuildVerticalExample(ctx, state),
+            "horizontal" => BuildHorizontalExample(ctx, state),
+            "large-content" => BuildLargeContentExample(ctx, state),
+            "with-buttons" => BuildWithButtonsExample(ctx, state),
             "no-scrollbar" => BuildNoScrollbarExample(ctx),
             "nested" => BuildNestedExample(ctx),
-            _ => BuildVerticalExample(ctx)
+            _ => BuildVerticalExample(ctx, state)
         };
     }
 
-    private static Hex1bWidget BuildVerticalExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildVerticalExample(RootContext ctx, ScrollExhibitState state)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -118,13 +118,13 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
                     v.Text(""),
                     v.Text("── End of Content ──"),
                 ],
-                ctx.State.VerticalScrollState
+                state.VerticalScrollState
             ),
             title: "Vertical Scroll (↑↓)"
         );
     }
 
-    private static Hex1bWidget BuildHorizontalExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildHorizontalExample(RootContext ctx, ScrollExhibitState state)
     {
         return ctx.Border(
             ctx.VStack(v => [
@@ -136,7 +136,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
                     h => [
                         h.Text("<<<START>>> | Column 1 | Column 2 | Column 3 | Column 4 | Column 5 | Column 6 | Column 7 | Column 8 | Column 9 | Column 10 | <<<END>>>"),
                     ],
-                    ctx.State.HorizontalScrollState
+                    state.HorizontalScrollState
                 ),
                 v.Text(""),
                 v.Text("Use ← → arrows when focused to scroll."),
@@ -146,19 +146,19 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildLargeContentExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildLargeContentExample(RootContext ctx, ScrollExhibitState state)
     {
         return ctx.Border(
             ctx.VScroll(
                 v => GenerateLargeContent(v, 100),
-                ctx.State.LargeContentScrollState
+                state.LargeContentScrollState
             ),
             title: "Large Content (100 lines)"
         );
     }
 
-    private static Hex1bWidget[] GenerateLargeContent<TParent, TState>(
-        WidgetContext<TParent, TState> ctx, 
+    private static Hex1bWidget[] GenerateLargeContent<TParent>(
+        WidgetContext<TParent> ctx, 
         int lineCount) where TParent : Hex1bWidget
     {
         var widgets = new List<Hex1bWidget>
@@ -188,7 +188,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         return widgets.ToArray();
     }
 
-    private static Hex1bWidget BuildWithButtonsExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildWithButtonsExample(RootContext ctx, ScrollExhibitState state)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -218,13 +218,13 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
                     v.Text(""),
                     v.Text("── End of Content ──"),
                 ],
-                ctx.State.ButtonScrollState
+                state.ButtonScrollState
             ),
             title: "With Focusable Buttons"
         );
     }
 
-    private static Hex1bWidget BuildNoScrollbarExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildNoScrollbarExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VScroll(
@@ -259,7 +259,7 @@ public class ScrollExhibit(ILogger<ScrollExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildNestedExample(RootContext<ScrollExhibitState> ctx)
+    private static Hex1bWidget BuildNestedExample(RootContext ctx)
     {
         return ctx.Border(
             ctx.VStack(v => [

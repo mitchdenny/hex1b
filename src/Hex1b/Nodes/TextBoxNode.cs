@@ -17,7 +17,13 @@ public sealed class TextBoxNode : Hex1bNode
     /// <summary>
     /// The text box state containing text, cursor position, and selection.
     /// </summary>
-    public TextBoxState State { get; set; } = new();
+    internal TextBoxState State { get; set; } = new();
+
+    /// <summary>
+    /// Tracks the last text value provided by the widget during reconciliation.
+    /// Used to detect when external code changes the text vs internal user input.
+    /// </summary>
+    internal string? LastWidgetText { get; set; }
     
     /// <summary>
     /// Gets or sets the text content. Convenience property that accesses State.Text.
@@ -27,6 +33,11 @@ public sealed class TextBoxNode : Hex1bNode
         get => State.Text;
         set => State.Text = value;
     }
+
+    /// <summary>
+    /// Internal action invoked when text content changes.
+    /// </summary>
+    internal Func<InputBindingActionContext, string, string, Task>? TextChangedAction { get; set; }
 
     /// <summary>
     /// Internal action invoked when Enter is pressed.
@@ -55,9 +66,9 @@ public sealed class TextBoxNode : Hex1bNode
         bindings.Shift().Key(Hex1bKey.Home).Action(SelectToStart, "Select to start");
         bindings.Shift().Key(Hex1bKey.End).Action(SelectToEnd, "Select to end");
         
-        // Editing
-        bindings.Key(Hex1bKey.Backspace).Action(DeleteBackward, "Delete backward");
-        bindings.Key(Hex1bKey.Delete).Action(DeleteForward, "Delete forward");
+        // Editing - use async handlers to fire callbacks
+        bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
+        bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
         
         // Submit (Enter key)
         if (SubmitAction != null)
@@ -72,11 +83,13 @@ public sealed class TextBoxNode : Hex1bNode
         bindings.Mouse(MouseButton.Left).DoubleClick().Action(SelectAll, "Select all");
         
         // Character input - matches any printable text (including emojis)
-        bindings.AnyCharacter().Action(InsertText, "Type text");
+        bindings.AnyCharacter().Action(InsertTextAsync, "Type text");
     }
 
-    private void InsertText(string text)
+    private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
+        var oldText = State.Text;
+        
         // If there's a selection, delete it first
         if (State.HasSelection)
         {
@@ -84,6 +97,12 @@ public sealed class TextBoxNode : Hex1bNode
         }
         State.Text = State.Text.Insert(State.CursorPosition, text);
         State.CursorPosition += text.Length;
+        
+        // Fire callback if text changed
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
     }
 
     private void MoveLeft()
@@ -170,8 +189,10 @@ public sealed class TextBoxNode : Hex1bNode
         State.CursorPosition = State.Text.Length;
     }
 
-    private void DeleteBackward()
+    private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
     {
+        var oldText = State.Text;
+        
         if (State.HasSelection)
         {
             DeleteSelection();
@@ -184,10 +205,18 @@ public sealed class TextBoxNode : Hex1bNode
             State.Text = State.Text.Remove(clusterStart, clusterLength);
             State.CursorPosition = clusterStart;
         }
+        
+        // Fire callback if text changed
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
     }
 
-    private void DeleteForward()
+    private async Task DeleteForwardAsync(InputBindingActionContext ctx)
     {
+        var oldText = State.Text;
+        
         if (State.HasSelection)
         {
             DeleteSelection();
@@ -198,6 +227,12 @@ public sealed class TextBoxNode : Hex1bNode
             var clusterEnd = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
             var clusterLength = clusterEnd - State.CursorPosition;
             State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
+        }
+        
+        // Fire callback if text changed
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
         }
     }
 

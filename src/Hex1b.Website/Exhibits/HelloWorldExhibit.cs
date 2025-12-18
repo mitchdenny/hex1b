@@ -32,8 +32,8 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
 
         return () =>
         {
-            // Create root context with the state
-            var ctx = new RootContext<HelloState>(state);
+            // Create root context
+            var ctx = new RootContext();
 
             // Build using fluent API with collection expressions
             var widget = ctx.VStack(v => [
@@ -42,7 +42,7 @@ public class HelloWorldExhibit(ILogger<HelloWorldExhibit> logger) : Hex1bExhibit
                 v.Text("║    Using the Context-Based API     ║"),
                 v.Text("╚════════════════════════════════════╝"),
                 v.Text(""),
-                v.Text(s => $"Click count: {s.ClickCount}"),
+                v.Text($"Click count: {state.ClickCount}"),
                 v.Text(""),
                 v.Button("Click me!", _ => state.ClickCount++)
             ]);

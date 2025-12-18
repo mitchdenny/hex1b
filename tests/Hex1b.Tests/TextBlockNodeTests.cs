@@ -485,10 +485,9 @@ public class TextBlockNodeTests
         using var terminal = new Hex1bTerminal(80, 24);
         var message = "Hello from State";
 
-        using var app = new Hex1bApp<string>(
-            message,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Text(s => s)
+                ctx.Text(message)
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );

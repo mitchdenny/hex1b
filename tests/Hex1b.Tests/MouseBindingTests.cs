@@ -398,7 +398,7 @@ public class HoverStateTests
     [Fact]
     public void ListNode_IsHovered_CanBeSet()
     {
-        var list = new ListNode { State = new ListState { Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")] } };
+        var list = new ListNode { Items = ["Item 1", "Item 2"] };
         Assert.False(list.IsHovered);
         
         list.IsHovered = true;

@@ -24,8 +24,9 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     private class ThemingState
     {
         public required Hex1bTheme[] Themes { get; init; }
-        public ListState ThemeList { get; } = new();
-        public TextBoxState SampleTextBox { get; } = new() { Text = "Sample text" };
+        public int SelectedThemeIndex { get; set; }
+        public IReadOnlyList<string> ThemeItems { get; set; } = [];
+        public string SampleTextBox { get; set; } = "Sample text";
         public bool ButtonClicked { get; set; }
         public ToggleSwitchState ModeSwitch { get; } = new()
         {
@@ -51,16 +52,16 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
 
         var state = new ThemingState
         {
-            Themes = themes
+            Themes = themes,
+            ThemeItems = themes.Select(t => t.Name).ToList()
         };
-        state.ThemeList.Items = themes.Select(t => new ListItem(t.Name, t.Name)).ToList();
         
         _currentSession = state;
 
         return () =>
         {
-            var ctx = new RootContext<ThemingState>(state);
-            var currentTheme = state.Themes[state.ThemeList.SelectedIndex];
+            var ctx = new RootContext();
+            var currentTheme = state.Themes[state.SelectedThemeIndex];
             
             var infoBar = ctx.InfoBar([
                 new InfoBarSection($" Theme: {currentTheme.Name} "),
@@ -74,7 +75,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                         leftPanel.VStack(left => [
                             left.Text("═══ Themes ═══"),
                             left.Text(""),
-                            left.List(s => s.ThemeList)
+                            left.List(state.ThemeItems, e => state.SelectedThemeIndex = e.SelectedIndex, null)
                         ])
                     ]),
                     root.Layout(
@@ -93,7 +94,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                                 ]),
                                 right.Text(""),
                                 right.Text("TextBox (Tab to focus):"),
-                                right.TextBox(s => s.SampleTextBox),
+                                right.TextBox(state.SampleTextBox, onTextChanged: args => state.SampleTextBox = args.NewText),
                                 right.Text(""),
                                 right.Text("Button:"),
                                 right.Button(
@@ -101,7 +102,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
                                     _ => state.ButtonClicked = !state.ButtonClicked),
                                 right.Text(""),
                                 right.Text("Toggle Switch (←/→ to change):"),
-                                right.ToggleSwitch(s => s.ModeSwitch),
+                                right.ToggleSwitch(state.ModeSwitch),
                                 right.Text(""),
                                 right.Text("InfoBar (shown at bottom):"),
                                 right.Text("  Displays theme name & hints")
@@ -121,7 +122,7 @@ public class ThemingExhibit(ILogger<ThemingExhibit> logger) : Hex1bExhibit
     public override Func<Hex1bTheme>? CreateThemeProvider()
     {
         var session = _currentSession!;
-        return () => CreateThemeWithPanelBackgrounds(session.Themes[session.ThemeList.SelectedIndex]);
+        return () => CreateThemeWithPanelBackgrounds(session.Themes[session.SelectedThemeIndex]);
     }
 
     /// <summary>

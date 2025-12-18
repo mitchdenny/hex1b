@@ -14,8 +14,8 @@ public static class InfoBarExtensions
     /// <param name="ctx">The widget context.</param>
     /// <param name="sections">The sections to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
-    public static InfoBarWidget InfoBar<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static InfoBarWidget InfoBar<TParent>(
+        this WidgetContext<TParent> ctx,
         IReadOnlyList<InfoBarSection> sections,
         bool invertColors = true)
         where TParent : Hex1bWidget
@@ -28,8 +28,8 @@ public static class InfoBarExtensions
     /// </summary>
     /// <param name="ctx">The widget context.</param>
     /// <param name="texts">The text strings to display as sections.</param>
-    public static InfoBarWidget InfoBar<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static InfoBarWidget InfoBar<TParent>(
+        this WidgetContext<TParent> ctx,
         params string[] texts)
         where TParent : Hex1bWidget
     {
@@ -43,8 +43,8 @@ public static class InfoBarExtensions
     /// <param name="ctx">The widget context.</param>
     /// <param name="text">The text to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
-    public static InfoBarWidget InfoBar<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static InfoBarWidget InfoBar<TParent>(
+        this WidgetContext<TParent> ctx,
         string text,
         bool invertColors = true)
         where TParent : Hex1bWidget

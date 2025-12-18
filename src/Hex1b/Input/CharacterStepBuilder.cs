@@ -21,4 +21,12 @@ public sealed class CharacterStepBuilder
     {
         _parent.AddCharacterBinding(new CharacterBinding(_predicate, handler, description));
     }
+
+    /// <summary>
+    /// Completes the binding with the given async action handler that receives the text and context.
+    /// </summary>
+    public void Action(Func<string, InputBindingActionContext, Task> handler, string? description = null)
+    {
+        _parent.AddCharacterBinding(new CharacterBinding(_predicate, handler, description));
+    }
 }

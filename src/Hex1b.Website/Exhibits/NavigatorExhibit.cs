@@ -53,24 +53,20 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         public NavigatorState Navigator { get; }
 
         // Form states
-        public TextBoxState CompanyNameInput { get; } = new();
-        public TextBoxState EmailInput { get; } = new();
-        public TextBoxState OpportunityNameInput { get; } = new();
-        public TextBoxState OpportunityAmountInput { get; } = new();
+        public string CompanyNameInput { get; set; } = "";
+        public string EmailInput { get; set; } = "";
+        public string OpportunityNameInput { get; set; } = "";
+        public string OpportunityAmountInput { get; set; } = "";
 
-        // List states
-        public ListState CustomerList { get; } = new();
-        private readonly Dictionary<string, ListState> _opportunityLists = new();
+        // Selection tracking
+        public string? SelectedCustomerId { get; set; }
+        private readonly Dictionary<string, string?> _selectedOpportunityIds = new();
 
-        public ListState GetOpportunityList(string customerId)
-        {
-            if (!_opportunityLists.TryGetValue(customerId, out var list))
-            {
-                list = new ListState();
-                _opportunityLists[customerId] = list;
-            }
-            return list;
-        }
+        public string? GetSelectedOpportunityId(string customerId) =>
+            _selectedOpportunityIds.TryGetValue(customerId, out var id) ? id : null;
+        
+        public void SetSelectedOpportunityId(string customerId, string? opportunityId) =>
+            _selectedOpportunityIds[customerId] = opportunityId;
 
         public CrmAppState()
         {
@@ -85,7 +81,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// </summary>
         private Hex1bWidget BuildStartup(NavigatorState nav)
         {
-            var ctx = new WidgetContext<RootWidget, CrmAppState>(this);
+            var ctx = new RootContext();
             
             if (Customers.Count == 0)
             {
@@ -97,7 +93,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// First-run experience using fluent API.
         /// </summary>
-        private Hex1bWidget BuildFirstRun(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildFirstRun(RootContext ctx, NavigatorState nav)
         {
             return ctx.VStack(v => [
                 v.Text("╭───────────────────────────────────────╮"),
@@ -117,7 +113,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// New customer form using fluent API.
         /// </summary>
-        private Hex1bWidget BuildNewCustomer(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildNewCustomer(RootContext ctx, NavigatorState nav)
         {
             return ctx.VStack(v => [
                 v.Text("╭───────────────────────────────────────╮"),
@@ -125,10 +121,10 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("╰───────────────────────────────────────╯"),
                 v.Text(""),
                 v.Text("Company Name:"),
-                v.TextBox(s => s.CompanyNameInput),
+                v.TextBox(CompanyNameInput, onTextChanged: args => CompanyNameInput = args.NewText),
                 v.Text(""),
                 v.Text("Email:"),
-                v.TextBox(s => s.EmailInput),
+                v.TextBox(EmailInput, onTextChanged: args => EmailInput = args.NewText),
                 v.Text(""),
                 v.Button("Save Customer", _ => SaveNewCustomer(nav))
             ]).WithInputBindings(bindings =>
@@ -141,14 +137,14 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         {
             var customer = new Customer
             {
-                CompanyName = CompanyNameInput.Text,
-                Email = EmailInput.Text
+                CompanyName = CompanyNameInput,
+                Email = EmailInput
             };
             Customers.Add(customer);
 
             // Clear form
-            CompanyNameInput.Text = "";
-            EmailInput.Text = "";
+            CompanyNameInput = "";
+            EmailInput = "";
 
             // Navigate to home
             nav.Reset(new NavigatorRoute("home", BuildStartup));
@@ -157,21 +153,22 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// <summary>
         /// Home screen - master/detail using fluent API.
         /// </summary>
-        private Hex1bWidget BuildHome(WidgetContext<RootWidget, CrmAppState> ctx, NavigatorState nav)
+        private Hex1bWidget BuildHome(RootContext ctx, NavigatorState nav)
         {
-            // Update list from customers
-            CustomerList.Items = Customers
-                .Select(c => new ListItem(c.Id, c.CompanyName))
+            // Build customer items list
+            var customerItems = Customers
+                .Select(c => c.CompanyName)
                 .ToList();
 
-            var selectedCustomer = Customers
-                .FirstOrDefault(c => c.Id == CustomerList.SelectedItem?.Id);
+            var selectedCustomer = SelectedCustomerId != null 
+                ? Customers.FirstOrDefault(c => c.Id == SelectedCustomerId)
+                : null;
 
             return ctx.Splitter(
                 ctx.VStack(left => [
                     left.Text("Customers"),
                     left.Text("─────────────────"),
-                    left.List(s => s.CustomerList),
+                    left.List(customerItems, e => SelectedCustomerId = e.SelectedIndex >= 0 && e.SelectedIndex < Customers.Count ? Customers[e.SelectedIndex].Id : null, null),
                     left.Text(""),
                     left.Button("+ New", _ => 
                         nav.Push("new-customer", n => BuildNewCustomer(ctx, n)))
@@ -185,7 +182,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// Customer detail panel (right side of splitter).
         /// </summary>
         private Hex1bWidget BuildCustomerDetail(
-            WidgetContext<RootWidget, CrmAppState> ctx,
+            RootContext ctx,
             Customer? customer,
             NavigatorState nav)
         {
@@ -197,10 +194,9 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 ]));
             }
 
-            // Get opportunity list for this customer
-            var oppList = GetOpportunityList(customer.Id);
-            oppList.Items = customer.Opportunities
-                .Select(o => new ListItem(o.Id, $"{o.Name} - ${o.Amount:N0}"))
+            // Build opportunity items list
+            var opportunityItems = customer.Opportunities
+                .Select(o => $"{o.Name} - ${o.Amount:N0}")
                 .ToList();
 
             var totalValue = customer.Opportunities.Sum(o => o.Amount);
@@ -215,12 +211,12 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text(""),
                 v.Text($"Opportunities ({customer.Opportunities.Count}) - Total: ${totalValue:N0}"),
                 v.Text("────────────────────────"),
-                v.List(_ => oppList),
+                v.List(opportunityItems, e => SetSelectedOpportunityId(customer.Id, e.SelectedIndex >= 0 && e.SelectedIndex < customer.Opportunities.Count ? customer.Opportunities[e.SelectedIndex].Id : null), null),
                 v.HStack(h => [
                     h.Button("+ Add", _ => 
                         nav.Push("new-opportunity", n => BuildNewOpportunity(ctx, n, customer))),
                     h.Button("Delete", _ => 
-                        DeleteSelectedOpportunity(customer, oppList))
+                        DeleteSelectedOpportunity(customer))
                 ])
             ]));
         }
@@ -229,7 +225,7 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
         /// New opportunity form using fluent API.
         /// </summary>
         private Hex1bWidget BuildNewOpportunity(
-            WidgetContext<RootWidget, CrmAppState> ctx,
+            RootContext ctx,
             NavigatorState nav,
             Customer customer)
         {
@@ -239,10 +235,10 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                 v.Text("╰───────────────────────────────────────╯"),
                 v.Text(""),
                 v.Text("Opportunity Name:"),
-                v.TextBox(s => s.OpportunityNameInput),
+                v.TextBox(OpportunityNameInput, onTextChanged: args => OpportunityNameInput = args.NewText),
                 v.Text(""),
                 v.Text("Amount ($):"),
-                v.TextBox(s => s.OpportunityAmountInput),
+                v.TextBox(OpportunityAmountInput, onTextChanged: args => OpportunityAmountInput = args.NewText),
                 v.Text(""),
                 v.Button("Save Opportunity", _ => SaveNewOpportunity(nav, customer))
             ]).WithInputBindings(bindings =>
@@ -253,30 +249,31 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
 
         private void SaveNewOpportunity(NavigatorState nav, Customer customer)
         {
-            if (decimal.TryParse(OpportunityAmountInput.Text, out var amount))
+            if (decimal.TryParse(OpportunityAmountInput, out var amount))
             {
                 var opportunity = new Opportunity
                 {
-                    Name = OpportunityNameInput.Text,
+                    Name = OpportunityNameInput,
                     Amount = amount
                 };
                 customer.Opportunities.Add(opportunity);
             }
 
-            OpportunityNameInput.Text = "";
-            OpportunityAmountInput.Text = "";
+            OpportunityNameInput = "";
+            OpportunityAmountInput = "";
             nav.Pop();
         }
 
-        private static void DeleteSelectedOpportunity(Customer customer, ListState oppList)
+        private void DeleteSelectedOpportunity(Customer customer)
         {
-            var selectedId = oppList.SelectedItem?.Id;
+            var selectedId = GetSelectedOpportunityId(customer.Id);
             if (selectedId == null) return;
 
             var opp = customer.Opportunities.FirstOrDefault(o => o.Id == selectedId);
             if (opp != null)
             {
                 customer.Opportunities.Remove(opp);
+                SetSelectedOpportunityId(customer.Id, null);
             }
         }
 
@@ -300,8 +297,8 @@ public class NavigatorExhibit(ILogger<NavigatorExhibit> logger) : Hex1bExhibit
                     state.Customers.Count);
                 
                 // Create root context and build the navigator widget with info bar
-                var ctx = new RootContext<CrmAppState>(state);
-                var navigator = ctx.Navigator(s => s.Navigator);
+                var ctx = new RootContext();
+                var navigator = ctx.Navigator(state.Navigator);
                 
                 // Build info bar with navigation hints
                 var infoBar = ctx.InfoBar([

@@ -58,7 +58,7 @@ Build widgets → Reconcile → Measure → Arrange → Render → Wait for inpu
 ### Naming
 - Widgets: `*Widget` (e.g., `TextBlockWidget`, `ButtonWidget`)
 - Nodes: `*Node` (e.g., `TextBlockNode`, `ButtonNode`)
-- State objects: `*State` (e.g., `TextBoxState`, `ListState`)
+- State objects: `*State` (e.g., `TextBoxState`) - for widgets requiring user-owned mutable state
 
 ### Widget Definition Pattern
 ```csharp

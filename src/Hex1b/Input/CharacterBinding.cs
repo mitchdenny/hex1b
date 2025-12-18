@@ -14,9 +14,14 @@ public sealed class CharacterBinding
     public Func<string, bool> Predicate { get; }
 
     /// <summary>
-    /// The action to execute when matching text input is received.
+    /// The synchronous action to execute when matching text input is received.
     /// </summary>
-    public Action<string> Handler { get; }
+    public Action<string>? Handler { get; }
+
+    /// <summary>
+    /// The async action to execute when matching text input is received.
+    /// </summary>
+    public Func<string, InputBindingActionContext, Task>? AsyncHandler { get; }
 
     /// <summary>
     /// Optional description for this binding (for help/documentation).
@@ -24,12 +29,22 @@ public sealed class CharacterBinding
     public string? Description { get; }
 
     /// <summary>
-    /// Creates a text binding with the given predicate and handler.
+    /// Creates a text binding with the given predicate and synchronous handler.
     /// </summary>
     public CharacterBinding(Func<string, bool> predicate, Action<string> handler, string? description = null)
     {
         Predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Description = description;
+    }
+
+    /// <summary>
+    /// Creates a text binding with the given predicate and async handler.
+    /// </summary>
+    public CharacterBinding(Func<string, bool> predicate, Func<string, InputBindingActionContext, Task> handler, string? description = null)
+    {
+        Predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
+        AsyncHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
     }
 
@@ -41,5 +56,20 @@ public sealed class CharacterBinding
     /// <summary>
     /// Executes the binding's handler with the given text.
     /// </summary>
-    public void Execute(string text) => Handler(text);
+    public void Execute(string text) => Handler?.Invoke(text);
+
+    /// <summary>
+    /// Executes the binding's async handler with the given text and context.
+    /// </summary>
+    public async Task ExecuteAsync(string text, InputBindingActionContext context)
+    {
+        if (AsyncHandler != null)
+        {
+            await AsyncHandler(text, context);
+        }
+        else
+        {
+            Handler?.Invoke(text);
+        }
+    }
 }

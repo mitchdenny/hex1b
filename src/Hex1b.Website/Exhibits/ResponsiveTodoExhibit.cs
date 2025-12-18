@@ -31,55 +31,43 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             new("Team standup meeting", true),
         ];
 
-        public ListState ListState { get; }
-        public TextBoxState NewItemInput { get; } = new();
-        
-        public TodoState()
-        {
-            ListState = new ListState
-            {
-                OnItemActivated = _ => ToggleSelected()
-            };
-        }
+        public int SelectedIndex { get; set; }
+        public string NewItemText { get; set; } = "";
 
         public void AddItem()
         {
-            if (!string.IsNullOrWhiteSpace(NewItemInput.Text))
+            if (!string.IsNullOrWhiteSpace(NewItemText))
             {
-                Items.Add(new TodoItem(NewItemInput.Text, false));
-                NewItemInput.Text = "";
-                NewItemInput.CursorPosition = 0;
+                Items.Add(new TodoItem(NewItemText, false));
+                NewItemText = "";
             }
         }
 
         public void ToggleSelected()
         {
-            if (ListState.SelectedIndex >= 0 && ListState.SelectedIndex < Items.Count)
+            if (SelectedIndex >= 0 && SelectedIndex < Items.Count)
             {
-                Items[ListState.SelectedIndex] = Items[ListState.SelectedIndex] with 
+                Items[SelectedIndex] = Items[SelectedIndex] with 
                 { 
-                    IsComplete = !Items[ListState.SelectedIndex].IsComplete 
+                    IsComplete = !Items[SelectedIndex].IsComplete 
                 };
             }
         }
 
         public void DeleteSelected()
         {
-            if (ListState.SelectedIndex >= 0 && ListState.SelectedIndex < Items.Count)
+            if (SelectedIndex >= 0 && SelectedIndex < Items.Count)
             {
-                Items.RemoveAt(ListState.SelectedIndex);
-                if (ListState.SelectedIndex >= Items.Count && Items.Count > 0)
+                Items.RemoveAt(SelectedIndex);
+                if (SelectedIndex >= Items.Count && Items.Count > 0)
                 {
-                    ListState.SelectedIndex = Items.Count - 1;
+                    SelectedIndex = Items.Count - 1;
                 }
             }
         }
 
-        public void UpdateListItems()
-        {
-            ListState.Items = Items.Select((item, idx) => 
-                new ListItem(idx.ToString(), FormatTodoItem(item))).ToList();
-        }
+        public IReadOnlyList<string> GetListItems() =>
+            Items.Select(item => FormatTodoItem(item)).ToList();
 
         private static string FormatTodoItem(TodoItem item)
         {
@@ -98,24 +86,22 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
 
         return () =>
         {
-            // Update list items before each render
-            state.UpdateListItems();
-
-            var ctx = new RootContext<TodoState>(state);
+            var ctx = new RootContext();
+            var listItems = state.GetListItems();
 
             // Build responsive layout that adapts to available width
             var widget = ctx.Responsive(r => [
                 // Extra wide layout (150+ cols): Three columns with stats
-                r.WhenMinWidth(150, r => BuildExtraWideLayout(r)),
+                r.WhenMinWidth(150, r => BuildExtraWideLayout(r, state, listItems)),
                 
                 // Wide layout (110+ cols): Two columns with details sidebar
-                r.WhenMinWidth(110, r => BuildWideLayout(r)),
+                r.WhenMinWidth(110, r => BuildWideLayout(r, state, listItems)),
                 
                 // Medium layout (70+ cols): Single column with full details
-                r.WhenMinWidth(70, r => BuildMediumLayout(r)),
+                r.WhenMinWidth(70, r => BuildMediumLayout(r, state, listItems)),
                 
                 // Compact layout (< 70 cols): Minimal single column
-                r.Otherwise(r => BuildCompactLayout(r))
+                r.Otherwise(r => BuildCompactLayout(r, state, listItems))
             ]);
 
             return widget;
@@ -125,9 +111,8 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
     /// <summary>
     /// Extra wide layout: Three columns - list, details, and statistics.
     /// </summary>
-    private static Hex1bWidget BuildExtraWideLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    private static Hex1bWidget BuildExtraWideLayout(WidgetContext<ConditionalWidget> ctx, TodoState state, IReadOnlyList<string> listItems)
     {
-        var state = ctx.State;
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         var todoCount = totalCount - completedCount;
@@ -137,7 +122,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             h.Border(b => [
                 b.Text("📋 Todo Items"),
                 b.Text(""),
-                b.List(s => s.ListState),
+                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Navigate  Space: Toggle")
             ], title: "Tasks").FillWidth(2),
@@ -146,7 +131,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             h.Border(b => [
                 b.Text("➕ Add New Task"),
                 b.Text(""),
-                b.TextBox(s => s.NewItemInput),
+                b.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
                 b.Text(""),
                 b.Button("Add Task", _ => state.AddItem()),
                 b.Text(""),
@@ -169,9 +154,8 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
     /// <summary>
     /// Wide layout: Two columns - list and details/add panel.
     /// </summary>
-    private static Hex1bWidget BuildWideLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    private static Hex1bWidget BuildWideLayout(WidgetContext<ConditionalWidget> ctx, TodoState state, IReadOnlyList<string> listItems)
     {
-        var state = ctx.State;
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
@@ -180,7 +164,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             h.Border(b => [
                 b.Text("📋 Todo Items"),
                 b.Text(""),
-                b.List(s => s.ListState),
+                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Nav  Space: Toggle")
             ], title: "Tasks").FillWidth(2),
@@ -189,7 +173,7 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             h.VStack(v => [
                 v.Border(b => [
                     b.Text("➕ Add Task"),
-                    b.TextBox(s => s.NewItemInput),
+                    b.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
                     b.Button("Add", _ => state.AddItem())
                 ], title: "New"),
                 v.Border(b => [
@@ -203,9 +187,8 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
     /// <summary>
     /// Medium layout: Single column with all features visible.
     /// </summary>
-    private static Hex1bWidget BuildMediumLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    private static Hex1bWidget BuildMediumLayout(WidgetContext<ConditionalWidget> ctx, TodoState state, IReadOnlyList<string> listItems)
     {
-        var state = ctx.State;
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
@@ -216,11 +199,11 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
             ], title: "Todo"),
             
             v.Border(b => [
-                b.List(s => s.ListState)
+                b.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected())
             ], title: "Items").FillHeight(),
             
             v.HStack(h => [
-                h.TextBox(s => s.NewItemInput).FillWidth(),
+                h.TextBox(state.NewItemText, args => state.NewItemText = args.NewText).FillWidth(),
                 h.Button("[+]", _ => state.AddItem())
             ]),
             
@@ -231,18 +214,17 @@ public class ResponsiveTodoExhibit(ILogger<ResponsiveTodoExhibit> logger) : Hex1
     /// <summary>
     /// Compact layout: Minimal display for narrow terminals.
     /// </summary>
-    private static Hex1bWidget BuildCompactLayout(WidgetContext<ConditionalWidget, TodoState> ctx)
+    private static Hex1bWidget BuildCompactLayout(WidgetContext<ConditionalWidget> ctx, TodoState state, IReadOnlyList<string> listItems)
     {
-        var state = ctx.State;
         var completedCount = state.Items.Count(i => i.IsComplete);
         var totalCount = state.Items.Count;
         
         return ctx.VStack(v => [
             v.Text($"Todo [{completedCount}/{totalCount}]"),
             v.Text("────────────────────"),
-            v.List(s => s.ListState).FillHeight(),
+            v.List(listItems, e => state.SelectedIndex = e.SelectedIndex, _ => state.ToggleSelected()).FillHeight(),
             v.Text("────────────────────"),
-            v.TextBox(s => s.NewItemInput),
+            v.TextBox(state.NewItemText, args => state.NewItemText = args.NewText),
             v.Button("+ Add", _ => state.AddItem())
         ]);
     }

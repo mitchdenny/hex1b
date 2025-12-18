@@ -12,9 +12,9 @@ public class MouseExhibit : IGalleryExhibit
     public string Title => "Mouse Tracking";
     public string Description => "Demonstrates mouse cursor and click-to-focus";
 
-    private readonly TextBoxState _textBox1 = new() { Text = "Click me!" };
-    private readonly TextBoxState _textBox2 = new() { Text = "Or me!" };
-    private readonly TextBoxState _textBox3 = new() { Text = "Type here..." };
+    private string _textBox1 = "Click me!";
+    private string _textBox2 = "Or me!";
+    private string _textBox3 = "Type here...";
     
     private int _clickCount = 0;
 
@@ -29,15 +29,15 @@ public class MouseExhibit : IGalleryExhibit
                     new TextBlockWidget(""),
                     new HStackWidget([
                         new TextBlockWidget("Name:    "),
-                        new TextBoxWidget(State: _textBox1) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(_textBox1) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20), OnTextChanged = args => { _textBox1 = args.NewText; return Task.CompletedTask; } }
                     ]),
                     new HStackWidget([
                         new TextBlockWidget("Email:   "),
-                        new TextBoxWidget(State: _textBox2) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(_textBox2) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20), OnTextChanged = args => { _textBox2 = args.NewText; return Task.CompletedTask; } }
                     ]),
                     new HStackWidget([
                         new TextBlockWidget("Message: "),
-                        new TextBoxWidget(State: _textBox3) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20) }
+                        new TextBoxWidget(_textBox3) { WidthHint = Hex1b.Layout.SizeHint.Fixed(20), OnTextChanged = args => { _textBox3 = args.NewText; return Task.CompletedTask; } }
                     ]),
                     new TextBlockWidget(""),
                     new TextBlockWidget("Click buttons to activate them:"),
@@ -49,9 +49,9 @@ public class MouseExhibit : IGalleryExhibit
                     new TextBlockWidget(""),
                     new ButtonWidget("Reset") { OnClick = _ => {
                         _clickCount = 0;
-                        _textBox1.Text = "Click me!";
-                        _textBox2.Text = "Or me!";
-                        _textBox3.Text = "Type here...";
+                        _textBox1 = "Click me!";
+                        _textBox2 = "Or me!";
+                        _textBox3 = "Type here...";
                         return Task.CompletedTask;
                     }},
                     new TextBlockWidget(""),

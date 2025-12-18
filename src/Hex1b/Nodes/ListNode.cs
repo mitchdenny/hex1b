@@ -12,7 +12,22 @@ public sealed class ListNode : Hex1bNode
     /// </summary>
     public ListWidget? SourceWidget { get; set; }
 
-    public ListState State { get; set; } = new();
+    /// <summary>
+    /// The list items to display.
+    /// </summary>
+    public IReadOnlyList<string> Items { get; set; } = [];
+
+    /// <summary>
+    /// The currently selected index. This is preserved across reconciliation.
+    /// </summary>
+    public int SelectedIndex { get; set; } = 0;
+
+    /// <summary>
+    /// The text of the currently selected item, or null if the list is empty.
+    /// </summary>
+    public string? SelectedText => SelectedIndex >= 0 && SelectedIndex < Items.Count 
+        ? Items[SelectedIndex] 
+        : null;
 
     /// <summary>
     /// Internal action invoked when selection changes.
@@ -41,6 +56,23 @@ public sealed class ListNode : Hex1bNode
         // Activation - always bind Enter/Space so focused lists consume these keys
         bindings.Key(Hex1bKey.Enter).Action(ActivateItemWithEvent, "Activate item");
         bindings.Key(Hex1bKey.Spacebar).Action(ActivateItemWithEvent, "Activate item");
+        
+        // Mouse click to select and activate
+        bindings.Mouse(MouseButton.Left).Action(MouseSelectAndActivate, "Select and activate item");
+    }
+
+    private async Task MouseSelectAndActivate(InputBindingActionContext ctx)
+    {
+        // The mouse position is available in the context, calculate local Y to determine which item was clicked
+        var localY = ctx.MouseY - Bounds.Y;
+        if (localY >= 0 && localY < Items.Count)
+        {
+            SetSelection(localY);
+            if (ItemActivatedAction != null)
+            {
+                await ItemActivatedAction(ctx);
+            }
+        }
     }
 
     private async Task ActivateItemWithEvent(InputBindingActionContext ctx)
@@ -53,7 +85,7 @@ public sealed class ListNode : Hex1bNode
 
     private async Task MoveUpWithEvent(InputBindingActionContext ctx)
     {
-        State.MoveUp();
+        MoveUp();
         if (SelectionChangedAction != null)
         {
             await SelectionChangedAction(ctx);
@@ -62,7 +94,7 @@ public sealed class ListNode : Hex1bNode
 
     private async Task MoveDownWithEvent(InputBindingActionContext ctx)
     {
-        State.MoveDown();
+        MoveDown();
         if (SelectionChangedAction != null)
         {
             await SelectionChangedAction(ctx);
@@ -70,15 +102,40 @@ public sealed class ListNode : Hex1bNode
     }
 
     /// <summary>
+    /// Moves selection up (with wrap-around).
+    /// </summary>
+    internal void MoveUp()
+    {
+        if (Items.Count == 0) return;
+        SelectedIndex = SelectedIndex <= 0 ? Items.Count - 1 : SelectedIndex - 1;
+    }
+
+    /// <summary>
+    /// Moves selection down (with wrap-around).
+    /// </summary>
+    internal void MoveDown()
+    {
+        if (Items.Count == 0) return;
+        SelectedIndex = (SelectedIndex + 1) % Items.Count;
+    }
+
+    /// <summary>
+    /// Sets the selection to a specific index.
+    /// </summary>
+    internal void SetSelection(int index)
+    {
+        if (Items.Count == 0 || index < 0 || index >= Items.Count) return;
+        SelectedIndex = index;
+    }
+
+    /// <summary>
     /// Handles mouse click by selecting the item at the clicked row.
     /// </summary>
     public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
     {
-        var items = State.Items;
-        if (localY >= 0 && localY < items.Count)
+        if (localY >= 0 && localY < Items.Count)
         {
-            State.SetSelection(localY);
-            // Note: Can't fire async event from sync method; consider HandleMouseClickAsync
+            SetSelection(localY);
             return InputResult.Handled;
         }
         return InputResult.NotHandled;
@@ -87,13 +144,12 @@ public sealed class ListNode : Hex1bNode
     public override Size Measure(Constraints constraints)
     {
         // List: width is max item length + indicator (2 chars), height is item count
-        var items = State.Items;
         var maxWidth = 0;
-        foreach (var item in items)
+        foreach (var item in Items)
         {
-            maxWidth = Math.Max(maxWidth, item.Text.Length + 2); // "> " indicator
+            maxWidth = Math.Max(maxWidth, item.Length + 2); // "> " indicator
         }
-        var height = Math.Max(items.Count, 1);
+        var height = Math.Max(Items.Count, 1);
         return constraints.Constrain(new Size(maxWidth, height));
     }
 
@@ -109,11 +165,10 @@ public sealed class ListNode : Hex1bNode
         var inheritedColors = context.GetInheritedColorCodes();
         var resetToInherited = context.GetResetToInheritedCodes();
         
-        var items = State.Items;
-        for (int i = 0; i < items.Count; i++)
+        for (int i = 0; i < Items.Count; i++)
         {
-            var item = items[i];
-            var isSelected = i == State.SelectedIndex;
+            var item = Items[i];
+            var isSelected = i == SelectedIndex;
 
             var x = Bounds.X;
             var y = Bounds.Y + i;
@@ -122,17 +177,17 @@ public sealed class ListNode : Hex1bNode
             if (isSelected && IsFocused)
             {
                 // Focused and selected: use theme colors
-                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item.Text}{resetToInherited}";
+                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item}{resetToInherited}";
             }
             else if (isSelected)
             {
                 // Selected but not focused: just show indicator with inherited colors
-                text = $"{inheritedColors}{selectedIndicator}{item.Text}{resetToInherited}";
+                text = $"{inheritedColors}{selectedIndicator}{item}{resetToInherited}";
             }
             else
             {
                 // Not selected: use inherited colors
-                text = $"{inheritedColors}{unselectedIndicator}{item.Text}{resetToInherited}";
+                text = $"{inheritedColors}{unselectedIndicator}{item}{resetToInherited}";
             }
 
             // Use clipped rendering when a layout provider is active

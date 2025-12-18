@@ -15,7 +15,7 @@ public class TextBoxNodeTests
     [Fact]
     public void Measure_ReturnsCorrectSize()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -27,7 +27,7 @@ public class TextBoxNodeTests
     [Fact]
     public void Measure_EmptyText_HasMinWidth()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "" } };
+        var node = new TextBoxNode { Text = "" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -38,7 +38,7 @@ public class TextBoxNodeTests
     [Fact]
     public void Measure_LongText_MeasuresFullWidth()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "This is a very long text input" } };
+        var node = new TextBoxNode { Text = "This is a very long text input" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -50,7 +50,7 @@ public class TextBoxNodeTests
     [Fact]
     public void Measure_RespectsMaxWidthConstraint()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "Long text here" } };
+        var node = new TextBoxNode { Text = "Long text here" };
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
@@ -61,7 +61,7 @@ public class TextBoxNodeTests
     public void Measure_WithEmoji_CalculatesDisplayWidth()
     {
         // "😀" is 2 cells wide
-        var node = new TextBoxNode { State = new TextBoxState { Text = "😀" } };
+        var node = new TextBoxNode { Text = "😀" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -73,7 +73,7 @@ public class TextBoxNodeTests
     public void Measure_WithCJK_CalculatesDisplayWidth()
     {
         // "中文" is 4 cells wide (2 + 2)
-        var node = new TextBoxNode { State = new TextBoxState { Text = "中文" } };
+        var node = new TextBoxNode { Text = "中文" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -85,7 +85,7 @@ public class TextBoxNodeTests
     public void Measure_MixedAsciiAndEmoji_CalculatesDisplayWidth()
     {
         // "Hi😀" = 2 + 2 = 4 cells
-        var node = new TextBoxNode { State = new TextBoxState { Text = "Hi😀" } };
+        var node = new TextBoxNode { Text = "Hi😀" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -97,7 +97,7 @@ public class TextBoxNodeTests
     public void Measure_FamilyEmoji_TreatedAsTwoColumns()
     {
         // "👨‍👩‍👧" is a ZWJ sequence but displays as one emoji (2 cells)
-        var node = new TextBoxNode { State = new TextBoxState { Text = "👨‍👩‍👧" } };
+        var node = new TextBoxNode { Text = "👨‍👩‍👧" };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -116,7 +116,7 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "test" },
+            Text = "test",
             IsFocused = false
         };
 
@@ -132,7 +132,7 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "" },
+            Text = "",
             IsFocused = false
         };
 
@@ -148,7 +148,7 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "This is a longer piece of text" },
+            Text = "This is a longer piece of text",
             IsFocused = false
         };
 
@@ -168,9 +168,10 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "abc", CursorPosition = 1 },
+            Text = "abc",
             IsFocused = true
         };
+        node.State.CursorPosition = 1;
 
         node.Render(context);
 
@@ -189,9 +190,10 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "hello", CursorPosition = 0 },
+            Text = "hello",
             IsFocused = true
         };
+        node.State.CursorPosition = 0;
 
         node.Render(context);
 
@@ -207,9 +209,10 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "test", CursorPosition = 4 },
+            Text = "test",
             IsFocused = true
         };
+        node.State.CursorPosition = 4;
 
         node.Render(context);
 
@@ -224,9 +227,10 @@ public class TextBoxNodeTests
         var context = new Hex1bRenderContext(terminal);
         var node = new TextBoxNode
         {
-            State = new TextBoxState { Text = "", CursorPosition = 0 },
+            Text = "",
             IsFocused = true
         };
+        node.State.CursorPosition = 0;
 
         node.Render(context);
 
@@ -245,11 +249,9 @@ public class TextBoxNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 5);
         var context = new Hex1bRenderContext(terminal);
-        var state = new TextBoxState { Text = "hello world" };
-        state.SelectionAnchor = 0;
-        state.CursorPosition = 5;
-
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.SelectionAnchor = 0;
+        node.State.CursorPosition = 5;
 
         node.Render(context);
 
@@ -265,11 +267,9 @@ public class TextBoxNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 5);
         var context = new Hex1bRenderContext(terminal);
-        var state = new TextBoxState { Text = "abcdefgh" };
-        state.SelectionAnchor = 2;
-        state.CursorPosition = 5;
-
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "abcdefgh", IsFocused = true };
+        node.State.SelectionAnchor = 2;
+        node.State.CursorPosition = 5;
 
         node.Render(context);
 
@@ -286,119 +286,118 @@ public class TextBoxNodeTests
     [Fact]
     public async Task HandleInput_WhenFocused_UpdatesState()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 5;
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("helloX", state.Text);
+        Assert.Equal("helloX", node.Text);
     }
 
     [Fact]
     public async Task HandleInput_WhenNotFocused_DoesNotHandle()
     {
-        var state = new TextBoxState { Text = "hello" };
-        var node = new TextBoxNode { State = state, IsFocused = false };
+        var node = new TextBoxNode { Text = "hello", IsFocused = false };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
 
         Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal("hello", state.Text);
+        Assert.Equal("hello", node.Text);
     }
 
     [Fact]
     public async Task HandleInput_Backspace_DeletesCharacter()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 5;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
 
-        Assert.Equal("hell", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.Equal("hell", node.Text);
+        Assert.Equal(4, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_Delete_DeletesCharacterAhead()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 0 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 0;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
 
-        Assert.Equal("ello", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.Equal("ello", node.Text);
+        Assert.Equal(0, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_LeftArrow_MovesCursorLeft()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 3;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
 
-        Assert.Equal(2, state.CursorPosition);
+        Assert.Equal(2, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_RightArrow_MovesCursorRight()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 3;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
 
-        Assert.Equal(4, state.CursorPosition);
+        Assert.Equal(4, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_Home_MovesCursorToStart()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 3;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
 
-        Assert.Equal(0, state.CursorPosition);
+        Assert.Equal(0, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_End_MovesCursorToEnd()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 2;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
 
-        Assert.Equal(5, state.CursorPosition);
+        Assert.Equal(5, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleInput_ShiftLeftArrow_CreatesSelection()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 3 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 3;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
 
-        Assert.Equal(2, state.CursorPosition);
-        Assert.True(state.HasSelection);
-        Assert.Equal(3, state.SelectionAnchor);
+        Assert.Equal(2, node.State.CursorPosition);
+        Assert.True(node.State.HasSelection);
+        Assert.Equal(3, node.State.SelectionAnchor);
     }
 
     [Fact]
     public async Task HandleInput_CtrlA_SelectsAll()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 2 };
-        var node = new TextBoxNode { State = state, IsFocused = true };
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 2;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
 
-        Assert.True(state.HasSelection);
-        Assert.Equal(0, state.SelectionAnchor);
-        Assert.Equal(5, state.CursorPosition);
+        Assert.True(node.State.HasSelection);
+        Assert.Equal(0, node.State.SelectionAnchor);
+        Assert.Equal(5, node.State.CursorPosition);
     }
 
     #endregion
@@ -420,7 +419,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_PositionsCursorAtClickLocation()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -435,7 +434,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_AtStart_PositionsCursorAtZero()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -450,7 +449,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_AtEnd_PositionsCursorAtEnd()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -465,7 +464,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_OnBracket_PositionsCursorAtStart()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -480,7 +479,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_ClearsSelection()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.State.SelectAll(); // Select all text
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
@@ -497,7 +496,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_DoubleClick_NotHandledByHandleMouseClick()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -511,7 +510,7 @@ public class TextBoxNodeTests
     [Fact]
     public void HandleMouseClick_RightClick_NotHandled()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "hello" } };
+        var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -526,7 +525,7 @@ public class TextBoxNodeTests
     public void HandleMouseClick_WithEmoji_PositionsCorrectly()
     {
         // "😀ab" - emoji is 2 cells wide
-        var node = new TextBoxNode { State = new TextBoxState { Text = "😀ab" } };
+        var node = new TextBoxNode { Text = "😀ab" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -544,7 +543,7 @@ public class TextBoxNodeTests
     public void HandleMouseClick_OnWideChar_PositionsBasedOnMidpoint()
     {
         // Click on first half of emoji should position before it
-        var node = new TextBoxNode { State = new TextBoxState { Text = "😀" } };
+        var node = new TextBoxNode { Text = "😀" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
@@ -566,7 +565,7 @@ public class TextBoxNodeTests
     [Fact]
     public void Arrange_SetsBounds()
     {
-        var node = new TextBoxNode { State = new TextBoxState { Text = "test" } };
+        var node = new TextBoxNode { Text = "test" };
         var bounds = new Rect(5, 10, 20, 1);
 
         node.Arrange(bounds);
@@ -582,13 +581,11 @@ public class TextBoxNodeTests
     public async Task Integration_TextBox_RendersViaHex1bApp()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "Initial Text" };
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox("Initial Text")
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -604,13 +601,12 @@ public class TextBoxNodeTests
     public async Task Integration_TextBox_ReceivesInput()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "" };
+        var capturedText = "";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox(capturedText, onTextChanged: args => capturedText = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -625,20 +621,19 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("Hello", textState.Text);
+        Assert.Equal("Hello", capturedText);
     }
 
     [Fact]
     public async Task Integration_TextBox_InNarrowTerminal_StillWorks()
     {
         using var terminal = new Hex1bTerminal(15, 5);
-        var textState = new TextBoxState { Text = "Short" };
+        var capturedText = "Short";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox(capturedText, args => capturedText = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -650,21 +645,21 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("ShortX", textState.Text);
+        Assert.Equal("ShortX", capturedText);
     }
 
     [Fact]
     public async Task Integration_TextBox_TabBetweenMultiple()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var state1 = new TextBoxState { Text = "" };
-        var state2 = new TextBoxState { Text = "" };
+        var text1 = "";
+        var text2 = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(state1),
-                    v.TextBox(state2)
+                    v.TextBox(text1, args => text1 = args.NewText),
+                    v.TextBox(text2, args => text2 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -682,21 +677,20 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("AB", state1.Text);
-        Assert.Equal("XY", state2.Text);
+        Assert.Equal("AB", text1);
+        Assert.Equal("XY", text2);
     }
 
     [Fact]
     public async Task Integration_TextBox_BackspaceWorks()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "test" };
+        var text = "test";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox(text, args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -709,20 +703,19 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("te", textState.Text);
+        Assert.Equal("te", text);
     }
 
     [Fact]
     public async Task Integration_TextBox_CursorNavigationWorks()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "abc" };
+        var text = "abc";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox(text, args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -736,20 +729,19 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("aXbc", textState.Text);
+        Assert.Equal("aXbc", text);
     }
 
     [Fact]
     public async Task Integration_TextBox_SpecialCharactersWork()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "" };
+        var text = "";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox(text, args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -762,20 +754,18 @@ public class TextBoxNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("@!#", textState.Text);
+        Assert.Equal("@!#", text);
     }
 
     [Fact]
     public async Task Integration_TextBox_LongTextInNarrowTerminal_Wraps()
     {
         using var terminal = new Hex1bTerminal(10, 5);
-        var textState = new TextBoxState { Text = "LongTextHere" };
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(s => s)
+                    v.TextBox("LongTextHere")
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -860,14 +850,14 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_ControlledMode_StillWorks()
     {
-        // Controlled mode (passing explicit state) should still work as before
+        // Controlled mode with onTextChanged callback
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "Initial" };
+        var text = "Initial";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(textState)  // Controlled mode with explicit state
+                    v.TextBox(text, args => text = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -880,7 +870,7 @@ public class TextBoxNodeTests
         await app.RunAsync();
 
         // The external state should be updated
-        Assert.Equal("InitialX", textState.Text);
+        Assert.Equal("InitialX", text);
     }
 
     #endregion

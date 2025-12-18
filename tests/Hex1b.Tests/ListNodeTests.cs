@@ -16,12 +16,9 @@ public class ListNodeTests
         return new Hex1bRenderContext(terminal, theme);
     }
 
-    private static ListState CreateListState(params string[] items)
+    private static IReadOnlyList<string> CreateItems(params string[] items)
     {
-        return new ListState
-        {
-            Items = items.Select((text, i) => new ListItem($"item{i}", text)).ToList()
-        };
+        return items.ToList();
     }
 
     #region Measurement Tests
@@ -31,7 +28,7 @@ public class ListNodeTests
     {
         var node = new ListNode 
         { 
-            State = CreateListState("Short", "Longer Item", "Med")
+            Items = CreateItems("Short", "Longer Item", "Med")
         };
         
         var size = node.Measure(Constraints.Unbounded);
@@ -44,7 +41,7 @@ public class ListNodeTests
     [Fact]
     public void Measure_EmptyList_HasMinHeight()
     {
-        var node = new ListNode { State = new ListState { Items = [] } };
+        var node = new ListNode { Items = [] };
         
         var size = node.Measure(Constraints.Unbounded);
         
@@ -54,7 +51,7 @@ public class ListNodeTests
     [Fact]
     public void Measure_SingleItem_IncludesIndicator()
     {
-        var node = new ListNode { State = CreateListState("Hello") };
+        var node = new ListNode { Items = CreateItems("Hello") };
         
         var size = node.Measure(Constraints.Unbounded);
         
@@ -65,7 +62,7 @@ public class ListNodeTests
     [Fact]
     public void Measure_RespectsMaxWidth()
     {
-        var node = new ListNode { State = CreateListState("Very Long Item Name") };
+        var node = new ListNode { Items = CreateItems("Very Long Item Name") };
         
         var size = node.Measure(new Constraints(0, 10, 0, 100));
         
@@ -77,7 +74,7 @@ public class ListNodeTests
     {
         var node = new ListNode 
         { 
-            State = CreateListState("Item 1", "Item 2", "Item 3", "Item 4", "Item 5") 
+            Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5") 
         };
         
         var size = node.Measure(new Constraints(0, 100, 0, 3));
@@ -92,7 +89,7 @@ public class ListNodeTests
     [Fact]
     public void Arrange_SetsBounds()
     {
-        var node = new ListNode { State = CreateListState("Test") };
+        var node = new ListNode { Items = CreateItems("Test") };
         var bounds = new Rect(0, 0, 40, 10);
         
         node.Arrange(bounds);
@@ -103,7 +100,7 @@ public class ListNodeTests
     [Fact]
     public void Arrange_WithOffset_SetsBoundsWithOffset()
     {
-        var node = new ListNode { State = CreateListState("Test") };
+        var node = new ListNode { Items = CreateItems("Test") };
         var bounds = new Rect(5, 3, 30, 8);
         
         node.Arrange(bounds);
@@ -123,7 +120,7 @@ public class ListNodeTests
         var context = CreateContext(terminal);
         var node = new ListNode 
         { 
-            State = CreateListState("Item 1", "Item 2", "Item 3")
+            Items = CreateItems("Item 1", "Item 2", "Item 3")
         };
         node.Arrange(new Rect(0, 0, 40, 10));
         
@@ -139,7 +136,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var node = new ListNode { State = new ListState { Items = [] } };
+        var node = new ListNode { Items = [] };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -153,7 +150,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var node = new ListNode { State = CreateListState("Only Item") };
+        var node = new ListNode { Items = CreateItems("Only Item") };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -170,9 +167,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -186,9 +181,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -202,9 +195,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("First", "Second", "Third");
-        state.SelectedIndex = 1;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 1, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -219,9 +210,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("First", "Second", "Third");
-        state.SelectedIndex = 2;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 2, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -240,9 +229,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -256,9 +243,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -276,9 +261,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal);
-        var state = CreateListState("Test Item");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Test Item"), SelectedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(5, 3, 20, 5));
         
         node.Render(context);
@@ -294,7 +277,7 @@ public class ListNodeTests
         var context = CreateContext(terminal);
         var node = new ListNode 
         { 
-            State = CreateListState("Item A", "Item B", "Item C") 
+            Items = CreateItems("Item A", "Item B", "Item C") 
         };
         node.Arrange(new Rect(0, 0, 40, 10));
         
@@ -318,9 +301,7 @@ public class ListNodeTests
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.Yellow)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Red);
         var context = CreateContext(terminal, theme);
-        var state = CreateListState("Item 1");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -338,9 +319,7 @@ public class ListNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.SelectedIndicator, "► ");
         var context = CreateContext(terminal, theme);
-        var state = CreateListState("Item 1");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -355,9 +334,7 @@ public class ListNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.UnselectedIndicator, "- ");
         var context = CreateContext(terminal, theme);
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -370,9 +347,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(40, 10);
         var context = CreateContext(terminal, Hex1bThemes.HighContrast);
-        var state = CreateListState("Item 1");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -392,7 +367,7 @@ public class ListNodeTests
         var context = CreateContext(terminal);
         var node = new ListNode 
         { 
-            State = CreateListState("Very Long Item Name") 
+            Items = CreateItems("Very Long Item Name") 
         };
         node.Measure(new Constraints(0, 10, 0, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
@@ -408,9 +383,7 @@ public class ListNodeTests
     {
         using var terminal = new Hex1bTerminal(5, 5);
         var context = CreateContext(terminal);
-        var state = CreateListState("Test");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Test"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 5, 5));
         
         node.Render(context);
@@ -426,78 +399,66 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_DownArrow_MovesSelection()
     {
-        var state = CreateListState("Item 1", "Item 2", "Item 3");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
     public async Task HandleInput_UpArrow_MovesSelection()
     {
-        var state = CreateListState("Item 1", "Item 2", "Item 3");
-        state.SelectedIndex = 2;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
     public async Task HandleInput_DownArrow_WrapsAround()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 1;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
-        Assert.Equal(0, state.SelectedIndex);
+        Assert.Equal(0, node.SelectedIndex);
     }
 
     [Fact]
     public async Task HandleInput_UpArrow_WrapsAround()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
-        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
     public async Task HandleInput_MultipleDownArrows_NavigatesCorrectly()
     {
-        var state = CreateListState("A", "B", "C", "D");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 0, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
-        Assert.Equal(3, state.SelectedIndex);
+        Assert.Equal(3, node.SelectedIndex);
     }
 
     [Fact]
     public async Task HandleInput_MultipleUpArrows_NavigatesCorrectly()
     {
-        var state = CreateListState("A", "B", "C", "D");
-        state.SelectedIndex = 3;
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 3, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
-        Assert.Equal(1, state.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     #endregion
@@ -507,42 +468,36 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_Enter_InvokesOnItemActivated()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        ListItem? activatedItem = null;
-        state.SelectedIndex = 1;
-        var node = new ListNode { State = state, IsFocused = true };
-        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        string? activatedItem = null;
+        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
-        Assert.Equal("Item 2", activatedItem.Text);
+        Assert.Equal("Item 2", activatedItem);
     }
 
     [Fact]
     public async Task HandleInput_Space_InvokesOnItemActivated()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        ListItem? activatedItem = null;
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
-        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        string? activatedItem = null;
+        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
         
         Assert.Equal(InputResult.Handled, result);
         Assert.NotNull(activatedItem);
-        Assert.Equal("Item 1", activatedItem.Text);
+        Assert.Equal("Item 1", activatedItem);
     }
 
     [Fact]
     public async Task HandleInput_Enter_WithoutCallback_StillReturnsHandled()
     {
-        var state = CreateListState("Item 1");
-        state.SelectedIndex = 0;
+        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         // No OnItemActivated callback set
-        var node = new ListNode { State = state, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
@@ -552,10 +507,9 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_Enter_OnEmptyList_ReturnsHandled()
     {
-        var state = new ListState { Items = [] };
-        ListItem? activatedItem = null;
-        var node = new ListNode { State = state, IsFocused = true };
-        node.ItemActivatedAction = _ => { activatedItem = state.SelectedItem; return Task.CompletedTask; };
+        var node = new ListNode { Items = [], IsFocused = true };
+        string? activatedItem = null;
+        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
         
@@ -570,31 +524,27 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_DownArrow_InvokesOnSelectionChanged()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        ListItem? selectedItem = null;
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = true };
-        node.SelectionChangedAction = _ => { selectedItem = state.SelectedItem; return Task.CompletedTask; };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        string? selectedItem = null;
+        node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
-        Assert.Equal("Item 2", selectedItem.Text);
+        Assert.Equal("Item 2", selectedItem);
     }
 
     [Fact]
     public async Task HandleInput_UpArrow_InvokesOnSelectionChanged()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        ListItem? selectedItem = null;
-        state.SelectedIndex = 1;
-        var node = new ListNode { State = state, IsFocused = true };
-        node.SelectionChangedAction = _ => { selectedItem = state.SelectedItem; return Task.CompletedTask; };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        string? selectedItem = null;
+        node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
         
         Assert.NotNull(selectedItem);
-        Assert.Equal("Item 1", selectedItem.Text);
+        Assert.Equal("Item 1", selectedItem);
     }
 
     #endregion
@@ -607,22 +557,19 @@ public class ListNodeTests
         // Note: With the new input binding architecture, bindings execute at the node level
         // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
         // When using RouteInputToNode() for testing, bindings always execute.
-        var state = CreateListState("Item 1", "Item 2");
-        state.SelectedIndex = 0;
-        var node = new ListNode { State = state, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
         
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, state.SelectedIndex);  // Selection changed
+        Assert.Equal(1, node.SelectedIndex);  // Selection changed
     }
 
     [Fact]
     public async Task HandleInput_OtherKey_DoesNotHandle()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
         
@@ -632,8 +579,7 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_Tab_DoesNotHandle()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None));
         
@@ -643,8 +589,7 @@ public class ListNodeTests
     [Fact]
     public async Task HandleInput_Escape_DoesNotHandle()
     {
-        var state = CreateListState("Item 1", "Item 2");
-        var node = new ListNode { State = state, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None));
         
@@ -666,7 +611,7 @@ public class ListNodeTests
     [Fact]
     public void GetFocusableNodes_ReturnsSelf()
     {
-        var node = new ListNode { State = CreateListState("Test") };
+        var node = new ListNode { Items = CreateItems("Test") };
         
         var focusables = node.GetFocusableNodes().ToList();
         
@@ -682,11 +627,10 @@ public class ListNodeTests
     public async Task Integration_ListInApp_RendersCorrectly()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Option A", "Option B", "Option C");
+        var items = CreateItems("Option A", "Option B", "Option C");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -702,15 +646,15 @@ public class ListNodeTests
     public async Task Integration_ListWithSelection_RendersIndicator()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("First", "Second", "Third");
-        listState.SelectedIndex = 1;
+        var items = CreateItems("First", "Second", "Third");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
+        // Navigate down to select second item
+        terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
         
@@ -723,12 +667,11 @@ public class ListNodeTests
     public async Task Integration_ListInBorder_RendersCorrectly()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Item 1", "Item 2");
+        var items = CreateItems("Item 1", "Item 2");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.List(s => s), "Menu")
+                ctx.Border(ctx.List(items), "Menu")
             ),
             new Hex1bAppOptions { Terminal = terminal }
         );
@@ -746,12 +689,10 @@ public class ListNodeTests
     public async Task Integration_ListReceivesFocus_HandlesInput()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Item 1", "Item 2", "Item 3");
-        listState.SelectedIndex = 0;
+        var items = CreateItems("Item 1", "Item 2", "Item 3");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -760,22 +701,21 @@ public class ListNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
         
-        Assert.Equal(1, listState.SelectedIndex);
+        // After down arrow, second item should be selected
+        Assert.Contains("> Item 2", terminal.RawOutput);
     }
 
     [Fact]
     public async Task Integration_ListActivation_InvokesCallback()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Action 1", "Action 2");
+        var items = CreateItems("Action 1", "Action 2");
         string? activatedAction = null;
-        listState.SelectedIndex = 0;
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(
-                s => s, 
-                (ListItemActivatedEventArgs args) => activatedAction = args.ActivatedItem?.Text)),
+                items, 
+                (ListItemActivatedEventArgs args) => activatedAction = args.ActivatedText)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -791,14 +731,13 @@ public class ListNodeTests
     public async Task Integration_ListInVStack_RendersWithOtherElements()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Menu Item");
+        var items = CreateItems("Menu Item");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Select an option:"),
-                    v.List(s => s)
+                    v.List(items)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -815,12 +754,10 @@ public class ListNodeTests
     public async Task Integration_ListWithTheme_AppliesTheme()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("Themed Item");
-        listState.SelectedIndex = 0;
+        var items = CreateItems("Themed Item");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { Terminal = terminal, Theme = Hex1bThemes.HighContrast }
         );
         
@@ -835,12 +772,10 @@ public class ListNodeTests
     public async Task Integration_ListNavigationMultipleSteps_UpdatesSelection()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var listState = CreateListState("First", "Second", "Third");
-        listState.SelectedIndex = 0;
+        var items = CreateItems("First", "Second", "Third");
         
-        using var app = new Hex1bApp<ListState>(
-            listState,
-            ctx => Task.FromResult<Hex1bWidget>(ctx.List(s => s)),
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { Terminal = terminal }
         );
         
@@ -850,21 +785,21 @@ public class ListNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
         
-        Assert.Equal(2, listState.SelectedIndex);
+        // Third item should be selected
+        Assert.Contains("> Third", terminal.RawOutput);
     }
 
     [Fact]
     public async Task Integration_ListInsideBorderWithOtherWidgets_RendersProperly()
     {
         using var terminal = new Hex1bTerminal(50, 15);
-        var listState = CreateListState("Option A", "Option B");
+        var items = CreateItems("Option A", "Option B");
         
-        // Use object as state, with listState captured in closure
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Welcome"),
-                    v.Border(ctx.List(listState), "Options"),
+                    v.Border(ctx.List(items), "Options"),
                     v.Button("OK", _ => Task.CompletedTask)
                 ])
             ),
@@ -892,7 +827,7 @@ public class ListNodeTests
         // It only changes the selection.
         var node = new ListNode
         {
-            State = CreateListState("First", "Second", "Third")
+            Items = CreateItems("First", "Second", "Third")
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 3));
@@ -902,7 +837,7 @@ public class ListNodeTests
         var result = node.HandleMouseClick(5, 1, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.State.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
@@ -910,7 +845,7 @@ public class ListNodeTests
     {
         var node = new ListNode
         {
-            State = CreateListState("First", "Second")
+            Items = CreateItems("First", "Second")
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 2));
@@ -920,7 +855,7 @@ public class ListNodeTests
         var result = node.HandleMouseClick(5, 5, mouseEvent);
 
         Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(0, node.State.SelectedIndex); // Unchanged
+        Assert.Equal(0, node.SelectedIndex); // Unchanged
     }
 
     [Fact]
@@ -928,7 +863,7 @@ public class ListNodeTests
     {
         var node = new ListNode
         {
-            State = CreateListState("First", "Second")
+            Items = CreateItems("First", "Second")
         };
 
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, -1, Hex1bModifiers.None);

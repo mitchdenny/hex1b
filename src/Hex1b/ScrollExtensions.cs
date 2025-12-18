@@ -10,8 +10,8 @@ public static class ScrollExtensions
     /// <summary>
     /// Creates a vertical scroll widget with the specified child.
     /// </summary>
-    public static ScrollWidget VScroll<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ScrollWidget VScroll<TParent>(
+        this WidgetContext<TParent> ctx,
         Hex1bWidget child,
         ScrollState? state = null,
         bool showScrollbar = true)
@@ -21,14 +21,14 @@ public static class ScrollExtensions
     /// <summary>
     /// Creates a vertical scroll widget with a VStack child built from a callback.
     /// </summary>
-    public static ScrollWidget VScroll<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<WidgetContext<VStackWidget, TState>, Hex1bWidget[]> childBuilder,
+    public static ScrollWidget VScroll<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> childBuilder,
         ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetContext<VStackWidget, TState>(ctx.State);
+        var childCtx = new WidgetContext<VStackWidget>();
         return new ScrollWidget(
             new VStackWidget(childBuilder(childCtx)),
             state,
@@ -39,8 +39,8 @@ public static class ScrollExtensions
     /// <summary>
     /// Creates a horizontal scroll widget with the specified child.
     /// </summary>
-    public static ScrollWidget HScroll<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ScrollWidget HScroll<TParent>(
+        this WidgetContext<TParent> ctx,
         Hex1bWidget child,
         ScrollState? state = null,
         bool showScrollbar = true)
@@ -50,14 +50,14 @@ public static class ScrollExtensions
     /// <summary>
     /// Creates a horizontal scroll widget with an HStack child built from a callback.
     /// </summary>
-    public static ScrollWidget HScroll<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<WidgetContext<HStackWidget, TState>, Hex1bWidget[]> childBuilder,
+    public static ScrollWidget HScroll<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<WidgetContext<HStackWidget>, Hex1bWidget[]> childBuilder,
         ScrollState? state = null,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetContext<HStackWidget, TState>(ctx.State);
+        var childCtx = new WidgetContext<HStackWidget>();
         return new ScrollWidget(
             new HStackWidget(childBuilder(childCtx)),
             state,
@@ -68,8 +68,8 @@ public static class ScrollExtensions
     /// <summary>
     /// Creates a scroll widget with the specified orientation.
     /// </summary>
-    public static ScrollWidget Scroll<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ScrollWidget Scroll<TParent>(
+        this WidgetContext<TParent> ctx,
         Hex1bWidget child,
         ScrollOrientation orientation,
         ScrollState? state = null,

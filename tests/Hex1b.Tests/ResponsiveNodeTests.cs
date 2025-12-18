@@ -629,13 +629,12 @@ public class ResponsiveNodeTests
     public async Task Integration_Responsive_WithTextBox_InputWorks()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var textBoxState = new TextBoxState();
+        var text = "";
 
-        using var app = new Hex1bApp<TextBoxState>(
-            textBoxState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
-                    r.WhenMinWidth(50, r => r.TextBox(ctx.State)),
+                    r.WhenMinWidth(50, r => r.TextBox(text, onTextChanged: args => text = args.NewText)),
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
@@ -646,7 +645,7 @@ public class ResponsiveNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal("Responsive input", textBoxState.Text);
+        Assert.Equal("Responsive input", text);
     }
 
     [Fact]
@@ -703,17 +702,12 @@ public class ResponsiveNodeTests
     public async Task Integration_Responsive_WithList_NavigationWorks()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var listState = new ListState
-        {
-            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")],
-            SelectedIndex = 0
-        };
+        IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
-        using var app = new Hex1bApp<ListState>(
-            listState,
+        using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Responsive(r => [
-                    r.WhenMinWidth(50, r => r.List(ctx.State)),
+                    r.WhenMinWidth(50, r => r.List(items)),
                     r.Otherwise(r => r.Text("Too narrow for list"))
                 ])
             ),
@@ -724,7 +718,8 @@ public class ResponsiveNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal(1, listState.SelectedIndex);
+        // Verify second item is selected via rendered output
+        Assert.Contains("> Item 2", terminal.RawOutput);
     }
 
     [Fact]
@@ -827,7 +822,7 @@ public class ResponsiveNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Responsive(state, r => [
+                ctx.Responsive(r => [
                     r.Otherwise(r => r.Text(state.Message))
                 ])
             ),

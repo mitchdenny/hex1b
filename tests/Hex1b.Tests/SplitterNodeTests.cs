@@ -766,16 +766,12 @@ public class SplitterNodeTests
     public async Task Integration_SplitterWithList_HandlesNavigation()
     {
         using var terminal = new Hex1bTerminal(60, 10);
-        var listState = new ListState
-        {
-            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")],
-            SelectedIndex = 0
-        };
+        IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.List(listState),
+                    ctx.List(items),
                     ctx.Text("Details"),
                     leftWidth: 20
                 )
@@ -788,19 +784,20 @@ public class SplitterNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal(1, listState.SelectedIndex);
+        // Verify second item is selected via rendered output
+        Assert.Contains("> Item 2", terminal.RawOutput);
     }
 
     [Fact]
     public async Task Integration_SplitterWithTextBox_HandlesTyping()
     {
         using var terminal = new Hex1bTerminal(60, 10);
-        var textBoxState = new TextBoxState();
+        var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
-                    ctx.TextBox(textBoxState),
+                    ctx.TextBox(text, onTextChanged: args => text = args.NewText),
                     ctx.Text("Right"),
                     leftWidth: 25
                 )
@@ -812,7 +809,7 @@ public class SplitterNodeTests
         terminal.CompleteInput();
         await app.RunAsync();
 
-        Assert.Equal("Hello Splitter", textBoxState.Text);
+        Assert.Equal("Hello Splitter", text);
     }
 
     [Fact]
@@ -1438,17 +1435,14 @@ public class SplitterNodeTests
     public async Task Integration_TabFromListInVStackInsideSplitter_MovesFocusToNextPane()
     {
         using var terminal = new Hex1bTerminal(60, 15);
-        var listState = new ListState
-        {
-            Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")]
-        };
+        IReadOnlyList<string> items = ["Item 1", "Item 2"];
         var rightButtonClicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Splitter(
                     // Left pane: VStack containing a List (this is the key scenario)
-                    v => [v.Text("Theme List"), v.List(listState)],
+                    v => [v.Text("Theme List"), v.List(items)],
                     // Right pane: VStack with Button that we want to Tab to
                     v => [v.Button("Right Button", _ => { rightButtonClicked = true; return Task.CompletedTask; })],
                     leftWidth: 20
@@ -1543,10 +1537,7 @@ public class SplitterNodeTests
     public async Task Integration_TabFromWidgetInDeepNesting_BubblesUpToSplitter()
     {
         using var terminal = new Hex1bTerminal(70, 15);
-        var listState = new ListState
-        {
-            Items = [new ListItem("1", "Theme 1"), new ListItem("2", "Theme 2")]
-        };
+        IReadOnlyList<string> items = ["Theme 1", "Theme 2"];
         var rightButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1557,7 +1548,7 @@ public class SplitterNodeTests
                         p.VStack(v => [
                             v.Text("═══ Themes ═══"),
                             v.Text(""),
-                            v.List(listState)
+                            v.List(items)
                         ])
                     ]),
                     // Right: Panel > VStack > Button

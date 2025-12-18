@@ -4,45 +4,10 @@ using Hex1b.Nodes;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Represents an item in a list widget.
+/// Widget for displaying a selectable list of items.
+/// Selection state is owned by the node and preserved across reconciliation.
 /// </summary>
-public record ListItem(string Id, string Text);
-
-/// <summary>
-/// State for a list widget, holding the items and current selection.
-/// </summary>
-public class ListState
-{
-    public IReadOnlyList<ListItem> Items { get; set; } = [];
-    public int SelectedIndex { get; set; } = 0;
-
-    public ListItem? SelectedItem => SelectedIndex >= 0 && SelectedIndex < Items.Count 
-        ? Items[SelectedIndex] 
-        : null;
-
-    internal void MoveUp()
-    {
-        if (Items.Count == 0) return;
-        SelectedIndex = SelectedIndex <= 0 ? Items.Count - 1 : SelectedIndex - 1;
-    }
-
-    internal void MoveDown()
-    {
-        if (Items.Count == 0) return;
-        SelectedIndex = (SelectedIndex + 1) % Items.Count;
-    }
-
-    /// <summary>
-    /// Sets the selection to a specific index.
-    /// </summary>
-    public void SetSelection(int index)
-    {
-        if (Items.Count == 0 || index < 0 || index >= Items.Count) return;
-        SelectedIndex = index;
-    }
-}
-
-public sealed record ListWidget(ListState State) : Hex1bWidget
+public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>
     /// Called when the selection changes.
@@ -50,24 +15,34 @@ public sealed record ListWidget(ListState State) : Hex1bWidget
     public Func<ListSelectionChangedEventArgs, Task>? OnSelectionChanged { get; init; }
 
     /// <summary>
-    /// Called when an item is activated (Enter or Space key).
+    /// Called when an item is activated (Enter, Space, or click).
     /// </summary>
     public Func<ListItemActivatedEventArgs, Task>? OnItemActivated { get; init; }
 
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ListNode ?? new ListNode();
-        node.State = State;
+        node.Items = Items;
         node.SourceWidget = this;
+        
+        // Clamp selection if items changed
+        if (node.SelectedIndex >= Items.Count && Items.Count > 0)
+        {
+            node.SelectedIndex = Items.Count - 1;
+        }
+        else if (Items.Count == 0)
+        {
+            node.SelectedIndex = 0;
+        }
         
         // Set up event handlers
         if (OnSelectionChanged != null)
         {
             node.SelectionChangedAction = ctx =>
             {
-                if (State.SelectedItem != null)
+                if (node.SelectedText != null)
                 {
-                    var args = new ListSelectionChangedEventArgs(this, node, ctx, State.SelectedIndex, State.SelectedItem);
+                    var args = new ListSelectionChangedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
                     return OnSelectionChanged(args);
                 }
                 return Task.CompletedTask;
@@ -82,9 +57,9 @@ public sealed record ListWidget(ListState State) : Hex1bWidget
         {
             node.ItemActivatedAction = ctx =>
             {
-                if (State.SelectedItem != null)
+                if (node.SelectedText != null)
                 {
-                    var args = new ListItemActivatedEventArgs(this, node, ctx, State.SelectedIndex, State.SelectedItem);
+                    var args = new ListItemActivatedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
                     return OnItemActivated(args);
                 }
                 return Task.CompletedTask;

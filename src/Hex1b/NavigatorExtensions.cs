@@ -13,19 +13,9 @@ public static class NavigatorExtensions
     /// Creates a Navigator with the specified state.
     /// </summary>
     [Experimental("HEX1B001")]
-    public static NavigatorWidget Navigator<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static NavigatorWidget Navigator<TParent>(
+        this WidgetContext<TParent> ctx,
         NavigatorState navigatorState)
         where TParent : Hex1bWidget
         => new(navigatorState);
-
-    /// <summary>
-    /// Creates a Navigator with state selected from context state.
-    /// </summary>
-    [Experimental("HEX1B001")]
-    public static NavigatorWidget Navigator<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<TState, NavigatorState> stateSelector)
-        where TParent : Hex1bWidget
-        => new(stateSelector(ctx.State));
 }

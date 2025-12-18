@@ -102,9 +102,8 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
         var state = new ChartState();
 
         // Create the app with our observable state
-        using var app = new Hex1bApp<ChartState>(
-            state,
-            ctx => BuildChart(ctx),
+        using var app = new Hex1bApp(
+            ctx => BuildChart(ctx, state),
             new Hex1bAppOptions 
             { 
                 Terminal = terminal,
@@ -113,8 +112,9 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
         );
 
         // Start the timer that updates state every 200ms
+        // Since we removed INotifyPropertyChanged auto-subscription, we need to invalidate manually
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
-        var timerTask = RunTimerAsync(timer, state, cancellationToken);
+        var timerTask = RunTimerAsync(timer, state, app, cancellationToken);
 
         // Run the app (this blocks until cancelled)
         var appTask = app.RunAsync(cancellationToken);
@@ -123,13 +123,14 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
         await Task.WhenAny(appTask, timerTask);
     }
 
-    private async Task RunTimerAsync(PeriodicTimer timer, ChartState state, CancellationToken cancellationToken)
+    private async Task RunTimerAsync(PeriodicTimer timer, ChartState state, Hex1bApp app, CancellationToken cancellationToken)
     {
         try
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 state.RandomizeValues();
+                app.Invalidate(); // Trigger re-render
                 _logger.LogDebug("Updated chart values (update #{Count})", state.UpdateCount);
             }
         }
@@ -139,7 +140,7 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
         }
     }
 
-    private static Hex1bWidget BuildChart(RootContext<ChartState> ctx)
+    private static Hex1bWidget BuildChart(RootContext ctx, ChartState state)
     {
         return ctx.VStack(v =>
         {
@@ -150,13 +151,12 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
                 v.Text("║    Demonstrates INotifyPropertyChanged + Timer     ║"),
                 v.Text("╚════════════════════════════════════════════════════╝"),
                 v.Text(""),
-                v.Text(s => $"  Updates: {s.UpdateCount}  |  Bars update every second automatically"),
+                v.Text($"  Updates: {state.UpdateCount}  |  Bars update every second automatically"),
                 v.Text(""),
                 v.Text("  ┌─────────────────────────────────────────────────┐")
             };
 
             // Build the bar chart rows
-            var state = ctx.State;
             var maxValue = 100;
             var barMaxWidth = 40;
             
@@ -194,10 +194,10 @@ public class ReactiveBarChartExhibit(ILogger<ReactiveBarChartExhibit> logger) : 
             widgets.Add(v.Text(""));
             widgets.Add(v.Text("  ─────────────────────────────────────────────────────"));
             widgets.Add(v.Text("  HOW IT WORKS:"));
-            widgets.Add(v.Text("  • State implements INotifyPropertyChanged"));
-            widgets.Add(v.Text("  • Timer updates state.Values every second"));
+            widgets.Add(v.Text("  • Timer updates state.Values every 200ms"));
+            widgets.Add(v.Text("  • Timer calls app.Invalidate() to trigger re-render"));
             widgets.Add(v.Text("  • Each bar has momentum - tends to keep moving up/down"));
-            widgets.Add(v.Text("  • Hex1bApp auto-subscribes and re-renders on change"));
+            widgets.Add(v.Text("  • State is captured in closure, no generic TState needed"));
             widgets.Add(v.Text("  ─────────────────────────────────────────────────────"));
 
             return widgets.ToArray();

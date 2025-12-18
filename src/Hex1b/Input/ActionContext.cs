@@ -4,7 +4,7 @@ namespace Hex1b.Input;
 /// Context passed to input binding action handlers and widget event handlers.
 /// Provides app-level services for focus navigation, cancellation, and other common operations.
 /// </summary>
-public sealed class InputBindingActionContext
+public sealed class InputBindingInputBindingActionContext
 {
     private readonly FocusRing _focusRing;
     private readonly Action? _requestStop;
@@ -15,30 +15,14 @@ public sealed class InputBindingActionContext
     /// </summary>
     public CancellationToken CancellationToken { get; }
 
-    /// <summary>
-    /// The absolute X coordinate of the mouse event, if this context was created for a mouse binding.
-    /// -1 if not applicable (e.g., for keyboard bindings).
-    /// </summary>
-    public int MouseX { get; }
-
-    /// <summary>
-    /// The absolute Y coordinate of the mouse event, if this context was created for a mouse binding.
-    /// -1 if not applicable (e.g., for keyboard bindings).
-    /// </summary>
-    public int MouseY { get; }
-
-    internal InputBindingActionContext(
+    internal InputBindingInputBindingActionContext(
         FocusRing focusRing, 
         Action? requestStop = null, 
-        CancellationToken cancellationToken = default,
-        int mouseX = -1,
-        int mouseY = -1)
+        CancellationToken cancellationToken = default)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
         CancellationToken = cancellationToken;
-        MouseX = mouseX;
-        MouseY = mouseY;
     }
 
     /// <summary>

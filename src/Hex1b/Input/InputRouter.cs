@@ -118,7 +118,7 @@ public static class InputRouter
             
             // No key binding matched at this layer, try character bindings
             // Character bindings only trigger on the focused node (not bubbling)
-            if (i == path.Count - 1 && TryHandleCharacterBinding(builder.CharacterBindings, keyEvent))
+            if (i == path.Count - 1 && await TryHandleCharacterBindingAsync(builder.CharacterBindings, keyEvent, actionContext))
             {
                 return InputResult.Handled;
             }
@@ -264,7 +264,7 @@ public static class InputRouter
         
         // No key binding matched, try character bindings (only if node is focusable and focused)
         // This matches real routing where we only reach focused nodes
-        if (node.IsFocusable && node.IsFocused && TryHandleCharacterBinding(builder.CharacterBindings, keyEvent))
+        if (node.IsFocusable && node.IsFocused && await TryHandleCharacterBindingAsync(builder.CharacterBindings, keyEvent, actionContext))
         {
             return InputResult.Handled;
         }
@@ -276,7 +276,10 @@ public static class InputRouter
     /// <summary>
     /// Tries to find and execute a matching character binding.
     /// </summary>
-    private static bool TryHandleCharacterBinding(IReadOnlyList<CharacterBinding> characterBindings, Hex1bKeyEvent keyEvent)
+    private static async Task<bool> TryHandleCharacterBindingAsync(
+        IReadOnlyList<CharacterBinding> characterBindings, 
+        Hex1bKeyEvent keyEvent,
+        InputBindingActionContext actionContext)
     {
         if (characterBindings.Count == 0) return false;
         
@@ -288,7 +291,7 @@ public static class InputRouter
         {
             if (binding.Matches(text))
             {
-                binding.Execute(text);
+                await binding.ExecuteAsync(text, actionContext);
                 return true;
             }
         }

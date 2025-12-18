@@ -17,7 +17,7 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
     /// </summary>
     private class TextInputState
     {
-        public TextBoxState Input { get; } = new();
+        public string Input { get; set; } = "";
     }
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
@@ -26,13 +26,13 @@ public class TextInputExhibit(ILogger<TextInputExhibit> logger) : Hex1bExhibit
         
         return () =>
         {
-            var ctx = new RootContext<TextInputState>(state);
+            var ctx = new RootContext();
             
             var widget = ctx.VStack(v => [
                 v.Text("Interactive Text Input"),
                 v.Text("─────────────────────────"),
                 v.Text(""),
-                v.TextBox(s => s.Input),
+                v.TextBox(state.Input, args => state.Input = args.NewText),
                 v.Text(""),
                 v.Text("Type something! Use Backspace to delete.")
             ]);

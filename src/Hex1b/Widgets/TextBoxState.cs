@@ -3,9 +3,9 @@ using Hex1b.Input;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Holds the mutable state for a TextBox. Create once and reuse across renders.
+/// Holds the mutable state for a TextBox. Internal implementation detail.
 /// </summary>
-public class TextBoxState
+internal class TextBoxState
 {
     private string _text = "";
     private int _cursorPosition = 0;

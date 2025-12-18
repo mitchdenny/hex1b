@@ -62,8 +62,13 @@ public enum TextOverflow
     Ellipsis,
 }
 
-public sealed record TextBoxWidget(string? InitialText = null, TextBoxState? State = null) : Hex1bWidget
+public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 {
+    /// <summary>
+    /// Called when the text content changes.
+    /// </summary>
+    public Func<TextChangedEventArgs, Task>? OnTextChanged { get; init; }
+
     /// <summary>
     /// Called when Enter is pressed in the text box.
     /// </summary>
@@ -76,18 +81,35 @@ public sealed record TextBoxWidget(string? InitialText = null, TextBoxState? Sta
         // Store reference to source widget for event args
         node.SourceWidget = this;
         
-        // Controlled mode: if State is provided, use it
-        if (State != null)
+        // Set the text from the widget only if:
+        // 1. This is a new node and Text is provided
+        // 2. The widget's text changed from what it provided last time (external control)
+        if (context.IsNew && Text != null)
         {
-            node.State = State;
+            node.Text = Text;
+            node.LastWidgetText = Text;
         }
-        // Uncontrolled mode: only set initial text when creating a new node
-        else if (context.IsNew && InitialText != null)
+        else if (!context.IsNew && Text != null && Text != node.LastWidgetText)
         {
-            node.Text = InitialText;
+            // External code changed the text value in the widget - update node
+            node.Text = Text;
+            node.LastWidgetText = Text;
         }
         
         // Set up event handlers - wrap to convert InputBindingActionContext to typed event args
+        if (OnTextChanged != null)
+        {
+            node.TextChangedAction = (ctx, oldText, newText) =>
+            {
+                var args = new TextChangedEventArgs(this, node, ctx, oldText, newText);
+                return OnTextChanged(args);
+            };
+        }
+        else
+        {
+            node.TextChangedAction = null;
+        }
+
         if (OnSubmit != null)
         {
             node.SubmitAction = ctx =>

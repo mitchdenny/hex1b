@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.Eventing.Reader;
-using Hex1b;
+﻿using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -8,7 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHex1bApp();
 
 var host = builder.Build();
-var app = host.Services.GetRequiredService<Hex1bApp<AppState>>();
+var app = host.Services.GetRequiredService<Hex1bApp>();
 
 var pendingHostRun = host.RunAsync();
 var pendingAppRun = app.RunAsync();
@@ -24,7 +23,7 @@ public static class AppExtensions
     public static IServiceCollection AddHex1bApp(this IServiceCollection services)
     {
         services.AddSingleton<AppState>();
-        services.AddSingleton<Hex1bApp<AppState>>(sp =>
+        services.AddSingleton<Hex1bApp>(sp =>
         {
             var state = sp.GetRequiredService<AppState>();
             var app = BuildApp(state);
@@ -34,9 +33,9 @@ public static class AppExtensions
         return services;
     }
 
-    private static Hex1bApp<AppState> BuildApp(AppState state)
+    private static Hex1bApp BuildApp(AppState state)
     {
-        return new Hex1bApp<AppState>(state,
+        return new Hex1bApp(
             context => {
                 var vstack = context.VStack(v => [
                     v.ContentPanel().Fill(),
@@ -48,7 +47,7 @@ public static class AppExtensions
         );
     }
 
-    private static Hex1bWidget ContentPanel(this WidgetContext<VStackWidget, AppState> context)
+    private static Hex1bWidget ContentPanel(this WidgetContext<VStackWidget> context)
     {
         return context.Panel(context => [context.Text("Hello world!")]);
     }

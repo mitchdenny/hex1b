@@ -439,14 +439,14 @@ public class HStackNodeTests
     public async Task Integration_HStack_WithMixedContent()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "" };
+        var text = "";
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     h.Text("Label: "),
-                    h.TextBox(textState),
+                    h.TextBox(text, onTextChanged: args => text = args.NewText),
                     h.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
@@ -462,7 +462,7 @@ public class HStackNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("Hi", textState.Text);
+        Assert.Equal("Hi", text);
         Assert.True(clicked);
     }
 
@@ -536,13 +536,13 @@ public class HStackNodeTests
         // This simulates the ResponsiveTodoExhibit Extra Wide layout.
         using var terminal = new Hex1bTerminal(80, 24);
         var rightButtonClicked = false;
-        var listState = new ListState { Items = [new ListItem("1", "Item 1"), new ListItem("2", "Item 2")] };
+        IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
                     // Left VStack: only one focusable (List)
-                    h.VStack(v => [v.Text("Header"), v.List(listState)]),
+                    h.VStack(v => [v.Text("Header"), v.List(items)]),
                     // Right VStack: only one focusable (Button)
                     h.VStack(v => [v.Text("Actions"), v.Button("Add", _ => { rightButtonClicked = true; return Task.CompletedTask; })])
                 ])
@@ -597,7 +597,7 @@ public class HStackNodeTests
         var listClicked = false;
         var addButtonClicked = false;
         var otherButtonClicked = false;
-        var textBoxState = new TextBoxState();
+        var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -607,7 +607,7 @@ public class HStackNodeTests
                     // Middle: VStack with TextBox + Button (like "New" panel)
                     h.VStack(v => [
                         v.Text("New Task"),
-                        v.TextBox(textBoxState),
+                        v.TextBox(text, onTextChanged: args => text = args.NewText),
                         v.Button("Add", _ => { addButtonClicked = true; return Task.CompletedTask; })
                     ]),
                     // Right: Another button
@@ -636,7 +636,7 @@ public class HStackNodeTests
         // Scenario: Same as above but with Shift+Tab escaping at the first item.
         using var terminal = new Hex1bTerminal(80, 24);
         var listClicked = false;
-        var textBoxState = new TextBoxState();
+        var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -646,7 +646,7 @@ public class HStackNodeTests
                     // Right: VStack with TextBox + Button
                     h.VStack(v => [
                         v.Text("New Task"),
-                        v.TextBox(textBoxState),
+                        v.TextBox(text, onTextChanged: args => text = args.NewText),
                         v.Button("Add", _ => Task.CompletedTask)
                     ])
                 ])

@@ -489,13 +489,13 @@ public class ButtonNodeTests
     public async Task Integration_Button_WithTextBox_TabBetween()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "" };
+        var text = "";
         var buttonClicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(textState),
+                    v.TextBox(text, args => text = args.NewText),
                     v.Button("Submit", _ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
@@ -513,7 +513,7 @@ public class ButtonNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("Hi", textState.Text);
+        Assert.Equal("Hi", text);
         Assert.True(buttonClicked);
     }
 

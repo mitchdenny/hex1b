@@ -14,25 +14,25 @@ public sealed class ListSelectionChangedEventArgs : WidgetEventArgs<ListWidget, 
     public int SelectedIndex { get; }
 
     /// <summary>
-    /// The newly selected item.
+    /// The text of the newly selected item.
     /// </summary>
-    public ListItem SelectedItem { get; }
+    public string SelectedText { get; }
 
     public ListSelectionChangedEventArgs(
         ListWidget widget,
         ListNode node,
         InputBindingActionContext context,
         int selectedIndex,
-        ListItem selectedItem)
+        string selectedText)
         : base(widget, node, context)
     {
         SelectedIndex = selectedIndex;
-        SelectedItem = selectedItem;
+        SelectedText = selectedText;
     }
 }
 
 /// <summary>
-/// Event arguments for list item activation events (Enter/Space key).
+/// Event arguments for list item activation events (Enter/Space key or click).
 /// </summary>
 public sealed class ListItemActivatedEventArgs : WidgetEventArgs<ListWidget, ListNode>
 {
@@ -42,19 +42,19 @@ public sealed class ListItemActivatedEventArgs : WidgetEventArgs<ListWidget, Lis
     public int ActivatedIndex { get; }
 
     /// <summary>
-    /// The activated item.
+    /// The text of the activated item.
     /// </summary>
-    public ListItem ActivatedItem { get; }
+    public string ActivatedText { get; }
 
     public ListItemActivatedEventArgs(
         ListWidget widget,
         ListNode node,
         InputBindingActionContext context,
         int activatedIndex,
-        ListItem activatedItem)
+        string activatedText)
         : base(widget, node, context)
     {
         ActivatedIndex = activatedIndex;
-        ActivatedItem = activatedItem;
+        ActivatedText = activatedText;
     }
 }

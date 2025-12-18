@@ -14,13 +14,13 @@ public static class ResponsiveExtensions
     /// The condition receives (availableWidth, availableHeight) from the parent's layout constraints.
     /// Use inside a Responsive() builder to create conditional branches.
     /// </summary>
-    public static ConditionalWidget When<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ConditionalWidget When<TParent>(
+        this WidgetContext<TParent> ctx,
         Func<int, int, bool> condition,
-        Func<WidgetContext<ConditionalWidget, TState>, Hex1bWidget> builder)
+        Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetContext<ConditionalWidget, TState>(ctx.State);
+        var childCtx = new WidgetContext<ConditionalWidget>();
         var content = builder(childCtx);
         return new ConditionalWidget(condition, content);
     }
@@ -29,10 +29,10 @@ public static class ResponsiveExtensions
     /// Creates a conditional widget with a width-only condition.
     /// Convenience overload for common width-based responsive layouts.
     /// </summary>
-    public static ConditionalWidget WhenWidth<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ConditionalWidget WhenWidth<TParent>(
+        this WidgetContext<TParent> ctx,
         Func<int, bool> widthCondition,
-        Func<WidgetContext<ConditionalWidget, TState>, Hex1bWidget> builder)
+        Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
         return ctx.When((w, h) => widthCondition(w), builder);
@@ -42,10 +42,10 @@ public static class ResponsiveExtensions
     /// Creates a conditional widget with a minimum width requirement.
     /// The content is displayed when availableWidth >= minWidth.
     /// </summary>
-    public static ConditionalWidget WhenMinWidth<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
+    public static ConditionalWidget WhenMinWidth<TParent>(
+        this WidgetContext<TParent> ctx,
         int minWidth,
-        Func<WidgetContext<ConditionalWidget, TState>, Hex1bWidget> builder)
+        Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
         return ctx.When((w, h) => w >= minWidth, builder);
@@ -55,9 +55,9 @@ public static class ResponsiveExtensions
     /// Creates a conditional widget that always matches.
     /// Use as the last branch in a Responsive() to provide a fallback.
     /// </summary>
-    public static ConditionalWidget Otherwise<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<WidgetContext<ConditionalWidget, TState>, Hex1bWidget> builder)
+    public static ConditionalWidget Otherwise<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
         return ctx.When((w, h) => true, builder);
@@ -69,27 +69,12 @@ public static class ResponsiveExtensions
     /// Use collection expression syntax with When()/WhenMinWidth()/Otherwise() to define conditional branches.
     /// Example: ctx.Responsive(r => [r.WhenMinWidth(100, r => r.Text("Wide")), r.Otherwise(r => r.Text("Narrow"))])
     /// </summary>
-    public static ResponsiveWidget Responsive<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<WidgetContext<ResponsiveWidget, TState>, ConditionalWidget[]> builder)
+    public static ResponsiveWidget Responsive<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<WidgetContext<ResponsiveWidget>, ConditionalWidget[]> builder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetContext<ResponsiveWidget, TState>(ctx.State);
-        var branches = builder(childCtx);
-        return new ResponsiveWidget(branches);
-    }
-
-    /// <summary>
-    /// Creates a Responsive widget with narrowed state.
-    /// First argument is the child state, enabling progressive state narrowing.
-    /// </summary>
-    public static ResponsiveWidget Responsive<TParent, TState, TChildState>(
-        this WidgetContext<TParent, TState> ctx,
-        TChildState childState,
-        Func<WidgetContext<ResponsiveWidget, TChildState>, ConditionalWidget[]> builder)
-        where TParent : Hex1bWidget
-    {
-        var childCtx = new WidgetContext<ResponsiveWidget, TChildState>(childState);
+        var childCtx = new WidgetContext<ResponsiveWidget>();
         var branches = builder(childCtx);
         return new ResponsiveWidget(branches);
     }

@@ -21,43 +21,20 @@ public sealed record RootWidget : Hex1bWidget
 /// Extension methods return widgets directly; covariance allows collection expressions.
 /// </summary>
 /// <typeparam name="TParentWidget">The parent widget type - constrains valid children.</typeparam>
-/// <typeparam name="TState">The state type available in this context.</typeparam>
-public class WidgetContext<TParentWidget, TState>
+public class WidgetContext<TParentWidget>
     where TParentWidget : Hex1bWidget
 {
-    /// <summary>
-    /// The state available in this context.
-    /// </summary>
-    public TState State { get; }
-
-    public WidgetContext(TState state)
-    {
-        State = state;
-    }
-
-    /// <summary>
-    /// Narrow the state to a child state, preserving the parent widget constraint.
-    /// </summary>
-    public WidgetContext<TParentWidget, TChildState> With<TChildState>(Func<TState, TChildState> selector)
-        => new(selector(State));
-
-    /// <summary>
-    /// Narrow the state to a child state, preserving the parent widget constraint.
-    /// </summary>
-    public WidgetContext<TParentWidget, TChildState> With<TChildState>(TChildState childState)
-        => new(childState);
+    internal WidgetContext() { }
 }
 
 /// <summary>
 /// Root context for starting widget tree construction.
 /// </summary>
-public class RootContext<TState> : WidgetContext<RootWidget, TState>
+public class RootContext : WidgetContext<RootWidget>
 {
     /// <summary>
     /// The cancellation token for the application lifecycle.
     /// Use this to observe when the application is shutting down.
     /// </summary>
     public CancellationToken CancellationToken { get; internal set; }
-
-    public RootContext(TState state) : base(state) { }
 }

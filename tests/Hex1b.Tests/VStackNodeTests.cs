@@ -173,10 +173,10 @@ public class VStackNodeTests
     [Fact]
     public void GetFocusableNodes_FindsAllFocusable()
     {
-        var textBox1 = new TextBoxNode { State = new TextBoxState() };
+        var textBox1 = new TextBoxNode();
         var button = new ButtonNode { Label = "OK" };
         var textBlock = new TextBlockNode { Text = "Not focusable" };
-        var textBox2 = new TextBoxNode { State = new TextBoxState() };
+        var textBox2 = new TextBoxNode();
 
         var node = new VStackNode
         {
@@ -194,8 +194,8 @@ public class VStackNodeTests
     [Fact]
     public async Task HandleInput_Tab_MovesFocus()
     {
-        var textBox1 = new TextBoxNode { State = new TextBoxState(), IsFocused = true };
-        var textBox2 = new TextBoxNode { State = new TextBoxState(), IsFocused = false };
+        var textBox1 = new TextBoxNode { IsFocused = true };
+        var textBox2 = new TextBoxNode { IsFocused = false };
 
         var node = new VStackNode
         {
@@ -216,8 +216,8 @@ public class VStackNodeTests
     [Fact]
     public async Task HandleInput_ShiftTab_MovesFocusBackward()
     {
-        var textBox1 = new TextBoxNode { State = new TextBoxState(), IsFocused = false };
-        var textBox2 = new TextBoxNode { State = new TextBoxState(), IsFocused = true };
+        var textBox1 = new TextBoxNode { IsFocused = false };
+        var textBox2 = new TextBoxNode { IsFocused = true };
 
         var node = new VStackNode
         {
@@ -237,8 +237,8 @@ public class VStackNodeTests
     [Fact]
     public async Task HandleInput_DispatchesToFocusedChild()
     {
-        var state = new TextBoxState { Text = "hello", CursorPosition = 5 };
-        var textBox = new TextBoxNode { State = state, IsFocused = true };
+        var textBox = new TextBoxNode { Text = "hello", IsFocused = true };
+        textBox.State.CursorPosition = 5;
 
         var node = new VStackNode { Children = new List<Hex1bNode> { textBox } };
 
@@ -248,7 +248,7 @@ public class VStackNodeTests
         // Use InputRouter to route input to the focused child
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing);
 
-        Assert.Equal("helloX", state.Text);
+        Assert.Equal("helloX", textBox.Text);
     }
 
     [Fact]
@@ -379,17 +379,17 @@ public class VStackNodeTests
     public async Task Integration_VStack_TabNavigatesThroughFocusables()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var state1 = new TextBoxState { Text = "" };
-        var state2 = new TextBoxState { Text = "" };
-        var state3 = new TextBoxState { Text = "" };
+        var text1 = "";
+        var text2 = "";
+        var text3 = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(state1),
+                    v.TextBox(text1, args => text1 = args.NewText),
                     v.Text("Non-focusable label"),
-                    v.TextBox(state2),
-                    v.TextBox(state3)
+                    v.TextBox(text2, args => text2 = args.NewText),
+                    v.TextBox(text3, args => text3 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -407,23 +407,23 @@ public class VStackNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("1", state1.Text);
-        Assert.Equal("2", state2.Text);
-        Assert.Equal("3", state3.Text);
+        Assert.Equal("1", text1);
+        Assert.Equal("2", text2);
+        Assert.Equal("3", text3);
     }
 
     [Fact]
     public async Task Integration_VStack_ShiftTabNavigatesBackward()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var state1 = new TextBoxState { Text = "" };
-        var state2 = new TextBoxState { Text = "" };
+        var text1 = "";
+        var text2 = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.TextBox(state1),
-                    v.TextBox(state2)
+                    v.TextBox(text1, args => text1 = args.NewText),
+                    v.TextBox(text2, args => text2 = args.NewText)
                 ])
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -437,8 +437,8 @@ public class VStackNodeTests
 
         await app.RunAsync();
 
-        Assert.Equal("A", state1.Text);
-        Assert.Equal("", state2.Text);
+        Assert.Equal("A", text1);
+        Assert.Equal("", text2);
     }
 
     [Fact]
@@ -469,14 +469,13 @@ public class VStackNodeTests
     public async Task Integration_VStack_WithMixedContent()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "editable" };
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Title"),
-                    v.TextBox(textState),
+                    v.TextBox("editable"),
                     v.Button("Submit", _ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),

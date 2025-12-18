@@ -47,14 +47,14 @@ public class Hex1bAppIntegrationTests
     public async Task App_RespondsToInput()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState = new TextBoxState { Text = "" };
+        var text = "";
         
         // Wrap in VStack to get automatic focus
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget(State: textState)
+                    new TextBoxWidget("") { OnTextChanged = args => { text = args.NewText; return Task.CompletedTask; } }
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -67,7 +67,7 @@ public class Hex1bAppIntegrationTests
         
         await app.RunAsync();
         
-        Assert.Equal("Hi", textState.Text);
+        Assert.Equal("Hi", text);
     }
 
     [Fact]
@@ -147,15 +147,15 @@ public class Hex1bAppIntegrationTests
     public async Task App_TabNavigatesBetweenWidgets()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var textState1 = new TextBoxState { Text = "" };
-        var textState2 = new TextBoxState { Text = "" };
+        var text1 = "";
+        var text2 = "";
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new TextBoxWidget(State: textState1),
-                    new TextBoxWidget(State: textState2)
+                    new TextBoxWidget("") { OnTextChanged = args => { text1 = args.NewText; return Task.CompletedTask; } },
+                    new TextBoxWidget("") { OnTextChanged = args => { text2 = args.NewText; return Task.CompletedTask; } }
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -171,30 +171,26 @@ public class Hex1bAppIntegrationTests
         
         await app.RunAsync();
         
-        Assert.Equal("a", textState1.Text);
-        Assert.Equal("b", textState2.Text);
+        Assert.Equal("a", text1);
+        Assert.Equal("b", text2);
     }
 
     [Fact]
     public async Task App_ListNavigationWorks()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var listState = new ListState
-        {
-            Items = new[]
-            {
-                new ListItem("1", "Item 1"),
-                new ListItem("2", "Item 2"),
-                new ListItem("3", "Item 3")
-            }
-        };
+        IReadOnlyList<string> items = [
+            "Item 1",
+            "Item 2",
+            "Item 3"
+        ];
         
         // Wrap in VStack to get automatic focus
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ListWidget(listState)
+                    new ListWidget(items)
                 })
             ),
             new Hex1bAppOptions { Terminal = terminal }
@@ -207,7 +203,8 @@ public class Hex1bAppIntegrationTests
         
         await app.RunAsync();
         
-        Assert.Equal(2, listState.SelectedIndex);
+        // Verify via rendered output that third item is selected
+        Assert.Contains("> Item 3", terminal.RawOutput);
     }
 
     [Fact]
@@ -329,81 +326,4 @@ public class Hex1bAppIntegrationTests
         await runTask;
     }
 
-    [Fact]
-    public async Task App_WithINotifyPropertyChanged_AutoRerendersOnPropertyChange()
-    {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var state = new ObservableState { Message = "Initial" };
-        
-        using var app = new Hex1bApp<ObservableState>(
-            state,
-            ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget(ctx.State.Message)),
-            new Hex1bAppOptions { Terminal = terminal }
-        );
-
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
-        
-        // Wait for initial render
-        await Task.Delay(50);
-        Assert.Contains("Initial", terminal.RawOutput);
-        
-        // Change state - should auto-trigger re-render via INotifyPropertyChanged
-        terminal.ClearRawOutput();
-        state.Message = "Updated";
-        
-        // Wait for auto re-render
-        await Task.Delay(50);
-        Assert.Contains("Updated", terminal.RawOutput);
-        
-        cts.Cancel();
-        await runTask;
-    }
-
-    [Fact]
-    public void App_Dispose_UnsubscribesFromPropertyChanged()
-    {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var state = new ObservableState { Message = "Test" };
-        
-        var app = new Hex1bApp<ObservableState>(
-            state,
-            ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget(ctx.State.Message)),
-            new Hex1bAppOptions { Terminal = terminal }
-        );
-
-        // There should be one subscriber (the app)
-        Assert.Equal(1, state.SubscriberCount);
-        
-        terminal.CompleteInput();
-        app.Dispose();
-        
-        // After dispose, should have unsubscribed
-        Assert.Equal(0, state.SubscriberCount);
-    }
-
-    /// <summary>
-    /// Test state class that implements INotifyPropertyChanged.
-    /// </summary>
-    private class ObservableState : INotifyPropertyChanged
-    {
-        private string _message = "";
-        
-        public event PropertyChangedEventHandler? PropertyChanged;
-        
-        public int SubscriberCount => PropertyChanged?.GetInvocationList().Length ?? 0;
-        
-        public string Message
-        {
-            get => _message;
-            set
-            {
-                if (_message != value)
-                {
-                    _message = value;
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Message)));
-                }
-            }
-        }
-    }
 }

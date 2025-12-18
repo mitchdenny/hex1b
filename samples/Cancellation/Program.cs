@@ -1,4 +1,5 @@
 ﻿using Hex1b;
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -22,33 +23,30 @@ var contacts = new List<Contact>
 };
 
 // Convert to list items for display
-ListItem[] ToListItems() => contacts.Select(c => new ListItem(c.Id, c.Name)).ToArray();
+IReadOnlyList<string> GetListItems() => contacts.Select(c => c.Name).ToList();
 
-// State for the list
-var listState = new ListState { Items = ToListItems() };
+// State for the detail form - track the current edit values
+var editName = "";
+var editEmail = "";
 
-// State for the detail form
-var nameState = new TextBoxState();
-var emailState = new TextBoxState();
+// Track selection via callback
+int selectedIndex = 0;
 
 // Helper to get current contact
 Contact? GetSelectedContact() => 
-    listState.SelectedItem is { } item ? contacts.Find(c => c.Id == item.Id) : null;
+    selectedIndex >= 0 && selectedIndex < contacts.Count ? contacts[selectedIndex] : null;
 
 // When selection changes, update the detail form
-listState.OnSelectionChanged = item =>
+void OnSelectionChanged(ListSelectionChangedEventArgs args)
 {
-    var contact = contacts.Find(c => c.Id == item.Id);
-    if (contact != null)
+    selectedIndex = args.SelectedIndex;
+    if (selectedIndex >= 0 && selectedIndex < contacts.Count)
     {
-        nameState.Text = contact.Name;
-        nameState.CursorPosition = nameState.Text.Length;
-        nameState.ClearSelection();
-        emailState.Text = contact.Email;
-        emailState.CursorPosition = emailState.Text.Length;
-        emailState.ClearSelection();
+        var contact = contacts[selectedIndex];
+        editName = contact.Name;
+        editEmail = contact.Email;
     }
-};
+}
 
 // Save action - updates the contact in the list
 var statusMessage = "";
@@ -57,37 +55,39 @@ void Save()
     var contact = GetSelectedContact();
     if (contact != null)
     {
-        contact.Name = nameState.Text;
-        contact.Email = emailState.Text;
-        // Refresh the list display
-        listState.Items = ToListItems();
+        contact.Name = editName;
+        contact.Email = editEmail;
         statusMessage = $"Saved {contact.Name}";
     }
 }
 
 // Initialize with first contact
-if (listState.SelectedItem != null)
+if (contacts.Count > 0)
 {
-    listState.OnSelectionChanged(listState.SelectedItem);
+    editName = contacts[0].Name;
+    editEmail = contacts[0].Email;
 }
 
 // Create and run the app
 using var app = new Hex1bApp(
-    ctx => App(listState, nameState, emailState, Save, () => statusMessage, cts, ctx.CancellationToken),
+    ctx => App(GetListItems, () => editName, n => editName = n, () => editEmail, e => editEmail = e, Save, () => statusMessage, OnSelectionChanged, cts, ctx.CancellationToken),
     new Hex1bAppOptions { Theme = Hex1bThemes.Sunset });
 await app.RunAsync(cts.Token);
 
 // The root component - master-detail layout with status bar
 static Task<Hex1bWidget> App(
-    ListState listState, 
-    TextBoxState nameState, 
-    TextBoxState emailState,
+    Func<IReadOnlyList<string>> getListItems, 
+    Func<string> getName,
+    Action<string> setName,
+    Func<string> getEmail,
+    Action<string> setEmail,
     Action onSave,
     Func<string> getStatusMessage,
+    Action<ListSelectionChangedEventArgs> onSelectionChanged,
     CancellationTokenSource cts, 
     CancellationToken cancellationToken)
 {
-    var ctx = new RootContext<object>(new object());
+    var ctx = new RootContext();
     
     var statusMessage = getStatusMessage();
     var instructions = "Tab: Next  |  Esc: Back  |  Ctrl+S: Save  |  Ctrl+Q: Quit";
@@ -98,11 +98,11 @@ static Task<Hex1bWidget> App(
     var widget = ctx.VStack(v => [
         v.Splitter(
             v.VStack(master => [
-                master.List(listState)
+                master.List(getListItems(), onSelectionChanged, null)
             ]),
             v.VStack(detail => [
-                detail.HStack(h => [h.Text("Name:  "), h.TextBox(nameState)]),
-                detail.HStack(h => [h.Text("Email: "), h.TextBox(emailState)]),
+                detail.HStack(h => [h.Text("Name:  "), h.TextBox(getName(), args => setName(args.NewText))]),
+                detail.HStack(h => [h.Text("Email: "), h.TextBox(getEmail(), args => setEmail(args.NewText))]),
                 detail.Text(""),
                 detail.Button("Save", _ => onSave()),
                 detail.Button("Close", _ => cts.Cancel())

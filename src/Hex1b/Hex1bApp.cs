@@ -1,6 +1,5 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
-using System.ComponentModel;
 using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Layout;
@@ -11,43 +10,38 @@ using Hex1b.Widgets;
 namespace Hex1b;
 
 /// <summary>
-/// A Hex1bApp with typed state management.
+/// The main entry point for building terminal UI applications.
 /// </summary>
-/// <typeparam name="TState">The application state type.</typeparam>
 /// <example>
-/// <para>Create a minimal Hex1b application with a text box and button:</para>
+/// <para>Create a minimal Hex1b application:</para>
 /// <code>
 /// using Hex1b;
 /// 
-/// // Define your application state
-/// record AppState(string UserName = "");
-/// 
-/// // Create the app with state and a widget builder
-/// var app = new Hex1bApp&lt;AppState&gt;(new AppState(), ctx =&gt;
+/// var app = new Hex1bApp(ctx =&gt;
 ///     ctx.VStack(v => [
 ///         v.Text("Hello, Hex1b!"),
-///         v.TextBox("Type something..."),
-///         v.Button("Submit", a => Console.WriteLine("Submitted!"))
+///         v.Button("Quit", e => e.Context.RequestStop())
 ///     ])
 /// );
 /// 
-/// // Run the application
 /// await app.RunAsync();
 /// </code>
 /// </example>
 /// <remarks>
-/// The Hex1bApp is the main entry point for building terminal UI applications.
-/// It manages the render loop, input handling, focus management, and reconciliation
+/// Hex1bApp manages the render loop, input handling, focus management, and reconciliation
 /// between widgets (immutable declarations) and nodes (mutable render state).
+/// 
+/// State management is handled via closures - simply capture your state variables
+/// in the widget builder callback.
 /// </remarks>
-public class Hex1bApp<TState> : IDisposable where TState : class
+public class Hex1bApp : IDisposable
 {
-    private readonly Func<RootContext<TState>, Task<Hex1bWidget>> _rootComponent;
+    private readonly Func<RootContext, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bTerminal _terminal;
     private readonly Hex1bRenderContext _context;
     private readonly bool _ownsTerminal;
-    private readonly RootContext<TState> _rootContext;
+    private readonly RootContext _rootContext = new();
     private readonly FocusRing _focusRing = new();
     private Hex1bNode? _rootNode;
     
@@ -88,9 +82,6 @@ public class Hex1bApp<TState> : IDisposable where TState : class
             FullMode = BoundedChannelFullMode.DropOldest 
         });
     
-    // Track if we're subscribed to INotifyPropertyChanged for cleanup
-    private readonly PropertyChangedEventHandler? _propertyChangedHandler;
-    
     // Rescue (error boundary) support
     private readonly bool _rescueEnabled;
     private readonly Func<RescueState, Hex1bWidget>? _rescueFallbackBuilder;
@@ -101,22 +92,16 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     private volatile bool _stopRequested;
 
     /// <summary>
-    /// The application state, accessible for external state mutations.
+    /// Creates a Hex1bApp with an async widget builder.
     /// </summary>
-    public TState State { get; }
-
-    /// <summary>
-    /// Creates a Hex1bApp with typed state and an async widget builder.
-    /// </summary>
+    /// <param name="builder">A function that builds the widget tree.</param>
+    /// <param name="options">Optional configuration options.</param>
     public Hex1bApp(
-        TState state,
-        Func<RootContext<TState>, Task<Hex1bWidget>> builder,
+        Func<RootContext, Task<Hex1bWidget>> builder,
         Hex1bAppOptions? options = null)
     {
         options ??= new Hex1bAppOptions();
         
-        State = state;
-        _rootContext = new RootContext<TState>(state);
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
         
@@ -141,23 +126,17 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         _rescueEnabled = options.EnableRescue;
         _rescueFallbackBuilder = options.RescueFallbackBuilder;
         _rescueActions = options.RescueActions ?? [];
-        
-        // Auto-subscribe to INotifyPropertyChanged if state implements it
-        if (state is INotifyPropertyChanged notifyPropertyChanged)
-        {
-            _propertyChangedHandler = (_, _) => Invalidate();
-            notifyPropertyChanged.PropertyChanged += _propertyChangedHandler;
-        }
     }
 
     /// <summary>
-    /// Creates a Hex1bApp with typed state and a synchronous widget builder.
+    /// Creates a Hex1bApp with a synchronous widget builder.
     /// </summary>
+    /// <param name="builder">A function that builds the widget tree.</param>
+    /// <param name="options">Optional configuration options.</param>
     public Hex1bApp(
-        TState state,
-        Func<RootContext<TState>, Hex1bWidget> builder,
+        Func<RootContext, Hex1bWidget> builder,
         Hex1bAppOptions? options = null)
-        : this(state, ctx => Task.FromResult(builder(ctx)), options)
+        : this(ctx => Task.FromResult(builder(ctx)), options)
     {
     }
 
@@ -167,8 +146,6 @@ public class Hex1bApp<TState> : IDisposable where TState : class
     /// This method is thread-safe and can be called from any thread.
     /// </summary>
     /// <remarks>
-    /// If the state implements <see cref="INotifyPropertyChanged"/>, this is called
-    /// automatically when properties change. For other state changes, call this manually.
     /// Multiple rapid calls are coalesced into a single re-render.
     /// </remarks>
     public void Invalidate()
@@ -411,8 +388,8 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         var localX = mouseEvent.X - hitNode.Bounds.X;
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
-        // Create action context for mouse bindings
-        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken);
+        // Create action context for mouse bindings (includes mouse coordinates)
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();
@@ -539,12 +516,6 @@ public class Hex1bApp<TState> : IDisposable where TState : class
 
     public void Dispose()
     {
-        // Unsubscribe from INotifyPropertyChanged if we subscribed
-        if (_propertyChangedHandler != null && State is INotifyPropertyChanged notifyPropertyChanged)
-        {
-            notifyPropertyChanged.PropertyChanged -= _propertyChangedHandler;
-        }
-        
         // Complete the invalidate channel
         _invalidateChannel.Writer.TryComplete();
         
@@ -552,54 +523,5 @@ public class Hex1bApp<TState> : IDisposable where TState : class
         {
             disposable.Dispose();
         }
-    }
-}
-
-/// <summary>
-/// A Hex1bApp without state management for simple stateless UIs.
-/// </summary>
-/// <example>
-/// <para>Create a minimal stateless Hex1b application:</para>
-/// <code>
-/// using Hex1b;
-/// 
-/// var app = new Hex1bApp(ctx =&gt;
-///     ctx.VStack(v => [
-///         v.Text("Hello, Hex1b!"),
-///         v.Button("Quit", a => a.RequestStop())
-///     ])
-/// );
-/// 
-/// await app.RunAsync();
-/// </code>
-/// </example>
-/// <remarks>
-/// Use this class when your UI doesn't require external state management.
-/// For applications with state, use <see cref="Hex1bApp{TState}"/> instead.
-/// </remarks>
-public class Hex1bApp : Hex1bApp<object>
-{
-    /// <summary>
-    /// Creates a stateless Hex1bApp with an async widget builder.
-    /// </summary>
-    /// <param name="builder">A function that builds the widget tree. Receives a context with cancellation token and quit action.</param>
-    /// <param name="options">Optional configuration options.</param>
-    public Hex1bApp(
-        Func<RootContext<object>, Task<Hex1bWidget>> builder,
-        Hex1bAppOptions? options = null)
-        : base(new object(), builder, options)
-    {
-    }
-
-    /// <summary>
-    /// Creates a stateless Hex1bApp with a synchronous widget builder.
-    /// </summary>
-    /// <param name="builder">A function that builds the widget tree. Receives a context with cancellation token and quit action.</param>
-    /// <param name="options">Optional configuration options.</param>
-    public Hex1bApp(
-        Func<RootContext<object>, Hex1bWidget> builder,
-        Hex1bAppOptions? options = null)
-        : base(new object(), builder, options)
-    {
     }
 }

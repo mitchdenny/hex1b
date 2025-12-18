@@ -9,58 +9,76 @@ using Hex1b.Widgets;
 public static class TextBoxExtensions
 {
     /// <summary>
-    /// Creates a TextBox with internally managed state.
+    /// Creates a TextBox with default empty text.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx)
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
         => new();
 
     /// <summary>
-    /// Creates a TextBox with initial text.
+    /// Creates a TextBox with the specified text.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        string initialText)
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string text)
         where TParent : Hex1bWidget
-        => new(initialText);
+        => new(text);
 
     /// <summary>
-    /// Creates a TextBox with explicit state (controlled mode).
-    /// Use this when you need to read or manipulate the text box state externally.
+    /// Creates a TextBox with a synchronous text changed handler.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        TextBoxState state)
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string? text,
+        Action<TextChangedEventArgs> onTextChanged)
         where TParent : Hex1bWidget
-        => new(State: state);
+        => new(text) { OnTextChanged = args => { onTextChanged(args); return Task.CompletedTask; } };
 
     /// <summary>
-    /// Creates a TextBox with state selected from context state (controlled mode).
+    /// Creates a TextBox with an asynchronous text changed handler.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        Func<TState, TextBoxState> stateSelector)
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string? text,
+        Func<TextChangedEventArgs, Task> onTextChanged)
         where TParent : Hex1bWidget
-        => new(State: stateSelector(ctx.State));
+        => new(text) { OnTextChanged = onTextChanged };
 
     /// <summary>
-    /// Creates a TextBox with explicit state and a synchronous submit handler.
+    /// Creates a TextBox with text changed and submit handlers.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        TextBoxState state,
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string? text,
+        Action<TextChangedEventArgs>? onTextChanged,
         Action<TextSubmittedEventArgs> onSubmit)
         where TParent : Hex1bWidget
-        => new(State: state) { OnSubmit = args => { onSubmit(args); return Task.CompletedTask; } };
+        => new(text) 
+        { 
+            OnTextChanged = onTextChanged != null 
+                ? args => { onTextChanged(args); return Task.CompletedTask; } 
+                : null,
+            OnSubmit = args => { onSubmit(args); return Task.CompletedTask; } 
+        };
 
     /// <summary>
-    /// Creates a TextBox with explicit state and an asynchronous submit handler.
+    /// Creates a TextBox with a synchronous submit handler.
     /// </summary>
-    public static TextBoxWidget TextBox<TParent, TState>(
-        this WidgetContext<TParent, TState> ctx,
-        TextBoxState state,
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string? text,
+        Action<TextSubmittedEventArgs> onSubmit)
+        where TParent : Hex1bWidget
+        => new(text) { OnSubmit = args => { onSubmit(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Creates a TextBox with an asynchronous submit handler.
+    /// </summary>
+    public static TextBoxWidget TextBox<TParent>(
+        this WidgetContext<TParent> ctx,
+        string? text,
         Func<TextSubmittedEventArgs, Task> onSubmit)
         where TParent : Hex1bWidget
-        => new(State: state) { OnSubmit = onSubmit };
+        => new(text) { OnSubmit = onSubmit };
 }

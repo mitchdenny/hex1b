@@ -22,20 +22,20 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
     /// </summary>
     private class RescueExhibitState
     {
-        public ListState ExampleList { get; } = new();
+        private static readonly string[] ExampleIds = ["global", "local"];
+        
+        public int SelectedExampleIndex { get; set; } = 0;
+        public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
         public RescueState LocalRescueState { get; } = new();
         public RescueState GlobalRescueState { get; } = new();
         public bool TriggerLocalError { get; set; }
         public bool TriggerGlobalError { get; set; }
         
-        public RescueExhibitState()
-        {
-            ExampleList.Items =
-            [
-                new ListItem("global", "Global Rescue"),
-                new ListItem("local", "Local Rescue"),
-            ];
-        }
+        public IReadOnlyList<string> ExampleItems { get; } =
+        [
+            "Global Rescue",
+            "Local Rescue",
+        ];
         
         public void ResetLocal()
         {
@@ -117,7 +117,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
 
         return () =>
         {
-            var ctx = new RootContext<RescueExhibitState>(state);
+            var ctx = new RootContext();
             
             // Check if global error should be triggered - this throws to the app-level rescue
             if (state.TriggerGlobalError && !state.GlobalRescueState.HasError)
@@ -143,7 +143,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
                     leftPanel.VStack(left => [
                         left.Text("Rescue Examples"),
                         left.Text("─────────────────"),
-                        left.List(s => s.ExampleList),
+                        left.List(state.ExampleItems, e => state.SelectedExampleIndex = e.SelectedIndex, null),
                         left.Text(""),
                         left.Text("RescueWidget is an"),
                         left.Text("error boundary that"),
@@ -159,10 +159,9 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildExampleContent(RootContext<RescueExhibitState> ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildExampleContent(RootContext ctx, RescueExhibitState state)
     {
-        var exampleId = state.ExampleList.SelectedItem?.Id ?? "global";
-        return exampleId switch
+        return state.SelectedExampleId switch
         {
             "global" => BuildGlobalRescueExample(ctx, state),
             "local" => BuildLocalRescueExample(ctx, state),
@@ -170,7 +169,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         };
     }
 
-    private static Hex1bWidget BuildGlobalRescueExample(RootContext<RescueExhibitState> ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildGlobalRescueExample(RootContext ctx, RescueExhibitState state)
     {
         return ctx.Border(
             ctx.VStack(v => [
@@ -200,7 +199,7 @@ public class RescueExhibit(ILogger<RescueExhibit> logger) : Hex1bExhibit
         );
     }
 
-    private static Hex1bWidget BuildLocalRescueExample(RootContext<RescueExhibitState> ctx, RescueExhibitState state)
+    private static Hex1bWidget BuildLocalRescueExample(RootContext ctx, RescueExhibitState state)
     {
         // Create actions for the local rescue widget
         var localActions = new List<RescueAction>
