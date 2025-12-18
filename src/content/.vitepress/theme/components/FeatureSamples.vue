@@ -17,17 +17,21 @@ const highlightedCode = ref<Record<string, string>>({})
 const samples: FeatureSample[] = [
   {
     id: 'declarative',
-    title: 'Declarative UI',
+    title: 'React-like API for rendering UI',
     description: 'Describe your UI as a tree of widgets. Hex1b handles rendering, state management, and reconciliation automatically.',
     feature: '🎯 Declarative API',
-    example: 'hello-world',
-    code: `var ctx = new RootContext();
+    example: 'canonical',
+    code: `var clickCount = 0;
 
-var widget = ctx.VStack(v => [
-    v.Text("Hello, Hex1b!"),
-    v.Text($"Click count: {state.ClickCount}"),
-    v.Button("Click me!", _ => state.ClickCount++)
-]);`
+using var app = new Hex1bApp(
+    ctx => ctx.VStack(v => [
+        v.Text("Hello, Hex1b!"),
+        v.Text($"Clicks: {clickCount}"),
+        v.Button("Click me", _ => clickCount++)
+    ])
+);
+
+await app.RunAsync();`
   },
   {
     id: 'layout',

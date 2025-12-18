@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // Register all gallery examples
+builder.Services.AddSingleton<IGalleryExample, CanonicalExample>();
 builder.Services.AddSingleton<IGalleryExample, HelloWorldExample>();
 builder.Services.AddSingleton<IGalleryExample, TextInputExample>();
 builder.Services.AddSingleton<IGalleryExample, ThemingExample>();
