@@ -90,6 +90,9 @@ public class Hex1bApp : IDisposable
     
     // Stop request flag - set by InputBindingActionContext.RequestStop()
     private volatile bool _stopRequested;
+    
+    // Default CTRL-C binding option
+    private readonly bool _enableDefaultCtrlCExit;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -126,6 +129,9 @@ public class Hex1bApp : IDisposable
         _rescueEnabled = options.EnableRescue;
         _rescueFallbackBuilder = options.RescueFallbackBuilder;
         _rescueActions = options.RescueActions ?? [];
+        
+        // Default CTRL-C binding option
+        _enableDefaultCtrlCExit = options.EnableDefaultCtrlCExit;
     }
 
     /// <summary>
@@ -491,7 +497,7 @@ public class Hex1bApp : IDisposable
     /// Reconciles a node with a widget, creating/updating/replacing as needed.
     /// This is the core of the "diffing" algorithm.
     /// </summary>
-    private static Hex1bNode? Reconcile(Hex1bNode? existingNode, Hex1bWidget? widget)
+    private Hex1bNode? Reconcile(Hex1bNode? existingNode, Hex1bWidget? widget)
     {
         if (widget is null)
         {
@@ -507,7 +513,25 @@ public class Hex1bApp : IDisposable
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
-        node.BindingsConfigurator = widget.BindingsConfigurator;
+        
+        // Inject default CTRL-C binding if enabled
+        if (_enableDefaultCtrlCExit)
+        {
+            var userConfigurator = widget.BindingsConfigurator;
+            node.BindingsConfigurator = builder =>
+            {
+                // Add default CTRL-C binding first
+                builder.Ctrl().Key(Hex1bKey.C).Action(_ => RequestStop(), "Exit application");
+                
+                // Then apply user's bindings (later registrations override earlier ones in trie)
+                userConfigurator?.Invoke(builder);
+            };
+        }
+        else
+        {
+            node.BindingsConfigurator = widget.BindingsConfigurator;
+        }
+        
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
 

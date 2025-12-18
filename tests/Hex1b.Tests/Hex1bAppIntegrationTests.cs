@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Hex1b.Input;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -321,6 +322,117 @@ public class Hex1bAppIntegrationTests
         // At most a few extra renders (bounded channel with size 1 drops excess)
         Assert.True(renderCount < initialRenderCount + 10, 
             $"Expected coalesced renders, but got {renderCount - initialRenderCount} extra renders");
+        
+        cts.Cancel();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_DefaultCtrlCExit_ExitsApp()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
+            new Hex1bAppOptions { Terminal = terminal }
+        );
+
+        // Send CTRL-C
+        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        terminal.CompleteInput();
+        
+        await app.RunAsync();
+        
+        // App should have exited gracefully
+        Assert.False(terminal.InAlternateScreen);
+    }
+
+    [Fact]
+    public async Task App_DefaultCtrlCExitDisabled_DoesNotExit()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var ctrlCPressed = false;
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget(new Hex1bWidget[]
+                {
+                    new ButtonWidget("Test") { OnClick = _ => { ctrlCPressed = true; return Task.CompletedTask; } }
+                }).WithInputBindings(bindings =>
+                {
+                    bindings.Ctrl().Key(Hex1bKey.C).Action(_ => ctrlCPressed = true);
+                })
+            ),
+            new Hex1bAppOptions 
+            { 
+                Terminal = terminal,
+                EnableDefaultCtrlCExit = false
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+        
+        // Wait for initial render
+        await Task.Delay(50);
+        
+        // Send CTRL-C
+        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        
+        // Wait for processing
+        await Task.Delay(50);
+        
+        // The custom binding should have been called
+        Assert.True(ctrlCPressed);
+        
+        // App should still be running (not exited)
+        Assert.False(runTask.IsCompleted);
+        
+        cts.Cancel();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_UserCtrlCBinding_OverridesDefault()
+    {
+        using var terminal = new Hex1bTerminal(80, 24);
+        var customHandlerCalled = false;
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget(new Hex1bWidget[]
+                {
+                    new ButtonWidget("Test") { OnClick = _ => Task.CompletedTask }
+                }).WithInputBindings(bindings =>
+                {
+                    // User's CTRL-C binding should override the default
+                    bindings.Ctrl().Key(Hex1bKey.C).Action(_ => customHandlerCalled = true);
+                })
+            ),
+            new Hex1bAppOptions 
+            { 
+                Terminal = terminal,
+                EnableDefaultCtrlCExit = true  // Default is enabled
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+        
+        // Wait for initial render
+        await Task.Delay(50);
+        
+        // Send CTRL-C
+        terminal.SendKey(ConsoleKey.C, '\x03', control: true);
+        
+        // Wait for processing
+        await Task.Delay(50);
+        
+        // The custom handler should have been called
+        Assert.True(customHandlerCalled);
+        
+        // App should still be running (not exited by default binding)
+        Assert.False(runTask.IsCompleted);
         
         cts.Cancel();
         await runTask;
