@@ -11,6 +11,11 @@ const props = defineProps<{
 const terminalEl = ref<HTMLElement | null>(null)
 const containerEl = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
+
+// Expose openTerminal method for external use
+defineExpose({
+  openTerminal: () => openTerminal()
+})
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
