@@ -23,6 +23,13 @@ builder.Services.AddSingleton<IGalleryExample, RescueExample>();
 builder.Services.AddSingleton<IGalleryExample, ReactiveBarChartExample>();
 builder.Services.AddSingleton<IGalleryExample, MouseExample>();
 
+// Register Getting Started tutorial examples
+builder.Services.AddSingleton<IGalleryExample, GettingStartedStep1Example>();
+builder.Services.AddSingleton<IGalleryExample, GettingStartedStep2Example>();
+builder.Services.AddSingleton<IGalleryExample, GettingStartedStep3Example>();
+builder.Services.AddSingleton<IGalleryExample, GettingStartedStep4Example>();
+builder.Services.AddSingleton<IGalleryExample, GettingStartedStep5Example>();
+
 var app = builder.Build();
 
 // Enable WebSockets
