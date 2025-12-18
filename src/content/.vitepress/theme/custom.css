@@ -18,6 +18,11 @@
   --vp-c-bg-soft: #242438;
 }
 
+/* Install guide dark mode border */
+.dark .install-card {
+  border: 2px solid var(--vp-c-brand-1);
+}
+
 /* Terminal container styling */
 .terminal-container {
   background: #0f0f1a;

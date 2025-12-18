@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "Hex1b"
-  text: "A TUI-framework for .NET developers."
-  tagline: Build beautiful, interactive terminal applications with a declarative, component-based API for .NET
+  text: "The .NET TUI library"
+  tagline: Build user interfaces for terminal apps using an approachable code-first API.
   image:
     src: /logo.svg
     alt: Hex1b
