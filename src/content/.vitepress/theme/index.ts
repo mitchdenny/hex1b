@@ -5,6 +5,8 @@ import TerminalGallery from './components/TerminalGallery.vue'
 import FloatingTerminal from './components/FloatingTerminal.vue'
 import FeatureSamples from './components/FeatureSamples.vue'
 import InstallGuide from './components/InstallGuide.vue'
+import TerminalCommand from './components/TerminalCommand.vue'
+import CodeBlock from './components/CodeBlock.vue'
 import './custom.css'
 
 export default {
@@ -16,5 +18,7 @@ export default {
     app.component('FloatingTerminal', FloatingTerminal)
     app.component('FeatureSamples', FeatureSamples)
     app.component('InstallGuide', InstallGuide)
+    app.component('TerminalCommand', TerminalCommand)
+    app.component('CodeBlock', CodeBlock)
   }
 } satisfies Theme

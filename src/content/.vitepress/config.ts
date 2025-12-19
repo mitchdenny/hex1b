@@ -4,6 +4,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Hex1b',
   description: 'A .NET TUI library with a React-inspired declarative API',
+  cleanUrls: true,
   
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]
