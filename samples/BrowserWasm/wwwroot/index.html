@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex1b - Browser WASM Demo</title>
+    
+    <!-- xterm.js from CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            background: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+        
+        header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .badge {
+            background: #238636;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge.wasm {
+            background: #6366f1;
+        }
+        
+        .info-panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .info-panel h2 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .info-panel p {
+            font-size: 14px;
+            color: #8b949e;
+            line-height: 1.5;
+        }
+        
+        .info-panel code {
+            background: #0d1117;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        #terminal-container {
+            flex: 1;
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #30363d;
+        }
+        
+        #loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #8b949e;
+            font-size: 16px;
+        }
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #30363d;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        footer {
+            text-align: center;
+            font-size: 12px;
+            color: #8b949e;
+        }
+        
+        footer a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 Hex1b WASM Spike</h1>
+            <span class="badge wasm">WebAssembly</span>
+            <span class="badge">Experimental</span>
+        </header>
+        
+        <div class="info-panel">
+            <h2>Complex TUI Demo</h2>
+            <p>
+                A todo app demonstrating <strong>responsive layout</strong>, borders, panels, text input, and keyboard navigation —
+                all running in the browser via .NET WebAssembly with <strong>no server</strong>!
+            </p>
+            <p style="margin-top: 8px;">
+                <strong>Controls:</strong>
+                <code>Tab</code>/<code>Shift+Tab</code> Navigate panels •
+                <code>↑↓</code> Select task •
+                <code>Space</code> Toggle/activate •
+                <code>Enter</code> Add task •
+                <code>Backspace</code> Delete/clear •
+                Resize the window to see responsive layout!
+            </p>
+        </div>
+        
+        <div id="terminal-container">
+            <div id="loading">
+                <div class="spinner"></div>
+                Loading .NET WebAssembly runtime...
+            </div>
+        </div>
+        
+        <footer>
+            <p>
+                Hex1b — Terminal UI framework for .NET |
+                <a href="https://github.com/your/hex1b">GitHub</a>
+            </p>
+        </footer>
+    </div>
+    
+    <!-- Load the .NET WASM app -->
+    <script type="module" src="main.js"></script>
+</body>
+</html>

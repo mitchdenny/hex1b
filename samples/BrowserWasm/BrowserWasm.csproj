@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- This enables the wasm browser app mode - no ASP.NET, pure WASM -->
+    <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <!-- Reference Hex1b library -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
+  </ItemGroup>
+
+</Project>
