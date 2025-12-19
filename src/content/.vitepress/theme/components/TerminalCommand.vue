@@ -125,7 +125,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0f0f1a;
+  background: #3d9690;
   padding: 14px 16px;
   flex-shrink: 0;
 }
@@ -133,7 +133,7 @@ onMounted(() => {
 .terminal-icon {
   width: 20px;
   height: 20px;
-  color: #4ecdc4;
+  color: #0f3d3a;
 }
 
 .command-content {
@@ -153,19 +153,25 @@ onMounted(() => {
 
 .code-display :deep(code) {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.5;
-  color: #0f0f1a !important;
+  color: #0f3d3a !important;
+  position: relative;
+  top: 1px;
 }
 
 .code-display :deep(span) {
-  color: #0f0f1a !important;
+  color: #0f3d3a !important;
 }
 
 .code-fallback {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
-  font-size: 14px;
-  color: #0f0f1a;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f3d3a;
+  position: relative;
+  top: 1px;
 }
 
 .copy-button {
@@ -187,11 +193,11 @@ onMounted(() => {
 .copy-icon {
   width: 18px;
   height: 18px;
-  color: #0f0f1a;
+  color: #0f3d3a;
 }
 
 .copy-icon.check {
-  color: #0f0f1a;
+  color: #0f3d3a;
 }
 
 /* Integrated demo button */

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, useSlots, nextTick, type VNode } from 'vue'
 import { codeToHtml } from 'shiki'
+import { useData } from 'vitepress'
 import FloatingTerminal from './FloatingTerminal.vue'
+
+const { isDark } = useData()
 
 const props = defineProps<{
   code?: string
@@ -92,10 +95,26 @@ async function highlightCode() {
     actualCode.value = code
     highlightedCode.value = await codeToHtml(code, {
       lang: props.lang || 'csharp',
-      theme: 'github-dark'
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark'
+      },
+      defaultColor: false
     })
   }
 }
+
+// Re-highlight when theme changes
+watch(isDark, () => {
+  const code = actualCode.value
+  actualCode.value = ''
+  nextTick(() => {
+    if (code) {
+      actualCode.value = code
+      highlightCode()
+    }
+  })
+})
 
 function copyToClipboard() {
   navigator.clipboard.writeText(actualCode.value)
@@ -208,7 +227,7 @@ watch(() => props.code, () => {
 
 <style scoped>
 .code-block-wrapper {
-  background: #24273a;
+  background: #2d333b;
   border-radius: 8px;
   overflow: hidden;
   margin: 16px 0;
@@ -219,7 +238,7 @@ watch(() => props.code, () => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -268,7 +287,7 @@ watch(() => props.code, () => {
   overflow-x: auto;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
   font-size: 13px;
-  line-height: 1.3;
+  line-height: 0.7;
   color: #e0e0e0;
 }
 
@@ -286,7 +305,7 @@ watch(() => props.code, () => {
 .code-block.highlighted :deep(code) {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
   font-size: 13px;
-  line-height: 1.3;
+  line-height: 0.7;
   display: block;
   position: relative;
   padding-left: calc(2em + 20px);
@@ -304,7 +323,7 @@ watch(() => props.code, () => {
 
 .code-block.highlighted :deep(code .line) {
   display: block;
-  line-height: 1.0;
+  line-height: 0.7;
 }
 
 .code-block.highlighted :deep(code .line::before) {
@@ -329,7 +348,7 @@ watch(() => props.code, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1e2030;
+  background: #3d9690;
   padding: 12px 14px;
   flex-shrink: 0;
 }
@@ -337,7 +356,7 @@ watch(() => props.code, () => {
 .terminal-icon {
   width: 18px;
   height: 18px;
-  color: #4ecdc4;
+  color: #0f3d3a;
 }
 
 .command-content {
@@ -351,9 +370,12 @@ watch(() => props.code, () => {
 
 .command-text {
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
-  font-size: 13px;
-  color: #0f0f1a;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f3d3a;
   white-space: nowrap;
+  position: relative;
+  top: 1px;
 }
 
 .command-copy-button {
@@ -375,11 +397,11 @@ watch(() => props.code, () => {
 .command-copy-icon {
   width: 16px;
   height: 16px;
-  color: #0f0f1a;
+  color: #0f3d3a;
 }
 
 .command-copy-icon.check {
-  color: #0f0f1a;
+  color: #0f3d3a;
 }
 
 /* Run button */
@@ -388,16 +410,51 @@ watch(() => props.code, () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #1e2030;
+  background: #3d9690;
   border: none;
   padding: 12px 18px;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.run-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shimmer 10s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  8% {
+    left: 100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .run-button:hover {
-  background: #2a2d42;
+  background: #4ecdc4;
+}
+
+.run-button:hover::before {
+  animation: none;
 }
 
 .run-button:hover .play-icon {
@@ -407,14 +464,14 @@ watch(() => props.code, () => {
 .play-icon {
   width: 14px;
   height: 14px;
-  color: #4ecdc4;
+  color: #0f3d3a;
   transition: transform 0.2s ease;
 }
 
 .run-label {
   font-size: 13px;
   font-weight: 600;
-  color: #4ecdc4;
+  color: #0f3d3a;
 }
 
 /* Hide the terminal trigger card */
@@ -470,5 +527,63 @@ watch(() => props.code, () => {
     justify-content: center;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
+}
+
+/* Light mode overrides */
+:root:not(.dark) .code-block-wrapper {
+  background: #f6f8fa;
+}
+
+:root:not(.dark) .code-header {
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .code-lang {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+:root:not(.dark) .copy-icon {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+:root:not(.dark) .copy-button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .copy-button:hover .copy-icon {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+:root:not(.dark) .code-block {
+  color: #24292e;
+}
+
+:root:not(.dark) .code-block.highlighted :deep(code::before) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .code-block.highlighted :deep(code .line::before) {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+:root:not(.dark) .code-block.highlighted :deep(.shiki) {
+  background-color: transparent !important;
+}
+
+/* Shiki dual theme support */
+.code-block.highlighted :deep(.shiki),
+.code-block.highlighted :deep(.shiki span) {
+  color: var(--shiki-dark) !important;
+  background-color: transparent !important;
+}
+
+:root:not(.dark) .code-block.highlighted :deep(.shiki),
+:root:not(.dark) .code-block.highlighted :deep(.shiki span) {
+  color: var(--shiki-light) !important;
+}
+
+:root:not(.dark) .command-footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 </style>
