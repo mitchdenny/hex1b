@@ -70,16 +70,24 @@ jobs:
   publish-pr:
     runs-on: ubuntu-latest
     needs: build-pr
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       packages: write
+      pull-requests: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate version
+        id: version
+        uses: ./.github/actions/version
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: nuget-packages-preview
+          name: nuget-packages-pr
           path: ./artifacts
 
       - name: Setup .NET
@@ -92,6 +100,109 @@ jobs:
           dotnet nuget push ./artifacts/*.nupkg \
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
             --api-key ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post package info to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.pr }}
+        run: |
+          set -e
+          
+          # Delete previous package comments to avoid noise
+          gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --json comments \
+            --jq '.comments[]? | select(.body | startswith("## 📦 PR Package Published")) | .databaseId' 2>/dev/null | \
+          while IFS= read -r comment_id; do
+            if [ -n "$comment_id" ]; then
+              echo "Deleting old package comment: $comment_id"
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/comments/$comment_id" || true
+            fi
+          done
+
+          # Create comment body
+          cat > /tmp/pr_comment.md << EOF
+          ## 📦 PR Package Published
+
+          A preview package for this PR has been published to GitHub Packages.
+
+          ### Package Version
+          \`${PACKAGE_VERSION}\`
+
+          ### Usage Examples
+
+          **PackageReference (csproj):**
+          \`\`\`xml
+          <PackageReference Include="Hex1b" Version="${PACKAGE_VERSION}" />
+          \`\`\`
+
+          **Polyglot Notebooks / .NET Interactive:**
+          \`\`\`csharp
+          #:package Hex1b@${PACKAGE_VERSION}"
+          \`\`\`
+
+          **.NET CLI:**
+          \`\`\`bash
+          dotnet add package Hex1b --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          ### NuGet Configuration
+
+          To use this package, you need to configure a NuGet.config file with the GitHub Packages feed:
+
+          \`\`\`xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <!--To inherit the global NuGet package sources remove the <clear/> line below -->
+              <clear />
+              <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+              <add key="github-mitchdenny" value="https://nuget.pkg.github.com/mitchdenny/index.json" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="nuget">
+                <package pattern="*" />
+              </packageSource>
+              <packageSource key="github-mitchdenny">
+                <package pattern="Hex1b*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          \`\`\`
+
+          ### Authentication
+
+          GitHub Packages requires authentication. Make sure your GitHub CLI has the \`read:packages\` scope:
+
+          \`\`\`bash
+          # Check current scopes
+          gh auth status
+
+          # If needed, refresh with packages scope
+          gh auth refresh -s read:packages
+
+          # Configure NuGet to use GitHub auth
+          dotnet nuget update source github-mitchdenny \\
+            --username YOUR_GITHUB_USERNAME \\
+            --password \$(gh auth token) \\
+            --store-password-in-clear-text
+          \`\`\`
+
+          ---
+          *Package published at $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
+          EOF
+
+          # Strip leading spaces
+          sed -i 's/^          //' /tmp/pr_comment.md
+
+          # Post comment to PR
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body-file /tmp/pr_comment.md \
+            --repo ${{ github.repository }}
 
   publish-release:
     runs-on: ubuntu-latest
