@@ -254,6 +254,7 @@ jobs:
       - name: Authenticate to NuGet
         if: steps.check-package.outputs.exists == 'false'
         uses: nuget/login@v1
+        id: nugetlogin
         with:
           user: ${{ secrets.NUGET_USERNAME }}
 
@@ -261,6 +262,7 @@ jobs:
         if: steps.check-package.outputs.exists == 'false'
         run: |
           dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.nugetlogin.outputs.NUGET_API_KEY }} \
             --source "https://api.nuget.org/v3/index.json" \
             --skip-duplicate
 
