@@ -21,7 +21,7 @@ runs:
       run: |
         SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
         PREVIEW_VERSION="0.1.0-preview.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
-        PR_VERSION="0.1.0-${{ github.event.pull_request.number }}.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
+        PR_VERSION="0.1.0-pr.${{ github.event.pull_request.number }}.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
         
         RELEASE_VERSION="0.1.0"
         echo "preview=$PREVIEW_VERSION" >> $GITHUB_OUTPUT
