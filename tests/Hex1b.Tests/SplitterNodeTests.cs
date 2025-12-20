@@ -505,8 +505,9 @@ public class SplitterNodeTests
         // Use FocusRing for focus navigation
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
 
         // Focus moves from left button to splitter itself
         Assert.False(leftButton.IsFocused);
@@ -527,8 +528,9 @@ public class SplitterNodeTests
         // Use FocusRing for focus navigation
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState2 = new InputRouterState();
 
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2);
 
         // Focus moves from right button to splitter
         Assert.False(rightButton.IsFocused);
@@ -549,8 +551,9 @@ public class SplitterNodeTests
         // Use FocusRing for focus navigation
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
 
         // Focus wraps from right button to left button
         Assert.True(leftButton.IsFocused);
@@ -600,9 +603,10 @@ public class SplitterNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
         focusRing.EnsureFocus();
+        var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
@@ -627,11 +631,12 @@ public class SplitterNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
         focusRing.EnsureFocus();
+        var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), focusRing);
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.B, 'b', Hex1bModifiers.None), focusRing);
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.C, 'c', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), focusRing, routerState);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.B, 'b', Hex1bModifiers.None), focusRing, routerState);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.C, 'c', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal("abc", textBoxState.Text);
     }

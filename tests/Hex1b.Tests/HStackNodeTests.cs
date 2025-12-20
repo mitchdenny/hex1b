@@ -202,8 +202,9 @@ public class HStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(button1.IsFocused);
@@ -223,9 +224,10 @@ public class HStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState2 = new InputRouterState();
 
         // Shift-tab from button1 should wrap to button2
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2);
 
         Assert.False(button1.IsFocused);
         Assert.True(button2.IsFocused);
@@ -241,9 +243,10 @@ public class HStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.True(clicked);
     }

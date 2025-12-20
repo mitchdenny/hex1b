@@ -24,8 +24,8 @@ public static class InputBindingExtensions
     ///     // At breakpoint here, bindings.Bindings shows all defaults
     ///     
     ///     // Add a chord binding
-    ///     bindings.Ctrl().Key(Hex1bKey.B)
-    ///         .Then().Shift().Key(Hex1bKey.D5)
+    ///     bindings.Ctrl().Key(Hex1bKey.K)
+    ///         .Then().Key(Hex1bKey.C)
     ///         .Action(() => DoSomething());
     ///     
     ///     // Override a default

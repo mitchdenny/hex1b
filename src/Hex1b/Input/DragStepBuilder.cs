@@ -17,28 +17,29 @@ public sealed class DragStepBuilder
 
     /// <summary>
     /// Requires Ctrl modifier.
+    /// Cannot be combined with Shift modifier.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if Shift modifier is already set.</exception>
     public DragStepBuilder Ctrl()
     {
+        if ((_modifiers & Hex1bModifiers.Shift) != 0)
+            throw new InvalidOperationException("Cannot combine Ctrl and Shift modifiers. Use either Ctrl or Shift, but not both.");
+        
         _modifiers |= Hex1bModifiers.Control;
         return this;
     }
 
     /// <summary>
     /// Requires Shift modifier.
+    /// Cannot be combined with Ctrl modifier.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if Ctrl modifier is already set.</exception>
     public DragStepBuilder Shift()
     {
+        if ((_modifiers & Hex1bModifiers.Control) != 0)
+            throw new InvalidOperationException("Cannot combine Ctrl and Shift modifiers. Use either Ctrl or Shift, but not both.");
+        
         _modifiers |= Hex1bModifiers.Shift;
-        return this;
-    }
-
-    /// <summary>
-    /// Requires Alt modifier.
-    /// </summary>
-    public DragStepBuilder Alt()
-    {
-        _modifiers |= Hex1bModifiers.Alt;
         return this;
     }
 

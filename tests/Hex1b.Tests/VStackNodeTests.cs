@@ -205,8 +205,9 @@ public class VStackNodeTests
         // Use FocusRing for focus navigation (the new pattern)
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(textBox1.IsFocused);
@@ -226,9 +227,10 @@ public class VStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState2 = new InputRouterState();
 
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2);
 
         Assert.True(textBox1.IsFocused);
         Assert.False(textBox2.IsFocused);
@@ -244,9 +246,10 @@ public class VStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal("helloX", textBox.Text);
     }
@@ -264,9 +267,10 @@ public class VStackNodeTests
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
+        var routerState2 = new InputRouterState();
 
         // button2 starts focused at index 1, one Tab wraps to index 0
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState2);
 
         Assert.True(button1.IsFocused);
         Assert.False(button2.IsFocused);

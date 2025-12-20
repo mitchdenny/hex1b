@@ -6,31 +6,6 @@ namespace Hex1b.Input;
 public static class InputRouter
 {
     /// <summary>
-    /// Current chord state - the trie node we're in mid-chord, if any.
-    /// </summary>
-    private static ChordTrie? _chordNode;
-    
-    /// <summary>
-    /// The path when the chord started (to detect focus changes).
-    /// </summary>
-    private static List<Hex1bNode>? _chordAnchorPath;
-    
-    /// <summary>
-    /// The layer index of the chord (which node in the path owns the chord).
-    /// </summary>
-    private static int _chordLayerIndex = -1;
-    
-    /// <summary>
-    /// Gets whether we're currently mid-chord.
-    /// </summary>
-    public static bool IsInChord => _chordNode != null;
-    
-    /// <summary>
-    /// Event raised when chord state changes (for UI feedback).
-    /// </summary>
-    public static event Action? OnChordStateChanged;
-
-    /// <summary>
     /// Routes a key event through the node tree using layered chord tries.
     /// 
     /// Algorithm:
@@ -45,7 +20,8 @@ public static class InputRouter
     public static async Task<InputResult> RouteInputAsync(
         Hex1bNode root, 
         Hex1bKeyEvent keyEvent, 
-        FocusRing focusRing, 
+        FocusRing focusRing,
+        InputRouterState state,
         Action? requestStop = null,
         CancellationToken cancellationToken = default)
     {
@@ -57,27 +33,27 @@ public static class InputRouter
         if (path.Count == 0)
         {
             // No focused node found, nothing to route to
-            ResetChordState();
+            state.Reset();
             return InputResult.NotHandled;
         }
 
         // Escape always cancels pending chord
-        if (keyEvent.Key == Hex1bKey.Escape && _chordNode != null)
+        if (keyEvent.Key == Hex1bKey.Escape && state.ChordNode != null)
         {
-            ResetChordState();
+            state.Reset();
             return InputResult.Handled;
         }
 
         // If mid-chord but focus changed, cancel the chord
-        if (_chordNode != null && !PathsMatch(_chordAnchorPath, path))
+        if (state.ChordNode != null && !PathsMatch(state.ChordAnchorPath, path))
         {
-            ResetChordState();
+            state.Reset();
         }
 
         // If mid-chord, continue from the anchored layer
-        if (_chordNode != null)
+        if (state.ChordNode != null)
         {
-            return await ContinueChordAsync(keyEvent, path, actionContext);
+            return await ContinueChordAsync(keyEvent, path, actionContext, state);
         }
 
         // Build layers: focused first (index 0), root last
@@ -100,17 +76,17 @@ public static class InputRouter
                     {
                         // Leaf node - execute and done
                         await result.ExecuteAsync(actionContext);
-                        ResetChordState();
+                        state.Reset();
                         return InputResult.Handled;
                     }
                     
                     if (result.HasChildren)
                     {
                         // Internal node - start a chord, anchor to this layer
-                        _chordNode = result.Node;
-                        _chordAnchorPath = path;
-                        _chordLayerIndex = i;
-                        OnChordStateChanged?.Invoke();
+                        state.ChordNode = result.Node;
+                        state.ChordAnchorPath = path;
+                        state.ChordLayerIndex = i;
+                        state.NotifyChordStateChanged();
                         return InputResult.Handled;  // waiting for more keys
                     }
                 }
@@ -125,46 +101,42 @@ public static class InputRouter
         }
 
         // No binding matched, let the focused node handle the input directly
-        var focusedNode = path[^1];
-        var inputResult = focusedNode.HandleInput(keyEvent);
-        if (inputResult == InputResult.Handled)
+        // Only call HandleInput on nodes that are actually focused
+        var lastNode = path[^1];
+        if (lastNode.IsFocusable && lastNode.IsFocused)
         {
-            return inputResult;
-        }
-
-        // Focused node didn't handle it, bubble UP to container nodes
-        for (int i = path.Count - 2; i >= 0; i--)
-        {
-            inputResult = path[i].HandleInput(keyEvent);
+            var inputResult = lastNode.HandleInput(keyEvent);
             if (inputResult == InputResult.Handled)
             {
                 return inputResult;
+            }
+
+            // Focused node didn't handle it, bubble UP to container nodes
+            for (int i = path.Count - 2; i >= 0; i--)
+            {
+                inputResult = path[i].HandleInput(keyEvent);
+                if (inputResult == InputResult.Handled)
+                {
+                    return inputResult;
+                }
             }
         }
 
         return InputResult.NotHandled;
     }
     
-    /// <summary>
-    /// Routes a key event through the node tree (legacy overload without FocusRing).
-    /// Creates an empty focus ring for backward compatibility.
-    /// </summary>
-    [Obsolete("Use RouteInputAsync(root, keyEvent, focusRing, requestStop) for full functionality.")]
-    public static Task<InputResult> RouteInputAsync(Hex1bNode root, Hex1bKeyEvent keyEvent)
+    private static async Task<InputResult> ContinueChordAsync(
+        Hex1bKeyEvent keyEvent, 
+        List<Hex1bNode> path, 
+        InputBindingActionContext actionContext,
+        InputRouterState state)
     {
-        var focusRing = new FocusRing();
-        focusRing.Rebuild(root);
-        return RouteInputAsync(root, keyEvent, focusRing, null);
-    }
-    
-    private static async Task<InputResult> ContinueChordAsync(Hex1bKeyEvent keyEvent, List<Hex1bNode> path, InputBindingActionContext actionContext)
-    {
-        var result = _chordNode!.Lookup(keyEvent);
+        var result = state.ChordNode!.Lookup(keyEvent);
         
         if (result.IsNoMatch)
         {
             // Chord failed - no match for this key
-            ResetChordState();
+            state.Reset();
             return InputResult.Handled;  // swallow the key
         }
         
@@ -172,15 +144,15 @@ public static class InputRouter
         {
             // Chord completed - execute
             await result.ExecuteAsync(actionContext);
-            ResetChordState();
+            state.Reset();
             return InputResult.Handled;
         }
         
         if (result.HasChildren)
         {
             // Chord continues
-            _chordNode = result.Node;
-            OnChordStateChanged?.Invoke();
+            state.ChordNode = result.Node;
+            state.NotifyChordStateChanged();
             return InputResult.Handled;
         }
         
@@ -189,23 +161,11 @@ public static class InputRouter
         if (result.HasAction)
         {
             await result.ExecuteAsync(actionContext);
-            ResetChordState();
+            state.Reset();
             return InputResult.Handled;
         }
         
         return InputResult.NotHandled;
-    }
-    
-    private static void ResetChordState()
-    {
-        var wasInChord = _chordNode != null;
-        _chordNode = null;
-        _chordAnchorPath = null;
-        _chordLayerIndex = -1;
-        if (wasInChord)
-        {
-            OnChordStateChanged?.Invoke();
-        }
     }
     
     private static bool PathsMatch(List<Hex1bNode>? a, List<Hex1bNode>? b)
@@ -301,15 +261,25 @@ public static class InputRouter
 
     /// <summary>
     /// Builds a path from the root node to the currently focused node.
-    /// Returns empty list if no focused node is found.
+    /// If no focused node is found, builds a path that includes all nodes with bindings.
+    /// Returns empty list only if the tree is empty.
     /// </summary>
     private static List<Hex1bNode> BuildPathToFocused(Hex1bNode root)
     {
         var path = new List<Hex1bNode>();
         if (!BuildPathRecursive(root, path))
         {
-            // When no focused node exists, fall back to routing through the root
-            path.Add(root);
+            // When no focused node exists, build a path that includes all nodes with bindings.
+            // This ensures that bindings on non-focusable nodes (like VStack with user bindings)
+            // are still checked during input routing.
+            path.Clear();
+            BuildPathWithBindings(root, path);
+            
+            // Fallback to just root if we didn't find any nodes with bindings
+            if (path.Count == 0)
+            {
+                path.Add(root);
+            }
         }
         return path;
     }
@@ -336,5 +306,24 @@ public static class InputRouter
         // No focused node found in this subtree, backtrack
         path.RemoveAt(path.Count - 1);
         return false;
+    }
+    
+    /// <summary>
+    /// Builds a path that includes all nodes with bindings (when no focused node exists).
+    /// This traverses the deepest path and includes all nodes along the way.
+    /// </summary>
+    private static void BuildPathWithBindings(Hex1bNode node, List<Hex1bNode> path)
+    {
+        // Always include this node in the path - we want to check bindings on all nodes
+        // from root to the deepest leaf, not just nodes that explicitly have bindings.
+        // This matches the behavior when a focused node exists (entire path is checked).
+        path.Add(node);
+        
+        // Traverse to first child (depth-first) to build a path through the tree
+        var children = node.GetChildren().ToList();
+        if (children.Count > 0)
+        {
+            BuildPathWithBindings(children[0], path);
+        }
     }
 }

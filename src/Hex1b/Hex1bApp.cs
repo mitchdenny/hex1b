@@ -43,6 +43,7 @@ public class Hex1bApp : IDisposable
     private readonly bool _ownsTerminal;
     private readonly RootContext _rootContext = new();
     private readonly FocusRing _focusRing = new();
+    private readonly InputRouterState _inputRouterState = new();
     private Hex1bNode? _rootNode;
     
     // Mouse tracking
@@ -212,7 +213,7 @@ public class Hex1bApp : IDisposable
                         // Key events are routed to the focused node through the tree
                         case Hex1bKeyEvent keyEvent when _rootNode != null:
                             // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, RequestStop, cancellationToken);
+                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
                             break;
                         
                         // Mouse events: update cursor position and handle clicks/drags

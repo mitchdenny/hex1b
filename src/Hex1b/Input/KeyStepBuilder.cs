@@ -18,28 +18,29 @@ public sealed class KeyStepBuilder
 
     /// <summary>
     /// Adds Ctrl modifier to the current step.
+    /// Cannot be combined with Shift modifier.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if Shift modifier is already set.</exception>
     public KeyStepBuilder Ctrl()
     {
+        if ((_currentModifiers & Hex1bModifiers.Shift) != 0)
+            throw new InvalidOperationException("Cannot combine Ctrl and Shift modifiers. Use either Ctrl+Key or Shift+Key, but not both.");
+        
         _currentModifiers |= Hex1bModifiers.Control;
         return this;
     }
 
     /// <summary>
     /// Adds Shift modifier to the current step.
+    /// Cannot be combined with Ctrl modifier.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if Ctrl modifier is already set.</exception>
     public KeyStepBuilder Shift()
     {
+        if ((_currentModifiers & Hex1bModifiers.Control) != 0)
+            throw new InvalidOperationException("Cannot combine Ctrl and Shift modifiers. Use either Ctrl+Key or Shift+Key, but not both.");
+        
         _currentModifiers |= Hex1bModifiers.Shift;
-        return this;
-    }
-
-    /// <summary>
-    /// Adds Alt modifier to the current step.
-    /// </summary>
-    public KeyStepBuilder Alt()
-    {
-        _currentModifiers |= Hex1bModifiers.Alt;
         return this;
     }
 

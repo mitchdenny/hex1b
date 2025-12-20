@@ -55,7 +55,7 @@ await app.RunAsync();
 
 ### Counter with Custom Key Bindings
 
-A counter controlled with custom keyboard shortcuts (Ctrl+Shift+A to increment, Ctrl+Shift+D to decrement):
+A counter controlled with custom keyboard shortcuts (Ctrl+A to increment, Ctrl+D to decrement):
 
 ```csharp
 using Hex1b;
@@ -67,13 +67,13 @@ using var app = new Hex1bApp(ctx =>
     ctx.VStack(b => [
         b.Text($"Count: {count}"),
         b.Text(""),
-        b.Text("Ctrl+Shift+A: Increment"),
-        b.Text("Ctrl+Shift+D: Decrement"),
+        b.Text("Ctrl+A: Increment"),
+        b.Text("Ctrl+D: Decrement"),
         b.Text("Ctrl+Q: Quit")
     ]).WithInputBindings(bindings =>
     {
-        bindings.Ctrl().Shift().Key(Hex1bKey.A).Action(() => count++, "Increment counter");
-        bindings.Ctrl().Shift().Key(Hex1bKey.D).Action(() => count--, "Decrement counter");
+        bindings.Ctrl().Key(Hex1bKey.A).Action(() => count++, "Increment counter");
+        bindings.Ctrl().Key(Hex1bKey.D).Action(() => count--, "Decrement counter");
         bindings.Ctrl().Key(Hex1bKey.Q).Action(ctx => ctx.RequestStop(), "Quit");
     })
 );
@@ -123,13 +123,13 @@ widget.WithInputBindings(bindings =>
     // Simple key
     bindings.Key(Hex1bKey.Delete).Action(() => DeleteItem());
     
-    // Modifier combinations
+    // Modifier keys (Ctrl or Shift, but not both)
     bindings.Ctrl().Key(Hex1bKey.S).Action(() => Save(), "Save");
-    bindings.Ctrl().Shift().Key(Hex1bKey.Z).Action(() => Redo(), "Redo");
+    bindings.Shift().Key(Hex1bKey.Tab).Action(() => FocusPrevious(), "Previous");
     
     // Multi-step chords
     bindings.Ctrl().Key(Hex1bKey.K)
-        .Then().Ctrl().Key(Hex1bKey.C)
+        .Then().Key(Hex1bKey.C)
         .Action(() => CommentLine(), "Comment line");
 });
 ```

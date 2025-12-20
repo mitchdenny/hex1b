@@ -78,10 +78,10 @@ public class MouseBindingTests
     {
         var builder = new InputBindingsBuilder();
         
-        builder.Mouse(MouseButton.Left).Ctrl().Shift().Action(_ => Task.CompletedTask, "Ctrl+Shift+Click");
+        builder.Mouse(MouseButton.Left).Ctrl().Action(_ => Task.CompletedTask, "Ctrl+Click");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, binding.Modifiers);
+        Assert.Equal(Hex1bModifiers.Control, binding.Modifiers);
     }
     
     [Fact]

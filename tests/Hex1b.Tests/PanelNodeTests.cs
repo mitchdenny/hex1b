@@ -202,9 +202,10 @@ public class PanelNodeTests
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
         focusRing.EnsureFocus();
+        var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.True(clicked);
