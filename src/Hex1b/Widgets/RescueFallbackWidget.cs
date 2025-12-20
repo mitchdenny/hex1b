@@ -4,21 +4,6 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// An action that can be taken from the rescue fallback screen.
-/// </summary>
-/// <param name="Label">The button label displayed to the user.</param>
-/// <param name="Action">The callback to execute when the action is triggered.</param>
-public sealed record RescueAction(string Label, Action Action);
-
-/// <summary>
-/// State for the RescueFallbackWidget scroll position.
-/// </summary>
-public sealed class RescueFallbackState
-{
-    public ScrollState ScrollState { get; } = new();
-}
-
-/// <summary>
 /// A fallback widget that renders error information with hardcoded styling,
 /// bypassing the theme system to avoid cascading failures when theming itself has errors.
 /// This widget composes real widgets (Button, Scroll, VStack, Border) so that
@@ -185,35 +170,4 @@ public sealed record RescueFallbackWidget(
     }
 
     internal override Type GetExpectedNodeType() => typeof(RescueFallbackContainerNode);
-}
-
-/// <summary>
-/// A button widget with rescue-specific styling.
-/// </summary>
-internal sealed record RescueButtonWidget(string Label, Action ClickAction) : Hex1bWidget
-{
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
-    {
-        var node = existingNode as RescueButtonNode ?? new RescueButtonNode();
-        node.Label = Label;
-        node.ClickAction = ClickAction;
-        return node;
-    }
-
-    internal override Type GetExpectedNodeType() => typeof(RescueButtonNode);
-}
-
-/// <summary>
-/// A border widget with rescue-specific styling (hardcoded colors).
-/// </summary>
-internal sealed record RescueBorderWidget(Hex1bWidget Child) : Hex1bWidget
-{
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
-    {
-        var node = existingNode as RescueBorderNode ?? new RescueBorderNode();
-        node.Child = context.ReconcileChild(node.Child, Child, node);
-        return node;
-    }
-
-    internal override Type GetExpectedNodeType() => typeof(RescueBorderNode);
 }

@@ -3,22 +3,6 @@ using Hex1b.Nodes;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// The axis along which content is laid out.
-/// </summary>
-public enum LayoutAxis
-{
-    /// <summary>
-    /// Content is laid out horizontally (HStack direction).
-    /// </summary>
-    Horizontal,
-    
-    /// <summary>
-    /// Content is laid out vertically (VStack direction).
-    /// </summary>
-    Vertical
-}
-
-/// <summary>
 /// A separator widget that draws a horizontal or vertical line.
 /// When placed in a VStack, it draws a horizontal line.
 /// When placed in an HStack, it draws a vertical line.

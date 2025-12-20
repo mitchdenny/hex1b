@@ -6,14 +6,6 @@ using Hex1b.Theming;
 namespace Hex1b;
 
 /// <summary>
-/// Represents a single cell in the virtual terminal screen buffer.
-/// </summary>
-public readonly record struct TerminalCell(char Character, Hex1bColor? Foreground, Hex1bColor? Background)
-{
-    public static readonly TerminalCell Empty = new(' ', null, null);
-}
-
-/// <summary>
 /// A virtual terminal emulator that captures all output to an in-memory screen buffer
 /// and allows programmatic injection of input events. Useful for testing TUI applications
 /// and for scenarios like screen recording, remote terminals, or headless operation.

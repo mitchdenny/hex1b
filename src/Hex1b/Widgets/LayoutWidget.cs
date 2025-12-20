@@ -1,4 +1,3 @@
-using Hex1b.Layout;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -18,22 +17,4 @@ public sealed record LayoutWidget(Hex1bWidget Child, ClipMode ClipMode = ClipMod
     }
 
     internal override Type GetExpectedNodeType() => typeof(LayoutNode);
-}
-
-/// <summary>
-/// Determines how content that exceeds bounds is handled.
-/// </summary>
-public enum ClipMode
-{
-    /// <summary>
-    /// Content that exceeds bounds is not rendered.
-    /// </summary>
-    Clip,
-    
-    /// <summary>
-    /// Content is allowed to overflow (no clipping).
-    /// </summary>
-    Overflow,
-    
-    // Future: Wrap, Scroll, Ellipsis, etc.
 }
