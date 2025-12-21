@@ -31,6 +31,7 @@ public sealed class Hex1bTerminalCore : IHex1bAppTerminalWorkloadAdapter, IDispo
     private readonly CancellationTokenSource _disposeCts = new();
     private bool _disposed;
     private bool _inTuiMode;
+    private Task? _inputProcessingTask;
 
     /// <summary>
     /// Creates a new terminal core with the specified presentation adapter.
@@ -100,6 +101,12 @@ public sealed class Hex1bTerminalCore : IHex1bAppTerminalWorkloadAdapter, IDispo
         if (_inTuiMode) return;
         _inTuiMode = true;
         _presentation.EnterTuiModeAsync().AsTask().GetAwaiter().GetResult();
+        
+        // Start the input processing loop (reads from presentation and writes to InputEvents channel)
+        if (_inputProcessingTask == null)
+        {
+            _inputProcessingTask = Task.Run(() => ProcessInputAsync(_disposeCts.Token));
+        }
     }
 
     /// <inheritdoc />
