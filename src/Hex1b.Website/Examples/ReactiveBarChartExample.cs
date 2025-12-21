@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Hex1b;
+using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
@@ -95,7 +96,7 @@ public class ReactiveBarChartExample(ILogger<ReactiveBarChartExample> logger) : 
         }
     }
 
-    public override async Task RunAsync(IHex1bTerminal terminal, CancellationToken cancellationToken)
+    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting reactive bar chart example");
 
@@ -106,7 +107,7 @@ public class ReactiveBarChartExample(ILogger<ReactiveBarChartExample> logger) : 
             ctx => BuildChart(ctx, state),
             new Hex1bAppOptions 
             { 
-                Terminal = terminal,
+                WorkloadAdapter = workloadAdapter,
                 Theme = Hex1bThemes.Ocean
             }
         );

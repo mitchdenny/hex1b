@@ -113,7 +113,7 @@ public class TextBoxNodeTests
     public void Render_Unfocused_ShowsBrackets()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "test",
@@ -121,6 +121,7 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("[test]", terminal.GetLineTrimmed(0));
     }
@@ -129,7 +130,7 @@ public class TextBoxNodeTests
     public void Render_Unfocused_EmptyText_ShowsEmptyBrackets()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "",
@@ -137,6 +138,7 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("[]", terminal.GetLineTrimmed(0));
     }
@@ -145,7 +147,7 @@ public class TextBoxNodeTests
     public void Render_Unfocused_LongText_RendersCompletely()
     {
         using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "This is a longer piece of text",
@@ -153,6 +155,7 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("[This is a longer piece of text]", terminal.GetLineTrimmed(0));
     }
@@ -165,7 +168,7 @@ public class TextBoxNodeTests
     public void Render_Focused_ShowsCursor()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "abc",
@@ -174,6 +177,7 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 1;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // When focused, the cursor character should be highlighted with ANSI codes
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -187,7 +191,7 @@ public class TextBoxNodeTests
     public void Render_Focused_CursorAtStart_HighlightsFirstChar()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "hello",
@@ -196,6 +200,7 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should have ANSI codes for cursor highlighting
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -206,7 +211,7 @@ public class TextBoxNodeTests
     public void Render_Focused_CursorAtEnd_ShowsCursorSpace()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "test",
@@ -215,6 +220,7 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 4;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // When cursor is at end, a space is shown as cursor placeholder
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -224,7 +230,7 @@ public class TextBoxNodeTests
     public void Render_Focused_EmptyText_ShowsCursorSpace()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode
         {
             Text = "",
@@ -233,6 +239,7 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should still have the brackets and ANSI codes for cursor
         Assert.Contains("[", terminal.GetLineTrimmed(0));
@@ -248,12 +255,13 @@ public class TextBoxNodeTests
     public void Render_WithSelection_HighlightsSelectedText()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
         node.State.SelectionAnchor = 0;
         node.State.CursorPosition = 5;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should have ANSI codes for selection highlighting
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -266,12 +274,13 @@ public class TextBoxNodeTests
     public void Render_WithSelection_InMiddle_HighlightsCorrectPortion()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBoxNode { Text = "abcdefgh", IsFocused = true };
         node.State.SelectionAnchor = 2;
         node.State.CursorPosition = 5;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should contain the full text
         Assert.Contains("abcdefgh", terminal.GetLineTrimmed(0));
@@ -588,11 +597,12 @@ public class TextBoxNodeTests
                     v.TextBox("Initial Text")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Initial Text"));
     }
@@ -609,7 +619,7 @@ public class TextBoxNodeTests
                     v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.H, 'H', shift: true);
@@ -636,7 +646,7 @@ public class TextBoxNodeTests
                     v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.End, '\0');
@@ -662,7 +672,7 @@ public class TextBoxNodeTests
                     v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type in first box
@@ -693,7 +703,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.End, '\0');
@@ -718,7 +728,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Go to start, then right, then insert
@@ -744,7 +754,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Oem4, '@');
@@ -768,11 +778,12 @@ public class TextBoxNodeTests
                     v.TextBox("LongTextHere")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // The text box renders as "[LongTextHere]" which is 14 chars
         // In a 10-char wide terminal, it will wrap
@@ -797,7 +808,7 @@ public class TextBoxNodeTests
                     v.TextBox()  // No state argument - internally managed
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type some text
@@ -809,6 +820,7 @@ public class TextBoxNodeTests
         terminal.CompleteInput();
 
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // The typed text should be visible in the terminal output
         Assert.True(terminal.ContainsText("Hello"));
@@ -827,7 +839,7 @@ public class TextBoxNodeTests
                     v.TextBox()   // Second textbox
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type in first box
@@ -841,6 +853,7 @@ public class TextBoxNodeTests
         terminal.CompleteInput();
 
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Both texts should be visible
         Assert.True(terminal.ContainsText("AA"));
@@ -860,7 +873,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.End, '\0');

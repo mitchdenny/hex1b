@@ -259,7 +259,7 @@ public class HStackNodeTests
     public void Render_RendersAllChildren()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new HStackNode
         {
@@ -273,6 +273,7 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Left", terminal.GetScreenText());
         Assert.Contains("Right", terminal.GetScreenText());
@@ -282,7 +283,7 @@ public class HStackNodeTests
     public void Render_ChildrenAppearOnSameLine()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new HStackNode
         {
@@ -297,6 +298,7 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("AAA", line);
@@ -308,7 +310,7 @@ public class HStackNodeTests
     public void Render_InNarrowTerminal_TextWraps()
     {
         using var terminal = new Hex1bTerminal(8, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new HStackNode
         {
@@ -322,6 +324,7 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(8, 10));
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Content wraps at terminal edge
         Assert.Contains("AAAA", terminal.GetLine(0));
@@ -344,11 +347,12 @@ public class HStackNodeTests
                     h.Text("Right")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left"));
         Assert.True(terminal.ContainsText("|"));
@@ -370,7 +374,7 @@ public class HStackNodeTests
                     h.Button("Btn2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab to second button and click
@@ -397,11 +401,12 @@ public class HStackNodeTests
                     h.Text("C")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("A"));
         Assert.True(terminal.ContainsText("B"));
@@ -426,11 +431,12 @@ public class HStackNodeTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left Top"));
         Assert.True(terminal.ContainsText("Left Bottom"));
@@ -453,7 +459,7 @@ public class HStackNodeTests
                     h.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type in textbox then tab to button and click
@@ -478,7 +484,7 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => Array.Empty<Hex1bWidget>())
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
@@ -500,11 +506,12 @@ public class HStackNodeTests
                     h.Text("AndAnother")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Content wraps at terminal boundary
         Assert.True(terminal.ContainsText("VeryLongWord"));
@@ -520,11 +527,12 @@ public class HStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => items.Select(item => h.Text($"[{item}]")).ToArray())
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("[A]"));
         Assert.True(terminal.ContainsText("[B]"));
@@ -550,7 +558,7 @@ public class HStackNodeTests
                     h.VStack(v => [v.Text("Actions"), v.Button("Add").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })])
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
@@ -577,7 +585,7 @@ public class HStackNodeTests
                     v.Button("Button 2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Button 1 starts focused
@@ -617,7 +625,7 @@ public class HStackNodeTests
                     h.Button("Other").OnClick(_ => { otherButtonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // List button starts focused
@@ -654,7 +662,7 @@ public class HStackNodeTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // List button starts focused

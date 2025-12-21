@@ -13,7 +13,7 @@ public class PanelNodeTests
 {
     private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
     {
-        return new Hex1bRenderContext(terminal);
+        return new Hex1bRenderContext(terminal.WorkloadAdapter);
     }
 
     [Fact]
@@ -90,6 +90,7 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Panel Content", terminal.GetScreenText());
     }
@@ -100,7 +101,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.BackgroundColor, Hex1bColor.Blue);
-        var context = new Hex1bRenderContext(terminal, theme);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
 
         var node = new PanelNode
         {
@@ -110,6 +111,7 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should contain background color ANSI escape code
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -121,7 +123,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.ForegroundColor, Hex1bColor.Green);
-        var context = new Hex1bRenderContext(terminal, theme);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
 
         var node = new PanelNode
         {
@@ -131,6 +133,7 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should contain foreground color ANSI escape code
         Assert.Contains("\x1b[38;2;", terminal.RawOutput);
@@ -150,6 +153,7 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Content", terminal.GetScreenText());
     }
@@ -253,7 +257,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(30, 10);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.BackgroundColor, Hex1bColor.DarkGray);
-        var context = new Hex1bRenderContext(terminal, theme);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
 
         var node = new BorderNode
         {
@@ -267,6 +271,7 @@ public class PanelNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Box", screenText);
@@ -285,11 +290,12 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Panel Content"))
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Panel Content", terminal.RawOutput);
     }
@@ -307,11 +313,12 @@ public class PanelNodeTests
                     v.Text("Line 3")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Line 1", terminal.RawOutput);
         Assert.Contains("Line 2", terminal.RawOutput);
@@ -328,7 +335,7 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -348,7 +355,7 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.TextBox(text).OnTextChanged(args => text = args.NewText))
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.TypeText("Hello Panel");
@@ -367,11 +374,12 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Panel Inside Border", terminal.RawOutput);
         Assert.Contains("Container", terminal.RawOutput);
@@ -389,11 +397,12 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Themed"))
             ),
-            new Hex1bAppOptions { Terminal = terminal, Theme = theme }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, Theme = theme }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Should contain background color ANSI code
         Assert.Contains("\x1b[48;2;50;50;100m", terminal.RawOutput);
@@ -408,11 +417,12 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Deep Nested", terminal.RawOutput);
     }
@@ -430,11 +440,12 @@ public class PanelNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Header", terminal.RawOutput);
         Assert.Contains("Panel Content", terminal.RawOutput);
@@ -451,12 +462,13 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.List(items))
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);

@@ -1,3 +1,4 @@
+using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -8,11 +9,14 @@ namespace Hex1b;
 /// </summary>
 public class Hex1bAppOptions
 {
+    // === New way (preferred) ===
+    
     /// <summary>
-    /// The terminal implementation to use. If null, a ConsoleHex1bTerminal will be created.
+    /// Custom workload adapter. When set, the app uses this directly.
+    /// This is the preferred way to provide custom terminal infrastructure.
     /// </summary>
-    public IHex1bTerminal? Terminal { get; set; }
-
+    public IHex1bAppTerminalWorkloadAdapter? WorkloadAdapter { get; set; }
+    
     /// <summary>
     /// The theme to use for rendering. If null, the default theme will be used.
     /// </summary>
@@ -23,12 +27,6 @@ public class Hex1bAppOptions
     /// </summary>
     public Func<Hex1bTheme>? ThemeProvider { get; set; }
 
-    /// <summary>
-    /// Whether the app owns the terminal and should dispose it when done.
-    /// Defaults to true if Terminal is null (app creates its own terminal).
-    /// </summary>
-    public bool? OwnsTerminal { get; set; }
-    
     /// <summary>
     /// Whether to enable mouse support. When enabled, the terminal will track mouse
     /// movement and clicks, rendering a visible cursor at the mouse position.

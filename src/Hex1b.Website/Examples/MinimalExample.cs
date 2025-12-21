@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Terminal;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ public class MinimalExample(ILogger<MinimalExample> logger) : ReactiveExample
     public override string Title => "Hello World";
     public override string Description => "The most basic Hex1b application - a complete, runnable example.";
 
-    public override async Task RunAsync(IHex1bTerminal terminal, CancellationToken cancellationToken)
+    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting minimal example");
 
@@ -30,7 +31,7 @@ public class MinimalExample(ILogger<MinimalExample> logger) : ReactiveExample
                 v.Text($"Clicks: {clickCount}"),
                 v.Button("Click me").OnClick(_ => clickCount++)
             ]),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
         );
 
         await app.RunAsync(cancellationToken);

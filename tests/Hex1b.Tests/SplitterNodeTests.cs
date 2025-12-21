@@ -13,7 +13,7 @@ public class SplitterNodeTests
 {
     private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal, theme);
+        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
     }
 
     #region Measurement Tests
@@ -157,6 +157,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Default divider character is "│"
         Assert.Contains("│", terminal.RawOutput);
@@ -177,6 +178,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Left Pane Content", terminal.RawOutput);
     }
@@ -196,6 +198,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Right Pane Content", terminal.RawOutput);
     }
@@ -215,6 +218,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 5));
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Count occurrences of divider chars in raw output - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
@@ -245,6 +249,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Cyan is RGB(0, 255, 255)
         Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput);
@@ -267,6 +272,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("║", terminal.RawOutput);
     }
@@ -287,6 +293,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // When focused, should have background color on divider
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -658,11 +665,12 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Left Content", terminal.RawOutput);
         Assert.Contains("Right Content", terminal.RawOutput);
@@ -682,11 +690,12 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Left 1", terminal.RawOutput);
         Assert.Contains("Left 2", terminal.RawOutput);
@@ -708,7 +717,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Enter clicks the focused button
@@ -733,7 +742,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab through: left -> splitter -> right, then Enter
@@ -759,7 +768,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
@@ -767,6 +776,7 @@ public class SplitterNodeTests
         terminal.SendKey(ConsoleKey.LeftArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // The splitter would have received initial focus since Left is just text
         // So arrow keys should have resized it
@@ -789,13 +799,14 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Down arrow navigates the list
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);
@@ -815,7 +826,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.TypeText("Hello Splitter");
@@ -841,11 +852,12 @@ public class SplitterNodeTests
                     "Split View"
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Split View", terminal.RawOutput);
         Assert.Contains("Left", terminal.RawOutput);
@@ -1047,6 +1059,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Default horizontal divider character is "─"
         Assert.Contains("─", terminal.RawOutput);
@@ -1068,6 +1081,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Top Content", terminal.RawOutput);
     }
@@ -1088,6 +1102,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Bottom Content", terminal.RawOutput);
     }
@@ -1109,6 +1124,7 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // When focused, should have background color on divider
         Assert.Contains("\x1b[48;2;", terminal.RawOutput);
@@ -1263,11 +1279,12 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Top Content", terminal.RawOutput);
         Assert.Contains("Bottom Content", terminal.RawOutput);
@@ -1287,11 +1304,12 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Top 1", terminal.RawOutput);
         Assert.Contains("Top 2", terminal.RawOutput);
@@ -1313,7 +1331,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Enter clicks the focused button
@@ -1338,7 +1356,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab through: top -> splitter -> bottom, then Enter
@@ -1364,7 +1382,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Since first child is just text (not focusable), splitter gets focus
@@ -1373,6 +1391,7 @@ public class SplitterNodeTests
         terminal.SendKey(ConsoleKey.UpArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Top", terminal.RawOutput);
         Assert.Contains("Bottom", terminal.RawOutput);
@@ -1394,11 +1413,12 @@ public class SplitterNodeTests
                     "Vertical Split"
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Vertical Split", terminal.RawOutput);
         Assert.Contains("Top", terminal.RawOutput);
@@ -1423,11 +1443,12 @@ public class SplitterNodeTests
                     topHeight: 8
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Top-Left", terminal.RawOutput);
         Assert.Contains("Top-Right", terminal.RawOutput);
@@ -1461,7 +1482,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // List starts focused, Tab should move through: List -> Splitter -> Right Button
@@ -1494,7 +1515,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Focus order: First -> Second -> Splitter -> Right
@@ -1526,7 +1547,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Navigate to Right Button first
@@ -1574,7 +1595,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // List is focused initially, Tab should navigate to Splitter, then to Button
@@ -1788,7 +1809,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Just press Enter - should click the focused button
@@ -1820,7 +1841,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -1855,7 +1876,7 @@ public class SplitterNodeTests
                     leftWidth: 18
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');

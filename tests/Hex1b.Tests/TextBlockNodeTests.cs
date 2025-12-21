@@ -159,10 +159,11 @@ public class TextBlockNodeTests
     public void Render_WritesTextToTerminal()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBlockNode { Text = "Hello World" };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
     }
@@ -171,10 +172,11 @@ public class TextBlockNodeTests
     public void Render_EmptyText_WritesNothing()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBlockNode { Text = "" };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Equal("", terminal.GetLineTrimmed(0));
     }
@@ -183,10 +185,11 @@ public class TextBlockNodeTests
     public void Render_SpecialCharacters_RendersCorrectly()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBlockNode { Text = "Hello → World ← Test" };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Equal("Hello → World ← Test", terminal.GetLineTrimmed(0));
     }
@@ -196,10 +199,11 @@ public class TextBlockNodeTests
     {
         // Terminal is only 10 chars wide - text will wrap/truncate at terminal boundary
         using var terminal = new Hex1bTerminal(10, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBlockNode { Text = "This is a long text" };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // The first line should contain the first 10 characters
         Assert.Equal("This is a ", terminal.GetLine(0));
@@ -211,11 +215,12 @@ public class TextBlockNodeTests
     public void Render_AtSpecificPosition_WritesAtCursorPosition()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new TextBlockNode { Text = "Positioned" };
 
         context.SetCursorPosition(5, 3);
         node.Render(context);
+        terminal.FlushOutput();
 
         // Check that text appears at the right position
         var line = terminal.GetLine(3);
@@ -226,11 +231,12 @@ public class TextBlockNodeTests
     public void Render_VeryLongText_WrapsAtTerminalEdge()
     {
         using var terminal = new Hex1bTerminal(20, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var longText = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         var node = new TextBlockNode { Text = longText };
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // First 20 chars on line 0
         Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.GetLine(0));
@@ -246,7 +252,7 @@ public class TextBlockNodeTests
     public void Render_WithLayoutProvider_ClipsToClipRect()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         // Create a LayoutNode that will clip to a 10-char wide region
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -262,6 +268,7 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Text should be clipped to 10 characters
         Assert.Equal("Hello Worl", terminal.GetLineTrimmed(0));
@@ -271,7 +278,7 @@ public class TextBlockNodeTests
     public void Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         // Layout clips from x=5 to x=15 (width 10)
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -286,6 +293,7 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 26, 1));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
         var line = terminal.GetLine(0);
@@ -296,7 +304,7 @@ public class TextBlockNodeTests
     public void Render_WithLayoutProviderOverflow_DoesNotClip()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         // Layout with Overflow mode - should not clip
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -310,6 +318,7 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 20, 1));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Full text should appear (no clipping)
         Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
@@ -319,12 +328,13 @@ public class TextBlockNodeTests
     public void Render_WithoutLayoutProvider_DoesNotClip()
     {
         using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         // No layout provider
         var node = new TextBlockNode { Text = "Hello World" };
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Full text should appear
         Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
@@ -378,11 +388,12 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Integration Test"));
     }
@@ -400,11 +411,12 @@ public class TextBlockNodeTests
                     v.Text("Third Line")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("First Line"));
         Assert.True(terminal.ContainsText("Second Line"));
@@ -441,7 +453,7 @@ public class TextBlockNodeTests
                     ])
                 );
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Press Enter to trigger button (causes re-render)
@@ -449,6 +461,7 @@ public class TextBlockNodeTests
         terminal.CompleteInput();
 
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // After button press and re-render, counter should be 2
         Assert.True(terminal.ContainsText("Counter: 2"));
@@ -467,11 +480,12 @@ public class TextBlockNodeTests
                     v.Text("A longer text here")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // "Short" should fit on its line
         Assert.True(terminal.ContainsText("Short"));
@@ -489,11 +503,12 @@ public class TextBlockNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Text(message)
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Hello from State"));
     }
@@ -505,7 +520,7 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
@@ -522,11 +537,12 @@ public class TextBlockNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("日本語テスト"));
         Assert.True(terminal.ContainsText("🎉"));

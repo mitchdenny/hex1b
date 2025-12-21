@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Events;
+using Hex1b.Terminal;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
     public override string Title => "Todo List";
     public override string Description => "A simple todo list showing lists, input, and state management.";
 
-    public override async Task RunAsync(IHex1bTerminal terminal, CancellationToken cancellationToken)
+    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting todo example");
 
@@ -48,7 +49,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
                 b.List(Format()).OnItemActivated(e =>
                     items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
             ], title: "📋 Todo"),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
         );
 
         await app.RunAsync(cancellationToken);

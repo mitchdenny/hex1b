@@ -1,15 +1,16 @@
 using Hex1b.Nodes;
+using Hex1b.Terminal;
 using Hex1b.Theming;
 
 namespace Hex1b;
 
 public class Hex1bRenderContext
 {
-    private readonly IHex1bTerminalOutput _output;
+    private readonly IHex1bAppTerminalWorkloadAdapter _adapter;
 
-    public Hex1bRenderContext(IHex1bTerminalOutput output, Hex1bTheme? theme = null)
+    public Hex1bRenderContext(IHex1bAppTerminalWorkloadAdapter adapter, Hex1bTheme? theme = null)
     {
-        _output = output;
+        _adapter = adapter;
         Theme = theme ?? Hex1bThemes.Default;
     }
 
@@ -73,13 +74,13 @@ public class Hex1bRenderContext
         return result;
     }
 
-    public void EnterAlternateScreen() => _output.EnterAlternateScreen();
-    public void ExitAlternateScreen() => _output.ExitAlternateScreen();
-    public void Write(string text) => _output.Write(text);
-    public void Clear() => _output.Clear();
-    public void SetCursorPosition(int left, int top) => _output.SetCursorPosition(left, top);
-    public int Width => _output.Width;
-    public int Height => _output.Height;
+    public void EnterAlternateScreen() => _adapter.EnterTuiMode();
+    public void ExitAlternateScreen() => _adapter.ExitTuiMode();
+    public void Write(string text) => _adapter.Write(text);
+    public void Clear() => _adapter.Clear();
+    public void SetCursorPosition(int left, int top) => _adapter.SetCursorPosition(left, top);
+    public int Width => _adapter.Width;
+    public int Height => _adapter.Height;
     
     /// <summary>
     /// Writes text at the specified position, respecting the current layout provider's clipping.

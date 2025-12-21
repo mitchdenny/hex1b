@@ -77,13 +77,14 @@ public class RescueNodeTests
     public void RescueNode_NoError_RendersChild()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var child = new TextBlockNode { Text = "Hello" };
         var node = new RescueNode { Child = child };
         
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("Hello", terminal.RawOutput);
     }
@@ -137,7 +138,7 @@ public class RescueNodeTests
     public void RescueNode_RenderThrows_CapturesError()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnRender = true };
         var node = new RescueNode 
@@ -165,7 +166,7 @@ public class RescueNodeTests
     public void RescueNode_AfterError_RendersFallback()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -178,6 +179,7 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should show error message (new RescueFallbackWidget uses "UNHANDLED EXCEPTION")
         Assert.Contains("UNHANDLED EXCEPTION", terminal.RawOutput);
@@ -187,7 +189,7 @@ public class RescueNodeTests
     public void RescueNode_CustomFallback_UsesCustomBuilder()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         
@@ -204,6 +206,7 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should show custom error message
         Assert.Contains("Custom error: Test exception", terminal.RawOutput);
@@ -213,7 +216,7 @@ public class RescueNodeTests
     public void RescueNode_ShowDetailsTrue_IncludesStackTrace()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -226,6 +229,7 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should show stack trace in details mode
         Assert.Contains("Stack Trace", terminal.RawOutput);
@@ -235,7 +239,7 @@ public class RescueNodeTests
     public void RescueNode_ShowDetailsFalse_ShowsFriendlyMessage()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -248,6 +252,7 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should show friendly message without details
         Assert.Contains("Something went wrong", terminal.RawOutput);
@@ -364,7 +369,7 @@ public class RescueNodeTests
     public void RescueNode_AfterReset_ResumesNormalRendering()
     {
         using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var state = new RescueState();
         var throwOnce = new ThrowOnceNode();
         var node = new RescueNode 

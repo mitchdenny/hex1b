@@ -100,7 +100,7 @@ public class ToggleSwitchNodeTests
     public void Render_Unfocused_ShowsOptions()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -113,6 +113,7 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
+        terminal.FlushOutput();
 
         var line = terminal.GetLineTrimmed(0);
         Assert.Contains("A", line);
@@ -124,7 +125,7 @@ public class ToggleSwitchNodeTests
     public void Render_Focused_ContainsAnsiCodes()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -137,6 +138,7 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should contain ANSI escape codes for styling
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -147,8 +149,8 @@ public class ToggleSwitchNodeTests
     {
         using var focusedTerminal = new Hex1bTerminal(40, 5);
         using var unfocusedTerminal = new Hex1bTerminal(40, 5);
-        var focusedContext = new Hex1bRenderContext(focusedTerminal);
-        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal);
+        var focusedContext = new Hex1bRenderContext(focusedTerminal.WorkloadAdapter);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal.WorkloadAdapter);
 
         var focusedNode = new ToggleSwitchNode
         {
@@ -164,7 +166,9 @@ public class ToggleSwitchNodeTests
         unfocusedNode.Arrange(new Rect(0, 0, 40, 1));
 
         focusedNode.Render(focusedContext);
+        focusedTerminal.FlushOutput();
         unfocusedNode.Render(unfocusedContext);
+        unfocusedTerminal.FlushOutput();
 
         Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
     }
@@ -173,7 +177,7 @@ public class ToggleSwitchNodeTests
     public void Render_EmptyOptions_DoesNotThrow()
     {
         using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState { Options = [] },
@@ -455,11 +459,12 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Manual"));
         Assert.True(terminal.ContainsText("Auto"));
@@ -481,7 +486,7 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.RightArrow, '\0');
@@ -508,7 +513,7 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.RightArrow, '\0');
@@ -535,7 +540,7 @@ public class ToggleSwitchNodeTests
                     v.Button("Click").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Navigate right on toggle, then tab to button, then click
@@ -567,7 +572,7 @@ public class ToggleSwitchNodeTests
                         .OnSelectionChanged(args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.RightArrow, '\0');
