@@ -1,6 +1,6 @@
 # Hex1bTerminal Architecture Design
 
-> **Status**: In Progress (Phase 1 Complete)  
+> **Status**: Phase 2 Complete - Ready for Phase 3 (Legacy Removal)  
 > **Date**: December 2025  
 > **Author**: Design discussion between maintainer and AI assistant
 
@@ -105,62 +105,166 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
 
 ---
 
-### Phase 2d: Integration & Factory ⏳ NEXT
+### Phase 2d: Raw Console Mode Drivers ✅ COMPLETE
 
-**Goal**: Wire everything together with convenient factory methods.
+**Goal**: Implement platform-specific raw console drivers for proper mouse and input support.
 
-**Usage Pattern**:
-```csharp
-// New way to create a terminal
-var presentation = new LegacyConsolePresentationAdapter();
-var terminal = new Hex1bTerminalCore(presentation);
-var app = new Hex1bApp(builder, new Hex1bAppOptions 
-{ 
-    WorkloadAdapter = terminal 
-});
-```
+**Files Created**:
+- [Terminal/IConsoleDriver.cs](../src/Hex1b/Terminal/IConsoleDriver.cs) - Platform-specific driver interface
+- [Terminal/UnixConsoleDriver.cs](../src/Hex1b/Terminal/UnixConsoleDriver.cs) - Linux/macOS driver using termios
+- [Terminal/WindowsConsoleDriver.cs](../src/Hex1b/Terminal/WindowsConsoleDriver.cs) - Windows driver using ConPTY VT mode
+- [Terminal/ConsolePresentationAdapter.cs](../src/Hex1b/Terminal/ConsolePresentationAdapter.cs) - Presentation adapter using raw drivers
 
-**Factory Methods**:
-```csharp
-Hex1bTerminalCore.CreateConsole()
-Hex1bTerminalCore.CreateWebSocket(webSocket)
-```
+**Key Features**:
+- **UnixConsoleDriver**: Uses termios P/Invoke with direct `read()`/`write()` syscalls to FDs 0/1
+- **WindowsConsoleDriver**: Uses ConPTY VT mode (`ENABLE_VIRTUAL_TERMINAL_INPUT`) for native VT sequences
+- **poll()** for async-cancelable input reading with 100ms timeout loops
+- **Input draining** on exit to prevent leftover escape sequences
+- **SIGWINCH** handling for terminal resize on Unix
+
+**Validated**: Mouse and keyboard work correctly on Linux and Windows with the new drivers.
 
 ---
 
-### Phase 2e: Pipeline Layers ⏳ FUTURE
+### Phase 2e: Test Sample ✅ COMPLETE
 
-**Goal**: Add processing layers incrementally.
+**Goal**: Create comprehensive test sample to validate all controls work with new infrastructure.
+
+**Files Created**:
+- [samples/MouseTest/MouseTest.csproj](../samples/MouseTest/MouseTest.csproj) - Test sample project
+- [samples/MouseTest/Program.cs](../samples/MouseTest/Program.cs) - Comprehensive UI test
+
+**Sample Features**:
+- Splitter layout with scenario list on left, controls on right
+- Border with title wrapping the main content
+- InfoBar with keyboard shortcuts at bottom
+- All control types: Buttons, Counter, TextBox, Toggle, Tabs, List
+
+---
+
+### Phase 3: Remove Legacy Terminal Implementations ⏳ NEXT
+
+**Goal**: Remove `ConsoleHex1bTerminal`, `WebSocketHex1bTerminal`, and related legacy types.
+
+#### Step 3.1: Update Hex1bApp Default Path
+
+**File**: `src/Hex1b/Hex1bApp.cs`
+
+Change the default (no `WorkloadAdapter` provided) to use the new architecture:
+
+```csharp
+// OLD (remove):
+var terminal = new ConsoleHex1bTerminal(enableMouse: _mouseEnabled);
+_adapter = new LegacyHex1bAppTerminalWorkloadAdapter(terminal, ownsTerminal: true, enableMouse: _mouseEnabled);
+
+// NEW:
+var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
+var terminal = new Hex1bTerminalCore(presentation);
+_adapter = terminal;
+```
+
+#### Step 3.2: Remove Legacy Terminal Property
+
+**File**: `src/Hex1b/Hex1bAppOptions.cs`
+
+Remove the `Terminal` property (or mark as `[Obsolete]` with error):
+
+```csharp
+// DELETE or mark obsolete:
+[Obsolete("Use WorkloadAdapter instead", error: true)]
+public IHex1bTerminal? Terminal { get; set; }
+```
+
+#### Step 3.3: Remove LegacyHex1bAppTerminalWorkloadAdapter
+
+**File to delete**: `src/Hex1b/Terminal/LegacyHex1bAppTerminalWorkloadAdapter.cs`
+
+This adapter only exists to wrap `IHex1bTerminal`. Once we remove the legacy path, it's no longer needed.
+
+#### Step 3.4: Remove Legacy RenderContext Constructor
+
+**File**: `src/Hex1b/Hex1bRenderContext.cs`
+
+Remove the obsolete constructor and `LegacyOutputOnlyAdapter`:
+
+```csharp
+// DELETE:
+[Obsolete("Use the constructor that accepts IHex1bAppTerminalWorkloadAdapter instead.")]
+public Hex1bRenderContext(IHex1bTerminalOutput output, Hex1bTheme? theme = null)
+
+// DELETE:
+private sealed class LegacyOutputOnlyAdapter : IHex1bAppTerminalWorkloadAdapter { ... }
+```
+
+#### Step 3.5: Delete Legacy Terminal Files
+
+| File | Description |
+|------|-------------|
+| `src/Hex1b/IHex1bTerminal.cs` | Combined interface |
+| `src/Hex1b/IHex1bTerminalInput.cs` | Input interface |
+| `src/Hex1b/IHex1bTerminalOutput.cs` | Output interface |
+| `src/Hex1b/ConsoleHex1bTerminal.cs` | Legacy console terminal |
+| `src/Hex1b/WebSocketHex1bTerminal.cs` | Legacy WebSocket terminal |
+| `src/Hex1b/Hex1bTerminal.cs` | Legacy test terminal |
+
+#### Step 3.6: Update Tests
+
+**File to delete**: `tests/Hex1b.Tests/WebSocketHex1bTerminalTests.cs`
+
+**Files to update**:
+- Any test using `IHex1bTerminal` mock should use `IHex1bAppTerminalWorkloadAdapter` instead
+- Integration tests may need to use `Hex1bTerminalCore` with mock presentation adapter
+
+#### Step 3.7: Update Documentation
+
+| File | Change |
+|------|--------|
+| `AGENTS.md` | Update architecture description, remove `IHex1bTerminal` references |
+| `CONTRIBUTING.md` | Update testing guidance to use new interfaces |
+
+---
+
+### Phase 4: Pipeline Layers ⏳ FUTURE
+
+**Goal**: Add processing layers incrementally to Hex1bTerminalCore.
 
 **Layers to Implement**:
-1. ANSI parser layer
-2. Capability detection layer  
-3. Delta rendering layer
-4. Virtual device state
+1. **ANSI parser layer** - Centralized escape sequence parsing
+2. **Capability detection layer** - Probe terminal for supported features
+3. **Delta rendering layer** - Only send changed cells
+4. **Virtual device state** - Track cursor position, colors, etc.
 
 ---
 
-### Phase 3: Deprecate Legacy ⏳ FUTURE
+### Phase 5: Factory Methods ⏳ FUTURE
 
-**Goal**: Mark old types as obsolete once new terminal is stable.
+**Goal**: Add convenient factory methods for common scenarios.
 
-1. Mark `LegacyHex1bAppTerminalWorkloadAdapter` as obsolete
-2. Mark `IHex1bTerminal`, `ConsoleHex1bTerminal`, `WebSocketHex1bTerminal` as obsolete
-3. Eventually remove them
+```csharp
+// Console app
+await using var app = Hex1bApp.CreateConsole(builder, options);
+await app.RunAsync();
+
+// WebSocket (for web UI)
+await using var app = Hex1bApp.CreateWebSocket(webSocket, builder, options);
+await app.RunAsync();
+```
 
 ---
 
 ### Progress Summary
 
-| Phase | Description | Status | Risk |
-|-------|-------------|--------|------|
-| 1 | Workload adapter layer | ✅ Complete | - |
-| 2a | Presentation interfaces | ✅ Complete | - |
-| 2b | Legacy presentation adapters | ✅ Complete | - |
-| 2c | Hex1bTerminalCore (pass-through) | ✅ Complete | - |
-| 2d | Integration & factory | ⏳ Next | Low |
-| 2e | Pipeline layers | ⏳ Future | Medium |
-| 3 | Deprecate legacy | ⏳ Future | Low |
+| Phase | Description | Status | Files Changed |
+|-------|-------------|--------|---------------|
+| 1 | Workload adapter layer | ✅ Complete | 4 created, 3 modified |
+| 2a | Presentation interfaces | ✅ Complete | 1 created |
+| 2b | Legacy presentation adapters | ✅ Complete | 2 created |
+| 2c | Hex1bTerminalCore | ✅ Complete | 1 created, 4 modified |
+| 2d | Raw console mode drivers | ✅ Complete | 4 created |
+| 2e | Test sample | ✅ Complete | 2 created |
+| 3 | Remove legacy terminals | ⏳ Next | ~10 deleted, 4 modified |
+| 4 | Pipeline layers | ⏳ Future | TBD |
+| 5 | Factory methods | ⏳ Future | TBD |
 
 ---
 
