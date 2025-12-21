@@ -13,7 +13,7 @@ public class ListNodeTests
 {
     private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal, theme);
+        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
     }
 
     private static IReadOnlyList<string> CreateItems(params string[] items)
@@ -125,6 +125,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("Item 1", terminal.RawOutput);
         Assert.Contains("Item 2", terminal.RawOutput);
@@ -140,6 +141,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should not crash and output should be minimal
         Assert.DoesNotContain("Item", terminal.RawOutput);
@@ -154,6 +156,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("Only Item", terminal.RawOutput);
     }
@@ -171,6 +174,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Default selected indicator is "> "
         Assert.Contains("> Item 1", terminal.RawOutput);
@@ -185,6 +189,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Default unselected indicator is "  " (two spaces)
         Assert.Contains("  Item 2", terminal.RawOutput);
@@ -199,6 +204,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("  First", terminal.RawOutput);
         Assert.Contains("> Second", terminal.RawOutput);
@@ -214,6 +220,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("  First", terminal.RawOutput);
         Assert.Contains("  Second", terminal.RawOutput);
@@ -233,6 +240,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // The raw output should contain ANSI codes for the focused+selected item
         Assert.Contains("\x1b[", terminal.RawOutput);
@@ -247,6 +255,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Still shows indicator but without selection colors
         Assert.Contains("> Item 1", terminal.RawOutput);
@@ -265,6 +274,7 @@ public class ListNodeTests
         node.Arrange(new Rect(5, 3, 20, 5));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Check that content is rendered - the terminal places it at the right position internally
         Assert.Contains("Test Item", terminal.RawOutput);
@@ -282,6 +292,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // All items should be rendered
         Assert.Contains("Item A", terminal.RawOutput);
@@ -305,6 +316,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Yellow foreground: \x1b[38;2;255;255;0m
         Assert.Contains("\x1b[38;2;255;255;0m", terminal.RawOutput);
@@ -323,6 +335,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("► Item 1", terminal.RawOutput);
     }
@@ -338,6 +351,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         Assert.Contains("- Item 2", terminal.RawOutput);
     }
@@ -351,6 +365,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // HighContrast theme uses "► " indicator
         Assert.Contains("► Item 1", terminal.RawOutput);
@@ -373,6 +388,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Content is rendered, truncation depends on terminal handling
         Assert.Contains("Very Long", terminal.RawOutput);
@@ -387,6 +403,7 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 5, 5));
         
         node.Render(context);
+        terminal.FlushOutput();
         
         // Should still render the indicator
         Assert.Contains(">", terminal.RawOutput);
@@ -631,11 +648,12 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Option A", terminal.RawOutput);
         Assert.Contains("Option B", terminal.RawOutput);
@@ -650,13 +668,14 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         // Navigate down to select second item
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("> Second", terminal.RawOutput);
         Assert.Contains("  First", terminal.RawOutput);
@@ -673,11 +692,12 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.List(items), "Menu")
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Menu", terminal.RawOutput);
         Assert.Contains("Item 1", terminal.RawOutput);
@@ -693,13 +713,14 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         // Simulate down arrow then complete
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         // After down arrow, second item should be selected
         Assert.Contains("> Item 2", terminal.RawOutput);
@@ -715,7 +736,7 @@ public class ListNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)
                 .OnItemActivated((ListItemActivatedEventArgs args) => activatedAction = args.ActivatedText)),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         // Simulate Enter key then complete
@@ -739,11 +760,12 @@ public class ListNodeTests
                     v.List(items)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Select an option:", terminal.RawOutput);
         Assert.Contains("Menu Item", terminal.RawOutput);
@@ -757,11 +779,12 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
-            new Hex1bAppOptions { Terminal = terminal, Theme = Hex1bThemes.HighContrast }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, Theme = Hex1bThemes.HighContrast }
         );
         
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         // HighContrast theme uses "► " indicator
         Assert.Contains("► Themed Item", terminal.RawOutput);
@@ -775,7 +798,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         // Navigate down twice
@@ -783,6 +806,7 @@ public class ListNodeTests
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         // Third item should be selected
         Assert.Contains("> Third", terminal.RawOutput);
@@ -802,11 +826,12 @@ public class ListNodeTests
                     v.Button("OK").OnClick(_ => Task.CompletedTask)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Welcome", terminal.RawOutput);
         Assert.Contains("Options", terminal.RawOutput);

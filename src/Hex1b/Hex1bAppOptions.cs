@@ -17,15 +17,6 @@ public class Hex1bAppOptions
     /// </summary>
     public IHex1bAppTerminalWorkloadAdapter? WorkloadAdapter { get; set; }
     
-    // === Legacy way (still supported) ===
-    
-    /// <summary>
-    /// [Legacy] The terminal implementation to use. If null, a ConsoleHex1bTerminal will be created.
-    /// Will be wrapped in <see cref="LegacyHex1bAppTerminalWorkloadAdapter"/>.
-    /// Prefer using <see cref="WorkloadAdapter"/> instead for new code.
-    /// </summary>
-    public IHex1bTerminal? Terminal { get; set; }
-
     /// <summary>
     /// The theme to use for rendering. If null, the default theme will be used.
     /// </summary>
@@ -36,13 +27,6 @@ public class Hex1bAppOptions
     /// </summary>
     public Func<Hex1bTheme>? ThemeProvider { get; set; }
 
-    /// <summary>
-    /// [Legacy] Whether the app owns the terminal and should dispose it when done.
-    /// Defaults to true if Terminal is null (app creates its own terminal).
-    /// Only applies when <see cref="Terminal"/> is set.
-    /// </summary>
-    public bool? OwnsTerminal { get; set; }
-    
     /// <summary>
     /// Whether to enable mouse support. When enabled, the terminal will track mouse
     /// movement and clicks, rendering a visible cursor at the mouse position.

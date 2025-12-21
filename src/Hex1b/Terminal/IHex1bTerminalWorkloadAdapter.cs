@@ -1,35 +1,52 @@
 namespace Hex1b.Terminal;
 
 /// <summary>
-/// Terminal-side interface: What the Hex1bTerminal will need from any workload.
+/// Terminal-side interface: What Hex1bTerminal needs from any workload.
 /// Raw byte streams for maximum flexibility.
 /// </summary>
 /// <remarks>
-/// This interface represents the "terminal side" of the workload adapter,
-/// designed for the future Hex1bTerminal to consume. It deals with raw bytes
-/// and async streams.
+/// <para>
+/// This interface represents the "workload side" of the terminal - the process
+/// or application connected to the terminal. It deals with raw bytes only.
+/// </para>
+/// <para>
+/// Data flow:
+/// <list type="bullet">
+///   <item><see cref="ReadOutputAsync"/> - Terminal reads output FROM the workload (ANSI to display)</item>
+///   <item><see cref="WriteInputAsync"/> - Terminal writes input TO the workload (keystrokes, mouse)</item>
+/// </list>
+/// </para>
+/// <para>
+/// Implementations:
+/// <list type="bullet">
+///   <item><see cref="Hex1bAppWorkloadAdapter"/> - For Hex1bApp TUI applications</item>
+///   <item><see cref="StreamWorkloadAdapter"/> - For testing with raw streams</item>
+///   <item>ProcessWorkloadAdapter (future) - For PTY-connected processes</item>
+/// </list>
+/// </para>
 /// </remarks>
 public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
 {
     /// <summary>
-    /// Read output FROM the workload (ANSI sequences).
-    /// The terminal calls this to get data to parse and display.
+    /// Read output FROM the workload (ANSI sequences to display).
+    /// The terminal calls this to get data to parse and send to presentation.
+    /// Returns empty when workload has no more output (should be called in a loop).
     /// </summary>
     ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default);
     
     /// <summary>
-    /// Write input TO the workload (encoded key/mouse events).
-    /// The terminal calls this when it receives input from presentation.
+    /// Write input TO the workload (raw bytes from keyboard/mouse).
+    /// The terminal calls this when it receives input from the presentation layer.
     /// </summary>
     ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
     
     /// <summary>
-    /// Notify workload of resize.
+    /// Notify workload of terminal resize.
     /// </summary>
     ValueTask ResizeAsync(int width, int height, CancellationToken ct = default);
     
     /// <summary>
-    /// Workload has disconnected/exited.
+    /// Raised when workload has disconnected/exited.
     /// </summary>
     event Action? Disconnected;
 }

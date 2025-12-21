@@ -60,71 +60,55 @@ public class ConsolePresentationAdapterTests
     }
 }
 
-public class Hex1bTerminalCoreTests
+public class Hex1bTerminalTests_Workload
 {
     [Fact]
-    public void Constructor_WithPresentationAdapter_CreatesWorkloadAdapter()
+    public void Constructor_HeadlessMode_CreatesWorkloadAdapter()
     {
-        // Use the legacy adapter which doesn't need a real terminal
-        var presentation = new LegacyConsolePresentationAdapter(enableMouse: false);
-        var core = new Hex1bTerminalCore(presentation);
+        // Headless terminal (no presentation adapter)
+        using var terminal = new Hex1bTerminal(80, 24);
         
-        // Core should implement the workload adapter interface
-        Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(core);
-        
-        core.Dispose();
+        // WorkloadAdapter should implement the interface
+        Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(terminal.WorkloadAdapter);
     }
     
     [Fact]
-    public void GetSize_ReturnsPresentationSize()
+    public void GetSize_ReturnsConfiguredSize()
     {
-        var presentation = new LegacyConsolePresentationAdapter(enableMouse: false);
-        var core = new Hex1bTerminalCore(presentation);
+        using var terminal = new Hex1bTerminal(100, 50);
         
-        var width = core.Width;
-        var height = core.Height;
-        
-        // Should return console size (may be 0,0 in CI)
-        Assert.True(width >= 0);
-        Assert.True(height >= 0);
-        
-        core.Dispose();
+        Assert.Equal(100, terminal.Width);
+        Assert.Equal(50, terminal.Height);
     }
     
     [Fact]
-    public void Write_SendsDataToPresentation()
+    public void Write_CapturesOutput()
     {
-        var presentation = new LegacyConsolePresentationAdapter(enableMouse: false);
-        var core = new Hex1bTerminalCore(presentation);
+        using var terminal = new Hex1bTerminal(80, 24);
         
-        // This should not throw
-        core.Write("Hello");
-        core.Flush();
+        terminal.WorkloadAdapter.Write("Hello");
+        terminal.FlushOutput();
         
-        core.Dispose();
+        Assert.Contains("Hello", terminal.RawOutput);
     }
     
     [Fact]
     public void InputEvents_ReturnsChannelReader()
     {
-        var presentation = new LegacyConsolePresentationAdapter(enableMouse: false);
-        var core = new Hex1bTerminalCore(presentation);
+        using var terminal = new Hex1bTerminal(80, 24);
         
-        var reader = core.InputEvents;
+        var reader = terminal.WorkloadAdapter.InputEvents;
         Assert.NotNull(reader);
-        
-        core.Dispose();
     }
     
     [Fact]
-    public void Capabilities_ReturnsFromPresentation()
+    public void Capabilities_ReturnsDefaults()
     {
-        var presentation = new LegacyConsolePresentationAdapter(enableMouse: false);
-        var core = new Hex1bTerminalCore(presentation);
+        using var terminal = new Hex1bTerminal(80, 24);
         
-        var caps = core.Capabilities;
+        var caps = terminal.WorkloadAdapter.Capabilities;
         Assert.NotNull(caps);
-        
-        core.Dispose();
+        Assert.True(caps.SupportsMouse);
+        Assert.True(caps.SupportsTrueColor);
     }
 }

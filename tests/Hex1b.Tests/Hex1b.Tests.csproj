@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Hex1b.Terminal" />
   </ItemGroup>
 
 </Project>

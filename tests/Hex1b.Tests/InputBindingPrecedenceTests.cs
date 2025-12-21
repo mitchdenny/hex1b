@@ -55,7 +55,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -94,7 +94,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -143,7 +143,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Parent X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -188,7 +188,7 @@ public class InputBindingPrecedenceTests
                 }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -223,7 +223,7 @@ public class InputBindingPrecedenceTests
                 v.TextBox("").OnTextChanged(e => { textChanged = e.NewText; return Task.CompletedTask; }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -265,7 +265,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Q");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -319,7 +319,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -370,7 +370,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -430,7 +430,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Outer X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -482,7 +482,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Root X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -518,7 +518,7 @@ public class InputBindingPrecedenceTests
             ctx => ctx.VStack(v => [
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = true }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = true }
         );
 
         var runTask = app.RunAsync(CancellationToken.None);
@@ -556,7 +556,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "User Ctrl+C");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = true }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = true }
         );
 
         using var cts = new CancellationTokenSource();
@@ -602,7 +602,7 @@ public class InputBindingPrecedenceTests
                 }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -644,7 +644,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global gg chord");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -686,7 +686,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global gg chord");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -734,7 +734,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "VStack X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -775,7 +775,7 @@ public class InputBindingPrecedenceTests
                 v.Button("Button2"),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -825,7 +825,7 @@ public class InputBindingPrecedenceTests
             }),
             new Hex1bAppOptions 
             { 
-                Terminal = terminal, 
+                WorkloadAdapter = terminal.WorkloadAdapter, 
                 EnableDefaultCtrlCExit = false,
                 EnableRescue = true  // Explicitly enable rescue (default)
             }
@@ -871,7 +871,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Ctrl+X");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -919,7 +919,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Ctrl+S");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -964,7 +964,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Shift+Tab");
             }),
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();

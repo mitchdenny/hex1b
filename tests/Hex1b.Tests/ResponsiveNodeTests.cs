@@ -12,7 +12,7 @@ public class ResponsiveNodeTests
 {
     private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
     {
-        return new Hex1bRenderContext(terminal);
+        return new Hex1bRenderContext(terminal.WorkloadAdapter);
     }
 
     [Fact]
@@ -170,6 +170,7 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Visible", screenText);
@@ -196,6 +197,7 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.DoesNotContain("Hidden", screenText);
@@ -435,6 +437,7 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Inner", terminal.GetScreenText());
     }
@@ -463,6 +466,7 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Fallback", terminal.GetScreenText());
     }
@@ -481,11 +485,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Wide View: Full Details", terminal.RawOutput);
         Assert.DoesNotContain("Compact", terminal.RawOutput);
@@ -503,11 +508,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact View"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Compact View", terminal.RawOutput);
         Assert.DoesNotContain("Wide View", terminal.RawOutput);
@@ -526,11 +532,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // 75 width should match Medium tier
         Assert.Contains("Medium", terminal.RawOutput);
@@ -551,11 +558,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Narrow"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Wide", terminal.RawOutput);
         Assert.DoesNotContain("Very Wide", terminal.RawOutput);
@@ -573,11 +581,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small Screen"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Large Screen", terminal.RawOutput);
     }
@@ -597,11 +606,12 @@ public class ResponsiveNodeTests
                     "Container"
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Border takes 2 columns, so inner space is 48, which is < 100
         Assert.Contains("Narrow", terminal.RawOutput);
@@ -621,7 +631,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -644,7 +654,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.TypeText("Responsive input");
@@ -670,11 +680,12 @@ public class ResponsiveNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Header", terminal.RawOutput);
         Assert.Contains("Wide Content", terminal.RawOutput);
@@ -694,11 +705,12 @@ public class ResponsiveNodeTests
                     // No Otherwise fallback - neither condition matches
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.DoesNotContain("Very Wide", terminal.RawOutput);
         Assert.DoesNotContain("Wide", terminal.RawOutput);
@@ -717,12 +729,13 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow for list"))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.DownArrow);
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Verify second item is selected via rendered output
         Assert.Contains("> Item 2", terminal.RawOutput);
@@ -750,11 +763,12 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Wide layout uses HStack
         Assert.Contains("Left Panel", terminal.RawOutput);
@@ -783,11 +797,12 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Narrow layout uses VStack
         Assert.Contains("Top Panel", terminal.RawOutput);
@@ -810,11 +825,12 @@ public class ResponsiveNodeTests
                     leftWidth: 40
                 )
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Wide Left", terminal.RawOutput);
         Assert.Contains("Right Panel", terminal.RawOutput);
@@ -832,11 +848,12 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text(state.Message))
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Hello from state", terminal.RawOutput);
     }

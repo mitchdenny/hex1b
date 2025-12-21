@@ -284,7 +284,7 @@ public class VStackNodeTests
     public void Render_RendersAllChildren()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new VStackNode
         {
@@ -298,6 +298,7 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("First", terminal.GetScreenText());
         Assert.Contains("Second", terminal.GetScreenText());
@@ -307,7 +308,7 @@ public class VStackNodeTests
     public void Render_ChildrenAppearOnDifferentLines()
     {
         using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new VStackNode
         {
@@ -322,6 +323,7 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Equal("Line A", terminal.GetLineTrimmed(0));
         Assert.Equal("Line B", terminal.GetLineTrimmed(1));
@@ -332,7 +334,7 @@ public class VStackNodeTests
     public void Render_InNarrowTerminal_TextWrapsAtEdge()
     {
         using var terminal = new Hex1bTerminal(10, 10);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
 
         var node = new VStackNode
         {
@@ -345,6 +347,7 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(10, 10));
         node.Arrange(new Rect(0, 0, 10, 10));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Text wraps at terminal edge
         Assert.Equal("LongTextHe", terminal.GetLine(0));
@@ -368,11 +371,12 @@ public class VStackNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Header"));
         Assert.True(terminal.ContainsText("Body Content"));
@@ -396,7 +400,7 @@ public class VStackNodeTests
                     v.TextBox(text3).OnTextChanged(args => text3 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type in first box
@@ -430,7 +434,7 @@ public class VStackNodeTests
                     v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab forward then shift-tab back
@@ -458,11 +462,12 @@ public class VStackNodeTests
                     v.Text("Very long text indeed")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Short"));
         Assert.True(terminal.ContainsText("Medium text"));
@@ -483,7 +488,7 @@ public class VStackNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Tab to button and click
@@ -492,6 +497,7 @@ public class VStackNodeTests
         terminal.CompleteInput();
 
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(clicked);
         Assert.True(terminal.ContainsText("Title"));
@@ -513,11 +519,12 @@ public class VStackNodeTests
                     v.Text("Outer 2")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Outer 1"));
         Assert.True(terminal.ContainsText("Inner 1"));
@@ -534,7 +541,7 @@ public class VStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
@@ -554,11 +561,12 @@ public class VStackNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Item 1"));
         Assert.True(terminal.ContainsText("Item 2"));

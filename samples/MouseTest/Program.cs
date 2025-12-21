@@ -144,8 +144,17 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
 
 try
 {
+    // Create the presentation adapter for console I/O with mouse support
     var presentation = new ConsolePresentationAdapter(enableMouse: true);
-    var terminal = new Hex1bTerminalCore(presentation);
+    
+    // Create the workload adapter that Hex1bApp will use
+    var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
+    
+    // Create the terminal that bridges presentation ↔ workload
+    using var terminal = new Hex1bTerminal(presentation, workload, enableScreenBuffer: false);
+    
+    // Start the I/O pump tasks
+    terminal.Start();
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [
@@ -184,7 +193,7 @@ try
         ]),
         new Hex1bAppOptions
         {
-            WorkloadAdapter = terminal,
+            WorkloadAdapter = workload,
             EnableMouse = true
         }
     );

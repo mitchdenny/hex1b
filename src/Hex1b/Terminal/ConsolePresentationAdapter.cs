@@ -9,9 +9,6 @@ namespace Hex1b.Terminal;
 /// <remarks>
 /// This adapter uses raw terminal mode (termios on Unix, SetConsoleMode on Windows)
 /// to properly capture mouse events, escape sequences, and control characters.
-/// 
-/// Compare with <see cref="LegacyConsolePresentationAdapter"/> which uses Console.ReadKey()
-/// and has issues with mouse support and escape sequence handling.
 /// </remarks>
 public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapter
 {
@@ -34,7 +31,6 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     /// <param name="enableMouse">Whether to enable mouse tracking.</param>
     /// <exception cref="PlatformNotSupportedException">
     /// Thrown if raw mode is not supported on the current platform.
-    /// Use <see cref="LegacyConsolePresentationAdapter"/> as a fallback.
     /// </exception>
     public ConsolePresentationAdapter(bool enableMouse = false)
     {
@@ -52,7 +48,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         else
         {
             throw new PlatformNotSupportedException(
-                $"Platform {Environment.OSVersion} not supported. Use LegacyConsolePresentationAdapter.");
+                $"Platform {Environment.OSVersion} is not supported.");
         }
         
         // Wire up resize events

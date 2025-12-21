@@ -18,7 +18,7 @@ public class Hex1bAppIntegrationTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Complete input immediately to end the app
@@ -37,11 +37,12 @@ public class Hex1bAppIntegrationTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello World")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Hello World", terminal.RawOutput);
     }
@@ -60,7 +61,7 @@ public class Hex1bAppIntegrationTests
                     new TextBoxWidget("").OnTextChanged(args => { text = args.NewText; return Task.CompletedTask; })
                 })
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Send some keys then complete
@@ -87,7 +88,7 @@ public class Hex1bAppIntegrationTests
                     new ButtonWidget("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 })
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.SendKey(ConsoleKey.Enter, '\r');
@@ -106,7 +107,7 @@ public class Hex1bAppIntegrationTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         var runTask = app.RunAsync(cts.Token);
@@ -135,11 +136,12 @@ public class Hex1bAppIntegrationTests
                     new TextBlockWidget("Line 3")
                 })
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Contains("Line 1", terminal.RawOutput);
         Assert.Contains("Line 2", terminal.RawOutput);
@@ -161,7 +163,7 @@ public class Hex1bAppIntegrationTests
                     new TextBoxWidget("").OnTextChanged(args => { text2 = args.NewText; return Task.CompletedTask; })
                 })
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Type in first box
@@ -196,7 +198,7 @@ public class Hex1bAppIntegrationTests
                     new ListWidget(items)
                 })
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Navigate down twice
@@ -205,6 +207,7 @@ public class Hex1bAppIntegrationTests
         terminal.CompleteInput();
         
         await app.RunAsync();
+        terminal.FlushOutput();
         
         // Verify via rendered output that third item is selected
         Assert.Contains("> Item 3", terminal.RawOutput);
@@ -226,7 +229,7 @@ public class Hex1bAppIntegrationTests
                 });
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Click the button twice
@@ -235,6 +238,7 @@ public class Hex1bAppIntegrationTests
         terminal.CompleteInput();
         
         await app.RunAsync();
+        terminal.FlushOutput();
         
         Assert.Equal(2, counter);
         // The last render should show the updated count
@@ -248,7 +252,7 @@ public class Hex1bAppIntegrationTests
         
         var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
-            new Hex1bAppOptions { Terminal = terminal, OwnsTerminal = true }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
@@ -266,7 +270,7 @@ public class Hex1bAppIntegrationTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget($"Count: {counter}")),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -274,6 +278,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render
         await Task.Delay(50);
+        terminal.FlushOutput();
         Assert.Contains("Count: 0", terminal.RawOutput);
         
         // Change state externally and invalidate
@@ -283,6 +288,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for re-render
         await Task.Delay(50);
+        terminal.FlushOutput();
         Assert.Contains("Count: 42", terminal.RawOutput);
         
         cts.Cancel();
@@ -301,7 +307,7 @@ public class Hex1bAppIntegrationTests
                 renderCount++;
                 return Task.FromResult<Hex1bWidget>(new TextBlockWidget($"Render: {renderCount}"));
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -342,7 +348,7 @@ public class Hex1bAppIntegrationTests
                 test.OnRender(_ => renderTest.TrySetResult());
                 return Task.FromResult<Hex1bWidget>(test);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         var runTask = app.RunAsync();
@@ -384,7 +390,7 @@ public class Hex1bAppIntegrationTests
             ),
             new Hex1bAppOptions 
             { 
-                Terminal = terminal,
+                WorkloadAdapter = terminal.WorkloadAdapter,
                 EnableDefaultCtrlCExit = false
             }
         );
@@ -430,7 +436,7 @@ public class Hex1bAppIntegrationTests
             ),
             new Hex1bAppOptions 
             { 
-                Terminal = terminal,
+                WorkloadAdapter = terminal.WorkloadAdapter,
                 EnableDefaultCtrlCExit = true  // Default is enabled
             }
         );

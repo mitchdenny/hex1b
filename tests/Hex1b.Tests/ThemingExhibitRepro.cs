@@ -54,12 +54,13 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         // Complete immediately - we just want to see the initial render
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Debug: Print all non-empty lines
         Console.WriteLine("=== Screen output ===");
@@ -165,7 +166,7 @@ public class ThemingExhibitRepro
     public void TextBoxNode_WhenNotFocused_ShouldNotRenderCursorColors()
     {
         using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         var node = new TextBoxNode
         {
@@ -193,7 +194,7 @@ public class ThemingExhibitRepro
     public void TextBoxNode_WhenFocused_ShouldRenderCursorColors()
     {
         using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal);
+        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
         
         var node = new TextBoxNode
         {
@@ -203,6 +204,7 @@ public class ThemingExhibitRepro
         node.State.CursorPosition = 1;
 
         node.Render(context);
+        terminal.FlushOutput();
 
         var output = terminal.RawOutput;
         
@@ -264,11 +266,12 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         // Check for cursor colors in the output
         var rawOutput = terminal.RawOutput;

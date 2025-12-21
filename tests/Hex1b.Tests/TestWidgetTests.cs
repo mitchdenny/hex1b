@@ -43,7 +43,7 @@ public class TestWidgetTests
 
                 return test;
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

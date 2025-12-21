@@ -40,6 +40,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private readonly Func<RootContext, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bAppTerminalWorkloadAdapter _adapter;
+    private readonly Hex1bTerminal? _ownedTerminal; // Terminal we created and should dispose
     private readonly Hex1bRenderContext _context;
     private readonly RootContext _rootContext = new();
     private readonly FocusRing _focusRing = new();
@@ -115,25 +116,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Create or use provided adapter
         if (options.WorkloadAdapter != null)
         {
-            // New way: use provided adapter directly
+            // Use provided adapter directly
             _adapter = options.WorkloadAdapter;
-        }
-        else if (options.Terminal != null)
-        {
-            // Legacy way: wrap provided terminal in adapter
-            _adapter = new LegacyHex1bAppTerminalWorkloadAdapter(
-                options.Terminal,
-                ownsTerminal: options.OwnsTerminal ?? false,
-                enableMouse: _mouseEnabled);
+            _ownedTerminal = null;
         }
         else
         {
-            // Default: create console terminal and wrap in adapter
-            var terminal = new ConsoleHex1bTerminal(enableMouse: _mouseEnabled);
-            _adapter = new LegacyHex1bAppTerminalWorkloadAdapter(
-                terminal,
-                ownsTerminal: true,
-                enableMouse: _mouseEnabled);
+            // Default: create console terminal using new architecture
+            var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
+            var workload = new Hex1bAppWorkloadAdapter(
+                presentation.Width, 
+                presentation.Height, 
+                presentation.Capabilities);
+            _ownedTerminal = new Hex1bTerminal(presentation, workload);
+            _adapter = workload;
         }
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
@@ -190,6 +186,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        // Start the terminal if we own it (pumps I/O between presentation and workload)
+        _ownedTerminal?.Start();
+        
         _context.EnterAlternateScreen();
         try
         {
@@ -557,7 +556,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Complete the invalidate channel
         _invalidateChannel.Writer.TryComplete();
         
-        // Dispose the adapter (which may dispose the terminal if it owns it)
+        // Dispose the owned terminal if we created it
+        _ownedTerminal?.Dispose();
+        
+        // Dispose the adapter
         if (_adapter is IDisposable disposable)
         {
             disposable.Dispose();
@@ -568,6 +570,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     {
         // Complete the invalidate channel
         _invalidateChannel.Writer.TryComplete();
+        
+        // Dispose the owned terminal if we created it
+        if (_ownedTerminal != null)
+        {
+            await _ownedTerminal.DisposeAsync();
+        }
         
         // Dispose the adapter asynchronously
         await _adapter.DisposeAsync();

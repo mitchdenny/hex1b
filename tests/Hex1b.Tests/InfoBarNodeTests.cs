@@ -13,7 +13,7 @@ public class InfoBarNodeTests
 {
     private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal, theme);
+        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
     }
 
     [Fact]
@@ -95,6 +95,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         Assert.Contains("Ready", terminal.GetScreenText());
     }
@@ -116,6 +117,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(60, 1));
         node.Arrange(new Rect(0, 0, 60, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         var screenText = terminal.GetScreenText();
         Assert.Contains("Mode: Normal", screenText);
@@ -141,6 +143,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
@@ -167,6 +170,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Should use the specified colors directly
         Assert.Contains("\x1b[38;2;0;255;0m", terminal.RawOutput); // Green foreground
@@ -191,6 +195,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Error section should have its own colors
         Assert.Contains("\x1b[38;2;255;0;0m", terminal.RawOutput); // Red foreground
@@ -211,6 +216,7 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(20, 1));
         node.Arrange(new Rect(0, 0, 20, 1));
         node.Render(context);
+        terminal.FlushOutput();
 
         // Text should be truncated to fit
         var screenText = terminal.GetScreenText();
@@ -265,11 +271,12 @@ public class InfoBarNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.InfoBar("Ready")
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Ready", terminal.RawOutput);
     }
@@ -289,11 +296,12 @@ public class InfoBarNodeTests
                     new InfoBarSection("Ln 42, Col 7")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Mode: Insert", terminal.RawOutput);
         Assert.Contains("UTF-8", terminal.RawOutput);
@@ -312,11 +320,12 @@ public class InfoBarNodeTests
                     v.InfoBar("Status Bar")
                 ])
             ),
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Main Content", terminal.RawOutput);
         Assert.Contains("Status Bar", terminal.RawOutput);
@@ -334,11 +343,12 @@ public class InfoBarNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new InfoBarWidget([new InfoBarSection("Themed")], InvertColors: false)
             ),
-            new Hex1bAppOptions { Terminal = terminal, Theme = theme }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, Theme = theme }
         );
 
         terminal.CompleteInput();
         await app.RunAsync();
+        terminal.FlushOutput();
 
         Assert.Contains("Themed", terminal.RawOutput);
         Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput); // Cyan

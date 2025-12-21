@@ -128,12 +128,20 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     
-    // NEW ARCHITECTURE: Use Hex1bTerminalCore with LegacyWebSocketPresentationAdapter
-    var presentation = new LegacyWebSocketPresentationAdapter(webSocket, 80, 24, enableMouse: example.EnableMouse);
-    using var terminal = new Hex1bTerminalCore(presentation);
+    // Create the presentation adapter for WebSocket I/O
+    await using var presentation = new WebSocketPresentationAdapter(webSocket, 80, 24, enableMouse: example.EnableMouse);
+    
+    // Create the workload adapter that Hex1bApp will use
+    var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
+    
+    // Create the terminal that bridges presentation ↔ workload
+    using var terminal = new Hex1bTerminal(presentation, workload, enableScreenBuffer: false);
+    
+    // Start the I/O pump tasks
+    terminal.Start();
     
     // Check if the example manages its own app lifecycle
-    var runTask = example.RunAsync(terminal, cts.Token);
+    var runTask = example.RunAsync(workload, cts.Token);
     
     Task appTask;
     if (runTask != null)
@@ -148,7 +156,7 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         var themeProvider = example.CreateThemeProvider();
         var options = new Hex1bAppOptions 
         { 
-            WorkloadAdapter = terminal,  // NEW: Pass the terminal core directly as workload adapter
+            WorkloadAdapter = workload,
             ThemeProvider = themeProvider,
             EnableMouse = example.EnableMouse
         };
@@ -157,14 +165,10 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         appTask = hex1bApp.RunAsync(cts.Token);
     }
     
-    // Run input processing and the Hex1b app concurrently
-    var inputTask = terminal.ProcessInputAsync(cts.Token);
-    
     try
     {
-        // Wait for either to complete and observe any exceptions
-        var completedTask = await Task.WhenAny(inputTask, appTask);
-        await completedTask; // This will throw if the completed task faulted
+        // Wait for the app to complete
+        await appTask;
     }
     catch (OperationCanceledException)
     {

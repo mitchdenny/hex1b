@@ -13,17 +13,6 @@ public class Hex1bRenderContext
         _adapter = adapter;
         Theme = theme ?? Hex1bThemes.Default;
     }
-    
-    /// <summary>
-    /// [Legacy] Constructor that accepts IHex1bTerminalOutput for backward compatibility.
-    /// </summary>
-    [Obsolete("Use the constructor that accepts IHex1bAppTerminalWorkloadAdapter instead.")]
-    public Hex1bRenderContext(IHex1bTerminalOutput output, Hex1bTheme? theme = null)
-    {
-        // Wrap in a minimal adapter for backward compatibility
-        _adapter = new LegacyOutputOnlyAdapter(output);
-        Theme = theme ?? Hex1bThemes.Default;
-    }
 
     public Hex1bTheme Theme { get; set; }
     
@@ -125,41 +114,5 @@ public class Hex1bRenderContext
     public bool ShouldRenderAt(int x, int y)
     {
         return CurrentLayoutProvider?.ShouldRenderAt(x, y) ?? true;
-    }
-    
-    /// <summary>
-    /// Minimal adapter for backward compatibility with IHex1bTerminalOutput.
-    /// </summary>
-    private sealed class LegacyOutputOnlyAdapter : IHex1bAppTerminalWorkloadAdapter
-    {
-        private readonly IHex1bTerminalOutput _output;
-        
-        public LegacyOutputOnlyAdapter(IHex1bTerminalOutput output)
-        {
-            _output = output;
-        }
-        
-        public void Write(string text) => _output.Write(text);
-        public void Write(ReadOnlySpan<byte> data) => _output.Write(System.Text.Encoding.UTF8.GetString(data));
-        public void Flush() { }
-        public System.Threading.Channels.ChannelReader<Input.Hex1bEvent> InputEvents => 
-            throw new NotSupportedException("Legacy output-only adapter does not support input.");
-        public int Width => _output.Width;
-        public int Height => _output.Height;
-        public TerminalCapabilities Capabilities => TerminalCapabilities.Minimal;
-        public void EnterTuiMode() => _output.EnterAlternateScreen();
-        public void ExitTuiMode() => _output.ExitAlternateScreen();
-        public void Clear() => _output.Clear();
-        public void SetCursorPosition(int left, int top) => _output.SetCursorPosition(left, top);
-        
-        // Terminal-side interface (not used in legacy mode)
-        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct) => 
-            ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
-        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct) => 
-            ValueTask.CompletedTask;
-        public ValueTask ResizeAsync(int width, int height, CancellationToken ct) => 
-            ValueTask.CompletedTask;
-        public event Action? Disconnected;
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

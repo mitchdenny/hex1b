@@ -61,7 +61,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -117,7 +117,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -167,7 +167,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -216,7 +216,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -297,7 +297,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -345,7 +345,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -394,7 +394,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
@@ -442,7 +442,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { Terminal = terminal }
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
         using var cts = new CancellationTokenSource();
