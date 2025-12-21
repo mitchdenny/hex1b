@@ -151,7 +151,7 @@ try
     var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
     
     // Create the terminal that bridges presentation ↔ workload
-    using var terminal = new Hex1bTerminal(presentation, workload, enableScreenBuffer: false);
+    using var terminal = new Hex1bTerminal(presentation, workload);
     
     // Start the I/O pump tasks
     terminal.Start();

@@ -70,7 +70,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="width">Terminal width in characters.</param>
     /// <param name="height">Terminal height in lines.</param>
     public Hex1bTerminal(int width, int height)
-        : this(null, new Hex1bAppWorkloadAdapter(width, height), enableScreenBuffer: true)
+        : this(null, new Hex1bAppWorkloadAdapter(width, height))
     {
         _width = width;
         _height = height;
@@ -82,9 +82,8 @@ public sealed class Hex1bTerminal : IDisposable
     /// Creates a new headless terminal for testing with the specified workload adapter.
     /// </summary>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    /// <param name="enableScreenBuffer">Whether to capture output to the screen buffer. Default is true.</param>
-    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload, bool enableScreenBuffer = true)
-        : this(presentation: null, workload: workload, enableScreenBuffer: enableScreenBuffer)
+    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload)
+        : this(presentation: null, workload: workload)
     {
     }
 
@@ -93,11 +92,9 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     /// <param name="presentation">The presentation adapter for actual I/O. Pass null for headless/test mode.</param>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    /// <param name="enableScreenBuffer">Whether to capture output to the screen buffer. Default is true for headless mode.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
-        IHex1bTerminalWorkloadAdapter workload,
-        bool? enableScreenBuffer = null)
+        IHex1bTerminalWorkloadAdapter workload)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
@@ -105,9 +102,6 @@ public sealed class Hex1bTerminal : IDisposable
         _height = presentation?.Height ?? 24;
         _rawOutput = new StringBuilder();
         _screenBuffer = new TerminalCell[_height, _width];
-        
-        // Enable screen buffer by default in headless mode
-        ScreenBufferEnabled = enableScreenBuffer ?? (presentation == null);
         
         ClearBuffer();
 
@@ -129,10 +123,7 @@ public sealed class Hex1bTerminal : IDisposable
     {
         _width = width;
         _height = height;
-        if (ScreenBufferEnabled)
-        {
-            Resize(width, height);
-        }
+        Resize(width, height);
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);
     }
@@ -148,11 +139,6 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     // === Configuration ===
-
-    /// <summary>
-    /// Whether the screen buffer is enabled. When true, all output is parsed and captured.
-    /// </summary>
-    public bool ScreenBufferEnabled { get; set; }
 
     /// <summary>
     /// Terminal width.
@@ -238,11 +224,7 @@ public sealed class Hex1bTerminal : IDisposable
 
             var text = Encoding.UTF8.GetString(data.Span);
             _rawOutput.Append(text);
-            
-            if (ScreenBufferEnabled)
-            {
-                ProcessOutput(text);
-            }
+            ProcessOutput(text);
         }
     }
 
@@ -294,14 +276,9 @@ public sealed class Hex1bTerminal : IDisposable
 
                 var text = Encoding.UTF8.GetString(data.Span);
 
-                // Always capture raw output
+                // Capture raw output and parse into screen buffer
                 _rawOutput.Append(text);
-
-                // Parse for screen buffer
-                if (ScreenBufferEnabled)
-                {
-                    ProcessOutput(text);
-                }
+                ProcessOutput(text);
 
                 // Forward to presentation if present
                 if (_presentation != null)
