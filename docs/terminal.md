@@ -1,8 +1,154 @@
 # Hex1bTerminal Architecture Design
 
-> **Status**: Draft  
+> **Status**: In Progress (Phase 1 Complete)  
 > **Date**: December 2025  
 > **Author**: Design discussion between maintainer and AI assistant
+
+## Implementation Plan
+
+This section tracks the phased implementation of the terminal architecture.
+
+### Phase 1: Workload Adapter Layer ✅ COMPLETE
+
+**Goal**: Refactor `Hex1bApp` to use an adapter interface instead of `IHex1bTerminal` directly, without breaking existing code.
+
+**Files Created**:
+- [Terminal/IHex1bTerminalWorkloadAdapter.cs](../src/Hex1b/Terminal/IHex1bTerminalWorkloadAdapter.cs) - Terminal-side interface (raw bytes)
+- [Terminal/IHex1bAppTerminalWorkloadAdapter.cs](../src/Hex1b/Terminal/IHex1bAppTerminalWorkloadAdapter.cs) - App-side interface (extends above)
+- [Terminal/TerminalCapabilities.cs](../src/Hex1b/Terminal/TerminalCapabilities.cs) - Capability flags record
+- [Terminal/LegacyHex1bAppTerminalWorkloadAdapter.cs](../src/Hex1b/Terminal/LegacyHex1bAppTerminalWorkloadAdapter.cs) - Wraps `IHex1bTerminal`
+
+**Files Modified**:
+- [Hex1bAppOptions.cs](../src/Hex1b/Hex1bAppOptions.cs) - Added `WorkloadAdapter` property, marked `Terminal` as legacy
+- [Hex1bRenderContext.cs](../src/Hex1b/Hex1bRenderContext.cs) - Uses adapter instead of `IHex1bTerminalOutput`
+- [Hex1bApp.cs](../src/Hex1b/Hex1bApp.cs) - Uses `_adapter` instead of `_terminal`
+
+**Result**: All 1134 tests pass. Existing code continues to work via legacy adapter.
+
+---
+
+### Phase 2a: Presentation Adapter Interfaces ✅ COMPLETE
+
+**Goal**: Define the presentation-side interfaces (mirror of workload side).
+
+**Files Created**:
+- [Terminal/IHex1bTerminalPresentationAdapter.cs](../src/Hex1b/Terminal/IHex1bTerminalPresentationAdapter.cs) - Raw bytes to/from display
+
+**Interface**:
+```csharp
+public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
+{
+    // Write rendered output to the display
+    ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
+    
+    // Read raw input from the display  
+    ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default);
+    
+    // Display dimensions
+    int Width { get; }
+    int Height { get; }
+    
+    // Capabilities
+    TerminalCapabilities Capabilities { get; }
+    
+    // Events
+    event Action<int, int>? Resized;
+    event Action? Disconnected;
+    
+    // Lifecycle
+    ValueTask FlushAsync(CancellationToken ct = default);
+    ValueTask EnterTuiModeAsync(CancellationToken ct = default);
+    ValueTask ExitTuiModeAsync(CancellationToken ct = default);
+}
+```
+
+---
+
+### Phase 2b: Legacy Presentation Adapters ⏳ NEXT
+
+**Goal**: Wrap existing terminals with the new presentation interface.
+
+**Files to Create**:
+- `Terminal/LegacyConsolePresentationAdapter.cs` - Wraps `ConsoleHex1bTerminal` I/O
+- `Terminal/LegacyWebSocketPresentationAdapter.cs` - Wraps `WebSocketHex1bTerminal` I/O
+
+These extract the "raw I/O" parts from existing terminals without changing them.
+
+---
+
+### Phase 2c: Hex1bTerminalCore (Minimal) ⏳ PLANNED
+
+**Goal**: Create the new terminal that sits between workload and presentation.
+
+**Files to Create**:
+- `Terminal/Hex1bTerminalCore.cs`
+
+**Initial Implementation**:
+- Implements `IHex1bAppTerminalWorkloadAdapter`
+- Takes `IHex1bTerminalPresentationAdapter` in constructor
+- Pass-through implementation (no pipeline layers yet)
+- ANSI parsing for input events (extract from existing code)
+
+---
+
+### Phase 2d: Integration & Factory ⏳ PLANNED
+
+**Goal**: Wire everything together with convenient factory methods.
+
+**Usage Pattern**:
+```csharp
+// New way to create a terminal
+var presentation = new LegacyConsolePresentationAdapter();
+var terminal = new Hex1bTerminalCore(presentation);
+var app = new Hex1bApp(builder, new Hex1bAppOptions 
+{ 
+    WorkloadAdapter = terminal 
+});
+```
+
+**Factory Methods**:
+```csharp
+Hex1bTerminalCore.CreateConsole()
+Hex1bTerminalCore.CreateWebSocket(webSocket)
+```
+
+---
+
+### Phase 2e: Pipeline Layers ⏳ FUTURE
+
+**Goal**: Add processing layers incrementally.
+
+**Layers to Implement**:
+1. ANSI parser layer
+2. Capability detection layer  
+3. Delta rendering layer
+4. Virtual device state
+
+---
+
+### Phase 3: Deprecate Legacy ⏳ FUTURE
+
+**Goal**: Mark old types as obsolete once new terminal is stable.
+
+1. Mark `LegacyHex1bAppTerminalWorkloadAdapter` as obsolete
+2. Mark `IHex1bTerminal`, `ConsoleHex1bTerminal`, `WebSocketHex1bTerminal` as obsolete
+3. Eventually remove them
+
+---
+
+### Progress Summary
+
+| Phase | Description | Status | Risk |
+|-------|-------------|--------|------|
+| 1 | Workload adapter layer | ✅ Complete | - |
+| 2a | Presentation interfaces | ✅ Complete | - |
+| 2b | Legacy presentation adapters | ⏳ Next | Low |
+| 2c | Hex1bTerminalCore (pass-through) | ⏳ Planned | Medium |
+| 2d | Integration & factory | ⏳ Planned | Low |
+| 2e | Pipeline layers | ⏳ Future | Medium |
+| 3 | Deprecate legacy | ⏳ Future | Low |
+
+---
 
 ## Overview
 
