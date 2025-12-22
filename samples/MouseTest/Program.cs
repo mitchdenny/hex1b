@@ -145,7 +145,7 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
 try
 {
     // Create the presentation adapter for console I/O with mouse support
-    var presentation = new ConsolePresentationAdapter(enableMouse: false);
+    var presentation = new ConsolePresentationAdapter(enableMouse: true);
     
     // Create the workload adapter that Hex1bApp will use
     var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
