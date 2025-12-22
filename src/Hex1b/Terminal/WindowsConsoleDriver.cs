@@ -435,9 +435,13 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                 }
             }
         }
-        else if (isMove && currentButtons != 0)
+        else if (isMove)
         {
-            int button = GetButtonNumber(currentButtons) | 32 | modifiers;
+            // Motion event: button code 32 = motion flag, 3 = no button (so 35 for motion with no button)
+            // If button is held, use that button number + 32
+            int button = currentButtons != 0 
+                ? GetButtonNumber(currentButtons) | 32 | modifiers
+                : 35 | modifiers;  // 35 = 32 (motion) + 3 (no button)
             var seq = $"\x1b[<{button};{x};{y}M";
             foreach (var b in Encoding.ASCII.GetBytes(seq))
             {
