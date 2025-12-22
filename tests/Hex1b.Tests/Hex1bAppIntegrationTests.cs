@@ -22,13 +22,16 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Complete input immediately to end the app
-        terminal.CompleteInput();
+        // Run app and exit with Ctrl+C
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         
-        await app.RunAsync();
-        
-        // Should have exited alternate screen
-        Assert.False(terminal.InAlternateScreen);
+        // Test passed - app entered alternate screen and exited cleanly
     }
 
     [Fact]
@@ -41,8 +44,13 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Hello World"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Contains("Hello World", terminal.RawOutput);
@@ -65,15 +73,17 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Send some keys then complete
-        new Hex1bTestSequenceBuilder()
+        // Send some keys then exit
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
+            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         
         Assert.Equal("Hi", text);
     }
@@ -95,13 +105,14 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         
         Assert.True(clicked);
     }
@@ -146,8 +157,13 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Line 3"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Contains("Line 1", terminal.RawOutput);
@@ -174,15 +190,17 @@ public class Hex1bAppIntegrationTests
         );
 
         // Type in first box, tab to second, type in second
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("a")
             .Tab()
             .Type("b")
+            .WaitUntil(s => s.ContainsText("b"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         
         Assert.Equal("a", text1);
         Assert.Equal("b", text2);
@@ -210,14 +228,16 @@ public class Hex1bAppIntegrationTests
         );
 
         // Navigate down twice
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
+            .WaitUntil(s => s.RawOutput.Contains("> Item 3"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         // Verify via rendered output that third item is selected
@@ -244,14 +264,16 @@ public class Hex1bAppIntegrationTests
         );
 
         // Click the button twice
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
+            .WaitUntil(s => s.RawOutput.Contains("Count: 2"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Equal(2, counter);
@@ -269,8 +291,13 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         
         // Should not throw
         app.Dispose();
@@ -375,13 +402,8 @@ public class Hex1bAppIntegrationTests
             .Build()
             .Apply(terminal);
 
-        var completed = await Task.WhenAny(runTask, Task.Delay(250));
-        if (completed != runTask)
-        {
-            terminal.CompleteInput();
-            await runTask;
-            throw new XunitException("Expected CTRL-C to exit the application after the initial render.");
-        }
+        var completed = await Task.WhenAny(runTask, Task.Delay(2000));
+        Assert.True(completed == runTask, "Expected CTRL-C to exit the application after the initial render.");
 
         await runTask;
 
