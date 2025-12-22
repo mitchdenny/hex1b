@@ -75,8 +75,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Unfocused_ShowsBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "OK",
@@ -92,8 +94,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Unfocused_ContainsBracketCharacters()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "Test",
@@ -110,8 +114,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Unfocused_EmptyLabel_StillRendersBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "",
@@ -132,8 +138,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Focused_HasDifferentStyle()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "OK",
@@ -150,8 +158,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Focused_ContainsLabel()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "Submit Form",
@@ -166,10 +176,14 @@ public class ButtonNodeTests
     [Fact]
     public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
-        using var focusedTerminal = new Hex1bTerminal(40, 5);
-        using var unfocusedTerminal = new Hex1bTerminal(40, 5);
-        var focusedContext = new Hex1bRenderContext(focusedTerminal.WorkloadAdapter);
-        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal.WorkloadAdapter);
+        using var focusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        var focusedContext = new Hex1bRenderContext(focusedWorkload);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
         var focusedNode = new ButtonNode { Label = "Click", IsFocused = true };
         var unfocusedNode = new ButtonNode { Label = "Click", IsFocused = false };
@@ -322,7 +336,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -330,7 +346,7 @@ public class ButtonNodeTests
                     v.Button("Click Me").OnClick(_ => Task.CompletedTask)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -347,7 +363,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_Enter_TriggersAction()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -356,7 +374,7 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -374,7 +392,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_Space_TriggersAction()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -383,7 +403,7 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -401,7 +421,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_ClickUpdatesState()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -411,7 +433,7 @@ public class ButtonNodeTests
                     v.Button("Increment").OnClick(_ => { counter++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Click the button 3 times
@@ -433,7 +455,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_MultipleButtons_TabNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -444,7 +468,7 @@ public class ButtonNodeTests
                     v.Button("Button 2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to second button and press Enter
@@ -465,7 +489,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -474,7 +500,7 @@ public class ButtonNodeTests
                     v.Button("OK").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -493,7 +519,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_LongLabelInNarrowTerminal_Wraps()
     {
-        using var terminal = new Hex1bTerminal(12, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 12, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -501,7 +529,7 @@ public class ButtonNodeTests
                     v.Button("Click Here Now").OnClick(_ => Task.CompletedTask)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -519,7 +547,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_WithTextBox_TabBetween()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "";
         var buttonClicked = false;
 
@@ -530,7 +560,7 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type in text box, tab to button, press button
@@ -552,7 +582,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_MultipleClicks_AllProcessed()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clickCount = 0;
 
         using var app = new Hex1bApp(
@@ -561,7 +593,7 @@ public class ButtonNodeTests
                     v.Button("Click").OnClick(_ => { clickCount++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Click 5 times rapidly
@@ -584,7 +616,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_DynamicLabel_UpdatesOnRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -593,7 +627,7 @@ public class ButtonNodeTests
                     v.Button($"Clicked {counter} times").OnClick(_ => { counter++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

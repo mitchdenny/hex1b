@@ -74,8 +74,10 @@ public class SixelNodeTests : IDisposable
         node.SetSixelSupport(true);
         
         // Should not throw and should render Sixel (tested indirectly)
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
@@ -92,8 +94,11 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(false);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
@@ -110,8 +115,10 @@ public class SixelNodeTests : IDisposable
         node.ResetSixelDetection();
         
         // After reset, node should query again on next render
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
@@ -125,8 +132,11 @@ public class SixelNodeTests : IDisposable
         var node = new SixelNode();
         // Don't set support - node should query
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         
         // First render sends query
@@ -143,8 +153,11 @@ public class SixelNodeTests : IDisposable
     {
         var node = new SixelNode();
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         
         // Start query
@@ -168,8 +181,11 @@ public class SixelNodeTests : IDisposable
             Fallback = new TextBlockNode { Text = "No Sixel" }
         };
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         
@@ -252,8 +268,11 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(true);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
@@ -273,8 +292,11 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(true);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         

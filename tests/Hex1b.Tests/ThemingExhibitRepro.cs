@@ -22,7 +22,9 @@ public class ThemingExhibitRepro
     [Fact]
     public async Task TextBox_InSplitterRightPane_ShouldNotShowCursor_WhenListHasFocus()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         IReadOnlyList<string> items = [
             "Theme 1",
@@ -56,7 +58,7 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Start the app first, then interact with it
@@ -174,8 +176,10 @@ public class ThemingExhibitRepro
     [Fact]
     public void TextBoxNode_WhenNotFocused_ShouldNotRenderCursorColors()
     {
-        using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        var context = new Hex1bRenderContext(workload);
         
         var node = new TextBoxNode
         {
@@ -202,8 +206,10 @@ public class ThemingExhibitRepro
     [Fact]
     public void TextBoxNode_WhenFocused_ShouldRenderCursorColors()
     {
-        using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        var context = new Hex1bRenderContext(workload);
         
         var node = new TextBoxNode
         {
@@ -229,7 +235,9 @@ public class ThemingExhibitRepro
     [Fact]
     public async Task Integration_ThemingExhibitStructure_ListHasFocus_TextBoxDoesNot()
     {
-        using var terminal = new Hex1bTerminal(100, 30);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 100, 30);
 
         IReadOnlyList<string> items = [
             "Default",
@@ -274,7 +282,7 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Start the app first, then interact with it

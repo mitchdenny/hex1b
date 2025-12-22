@@ -13,7 +13,9 @@ public class TestWidgetTests
     [Fact]
     public async Task Test_FluentCallbacks_WorkWithHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         var renderCounts = new List<int>();
         var reconcileCounts = new List<int>();
@@ -43,7 +45,7 @@ public class TestWidgetTests
 
                 return test;
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

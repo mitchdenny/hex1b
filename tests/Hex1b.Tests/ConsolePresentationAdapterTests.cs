@@ -66,16 +66,20 @@ public class Hex1bTerminalTests_Workload
     public void Constructor_HeadlessMode_CreatesWorkloadAdapter()
     {
         // Headless terminal (no presentation adapter)
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // WorkloadAdapter should implement the interface
-        Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(terminal.WorkloadAdapter);
+        Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(workload);
     }
     
     [Fact]
     public void GetSize_ReturnsConfiguredSize()
     {
-        using var terminal = new Hex1bTerminal(100, 50);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 100, 50);
         
         Assert.Equal(100, terminal.Width);
         Assert.Equal(50, terminal.Height);
@@ -84,9 +88,11 @@ public class Hex1bTerminalTests_Workload
     [Fact]
     public void Write_CapturesOutput()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
-        terminal.WorkloadAdapter.Write("Hello");
+        workload.Write("Hello");
         
         Assert.Contains("Hello", terminal.RawOutput);
     }
@@ -94,18 +100,22 @@ public class Hex1bTerminalTests_Workload
     [Fact]
     public void InputEvents_ReturnsChannelReader()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
-        var reader = terminal.WorkloadAdapter.InputEvents;
+        var reader = workload.InputEvents;
         Assert.NotNull(reader);
     }
     
     [Fact]
     public void Capabilities_ReturnsDefaults()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
-        var caps = terminal.WorkloadAdapter.Capabilities;
+        var caps = workload.Capabilities;
         Assert.NotNull(caps);
         Assert.True(caps.SupportsMouse);
         Assert.True(caps.SupportsTrueColor);

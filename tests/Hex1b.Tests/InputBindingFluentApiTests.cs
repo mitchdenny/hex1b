@@ -34,7 +34,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         Hex1bKey? firedKey = null;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -62,7 +64,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -94,7 +96,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_WithCtrlModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -118,7 +122,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -144,7 +148,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_WithShiftModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -168,7 +174,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -193,7 +199,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_MultipleBindings_EachFiresCorrectly()
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var aFired = false;
         var bFired = false;
         var cFired = false;
@@ -217,7 +225,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -275,7 +283,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_DiagnosticTest_VerifyBindingsAreSet()
     {
         // This test verifies that user bindings configured via WithInputBindings work
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -297,7 +307,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -323,7 +333,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_DiagnosticTest_UserBindingWithCtrlCDisabled()
     {
         // Test with CTRL-C disabled to isolate user bindings
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -345,7 +357,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -371,7 +383,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_ChordBinding_FiresOnSecondKey()
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var chordFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -394,7 +408,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -420,7 +434,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_ReconciliationPreservesBindings()
     {
         // Arrange - verify that bindings are preserved across reconciliation
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFireCount = 0;
         var reconcileCount = 0;
 
@@ -442,7 +458,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();

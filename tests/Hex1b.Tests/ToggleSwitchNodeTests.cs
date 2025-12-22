@@ -100,8 +100,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_Unfocused_ShowsOptions()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -124,8 +126,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_Focused_ContainsAnsiCodes()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -146,10 +150,14 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
-        using var focusedTerminal = new Hex1bTerminal(40, 5);
-        using var unfocusedTerminal = new Hex1bTerminal(40, 5);
-        var focusedContext = new Hex1bRenderContext(focusedTerminal.WorkloadAdapter);
-        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal.WorkloadAdapter);
+        using var focusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        var focusedContext = new Hex1bRenderContext(focusedWorkload);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
         var focusedNode = new ToggleSwitchNode
         {
@@ -173,8 +181,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_EmptyOptions_DoesNotThrow()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState { Options = [] },
@@ -444,7 +454,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Manual", "Auto", "Delayed"]
@@ -456,7 +468,7 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -475,7 +487,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_ArrowNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Off", "On"]
@@ -487,7 +501,7 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -506,7 +520,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_MultipleNavigations()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Low", "Medium", "High"]
@@ -518,7 +534,7 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -537,7 +553,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_WithOtherWidgets_TabNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var toggleState = new ToggleSwitchState { Options = ["A", "B"] };
         var buttonClicked = false;
 
@@ -548,7 +566,7 @@ public class ToggleSwitchNodeTests
                     v.Button("Click").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -568,7 +586,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_CallbackTriggered()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var lastSelectedValue = "";
         var state = new ToggleSwitchState
         {
@@ -582,7 +602,7 @@ public class ToggleSwitchNodeTests
                         .OnSelectionChanged(args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

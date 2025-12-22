@@ -4,6 +4,7 @@ using Hex1b.Nodes;
 using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -13,9 +14,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class BorderNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter);
+        return new Hex1bRenderContext(workload);
     }
 
     #region Measurement Tests
@@ -157,8 +158,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsTopBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -180,8 +183,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsBottomBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -201,8 +206,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsVerticalBorders()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -220,8 +227,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_CompleteBorderBox()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" }
@@ -250,8 +259,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithTitle_ShowsTitleInTopBorder()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Content" },
@@ -269,8 +280,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithLongTitle_TruncatesTitle()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -290,8 +303,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithShortTitle_CentersTitleInBorder()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -313,8 +328,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithEmptyTitle_DrawsNormalBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -333,8 +350,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithNullTitle_DrawsNormalBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -356,8 +375,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_RendersChildContent()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hello" }
@@ -373,8 +394,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_ChildContentInsideBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -395,8 +418,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithNoChild_DrawsEmptyBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(20, 5));
@@ -417,8 +442,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_InNarrowTerminal_StillDrawsBorder()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "LongContent" }
@@ -438,8 +465,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_MinimalBorder_DrawsCorrectly()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(10, 5));
@@ -461,7 +490,9 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithCustomTheme_UsesThemeCharacters()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -469,7 +500,7 @@ public class BorderNodeTests
             .Set(BorderTheme.BottomRightCorner, "╝")
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║");
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
@@ -492,7 +523,9 @@ public class BorderNodeTests
     [Fact]
     public void Render_DoubleLineBorderTheme_DrawsCorrectly()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
         var theme = new Hex1bTheme("DoubleLine")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -500,7 +533,7 @@ public class BorderNodeTests
             .Set(BorderTheme.BottomRightCorner, "╝")
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║");
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
@@ -638,13 +671,15 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithTextBlock_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Hello World"))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -666,13 +701,15 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithTitle_ShowsTitle()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Content"), title: "My Panel")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -691,7 +728,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithVStack_RendersMultipleLines()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -701,7 +740,7 @@ public class BorderNodeTests
                     v.Text("Line 3")
                 ], title: "List")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -721,14 +760,16 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithTextBox_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.TextBox(text).OnTextChanged(args => text = args.NewText), title: "Input")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type into the textbox then exit
@@ -748,7 +789,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_NestedBorders_RenderCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -757,7 +800,7 @@ public class BorderNodeTests
                     title: "Outer"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -776,13 +819,15 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderInNarrowTerminal_TruncatesGracefully()
     {
-        using var terminal = new Hex1bTerminal(12, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 12, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -801,7 +846,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_MultipleBordersInHStack_RenderSideBySide()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -810,7 +857,7 @@ public class BorderNodeTests
                     h.Border(ctx.Text("Right"), title: "R")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -830,14 +877,16 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithButton_HandlesClick()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }), title: "Actions")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Press enter to click the button then exit
@@ -856,7 +905,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithMultipleButtons_NavigatesFocus()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var clickedButton = "";
 
         using var app = new Hex1bApp(
@@ -866,7 +917,7 @@ public class BorderNodeTests
                     v.Button("Second").OnClick(_ => { clickedButton = "Second"; return Task.CompletedTask; })
                 ], title: "Buttons")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to second button, then click it
@@ -886,7 +937,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderAtOffset_RendersAtCorrectPosition()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -895,7 +948,7 @@ public class BorderNodeTests
                     v.Border(ctx.Text("Content"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -915,13 +968,15 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_EmptyBorder_RendersMinimalBox()
     {
-        using var terminal = new Hex1bTerminal(20, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text(""))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

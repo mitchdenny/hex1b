@@ -159,8 +159,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_WritesTextToTerminal()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Hello World" };
 
         node.Render(context);
@@ -171,8 +173,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_EmptyText_WritesNothing()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "" };
 
         node.Render(context);
@@ -183,8 +187,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_SpecialCharacters_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Hello → World ← Test" };
 
         node.Render(context);
@@ -196,8 +202,10 @@ public class TextBlockNodeTests
     public void Render_InNarrowTerminal_TextIsTruncatedByTerminalWidth()
     {
         // Terminal is only 10 chars wide - text will wrap/truncate at terminal boundary
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "This is a long text" };
 
         node.Render(context);
@@ -211,8 +219,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_AtSpecificPosition_WritesAtCursorPosition()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Positioned" };
 
         context.SetCursorPosition(5, 3);
@@ -226,8 +236,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_VeryLongText_WrapsAtTerminalEdge()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = new Hex1bRenderContext(workload);
         var longText = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         var node = new TextBlockNode { Text = longText };
 
@@ -246,8 +258,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_WithLayoutProvider_ClipsToClipRect()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // Create a LayoutNode that will clip to a 10-char wide region
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -271,8 +285,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // Layout clips from x=5 to x=15 (width 10)
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -296,8 +312,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_WithLayoutProviderOverflow_DoesNotClip()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // Layout with Overflow mode - should not clip
         var layoutNode = new Hex1b.Nodes.LayoutNode
@@ -319,8 +337,10 @@ public class TextBlockNodeTests
     [Fact]
     public void Render_WithoutLayoutProvider_DoesNotClip()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // No layout provider
         var node = new TextBlockNode { Text = "Hello World" };
@@ -375,11 +395,13 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_TextBlockWidget_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -396,7 +418,9 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_MultipleTextBlocks_InVStack_RenderOnSeparateLines()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -406,7 +430,7 @@ public class TextBlockNodeTests
                     v.Text("Third Line")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -438,7 +462,9 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_TextBlock_WithStateChange_UpdatesOnReRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -452,7 +478,7 @@ public class TextBlockNodeTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -474,7 +500,9 @@ public class TextBlockNodeTests
     public async Task Integration_TextBlock_InNarrowTerminal_RendersCorrectly()
     {
         // Very narrow terminal - 15 chars wide
-        using var terminal = new Hex1bTerminal(15, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -483,7 +511,7 @@ public class TextBlockNodeTests
                     v.Text("A longer text here")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -503,14 +531,16 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_TextBlock_WithDynamicState_ShowsCurrentValue()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var message = "Hello from State";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Text(message)
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -527,11 +557,13 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_TextBlock_EmptyString_DoesNotCrash()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("")),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -549,11 +581,13 @@ public class TextBlockNodeTests
     [Fact]
     public async Task Integration_TextBlock_UnicodeContent_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

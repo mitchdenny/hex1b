@@ -113,8 +113,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Unfocused_ShowsBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "test",
@@ -129,8 +131,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Unfocused_EmptyText_ShowsEmptyBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "",
@@ -145,8 +149,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Unfocused_LongText_RendersCompletely()
     {
-        using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "This is a longer piece of text",
@@ -165,8 +171,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Focused_ShowsCursor()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "abc",
@@ -187,8 +195,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Focused_CursorAtStart_HighlightsFirstChar()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "hello",
@@ -206,8 +216,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Focused_CursorAtEnd_ShowsCursorSpace()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "test",
@@ -224,8 +236,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_Focused_EmptyText_ShowsCursorSpace()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
             Text = "",
@@ -248,8 +262,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_WithSelection_HighlightsSelectedText()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
         node.State.SelectionAnchor = 0;
         node.State.CursorPosition = 5;
@@ -266,8 +282,10 @@ public class TextBoxNodeTests
     [Fact]
     public void Render_WithSelection_InMiddle_HighlightsCorrectPortion()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode { Text = "abcdefgh", IsFocused = true };
         node.State.SelectionAnchor = 2;
         node.State.CursorPosition = 5;
@@ -581,7 +599,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -589,7 +609,7 @@ public class TextBoxNodeTests
                     v.TextBox("Initial Text")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -606,7 +626,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_ReceivesInput()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -615,7 +637,7 @@ public class TextBoxNodeTests
                     v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -634,7 +656,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
         var capturedText = "Short";
 
         using var app = new Hex1bApp(
@@ -643,7 +667,7 @@ public class TextBoxNodeTests
                     v.TextBox(capturedText).OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -663,7 +687,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_TabBetweenMultiple()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
 
@@ -674,7 +700,7 @@ public class TextBoxNodeTests
                     v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type in first box, tab to second, type in second
@@ -697,7 +723,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_BackspaceWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "test";
 
         using var app = new Hex1bApp(
@@ -706,7 +734,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -727,7 +755,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_CursorNavigationWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "abc";
 
         using var app = new Hex1bApp(
@@ -736,7 +766,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Go to start, then right, then insert
@@ -758,7 +788,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_SpecialCharactersWork()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "";
 
         using var app = new Hex1bApp(
@@ -767,7 +799,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -786,7 +818,9 @@ public class TextBoxNodeTests
     [Fact]
     public async Task Integration_TextBox_LongTextInNarrowTerminal_Wraps()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -794,7 +828,7 @@ public class TextBoxNodeTests
                     v.TextBox("LongTextHere")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -820,7 +854,9 @@ public class TextBoxNodeTests
     {
         // Regression test: TextBox with no state argument should preserve typed content
         // Previously, creating new TextBoxState() inline would reset state on each render
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -828,7 +864,7 @@ public class TextBoxNodeTests
                     v.TextBox()  // No state argument - internally managed
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type some text
@@ -850,7 +886,9 @@ public class TextBoxNodeTests
     public async Task Integration_TextBox_UncontrolledMode_MultipleTextBoxes_IndependentState()
     {
         // Each uncontrolled TextBox should have its own independent state
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -859,7 +897,7 @@ public class TextBoxNodeTests
                     v.TextBox()   // Second textbox
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type in first box, tab, type in second box
@@ -884,7 +922,9 @@ public class TextBoxNodeTests
     public async Task Integration_TextBox_ControlledMode_StillWorks()
     {
         // Controlled mode with onTextChanged callback
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "Initial";
 
         using var app = new Hex1bApp(
@@ -893,7 +933,7 @@ public class TextBoxNodeTests
                     v.TextBox(text).OnTextChanged(args => text = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -919,14 +959,16 @@ public class TextBoxNodeTests
     public async Task RunFirst_Button_RendersAndExits()
     {
         // Test with Button (also focusable) to isolate the issue
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Button("Click Me").OnClick(_ => clicked = true)
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -945,13 +987,15 @@ public class TextBoxNodeTests
     {
         // Simplest case: TextBox renders, no input, just Ctrl+C to exit
         // Wait for alternate screen instead of text to isolate rendering from input
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.TextBox("Initial")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -969,14 +1013,16 @@ public class TextBoxNodeTests
     public async Task RunFirst_TextBox_SingleCharacterInput()
     {
         // One character typed into TextBox
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var capturedText = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.TextBox("").OnTextChanged(args => capturedText = args.NewText)
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -996,14 +1042,16 @@ public class TextBoxNodeTests
     public async Task RunFirst_TextBox_TypeMultipleChars()
     {
         // Type multiple chars using Type() method
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var capturedText = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.TextBox("").OnTextChanged(args => capturedText = args.NewText)
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1024,7 +1072,9 @@ public class TextBoxNodeTests
     {
         // Button has initial focus, then Tab to TextBox
         // This tests if the issue is TextBox having initial focus vs receiving focus later
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -1034,7 +1084,7 @@ public class TextBoxNodeTests
                     v.TextBox("").OnTextChanged(args => capturedText = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1055,7 +1105,9 @@ public class TextBoxNodeTests
     public async Task RunFirst_TwoButtons_TabBetweenThem()
     {
         // Two buttons, Tab between them, no TextBox involved
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -1066,7 +1118,7 @@ public class TextBoxNodeTests
                     v.Button("Second").OnClick(_ => button2Clicked = true)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1087,7 +1139,9 @@ public class TextBoxNodeTests
     public async Task RunFirst_ButtonThenTextBox_JustTabThenExit()
     {
         // Button first, Tab to TextBox, but don't type - just exit
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1096,7 +1150,7 @@ public class TextBoxNodeTests
                     v.TextBox("pre-filled")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1115,7 +1169,9 @@ public class TextBoxNodeTests
     public async Task RunFirst_TextBoxInVStack_NoFocusChange()
     {
         // TextBox in VStack, has initial focus, just exit without any interaction
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1123,7 +1179,7 @@ public class TextBoxNodeTests
                     v.TextBox("test-value")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1142,7 +1198,9 @@ public class TextBoxNodeTests
     public async Task RunFirst_ButtonInVStack_Works()
     {
         // Button in VStack, has initial focus
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1150,7 +1208,7 @@ public class TextBoxNodeTests
                     v.Button("Click Me")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1168,7 +1226,9 @@ public class TextBoxNodeTests
     public async Task RunFirst_TextBoxInVStack_RendersAndExits()
     {
         // TextBox in VStack, verify it renders and Ctrl+C exits properly
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1176,7 +1236,7 @@ public class TextBoxNodeTests
                     v.TextBox("test")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

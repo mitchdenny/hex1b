@@ -4,6 +4,7 @@ using Hex1b.Nodes;
 using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -12,9 +13,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class PanelNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter);
+        return new Hex1bRenderContext(workload);
     }
 
     [Fact]
@@ -81,8 +82,10 @@ public class PanelNodeTests
     [Fact]
     public void Render_RendersChildContent()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new PanelNode
         {
             Child = new TextBlockNode { Text = "Panel Content" }
@@ -98,10 +101,12 @@ public class PanelNodeTests
     [Fact]
     public void Render_WithBackgroundColor_FillsBackground()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.BackgroundColor, Hex1bColor.Blue);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new PanelNode
         {
@@ -119,10 +124,12 @@ public class PanelNodeTests
     [Fact]
     public void Render_WithForegroundColor_AppliesColor()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.ForegroundColor, Hex1bColor.Green);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new PanelNode
         {
@@ -140,8 +147,10 @@ public class PanelNodeTests
     [Fact]
     public void Render_WithDefaultColors_RendersNormally()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);  // Uses default theme
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);  // Uses default theme
 
         var node = new PanelNode
         {
@@ -251,10 +260,12 @@ public class PanelNodeTests
     [Fact]
     public void NestedPanelAndBorder_WorkTogether()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var theme = new Hex1bTheme("Test")
             .Set(PanelTheme.BackgroundColor, Hex1bColor.DarkGray);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
@@ -280,13 +291,15 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithTextBlock_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Panel Content"))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -303,7 +316,9 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithVStack_RendersChildren()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -313,7 +328,7 @@ public class PanelNodeTests
                     v.Text("Line 3")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -332,14 +347,16 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithButton_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -357,14 +374,16 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithTextBox_HandlesInput()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.TextBox(text).OnTextChanged(args => text = args.NewText))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -383,13 +402,15 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelInsideBorder_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -407,7 +428,9 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithCustomTheme_AppliesColors()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
 
@@ -415,7 +438,7 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Text("Themed"))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, Theme = theme }
+            new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme }
         );
 
         var runTask = app.RunAsync();
@@ -433,13 +456,15 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_NestedPanels_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -456,7 +481,9 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelInVStack_RendersWithSiblings()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -466,7 +493,7 @@ public class PanelNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -485,14 +512,16 @@ public class PanelNodeTests
     [Fact]
     public async Task Integration_PanelWithList_HandlesNavigation()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Panel(ctx.List(items))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

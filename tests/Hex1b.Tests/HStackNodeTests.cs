@@ -259,8 +259,10 @@ public class HStackNodeTests
     [Fact]
     public void Render_RendersAllChildren()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
         {
@@ -282,8 +284,10 @@ public class HStackNodeTests
     [Fact]
     public void Render_ChildrenAppearOnSameLine()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
         {
@@ -308,8 +312,10 @@ public class HStackNodeTests
     [Fact]
     public void Render_InNarrowTerminal_TextWraps()
     {
-        using var terminal = new Hex1bTerminal(8, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 8, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
         {
@@ -335,7 +341,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_RendersMultipleChildren()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -345,7 +353,7 @@ public class HStackNodeTests
                     h.Text("Right")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -364,7 +372,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_TabNavigatesThroughFocusables()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -376,7 +386,7 @@ public class HStackNodeTests
                     h.Button("Btn2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to second button and click
@@ -397,7 +407,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(20, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -407,7 +419,7 @@ public class HStackNodeTests
                     h.Text("C")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -426,7 +438,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_WithVStack_NestedLayouts()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -441,7 +455,7 @@ public class HStackNodeTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -461,7 +475,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_WithMixedContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "";
         var clicked = false;
 
@@ -473,7 +489,7 @@ public class HStackNodeTests
                     h.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Type in textbox then tab to button and click
@@ -495,13 +511,15 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_EmptyStack_DoesNotCrash()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => Array.Empty<Hex1bWidget>())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -518,7 +536,9 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_LongContentInNarrowTerminal_Wraps()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -527,7 +547,7 @@ public class HStackNodeTests
                     h.Text("AndAnother")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -545,14 +565,16 @@ public class HStackNodeTests
     [Fact]
     public async Task Integration_HStack_DynamicContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var items = new List<string> { "A", "B", "C" };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => items.Select(item => h.Text($"[{item}]")).ToArray())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -574,7 +596,9 @@ public class HStackNodeTests
         // Scenario: HStack with children that are VStacks, each containing only one focusable.
         // Tab should bubble up from the VStack to the HStack since there's nothing to cycle within.
         // This simulates the ResponsiveTodoExhibit Extra Wide layout.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var rightButtonClicked = false;
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
@@ -587,7 +611,7 @@ public class HStackNodeTests
                     h.VStack(v => [v.Text("Actions"), v.Button("Add").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })])
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
@@ -608,7 +632,9 @@ public class HStackNodeTests
     public async Task Integration_VStackWithMultipleFocusables_HandleTabInternally()
     {
         // Scenario: VStack with 2 focusables should handle Tab itself, not bubble up
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -619,7 +645,7 @@ public class HStackNodeTests
                     v.Button("Button 2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Button 1 starts focused
@@ -643,7 +669,9 @@ public class HStackNodeTests
         // Scenario: VStack with 2 focusables nested inside an HStack.
         // Tab should cycle within the VStack, but escape at the last item.
         // This is the ResponsiveTodoExhibit "New" panel scenario.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var listClicked = false;
         var addButtonClicked = false;
         var otherButtonClicked = false;
@@ -664,7 +692,7 @@ public class HStackNodeTests
                     h.Button("Other").OnClick(_ => { otherButtonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List button starts focused
@@ -689,7 +717,9 @@ public class HStackNodeTests
     public async Task Integration_NestedVStackWithMultipleFocusables_ShiftTabEscapesAtBoundary()
     {
         // Scenario: Same as above but with Shift+Tab escaping at the first item.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var listClicked = false;
         var text = "";
 
@@ -706,7 +736,7 @@ public class HStackNodeTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List button starts focused

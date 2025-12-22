@@ -4,6 +4,7 @@ using Hex1b.Nodes;
 using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -12,9 +13,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class ScrollNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        return new Hex1bRenderContext(workload, theme);
     }
 
     private static VStackNode CreateTallContent(int lineCount)
@@ -372,8 +373,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Vertical_ShowsScrollbar_WhenContentExceedsViewport()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
@@ -392,8 +395,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Vertical_ShowsArrows()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
@@ -412,8 +417,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Vertical_NoScrollbar_WhenContentFitsViewport()
     {
-        using var terminal = new Hex1bTerminal(40, 20);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 20);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateTallContent(5),
@@ -433,8 +440,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Vertical_ClipsContentBeyondViewport()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateTallContent(10),
@@ -455,8 +464,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Vertical_WhenScrolled_ShowsOffsetContent()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = CreateContext(workload);
         var state = new ScrollState { Offset = 5 };
         var node = new ScrollNode
         {
@@ -484,8 +495,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Horizontal_ShowsScrollbar_WhenContentExceedsViewport()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateWideContent(10),
@@ -504,8 +517,10 @@ public class ScrollNodeTests
     [Fact]
     public void Render_Horizontal_ShowsArrows()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new ScrollNode
         {
             Child = CreateWideContent(10),
@@ -528,10 +543,12 @@ public class ScrollNodeTests
     [Fact]
     public void Render_WithCustomThumbColor_AppliesColor()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.ThumbColor, Hex1bColor.Cyan);
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
@@ -550,10 +567,12 @@ public class ScrollNodeTests
     [Fact]
     public void Render_WhenFocused_UsesFocusedThumbColor()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.FocusedThumbColor, Hex1bColor.Yellow);
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new ScrollNode
         {
             Child = CreateTallContent(20),
@@ -883,7 +902,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task Integration_VScroll_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -904,7 +925,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -923,7 +944,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task Integration_VScroll_ScrollsWithArrowKeys()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
         var state = new ScrollState();
 
         using var app = new Hex1bApp(
@@ -944,7 +967,7 @@ public class ScrollNodeTests
                     state
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -962,7 +985,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task Integration_VScrollWithButton_FocusNavigation()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
         var buttonClicked = false;
 
         using var app = new Hex1bApp(
@@ -974,7 +999,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -993,7 +1018,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task Integration_VScrollInsideSplitter_Works()
     {
-        using var terminal = new Hex1bTerminal(60, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1016,7 +1043,7 @@ public class ScrollNodeTests
                     leftWidth: 15
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1034,7 +1061,9 @@ public class ScrollNodeTests
     [Fact]
     public async Task Integration_HScroll_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1048,7 +1077,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

@@ -76,8 +76,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_NoError_RendersChild()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var child = new TextBlockNode { Text = "Hello" };
         var node = new RescueNode { Child = child };
         
@@ -136,8 +138,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_RenderThrows_CapturesError()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnRender = true };
         var node = new RescueNode 
@@ -164,8 +168,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_AfterError_RendersFallback()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -186,8 +192,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_CustomFallback_UsesCustomBuilder()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         
@@ -212,8 +220,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_ShowDetailsTrue_IncludesStackTrace()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -234,8 +244,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_ShowDetailsFalse_ShowsFriendlyMessage()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode 
@@ -363,8 +375,10 @@ public class RescueNodeTests
     [Fact]
     public void RescueNode_AfterReset_ResumesNormalRendering()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         var state = new RescueState();
         var throwOnce = new ThrowOnceNode();
         var node = new RescueNode 

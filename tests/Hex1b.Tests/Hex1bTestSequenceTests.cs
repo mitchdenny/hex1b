@@ -388,7 +388,9 @@ public class Hex1bTestSequenceTests
     [Fact]
     public async Task ApplyAsync_SendsKeyEventsToTerminal()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var textEntered = "";
         
         using var app = new Hex1bApp(
@@ -397,7 +399,7 @@ public class Hex1bTestSequenceTests
                     new TextBoxWidget("").OnTextChanged(args => { textEntered = args.NewText; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()
@@ -420,7 +422,9 @@ public class Hex1bTestSequenceTests
     [Fact]
     public async Task ApplyAsync_SendsKeyboardShortcuts()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var ctrlCPressed = false;
         
         using var app = new Hex1bApp(
@@ -434,7 +438,7 @@ public class Hex1bTestSequenceTests
             ),
             new Hex1bAppOptions 
             { 
-                WorkloadAdapter = terminal.WorkloadAdapter,
+                WorkloadAdapter = workload,
                 EnableDefaultCtrlCExit = false
             }
         );
@@ -459,7 +463,9 @@ public class Hex1bTestSequenceTests
     [Fact]
     public async Task ApplyAsync_NavigatesWithArrowKeys()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var items = new[] { "Item 1", "Item 2", "Item 3" };
         
         using var app = new Hex1bApp(
@@ -468,7 +474,7 @@ public class Hex1bTestSequenceTests
                     new ListWidget(items)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()
@@ -493,7 +499,9 @@ public class Hex1bTestSequenceTests
     [Fact]
     public async Task ApplyAsync_TabNavigatesBetweenWidgets()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
         
@@ -504,7 +512,7 @@ public class Hex1bTestSequenceTests
                     new TextBoxWidget("").OnTextChanged(args => { text2 = args.NewText; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var sequence = new Hex1bTestSequenceBuilder()
@@ -530,7 +538,9 @@ public class Hex1bTestSequenceTests
     [Fact]
     public void Apply_SynchronousVersion_Works()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         var sequence = new Hex1bTestSequenceBuilder()
             .Type("Test")

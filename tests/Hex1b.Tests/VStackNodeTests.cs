@@ -284,8 +284,10 @@ public class VStackNodeTests
     [Fact]
     public void Render_RendersAllChildren()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -307,8 +309,10 @@ public class VStackNodeTests
     [Fact]
     public void Render_ChildrenAppearOnDifferentLines()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -332,8 +336,10 @@ public class VStackNodeTests
     [Fact]
     public void Render_InNarrowTerminal_TextWrapsAtEdge()
     {
-        using var terminal = new Hex1bTerminal(10, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -359,7 +365,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_RendersMultipleChildren()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -369,7 +377,7 @@ public class VStackNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -388,7 +396,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_TabNavigatesThroughFocusables()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
         var text3 = "";
@@ -402,7 +412,7 @@ public class VStackNodeTests
                     v.TextBox(text3).OnTextChanged(args => text3 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -431,7 +441,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_ShiftTabNavigatesBackward()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
 
@@ -442,7 +454,7 @@ public class VStackNodeTests
                     v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -465,7 +477,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(15, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -475,7 +489,7 @@ public class VStackNodeTests
                     v.Text("Very long text indeed")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -494,7 +508,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_WithMixedContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -505,7 +521,7 @@ public class VStackNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -527,7 +543,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_NestedVStacks()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -540,7 +558,7 @@ public class VStackNodeTests
                     v.Text("Outer 2")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -560,13 +578,15 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_EmptyStack_DoesNotCrash()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -585,14 +605,16 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_DynamicContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var items = new List<string> { "Item 1", "Item 2", "Item 3" };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

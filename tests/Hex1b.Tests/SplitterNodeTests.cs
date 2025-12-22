@@ -4,6 +4,7 @@ using Hex1b.Nodes;
 using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -12,9 +13,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class SplitterNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        return new Hex1bRenderContext(workload, theme);
     }
 
     #region Measurement Tests
@@ -146,8 +147,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_ShowsDivider()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -166,8 +169,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_ShowsLeftContent()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left Pane Content" },
@@ -185,8 +190,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_ShowsRightContent()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -204,8 +211,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_DividerSpansFullHeight()
     {
-        using var terminal = new Hex1bTerminal(50, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 5);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "L" },
@@ -232,10 +241,12 @@ public class SplitterNodeTests
     [Fact]
     public void Render_WithCustomDividerColor_AppliesColor()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerColor, Hex1bColor.Cyan);
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -254,10 +265,12 @@ public class SplitterNodeTests
     [Fact]
     public void Render_WithCustomDividerCharacter_UsesCustomCharacter()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerCharacter, "║");
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -275,8 +288,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_WhenFocused_InvertsDividerColors()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -649,7 +664,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_Splitter_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -659,7 +676,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -678,7 +695,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterWithVStackPanes_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -688,7 +707,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -708,7 +727,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterWithButtons_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var leftClicked = false;
 
         using var app = new Hex1bApp(
@@ -719,7 +740,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Enter clicks the focused button
@@ -738,7 +759,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterNavigation_TabSwitchesFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var rightClicked = false;
 
         using var app = new Hex1bApp(
@@ -749,7 +772,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab through: left -> splitter -> right, then Enter
@@ -768,7 +791,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterResize_ArrowKeysWork()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -778,7 +803,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
@@ -801,7 +826,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterWithList_HandlesNavigation()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
@@ -812,7 +839,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Down arrow navigates the list
@@ -833,7 +860,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterWithTextBox_HandlesTyping()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var text = "";
 
         using var app = new Hex1bApp(
@@ -844,7 +873,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -863,7 +892,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterInsideBorder_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(70, 12);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 70, 12);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -876,7 +907,7 @@ public class SplitterNodeTests
                     "Split View"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1074,8 +1105,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_Vertical_ShowsHorizontalDivider()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1095,8 +1128,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_Vertical_ShowsTopContent()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top Content" },
@@ -1115,8 +1150,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_Vertical_ShowsBottomContent()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1135,8 +1172,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_Vertical_WhenFocused_InvertsDividerColors()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1293,7 +1332,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitter_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1303,7 +1344,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1322,7 +1363,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterWithVStackPanes_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1332,7 +1375,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1352,7 +1395,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterWithButtons_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
         var topClicked = false;
 
         using var app = new Hex1bApp(
@@ -1363,7 +1408,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Enter clicks the focused button
@@ -1382,7 +1427,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterNavigation_TabSwitchesFocus()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
         var bottomClicked = false;
 
         using var app = new Hex1bApp(
@@ -1393,7 +1440,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab through: top -> splitter -> bottom, then Enter
@@ -1412,7 +1459,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterResize_ArrowKeysWork()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1422,7 +1471,7 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Since first child is just text (not focusable), splitter gets focus
@@ -1443,7 +1492,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterInsideBorder_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(50, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1456,7 +1507,7 @@ public class SplitterNodeTests
                     "Vertical Split"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1476,7 +1527,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_NestedSplitters_HorizontalInsideVertical()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1490,7 +1543,7 @@ public class SplitterNodeTests
                     topHeight: 8
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1519,7 +1572,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromListInVStackInsideSplitter_MovesFocusToNextPane()
     {
-        using var terminal = new Hex1bTerminal(60, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
         var rightButtonClicked = false;
 
@@ -1533,7 +1588,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List starts focused, Tab should move through: List -> Splitter -> Right Button
@@ -1556,7 +1611,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromSecondButtonInVStackInsideSplitter_MovesFocusToNextPane()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var rightButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1569,7 +1626,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Focus order: First -> Second -> Splitter -> Right
@@ -1592,7 +1649,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_ShiftTabFromButtonInsideSplitter_MovesFocusToPreviousPane()
     {
-        using var terminal = new Hex1bTerminal(60, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
         var leftButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1603,7 +1662,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Navigate to Right Button first
@@ -1629,7 +1688,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromWidgetInDeepNesting_BubblesUpToSplitter()
     {
-        using var terminal = new Hex1bTerminal(70, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 70, 15);
         IReadOnlyList<string> items = ["Theme 1", "Theme 2"];
         var rightButtonClicked = false;
 
@@ -1654,7 +1715,7 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List is focused initially, Tab should navigate to Splitter, then to Button
@@ -1851,7 +1912,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_NestedSplitters_InnerSplitterDoesNotOverrideFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
         var outerLeftClicked = false;
         
         // The outer splitter's left pane has a button.
@@ -1871,7 +1934,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Just press Enter - should click the focused button
@@ -1893,7 +1956,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_NestedVSplitterInHSplitter_OuterGetsInitialFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
         var outerLeftClicked = false;
         
         using var app = new Hex1bApp(
@@ -1908,7 +1973,7 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -1929,7 +1994,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TripleNestedSplitters_OnlyRootSetsFocus()
     {
-        using var terminal = new Hex1bTerminal(80, 25);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 25);
         var level1Clicked = false;
         
         using var app = new Hex1bApp(
@@ -1948,7 +2015,7 @@ public class SplitterNodeTests
                     leftWidth: 18
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();

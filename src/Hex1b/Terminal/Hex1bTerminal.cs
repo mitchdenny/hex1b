@@ -62,28 +62,16 @@ public sealed class Hex1bTerminal : IDisposable
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
 
-    /// <summary>
-    /// Creates a new headless terminal for testing with the specified dimensions.
-    /// This constructor creates an internal <see cref="Hex1bAppWorkloadAdapter"/> that
-    /// can be accessed via the <see cref="WorkloadAdapter"/> property.
-    /// </summary>
-    /// <param name="width">Terminal width in characters.</param>
-    /// <param name="height">Terminal height in lines.</param>
-    public Hex1bTerminal(int width, int height)
-        : this(null, new Hex1bAppWorkloadAdapter(width, height))
-    {
-        _width = width;
-        _height = height;
-        _screenBuffer = new TerminalCell[height, width];
-        ClearBuffer();
-    }
+
 
     /// <summary>
-    /// Creates a new headless terminal for testing with the specified workload adapter.
+    /// Creates a new headless terminal for testing with the specified workload adapter and dimensions.
     /// </summary>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload)
-        : this(presentation: null, workload: workload)
+    /// <param name="width">Terminal width in characters.</param>
+    /// <param name="height">Terminal height in lines.</param>
+    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload, int width, int height)
+        : this(presentation: null, workload: workload, width: width, height: height)
     {
     }
 
@@ -92,14 +80,24 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     /// <param name="presentation">The presentation adapter for actual I/O. Pass null for headless/test mode.</param>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
+    /// <param name="width">Terminal width (used when presentation is null). Ignored if presentation is provided.</param>
+    /// <param name="height">Terminal height (used when presentation is null). Ignored if presentation is provided.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
-        IHex1bTerminalWorkloadAdapter workload)
+        IHex1bTerminalWorkloadAdapter workload,
+        int width = 80,
+        int height = 24)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
-        _width = presentation?.Width ?? 80;
-        _height = presentation?.Height ?? 24;
+        
+        // Get dimensions from presentation if available, otherwise use provided dimensions
+        _width = presentation?.Width ?? width;
+        _height = presentation?.Height ?? height;
+        
+        // Notify workload of initial dimensions (ResizeAsync handles not firing event on init)
+        _ = _workload.ResizeAsync(_width, _height);
+        
         _rawOutput = new StringBuilder();
         _screenBuffer = new TerminalCell[_height, _width];
         
@@ -149,19 +147,6 @@ public sealed class Hex1bTerminal : IDisposable
     /// Terminal height.
     /// </summary>
     public int Height => _height;
-
-    /// <summary>
-    /// Gets the workload adapter. For headless terminals created with (width, height),
-    /// this returns the internal <see cref="Hex1bAppWorkloadAdapter"/>.
-    /// For terminals created with explicit adapters, this returns the provided workload.
-    /// </summary>
-    /// <remarks>
-    /// This property is primarily for testing scenarios where the terminal is created
-    /// with dimensions and the workload adapter is needed for Hex1bApp or context creation.
-    /// </remarks>
-    public IHex1bAppTerminalWorkloadAdapter WorkloadAdapter => 
-        _workload as IHex1bAppTerminalWorkloadAdapter 
-        ?? throw new InvalidOperationException("Workload adapter is not an IHex1bAppTerminalWorkloadAdapter");
 
     /// <summary>
     /// Raised when the terminal disconnects (either presentation or workload).

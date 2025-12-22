@@ -3,6 +3,7 @@ using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -11,9 +12,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class ResponsiveNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter);
+        return new Hex1bRenderContext(workload);
     }
 
     [Fact]
@@ -152,8 +153,10 @@ public class ResponsiveNodeTests
     [Fact]
     public void Render_OnlyRendersActiveChild()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
             Branches =
@@ -180,8 +183,10 @@ public class ResponsiveNodeTests
     [Fact]
     public void Render_NoMatchingCondition_RendersNothing()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
             Branches =
@@ -406,8 +411,10 @@ public class ResponsiveNodeTests
     [Fact]
     public void NestedResponsive_WorksCorrectly()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
 
         var innerNode = new ResponsiveNode
         {
@@ -443,8 +450,10 @@ public class ResponsiveNodeTests
     [Fact]
     public void Responsive_WithOtherwiseFallback_ShowsFallback()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
             Branches =
@@ -473,7 +482,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WideLayout_ShowsWideContent()
     {
-        using var terminal = new Hex1bTerminal(120, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 120, 20);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -482,7 +493,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -500,7 +511,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_NarrowLayout_ShowsNarrowContent()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -509,7 +522,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Compact View"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -527,7 +540,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_ThreeTiers_SelectsCorrectTier()
     {
-        using var terminal = new Hex1bTerminal(75, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 75, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -537,7 +552,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -557,7 +572,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WhenWidth_ConditionWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -567,7 +584,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Narrow"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -585,7 +602,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WithFullCondition_UsesWidthAndHeight()
     {
-        using var terminal = new Hex1bTerminal(60, 30);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 30);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -594,7 +613,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Small Screen"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -611,7 +630,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_InsideBorder_ReceivesConstrainedSize()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -623,7 +644,7 @@ public class ResponsiveNodeTests
                     "Container"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -642,7 +663,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WithFocusableChildren_FocusWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -652,7 +675,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -670,7 +693,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WithTextBox_InputWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
         var text = "";
 
         using var app = new Hex1bApp(
@@ -680,7 +705,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -699,7 +724,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_InVStack_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -712,7 +739,7 @@ public class ResponsiveNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -731,7 +758,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_NoMatchingConditions_RendersNothing()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -741,7 +770,7 @@ public class ResponsiveNodeTests
                     // No Otherwise fallback - neither condition matches
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -759,7 +788,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WithList_NavigationWorks()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
@@ -769,7 +800,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text("Too narrow for list"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -789,7 +820,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_DifferentLayoutsForDifferentWidgets()
     {
-        using var terminal = new Hex1bTerminal(100, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 100, 20);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -808,7 +841,7 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -827,7 +860,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_NarrowFallsBackToVStack()
     {
-        using var terminal = new Hex1bTerminal(40, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 20);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -846,7 +881,7 @@ public class ResponsiveNodeTests
                     )
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -865,7 +900,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_InSplitter_WorksCorrectly()
     {
-        using var terminal = new Hex1bTerminal(100, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 100, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -878,7 +915,7 @@ public class ResponsiveNodeTests
                     leftWidth: 40
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
@@ -896,7 +933,9 @@ public class ResponsiveNodeTests
     [Fact]
     public async Task Integration_Responsive_WithState_AccessesStateCorrectly()
     {
-        using var terminal = new Hex1bTerminal(80, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 10);
         var state = new { Message = "Hello from state" };
 
         using var app = new Hex1bApp(
@@ -905,7 +944,7 @@ public class ResponsiveNodeTests
                     r.Otherwise(r => r.Text(state.Message))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync();
