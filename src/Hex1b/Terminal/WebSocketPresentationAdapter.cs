@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using Hex1b.Input;
 
 namespace Hex1b.Terminal;
@@ -121,21 +122,32 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                 return ReadOnlyMemory<byte>.Empty;
             }
             
-            // Check for resize message (custom protocol: starts with "resize:")
+            // Check for resize message (JSON format: {"type":"resize","cols":80,"rows":24})
             if (result.MessageType == WebSocketMessageType.Text)
             {
                 var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                if (text.StartsWith("resize:"))
+                if (text.StartsWith("{") && text.Contains("\"resize\""))
                 {
-                    var parts = text[7..].Split(',');
-                    if (parts.Length == 2 && 
-                        int.TryParse(parts[0], out var newWidth) && 
-                        int.TryParse(parts[1], out var newHeight))
+                    try
                     {
-                        Resize(newWidth, newHeight);
+                        using var doc = JsonDocument.Parse(text);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("type", out var typeElem) && 
+                            typeElem.GetString() == "resize" &&
+                            root.TryGetProperty("cols", out var colsElem) &&
+                            root.TryGetProperty("rows", out var rowsElem))
+                        {
+                            var newWidth = colsElem.GetInt32();
+                            var newHeight = rowsElem.GetInt32();
+                            Resize(newWidth, newHeight);
+                            // Return empty for resize messages - not actual input
+                            return await ReadInputAsync(ct);
+                        }
                     }
-                    // Return empty for resize messages - not actual input
-                    return await ReadInputAsync(ct);
+                    catch (JsonException)
+                    {
+                        // Not valid JSON, treat as regular input
+                    }
                 }
             }
             
