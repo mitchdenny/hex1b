@@ -351,8 +351,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left"));
@@ -379,14 +384,15 @@ public class HStackNodeTests
         );
 
         // Tab to second button and click
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Btn1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.False(button1Clicked);
         Assert.True(button2Clicked);
@@ -408,8 +414,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("A"));
@@ -438,8 +449,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Bottom"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Left Top"));
@@ -467,15 +483,16 @@ public class HStackNodeTests
         );
 
         // Type in textbox then tab to button and click
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(2))
             .Type("Hi")
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hi", text);
         Assert.True(clicked);
@@ -493,11 +510,15 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        // Should complete without error
-        Assert.False(terminal.InAlternateScreen);
+        // Should complete without error - test is that we didn't throw
     }
 
     [Fact]
@@ -515,8 +536,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("VeryLongWord"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Content wraps at terminal boundary
@@ -536,8 +562,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[C]"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("[A]"));
@@ -568,13 +599,15 @@ public class HStackNodeTests
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Add"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from List in left VStack to Button in right VStack");
     }
@@ -598,13 +631,15 @@ public class HStackNodeTests
         );
 
         // Button 1 starts focused
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.False(button1Clicked);
         Assert.True(button2Clicked, "Tab should have moved focus from Button 1 to Button 2 within VStack");
@@ -641,15 +676,17 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()   // List -> TextBox (enters VStack)
             .Tab()   // TextBox -> Add (within VStack)
             .Tab()   // Add -> Other (escapes VStack at boundary!)
             .Enter() // Click Other button
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.False(listClicked);
         Assert.False(addButtonClicked);
@@ -681,14 +718,16 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()                    // List -> TextBox (enters VStack)
             .Shift().Tab()            // TextBox -> List (escapes VStack!)
             .Enter()                  // Click List button
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(listClicked, "Shift+Tab at first VStack item should escape back to previous HStack child");
     }

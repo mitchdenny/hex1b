@@ -340,8 +340,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Click Me"));
@@ -362,13 +367,14 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
     }
@@ -388,13 +394,14 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Space()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
     }
@@ -416,15 +423,16 @@ public class ButtonNodeTests
         );
 
         // Click the button 3 times
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.Equal(3, counter);
@@ -449,14 +457,15 @@ public class ButtonNodeTests
         );
 
         // Tab to second button and press Enter
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.False(button1Clicked);
         Assert.True(button2Clicked);
@@ -477,13 +486,14 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(clicked);
@@ -504,8 +514,13 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // The button text should be present (possibly wrapped)
@@ -530,15 +545,16 @@ public class ButtonNodeTests
         );
 
         // Type in text box, tab to button, press button
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
             .Type("Hi")
             .Tab()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hi", text);
         Assert.True(buttonClicked);
@@ -560,15 +576,18 @@ public class ButtonNodeTests
         );
 
         // Click 5 times rapidly
-        var builder = new Hex1bTestSequenceBuilder();
+        var runTask = app.RunAsync();
+        var builder = new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2));
         for (int i = 0; i < 5; i++)
         {
             builder.Enter();
         }
-        builder.Build().Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        await builder
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(5, clickCount);
     }
@@ -588,14 +607,15 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Clicked 0 times"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Clicked 2 times"));

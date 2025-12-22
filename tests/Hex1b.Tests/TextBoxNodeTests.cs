@@ -601,8 +601,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Initial Text"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Initial Text"));
@@ -623,13 +628,15 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hello", capturedText);
     }
@@ -649,14 +656,16 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
             .End()
             .Type("X")
+            .WaitUntil(s => s.ContainsText("ShortX"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("ShortX", capturedText);
     }
@@ -679,15 +688,17 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab to second, type in second
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("AB")
             .Tab()
             .Type("XY")
+            .WaitUntil(s => s.ContainsText("XY"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("AB", text1);
         Assert.Equal("XY", text2);
@@ -708,15 +719,17 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2))
             .End()
             .Backspace()
             .Backspace()
+            .WaitUntil(s => s.ContainsText("te") && !s.ContainsText("test"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("te", text);
     }
@@ -737,15 +750,17 @@ public class TextBoxNodeTests
         );
 
         // Go to start, then right, then insert
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("abc"), TimeSpan.FromSeconds(2))
             .Home()
             .Right()
             .Type("X")
+            .WaitUntil(s => s.ContainsText("aXbc"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("aXbc", text);
     }
@@ -765,13 +780,15 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("@!#")
+            .WaitUntil(s => s.ContainsText("@!#"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("@!#", text);
     }
@@ -790,8 +807,13 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[LongText"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // The text box renders as "[LongTextHere]" which is 14 chars
@@ -821,13 +843,15 @@ public class TextBoxNodeTests
         );
 
         // Type some text
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // The typed text should be visible in the terminal output
@@ -851,15 +875,17 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab, type in second box
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("AA")
             .Tab()
             .Type("BB")
+            .WaitUntil(s => s.ContainsText("BB"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Both texts should be visible
@@ -883,14 +909,16 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder()
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Initial"), TimeSpan.FromSeconds(2))
             .End()
             .Type("X")
+            .WaitUntil(s => s.ContainsText("InitialX"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+            .ApplyAsync(terminal);
+        await runTask;
 
         // The external state should be updated
         Assert.Equal("InitialX", text);
