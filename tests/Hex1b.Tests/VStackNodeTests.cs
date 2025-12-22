@@ -388,7 +388,7 @@ public class VStackNodeTests
         Assert.True(terminal.ContainsText("Footer"));
     }
 
-    [Fact(Skip = "Hanging in run-first pattern - TextBox input needs investigation")]
+    [Fact]
     public async Task Integration_VStack_TabNavigatesThroughFocusables()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -431,7 +431,7 @@ public class VStackNodeTests
         Assert.Equal("3", text3);
     }
 
-    [Fact(Skip = "Hanging in run-first pattern - TextBox input needs investigation")]
+    [Fact]
     public async Task Integration_VStack_ShiftTabNavigatesBackward()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -494,7 +494,7 @@ public class VStackNodeTests
         Assert.True(terminal.ContainsText("Very long text"));
     }
 
-    [Fact(Skip = "Hanging in run-first pattern - Tab to button needs investigation")]
+    [Fact]
     public async Task Integration_VStack_WithMixedContent()
     {
         using var terminal = new Hex1bTerminal(80, 24);

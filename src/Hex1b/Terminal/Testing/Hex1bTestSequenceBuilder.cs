@@ -366,6 +366,15 @@ public sealed class Hex1bTestSequenceBuilder
     private static string GetDefaultTextForKey(Hex1bKey key, Hex1bModifiers modifiers)
     {
         var isShift = (modifiers & Hex1bModifiers.Shift) != 0;
+        var isControl = (modifiers & Hex1bModifiers.Control) != 0;
+        var isAlt = (modifiers & Hex1bModifiers.Alt) != 0;
+        
+        // Control/Alt combos with letters don't produce printable text
+        // (they're keyboard shortcuts, not character input)
+        if ((isControl || isAlt) && key >= Hex1bKey.A && key <= Hex1bKey.Z)
+        {
+            return "";
+        }
         
         return key switch
         {

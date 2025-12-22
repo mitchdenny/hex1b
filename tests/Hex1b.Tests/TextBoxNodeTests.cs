@@ -897,4 +897,289 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region Run-First Pattern Integration Tests
+
+    [Fact]
+    public async Task RunFirst_Button_RendersAndExits()
+    {
+        // Test with Button (also focusable) to isolate the issue
+        using var terminal = new Hex1bTerminal(80, 24);
+        var clicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.Button("Click Me").OnClick(_ => clicked = true)
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("Click Me"));
+    }
+
+    [Fact]
+    public async Task RunFirst_TextBox_RendersWithoutInput()
+    {
+        // Simplest case: TextBox renders, no input, just Ctrl+C to exit
+        // Wait for alternate screen instead of text to isolate rendering from input
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.TextBox("Initial")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("Initial"));
+    }
+
+    [Fact]
+    public async Task RunFirst_TextBox_SingleCharacterInput()
+    {
+        // One character typed into TextBox
+        using var terminal = new Hex1bTerminal(80, 24);
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.TextBox("").OnTextChanged(args => capturedText = args.NewText)
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Key(Hex1bKey.A)  // Single letter 'a'
+            .WaitUntil(s => s.ContainsText("a"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+
+        Assert.Equal("a", capturedText);
+    }
+
+    [Fact]
+    public async Task RunFirst_TextBox_TypeMultipleChars()
+    {
+        // Type multiple chars using Type() method
+        using var terminal = new Hex1bTerminal(80, 24);
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.TextBox("").OnTextChanged(args => capturedText = args.NewText)
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Type("Hello")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+
+        Assert.Equal("Hello", capturedText);
+    }
+
+    [Fact]
+    public async Task RunFirst_ButtonThenTextBox_TabToTextBox()
+    {
+        // Button has initial focus, then Tab to TextBox
+        // This tests if the issue is TextBox having initial focus vs receiving focus later
+        using var terminal = new Hex1bTerminal(80, 24);
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("OK"),
+                    v.TextBox("").OnTextChanged(args => capturedText = args.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
+            .Tab()  // Move focus from Button to TextBox
+            .Key(Hex1bKey.X)  // Type 'x' in TextBox
+            .WaitUntil(s => s.ContainsText("x"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+
+        Assert.Equal("x", capturedText);
+    }
+
+    [Fact]
+    public async Task RunFirst_TwoButtons_TabBetweenThem()
+    {
+        // Two buttons, Tab between them, no TextBox involved
+        using var terminal = new Hex1bTerminal(80, 24);
+        var button1Clicked = false;
+        var button2Clicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("First").OnClick(_ => button1Clicked = true),
+                    v.Button("Second").OnClick(_ => button2Clicked = true)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Tab()  // Move from First to Second
+            .Key(Hex1bKey.Enter)  // Activate Second button
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+
+        Assert.False(button1Clicked);
+        Assert.True(button2Clicked);
+    }
+
+    [Fact]
+    public async Task RunFirst_ButtonThenTextBox_JustTabThenExit()
+    {
+        // Button first, Tab to TextBox, but don't type - just exit
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("OK"),
+                    v.TextBox("pre-filled")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
+            .Tab()  // Move focus from Button to TextBox
+            .Ctrl().Key(Hex1bKey.C)  // Immediately exit
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("pre-filled"));
+    }
+
+    [Fact]
+    public async Task RunFirst_TextBoxInVStack_NoFocusChange()
+    {
+        // TextBox in VStack, has initial focus, just exit without any interaction
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("test-value")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            // Wait for InAlternateScreen instead of specific text
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("test-value"));
+    }
+
+    [Fact]
+    public async Task RunFirst_ButtonInVStack_Works()
+    {
+        // Button in VStack, has initial focus
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("Click Me")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("Click Me"));
+    }
+
+    [Fact]
+    public async Task RunFirst_TextBoxInVStack_RendersAndExits()
+    {
+        // TextBox in VStack, verify it renders and Ctrl+C exits properly
+        using var terminal = new Hex1bTerminal(80, 24);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("test")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+        );
+
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        terminal.FlushOutput();
+
+        Assert.True(terminal.ContainsText("test"));
+    }
+
+    #endregion
 }

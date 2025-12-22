@@ -360,7 +360,7 @@ public class PanelNodeTests
         Assert.True(clicked);
     }
 
-    [Fact(Skip = "Hanging in run-first pattern - TextBox input needs investigation")]
+    [Fact]
     public async Task Integration_PanelWithTextBox_HandlesInput()
     {
         using var terminal = new Hex1bTerminal(30, 10);
@@ -373,9 +373,15 @@ public class PanelNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder().Type("Hello Panel").Build().Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Type("Hello Panel")
+            .WaitUntil(s => s.ContainsText("Hello Panel"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hello Panel", text);
     }
