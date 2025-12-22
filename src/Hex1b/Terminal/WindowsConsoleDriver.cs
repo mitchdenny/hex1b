@@ -160,6 +160,9 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         {
             while (!ct.IsCancellationRequested)
             {
+                // Always check for resize first, before waiting for input
+                CheckResize();
+                
                 // Wait for input with timeout to allow cancellation checks
                 var waitResult = WaitForSingleObject(_inputHandle, 100); // 100ms timeout
                 
@@ -185,6 +188,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                         {
                             if (bytesRead > 0)
                             {
+                                // Check for resize after reading input too
+                                CheckResize();
                                 return (int)bytesRead;
                             }
                         }
