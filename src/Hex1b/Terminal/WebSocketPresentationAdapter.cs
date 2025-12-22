@@ -122,31 +122,33 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                 return ReadOnlyMemory<byte>.Empty;
             }
             
-            // Check for resize message (JSON format: {"type":"resize","cols":80,"rows":24})
+            // Check for resize message (custom protocol)
             if (result.MessageType == WebSocketMessageType.Text)
             {
                 var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                if (text.StartsWith("{") && text.Contains("\"resize\""))
+                
+                // Handle JSON format: {"type":"resize","cols":80,"rows":24}
+                if (text.StartsWith("{") && text.Contains("resize"))
                 {
-                    try
+                    if (TryParseJsonResize(text, out var newWidth, out var newHeight))
                     {
-                        using var doc = JsonDocument.Parse(text);
-                        var root = doc.RootElement;
-                        if (root.TryGetProperty("type", out var typeElem) && 
-                            typeElem.GetString() == "resize" &&
-                            root.TryGetProperty("cols", out var colsElem) &&
-                            root.TryGetProperty("rows", out var rowsElem))
-                        {
-                            var newWidth = colsElem.GetInt32();
-                            var newHeight = rowsElem.GetInt32();
-                            Resize(newWidth, newHeight);
-                            // Return empty for resize messages - not actual input
-                            return await ReadInputAsync(ct);
-                        }
+                        Resize(newWidth, newHeight);
+                        // Return empty for resize messages - not actual input
+                        return await ReadInputAsync(ct);
                     }
-                    catch (JsonException)
+                }
+                
+                // Handle legacy format: resize:80,24
+                if (text.StartsWith("resize:"))
+                {
+                    var parts = text[7..].Split(',');
+                    if (parts.Length == 2 && 
+                        int.TryParse(parts[0], out var width) && 
+                        int.TryParse(parts[1], out var height))
                     {
-                        // Not valid JSON, treat as regular input
+                        Resize(width, height);
+                        // Return empty for resize messages - not actual input
+                        return await ReadInputAsync(ct);
                     }
                 }
             }
@@ -233,5 +235,35 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                 // Ignore close errors
             }
         }
+    }
+
+    /// <summary>
+    /// Attempts to parse a JSON resize message.
+    /// </summary>
+    private static bool TryParseJsonResize(string json, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+
+        try
+        {
+            // Simple parsing without full JSON deserializer
+            // Expected format: {"type":"resize","cols":80,"rows":24}
+            var colsMatch = System.Text.RegularExpressions.Regex.Match(json, @"""cols""\s*:\s*(\d+)");
+            var rowsMatch = System.Text.RegularExpressions.Regex.Match(json, @"""rows""\s*:\s*(\d+)");
+
+            if (colsMatch.Success && rowsMatch.Success)
+            {
+                width = int.Parse(colsMatch.Groups[1].Value);
+                height = int.Parse(rowsMatch.Groups[1].Value);
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore parse errors
+        }
+
+        return false;
     }
 }

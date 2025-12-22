@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -11,7 +12,8 @@ public class RenderOptimizationTests
     [Fact]
     public async Task SameWidgetInstance_ShouldNotReRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
 
         // Create a single widget instance that's reused every frame
@@ -19,16 +21,19 @@ public class RenderOptimizationTests
 
         using var app = new Hex1bApp(
             ctx => testWidget,
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Trigger re-renders via input
-        terminal.SendKey(ConsoleKey.A, 'a');
-        terminal.SendKey(ConsoleKey.B, 'b');
-        terminal.SendKey(ConsoleKey.C, 'c');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)
+            .Key(Hex1bKey.B)
+            .Key(Hex1bKey.C)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Same widget instance = same node = clean = only initial render
@@ -38,7 +43,8 @@ public class RenderOptimizationTests
     [Fact]
     public async Task TextBlock_WithChangingText_ShouldReRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -48,26 +54,30 @@ public class RenderOptimizationTests
                 // Text changes each frame - node should be marked dirty
                 return Task.FromResult<Hex1bWidget>(ctx.Text($"Counter: {counter}"));
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.A, 'a');
-        terminal.SendKey(ConsoleKey.B, 'b');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)
+            .Key(Hex1bKey.B)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Each frame has different text, so each frame should render
-        // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) = 3 renders
+        // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) + Ctrl+C (Counter: 4) = 4 renders
         // Verify by checking the final output
-        Assert.True(terminal.ContainsText("Counter: 3"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
     }
 
     [Fact]
     public async Task TextBlock_WithSameText_ShouldNotReRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
         
         // Track renders by wrapping in a VStack with a TestWidget
@@ -78,14 +88,17 @@ public class RenderOptimizationTests
                 v.Text("Static text"), // Same text every frame
                 testWidget // Track renders - should only render once
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.A, 'a');
-        terminal.SendKey(ConsoleKey.B, 'b');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)
+            .Key(Hex1bKey.B)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Both widgets have same content each frame - only initial render
@@ -95,7 +108,8 @@ public class RenderOptimizationTests
     [Fact]
     public async Task MixedTree_StaticAndDynamic_OnlyDynamicReRenders()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var staticRenderCount = 0;
         var counter = 0;
 
@@ -115,21 +129,24 @@ public class RenderOptimizationTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.A, 'a');
-        terminal.SendKey(ConsoleKey.B, 'b');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)
+            .Key(Hex1bKey.B)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // The static widget should only render once (initial frame)
         Assert.Equal(1, staticRenderCount);
         
-        // Dynamic text should have updated
-        Assert.True(terminal.ContainsText("Counter: 3"));
+        // Dynamic text should have updated (A, B, Ctrl+C = 4 total frames)
+        Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
     }
 
     [Fact]
@@ -137,7 +154,8 @@ public class RenderOptimizationTests
     {
         // Verifies that VStack's index-based reconciliation correctly creates new nodes
         // when a widget's position changes (rather than reusing the old node)
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var reconcileDetails = new List<(int frame, bool isNewNode)>();
         var frameNumber = 0;
 
@@ -163,28 +181,34 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.A, 'a');
-        terminal.SendKey(ConsoleKey.B, 'b');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)
+            .Key(Hex1bKey.B)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Frame 1: testWidget at index 0 → new node
         // Frame 2: testWidget at index 0 → same node reused  
         // Frame 3: testWidget at index 1 → new node (because VStack uses index-based reconciliation)
-        Assert.Equal(3, reconcileDetails.Count);
+        // Frame 4: Ctrl+C triggers another frame (testWidget still at index 1, reused)
+        Assert.Equal(4, reconcileDetails.Count);
         Assert.True(reconcileDetails[0].isNewNode);  // Frame 1: new
         Assert.False(reconcileDetails[1].isNewNode); // Frame 2: reused
         Assert.True(reconcileDetails[2].isNewNode);  // Frame 3: new (widget moved to index 1)
+        Assert.False(reconcileDetails[3].isNewNode); // Frame 4: reused
     }
 
     [Fact]
     public async Task SingleFrame_RendersNewNode()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
         var reconcileCount = 0;
         Hex1bNode? capturedNode = null;
@@ -201,23 +225,28 @@ public class RenderOptimizationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [testWidget])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // First render only
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        // After first frame, verify node state
+        // After first frame and Ctrl+C frame, verify node state
         Assert.NotNull(capturedNode);
-        Assert.Equal(1, reconcileCount);
-        Assert.Equal(1, renderCount);
+        Assert.Equal(2, reconcileCount); // Initial + Ctrl+C frame
+        Assert.Equal(1, renderCount); // Node is clean on second frame, so only 1 render
     }
 
     [Fact]
     public async Task NodeWithChangedBounds_ShouldReRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
         var frameNumber = 0;
 
@@ -240,15 +269,18 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Frame 1: [testWidget] - new node, rendered
-        terminal.SendKey(ConsoleKey.A, 'a'); // triggers frame 2: [testWidget] - same node, clean, NOT rendered
-        terminal.SendKey(ConsoleKey.B, 'b'); // triggers frame 3: [Text, testWidget] - new node at index 1, rendered
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A)  // triggers frame 2: [testWidget] - same node, clean, NOT rendered
+            .Key(Hex1bKey.B)  // triggers frame 3: [Text, testWidget] - new node at index 1, rendered
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Due to VStack's index-based reconciliation:
         // - Frame 1: testWidget at index 0 → new TestWidgetNode created → rendered (1)
@@ -263,7 +295,8 @@ public class RenderOptimizationTests
         // This test verifies that mouse cursor movement using the terminal's native cursor
         // does not cause extra re-renders. The native cursor is rendered by the terminal
         // itself, so we don't need to mark widgets dirty when the cursor moves.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
 
         var testWidget = new TestWidget().OnRender(_ => renderCount++);
@@ -272,18 +305,21 @@ public class RenderOptimizationTests
             ctx => ctx.VStack(v => [testWidget]),
             new Hex1bAppOptions 
             { 
-                WorkloadAdapter = terminal.WorkloadAdapter,
+                WorkloadAdapter = workload,
                 EnableMouse = true
             }
         );
 
         // Move mouse multiple times - with native cursor, this should NOT trigger re-renders
-        terminal.SendMouse(MouseButton.None, MouseAction.Move, 5, 5);
-        terminal.SendMouse(MouseButton.None, MouseAction.Move, 10, 10);
-        terminal.SendMouse(MouseButton.None, MouseAction.Move, 15, 15);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .MouseMoveTo(5, 5)
+            .MouseMoveTo(10, 10)
+            .MouseMoveTo(15, 15)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // With native terminal cursor, mouse movement should NOT trigger extra renders.
@@ -297,7 +333,8 @@ public class RenderOptimizationTests
     {
         // When dragging the splitter, FirstSize changes and the splitter should be marked dirty
         // so that the divider and children re-render at their new positions.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var rightPaneRenderCount = 0;
 
         using var app = new Hex1bApp(
@@ -312,24 +349,22 @@ public class RenderOptimizationTests
             ),
             new Hex1bAppOptions 
             { 
-                WorkloadAdapter = terminal.WorkloadAdapter,
+                WorkloadAdapter = workload,
                 EnableMouse = true
             }
         );
 
         // Initial render
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Let the app initialize
-        
-        // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
-        terminal.SendMouse(MouseButton.Left, MouseAction.Down, 21, 5);
-        // Drag right by 5 characters
-        terminal.SendMouse(MouseButton.Left, MouseAction.Drag, 26, 5);
-        // Release
-        terminal.SendMouse(MouseButton.Left, MouseAction.Up, 26, 5);
-        
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.Tab)  // Let the app initialize
+            // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
+            // Drag right by 5 characters
+            .Drag(21, 5, 26, 5)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // The widget in the right pane should re-render when the splitter moves
@@ -342,7 +377,8 @@ public class RenderOptimizationTests
     {
         // The splitter divider itself should re-render at its new position when dragged.
         // This test verifies the splitter node is marked dirty when FirstSize changes.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => ctx.Splitter(
@@ -352,23 +388,24 @@ public class RenderOptimizationTests
             ),
             new Hex1bAppOptions 
             { 
-                WorkloadAdapter = terminal.WorkloadAdapter,
+                WorkloadAdapter = workload,
                 EnableMouse = true
             }
         );
 
         // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
-        terminal.SendMouse(MouseButton.Left, MouseAction.Down, 21, 5);
-        // Drag right by 10 characters 
-        terminal.SendMouse(MouseButton.Left, MouseAction.Drag, 31, 5);
-        // Release
-        terminal.SendMouse(MouseButton.Left, MouseAction.Up, 31, 5);
-        
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        // Drag right by 10 characters
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .Drag(21, 5, 31, 5)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
-        var output = terminal.GetScreenText();
+        
+        var snapshot = terminal.CreateSnapshot();
+        var output = snapshot.GetScreenText();
 
         // After dragging, the divider should be at the new position (around column 30)
         // Check that the divider character "│" appears at the expected position
@@ -400,7 +437,8 @@ public class RenderOptimizationTests
         // Verifies that enlarging the terminal doesn't cause an index out of bounds exception
         // This was a bug where _width/_height were updated before Resize() was called,
         // causing the copy loop to try accessing indices beyond the old buffer.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Write some content first
         terminal.FlushOutput();
@@ -409,8 +447,9 @@ public class RenderOptimizationTests
         terminal.Resize(120, 40);
         
         // Verify new dimensions
-        Assert.Equal(120, terminal.Width);
-        Assert.Equal(40, terminal.Height);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Equal(120, snapshot.Width);
+        Assert.Equal(40, snapshot.Height);
     }
 
     [Fact]
@@ -418,22 +457,25 @@ public class RenderOptimizationTests
     {
         // When the terminal is resized, all nodes should re-render
         // because their layout may have changed.
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
 
         var testWidget = new TestWidget().OnRender(_ => renderCount++);
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [testWidget]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Trigger a resize event
-        await terminal.WorkloadAdapter.ResizeAsync(100, 30);
-        
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await workload.ResizeAsync(100, 30);
+        await new Hex1bTestSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         // Should render twice: initial render + after resize

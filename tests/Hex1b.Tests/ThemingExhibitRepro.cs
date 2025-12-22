@@ -1,5 +1,7 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -20,7 +22,9 @@ public class ThemingExhibitRepro
     [Fact]
     public async Task TextBox_InSplitterRightPane_ShouldNotShowCursor_WhenListHasFocus()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         IReadOnlyList<string> items = [
             "Theme 1",
@@ -54,33 +58,40 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Complete immediately - we just want to see the initial render
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        // Start the app first, then interact with it
+        var runTask = app.RunAsync();
+
+        // Wait for the content to render, then exit
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+
+        await runTask;
 
         // Debug: Print all non-empty lines
         Console.WriteLine("=== Screen output ===");
-        foreach (var line in terminal.GetNonEmptyLines())
+        foreach (var line in terminal.CreateSnapshot().GetNonEmptyLines())
         {
             Console.WriteLine(line);
         }
         
         Console.WriteLine("\n=== Raw output (to check for ANSI codes) ===");
-        Console.WriteLine(terminal.RawOutput);
+        Console.WriteLine(terminal.CreateSnapshot().RawOutput);
         
         // The List should have focus (first focusable in the splitter)
         // The TextBox should NOT show cursor styling
         
         // Look for cursor color codes in the raw output
         // Default cursor colors: black foreground (38;2;0;0;0), white background (48;2;255;255;255)
-        var rawOutput = terminal.RawOutput;
+        var rawOutput = terminal.CreateSnapshot().RawOutput;
         
         // Check that our text appears in the screen (without ANSI codes)
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Sample text", screenText);
         
         // Look for cursor background color (white - 48;2;255;255;255) in the WHOLE output.
@@ -165,8 +176,10 @@ public class ThemingExhibitRepro
     [Fact]
     public void TextBoxNode_WhenNotFocused_ShouldNotRenderCursorColors()
     {
-        using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        var context = new Hex1bRenderContext(workload);
         
         var node = new TextBoxNode
         {
@@ -176,7 +189,7 @@ public class ThemingExhibitRepro
 
         node.Render(context);
 
-        var output = terminal.RawOutput;
+        var output = terminal.CreateSnapshot().RawOutput;
         
         // Default cursor colors from theme:
         // CursorForegroundColor = Black (0,0,0)
@@ -193,8 +206,10 @@ public class ThemingExhibitRepro
     [Fact]
     public void TextBoxNode_WhenFocused_ShouldRenderCursorColors()
     {
-        using var terminal = new Hex1bTerminal(80, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        var context = new Hex1bRenderContext(workload);
         
         var node = new TextBoxNode
         {
@@ -204,9 +219,8 @@ public class ThemingExhibitRepro
         node.State.CursorPosition = 1;
 
         node.Render(context);
-        terminal.FlushOutput();
 
-        var output = terminal.RawOutput;
+        var output = terminal.CreateSnapshot().RawOutput;
         
         // Default cursor background = White (255,255,255)
         var cursorBgCode = "48;2;255;255;255";
@@ -221,7 +235,9 @@ public class ThemingExhibitRepro
     [Fact]
     public async Task Integration_ThemingExhibitStructure_ListHasFocus_TextBoxDoesNot()
     {
-        using var terminal = new Hex1bTerminal(100, 30);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 100, 30);
 
         IReadOnlyList<string> items = [
             "Default",
@@ -266,16 +282,24 @@ public class ThemingExhibitRepro
                 ]);
                 return Task.FromResult<Hex1bWidget>(widget);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        // Start the app first, then interact with it
+        var runTask = app.RunAsync();
+
+        // Wait for the content to render, then exit
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+
+        await runTask;
 
         // Check for cursor colors in the output
-        var rawOutput = terminal.RawOutput;
-        var screenText = terminal.GetScreenText();
+        var rawOutput = terminal.CreateSnapshot().RawOutput;
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         
         // Escape the raw output for display (so ANSI codes are visible)
         var escapedOutput = rawOutput.Replace("\x1b", "\\x1b");

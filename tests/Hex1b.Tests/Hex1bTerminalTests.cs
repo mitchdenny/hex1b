@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 
@@ -10,7 +11,9 @@ public class Hex1bTerminalTests
     [Fact]
     public void Constructor_InitializesWithCorrectDimensions()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         Assert.Equal(80, terminal.Width);
         Assert.Equal(24, terminal.Height);
@@ -19,132 +22,145 @@ public class Hex1bTerminalTests
     [Fact]
     public void Constructor_InitializesWithEmptyScreen()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
         
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("", line);
     }
 
     [Fact]
     public void Write_PlacesTextAtCursor()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        terminal.WorkloadAdapter.Write("Hello");
-        terminal.FlushOutput();
+        workload.Write("Hello");
         
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
-        Assert.Equal(5, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal(5, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
     public void Write_HandlesNewlines()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        terminal.WorkloadAdapter.Write("Line1\nLine2\nLine3");
-        terminal.FlushOutput();
+        workload.Write("Line1\nLine2\nLine3");
         
-        Assert.Equal("Line1", terminal.GetLineTrimmed(0));
-        Assert.Equal("Line2", terminal.GetLineTrimmed(1));
-        Assert.Equal("Line3", terminal.GetLineTrimmed(2));
+        Assert.Equal("Line1", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Line2", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("Line3", terminal.CreateSnapshot().GetLineTrimmed(2));
     }
 
     [Fact]
     public void Write_WrapsAtEndOfLine()
     {
-        using var terminal = new Hex1bTerminal(5, 3);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 5, 3);
         
-        terminal.WorkloadAdapter.Write("HelloWorld");
-        terminal.FlushOutput();
+        workload.Write("HelloWorld");
         
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
-        Assert.Equal("World", terminal.GetLineTrimmed(1));
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("World", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     [Fact]
     public void Clear_ResetsScreenAndCursor()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        terminal.WorkloadAdapter.Write("Some text");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        workload.Write("Some text");
         
-        terminal.WorkloadAdapter.Clear();
-        terminal.FlushOutput();
+        workload.Clear();
         
-        Assert.Equal("", terminal.GetLineTrimmed(0));
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal(0, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
     public void SetCursorPosition_MovesCursor()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        terminal.WorkloadAdapter.SetCursorPosition(5, 2);
-        terminal.WorkloadAdapter.Write("X");
-        terminal.FlushOutput();
+        workload.SetCursorPosition(5, 2);
+        workload.Write("X");
         
-        var line = terminal.GetLine(2);
+        var line = terminal.CreateSnapshot().GetLine(2);
         Assert.Equal('X', line[5]);
     }
 
     [Fact]
     public void SetCursorPosition_ClampsToBounds()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
         
-        terminal.WorkloadAdapter.SetCursorPosition(100, 100);
-        terminal.FlushOutput();
+        workload.SetCursorPosition(100, 100);
         
-        Assert.Equal(9, terminal.CursorX);
-        Assert.Equal(4, terminal.CursorY);
+        Assert.Equal(9, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(4, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
     public void EnterAlternateScreen_SetsFlag()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
         
         terminal.EnterAlternateScreen();
         
-        Assert.True(terminal.InAlternateScreen);
+        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
     public void ExitAlternateScreen_ClearsFlag()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         terminal.EnterAlternateScreen();
         
         terminal.ExitAlternateScreen();
         
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
     public void ContainsText_FindsText()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        terminal.WorkloadAdapter.Write("Hello World");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        workload.Write("Hello World");
         
-        Assert.True(terminal.ContainsText("World"));
-        Assert.False(terminal.ContainsText("Foo"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("World"));
+        Assert.False(terminal.CreateSnapshot().ContainsText("Foo"));
     }
 
     [Fact]
     public void FindText_ReturnsPositions()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        terminal.WorkloadAdapter.Write("Hello World\nHello Again");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        workload.Write("Hello World\nHello Again");
         
-        var results = terminal.FindText("Hello");
+        var results = terminal.CreateSnapshot().FindText("Hello");
         
         Assert.Equal(2, results.Count);
         Assert.Equal((0, 0), results[0]);
@@ -154,11 +170,12 @@ public class Hex1bTerminalTests
     [Fact]
     public void GetNonEmptyLines_FiltersEmptyLines()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        terminal.WorkloadAdapter.Write("Line 1\n\nLine 3");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        workload.Write("Line 1\n\nLine 3");
         
-        var lines = terminal.GetNonEmptyLines().ToList();
+        var lines = terminal.CreateSnapshot().GetNonEmptyLines().ToList();
         
         Assert.Equal(2, lines.Count);
         Assert.Equal("Line 1", lines[0]);
@@ -166,65 +183,30 @@ public class Hex1bTerminalTests
     }
 
     [Fact]
-    public async Task SendKey_InjectsInputEvent()
-    {
-        using var terminal = new Hex1bTerminal(20, 5);
-        
-        terminal.SendKey(Hex1bKey.A, 'a');
-        terminal.CompleteInput();
-        
-        var events = new List<Hex1bEvent>();
-        await foreach (var evt in terminal.WorkloadAdapter.InputEvents.ReadAllAsync())
-        {
-            events.Add(evt);
-        }
-        
-        Assert.Single(events);
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(events[0]);
-        Assert.Equal(Hex1bKey.A, keyEvent.Key);
-        Assert.Equal('a', keyEvent.Character);
-    }
-
-    [Fact]
-    public async Task TypeText_InjectsMultipleEvents()
-    {
-        using var terminal = new Hex1bTerminal(20, 5);
-        
-        terminal.TypeText("abc");
-        terminal.CompleteInput();
-        
-        var events = new List<Hex1bEvent>();
-        await foreach (var evt in terminal.WorkloadAdapter.InputEvents.ReadAllAsync())
-        {
-            events.Add(evt);
-        }
-        
-        Assert.Equal(3, events.Count);
-    }
-
-    [Fact]
     public void Resize_PreservesContent()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        terminal.WorkloadAdapter.Write("Hello");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        workload.Write("Hello");
         
         terminal.Resize(40, 10);
         
         Assert.Equal(40, terminal.Width);
         Assert.Equal(10, terminal.Height);
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void RawOutput_CapturesEverything()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        terminal.WorkloadAdapter.Write("Hello\x1b[31mRed\x1b[0mNormal");
-        terminal.FlushOutput();
+        workload.Write("Hello\x1b[31mRed\x1b[0mNormal");
         
-        var raw = terminal.RawOutput;
+        var raw = terminal.CreateSnapshot().RawOutput;
         Assert.Contains("\x1b[31m", raw);
         Assert.Contains("\x1b[0m", raw);
     }
@@ -232,46 +214,49 @@ public class Hex1bTerminalTests
     [Fact]
     public void AnsiSequences_AreProcessedButNotDisplayed()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
         
-        terminal.WorkloadAdapter.Write("\x1b[31mRed Text\x1b[0m");
-        terminal.FlushOutput();
+        workload.Write("\x1b[31mRed Text\x1b[0m");
         
-        Assert.Equal("Red Text", terminal.GetLineTrimmed(0));
+        Assert.Equal("Red Text", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void AnsiCursorPosition_MovesCursor()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
         // ANSI positions are 1-based, so row 2, col 5
-        terminal.WorkloadAdapter.Write("\x1b[2;5HX");
-        terminal.FlushOutput();
+        workload.Write("\x1b[2;5HX");
         
-        var line = terminal.GetLine(1); // 0-based
+        var line = terminal.CreateSnapshot().GetLine(1); // 0-based
         Assert.Equal('X', line[4]); // 0-based
     }
 
     [Fact]
     public void AnsiClearScreen_ClearsBuffer()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        terminal.WorkloadAdapter.Write("Some content");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        workload.Write("Some content");
         
-        terminal.WorkloadAdapter.Write("\x1b[2J");
-        terminal.FlushOutput();
+        workload.Write("\x1b[2J");
         
-        Assert.Equal("", terminal.GetLineTrimmed(0));
+        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void GetScreenBuffer_ReturnsCopyWithColors()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        terminal.WorkloadAdapter.Write("\x1b[38;2;255;0;0mR\x1b[0m");
-        terminal.FlushOutput();
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        workload.Write("\x1b[38;2;255;0;0mR\x1b[0m");
         
         var buffer = terminal.GetScreenBuffer();
         
@@ -285,14 +270,77 @@ public class Hex1bTerminalTests
     [Fact]
     public void AlternateScreenAnsiSequence_IsRecognized()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        terminal.WorkloadAdapter.Write("\x1b[?1049h");
-        terminal.FlushOutput();
-        Assert.True(terminal.InAlternateScreen);
+        workload.Write("\x1b[?1049h");
+        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
         
-        terminal.WorkloadAdapter.Write("\x1b[?1049l");
-        terminal.FlushOutput();
-        Assert.False(terminal.InAlternateScreen);
+        workload.Write("\x1b[?1049l");
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
+
+    #region Resize Behavior
+
+    [Fact]
+    public void Constructor_SetsWorkloadDimensions()
+    {
+        // Workload dimensions are 0x0 before terminal is created
+        using var workload = new Hex1bAppWorkloadAdapter();
+        Assert.Equal(0, workload.Width);
+        Assert.Equal(0, workload.Height);
+        
+        // Terminal sets workload dimensions during construction
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        Assert.Equal(80, workload.Width);
+        Assert.Equal(24, workload.Height);
+    }
+
+    [Fact]
+    public void Constructor_DoesNotFireResizeEvent()
+    {
+        // This is critical: the initial dimension setup should NOT fire a resize event
+        // because that would trigger an extra re-render before the app even starts
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        // Try to read from input channel - should be empty (no resize event)
+        var hasEvent = workload.InputEvents.TryRead(out var evt);
+        Assert.False(hasEvent, "Constructor should not fire a resize event");
+    }
+
+    [Fact]
+    public async Task ResizeAsync_AfterInitialization_FiresResizeEvent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        // Now call ResizeAsync again (simulating a terminal resize)
+        await workload.ResizeAsync(100, 30);
+        
+        // This should fire a resize event
+        var hasEvent = workload.InputEvents.TryRead(out var evt);
+        Assert.True(hasEvent, "ResizeAsync after init should fire a resize event");
+        
+        var resizeEvent = Assert.IsType<Hex1bResizeEvent>(evt);
+        Assert.Equal(100, resizeEvent.Width);
+        Assert.Equal(30, resizeEvent.Height);
+    }
+
+    [Fact]
+    public async Task ResizeAsync_SameDimensions_DoesNotFireEvent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        // Resize to same dimensions
+        await workload.ResizeAsync(80, 24);
+        
+        // Should NOT fire event (no change)
+        var hasEvent = workload.InputEvents.TryRead(out _);
+        Assert.False(hasEvent, "ResizeAsync with same dimensions should not fire event");
+    }
+
+    #endregion
 }

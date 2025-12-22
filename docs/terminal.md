@@ -211,7 +211,7 @@ Test Code
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Hex1bAppWorkloadAdapter                                  │
 │  - SendKey() writes to input channel                                        │
-│  - CompleteInput() signals end of input                                     │
+│  - Processes input events asynchronously                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
      │                                                               ▲
      ▼ InputEvents                                           Write() │
@@ -224,7 +224,7 @@ Test Code
 │                          Hex1bTerminal                                       │
 │  - Screen buffer enabled (captures all output)                              │
 │  - No presentation adapter (null)                                           │
-│  - FlushOutput() for synchronous test assertions                            │
+│  - Screen reads auto-flush pending output                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
      │
      │  GetScreenText(), ContainsText(), RawOutput
@@ -295,11 +295,15 @@ public async Task Button_Click_UpdatesCounter()
         new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
     );
     
-    // Run app to initial render
-    terminal.SendKey(Hex1bKey.Enter);  // Click button
-    terminal.CompleteInput();
-    await app.RunAsync();
-    terminal.FlushOutput();
+    // Run app and send input
+    var runTask = app.RunAsync();
+    await new Hex1bTestSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Clicks:"), TimeSpan.FromSeconds(2))
+        .Enter()  // Click button
+        .Ctrl().Key(Hex1bKey.C)  // Exit app
+        .Build()
+        .ApplyAsync(terminal);
+    await runTask;
     
     // Assert
     Assert.Equal(1, clicks);
@@ -350,16 +354,15 @@ The presentation adapter enters raw mode when `Start()` is called on the termina
 
 **Hex1bTerminal:**
 - `Start()` - Begins I/O pump tasks, enters TUI mode on presentation
-- `FlushOutput()` - Synchronously drains output for testing
-- `ContainsText()` - Screen buffer inspection
-- `GetScreenText()` - Get full screen content
+- `ContainsText()` - Screen buffer inspection (auto-flushes)
+- `GetScreenText()` - Get full screen content (auto-flushes)
+- `RawOutput` - Get raw ANSI output (auto-flushes)
 - `SendKey()` / `TypeText()` - Inject input for testing
 
 **Hex1bAppWorkloadAdapter:**
 - `Write()` - Queue ANSI output
 - `InputEvents` - Channel of parsed input events
 - `SendKey()` / `TypeText()` - Inject test input
-- `CompleteInput()` - Signal end of input stream
 
 ## Design Principles
 

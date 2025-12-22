@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -33,7 +34,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         Hex1bKey? firedKey = null;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -61,7 +64,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -74,7 +77,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key
-        terminal.SendKey(key, GetKeyChar(key));
+        await new Hex1bTestSequenceBuilder().Key(key).Build().ApplyAsync(terminal);
 
         // Wait a bit for the input to be processed
         await Task.Delay(100);
@@ -93,7 +96,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_WithCtrlModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -117,7 +122,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -127,7 +132,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key with Ctrl modifier
-        terminal.SendKey(key, GetKeyChar(key), Hex1bModifiers.Control);
+        await new Hex1bTestSequenceBuilder().Ctrl().Key(key).Build().ApplyAsync(terminal);
 
         await Task.Delay(100);
 
@@ -143,7 +148,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_WithShiftModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -167,7 +174,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -177,7 +184,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key with Shift modifier
-        terminal.SendKey(key, GetKeyChar(key), Hex1bModifiers.Shift);
+        await new Hex1bTestSequenceBuilder().Shift().Key(key).Build().ApplyAsync(terminal);
 
         await Task.Delay(100);
 
@@ -192,7 +199,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_MultipleBindings_EachFiresCorrectly()
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var aFired = false;
         var bFired = false;
         var cFired = false;
@@ -216,7 +225,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -226,12 +235,11 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send each key
-        terminal.SendKey(Hex1bKey.A, 'a');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.B, 'b');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.C, 'c');
-        await Task.Delay(50);
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.A).Wait(50)
+            .Key(Hex1bKey.B).Wait(50)
+            .Key(Hex1bKey.C).Wait(50)
+            .Build().ApplyAsync(terminal);
 
         // Assert
         Assert.True(aFired, "Expected A binding to fire");
@@ -275,7 +283,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_DiagnosticTest_VerifyBindingsAreSet()
     {
         // This test verifies that user bindings configured via WithInputBindings work
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -297,7 +307,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -307,7 +317,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Send X key
-        terminal.SendKey(Hex1bKey.X, 'x');
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         
         // Wait for input processing
         await Task.Delay(200);
@@ -323,7 +333,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_DiagnosticTest_UserBindingWithCtrlCDisabled()
     {
         // Test with CTRL-C disabled to isolate user bindings
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -345,7 +357,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -355,7 +367,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Send X key
-        terminal.SendKey(Hex1bKey.X, 'x');
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         
         // Wait for input processing
         await Task.Delay(200);
@@ -371,7 +383,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_FluentApi_ChordBinding_FiresOnSecondKey()
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var chordFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -394,7 +408,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -404,10 +418,10 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the chord sequence
-        terminal.SendKey(Hex1bKey.K, 'k', Hex1bModifiers.Control);
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.C, 'c', Hex1bModifiers.Control);
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.K).Wait(50)
+            .Ctrl().Key(Hex1bKey.C).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         // Assert
         Assert.True(chordFired, "Expected chord binding to fire");
@@ -420,7 +434,9 @@ public class InputBindingFluentApiTests
     public async Task InputBinding_ReconciliationPreservesBindings()
     {
         // Arrange - verify that bindings are preserved across reconciliation
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFireCount = 0;
         var reconcileCount = 0;
 
@@ -442,7 +458,7 @@ public class InputBindingFluentApiTests
 
                 return Task.FromResult<Hex1bWidget>(vstack);
             },
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         using var cts = new CancellationTokenSource();
@@ -453,7 +469,7 @@ public class InputBindingFluentApiTests
         Assert.True(reconcileCount >= 1, "Expected at least one reconciliation");
 
         // Fire binding before re-render
-        terminal.SendKey(Hex1bKey.X, 'x');
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         await Task.Delay(50);
         Assert.Equal(1, bindingFireCount);
 
@@ -463,7 +479,7 @@ public class InputBindingFluentApiTests
         Assert.True(reconcileCount >= 2, "Expected second reconciliation after invalidate");
 
         // Fire binding again after re-render
-        terminal.SendKey(Hex1bKey.X, 'x');
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         await Task.Delay(50);
         Assert.Equal(2, bindingFireCount);
 

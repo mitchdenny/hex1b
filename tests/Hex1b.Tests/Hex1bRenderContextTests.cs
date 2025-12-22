@@ -12,28 +12,30 @@ public class Hex1bRenderContextTests
     [Fact]
     public void ClearRegion_WritesSpacesToRegion()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // First, write some content
         context.SetCursorPosition(5, 2);
         context.Write("Hello World");
         terminal.FlushOutput();
-        Assert.True(terminal.ContainsText("Hello World"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
         
         // Clear the region where the text is
         context.ClearRegion(new Rect(5, 2, 11, 1));
         terminal.FlushOutput();
         
         // Text should be gone (replaced with spaces)
-        Assert.False(terminal.ContainsText("Hello World"));
+        Assert.False(terminal.CreateSnapshot().ContainsText("Hello World"));
     }
 
     [Fact]
     public void ClearRegion_MultipleRows()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         
         // Write content on multiple rows
         context.SetCursorPosition(0, 0);
@@ -48,16 +50,18 @@ public class Hex1bRenderContextTests
         context.ClearRegion(new Rect(0, 0, 10, 3));
         terminal.FlushOutput();
         
-        Assert.False(terminal.ContainsText("Line 0"));
-        Assert.False(terminal.ContainsText("Line 1"));
-        Assert.False(terminal.ContainsText("Line 2"));
+        var snapshot = terminal.CreateSnapshot();
+        Assert.False(snapshot.ContainsText("Line 0"));
+        Assert.False(snapshot.ContainsText("Line 1"));
+        Assert.False(snapshot.ContainsText("Line 2"));
     }
 
     [Fact]
     public void ClearRegion_PartialClear()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         
         context.SetCursorPosition(0, 0);
         context.Write("ABCDEFGHIJ");
@@ -67,15 +71,16 @@ public class Hex1bRenderContextTests
         context.ClearRegion(new Rect(3, 0, 4, 1));
         terminal.FlushOutput();
         
-        var line = terminal.GetLine(0);
+        var line = terminal.CreateSnapshot().GetLine(0);
         Assert.Equal("ABC    HIJ", line.Substring(0, 10));
     }
 
     [Fact]
     public void ClearRegion_ClampsToTerminalBounds()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = new Hex1bRenderContext(workload);
         
         // Try to clear a region that extends beyond terminal bounds
         // This should not throw and should clear only the valid portion
@@ -89,8 +94,9 @@ public class Hex1bRenderContextTests
     [Fact]
     public void ClearRegion_EmptyRect_DoesNothing()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         
         context.SetCursorPosition(5, 2);
         context.Write("Should remain");
@@ -100,14 +106,15 @@ public class Hex1bRenderContextTests
         context.ClearRegion(new Rect(5, 2, 0, 0));
         terminal.FlushOutput();
         
-        Assert.True(terminal.ContainsText("Should remain"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Should remain"));
     }
 
     [Fact]
     public void ClearRegion_NegativePosition_ClampsToZero()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
         
         context.SetCursorPosition(0, 0);
         context.Write("Hello");
@@ -118,7 +125,7 @@ public class Hex1bRenderContextTests
         terminal.FlushOutput();
         
         // Content at origin should be cleared
-        Assert.False(terminal.ContainsText("Hello"));
+        Assert.False(terminal.CreateSnapshot().ContainsText("Hello"));
     }
 
     #endregion

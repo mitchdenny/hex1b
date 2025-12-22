@@ -1,8 +1,10 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -12,9 +14,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class BorderNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter);
+        return new Hex1bRenderContext(workload);
     }
 
     #region Measurement Tests
@@ -156,8 +158,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsTopBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -166,9 +170,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should contain top-left corner
         Assert.Contains("┌", topLine);
         // Should contain horizontal line
@@ -180,8 +183,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsBottomBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -190,9 +195,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var bottomLine = terminal.GetLineTrimmed(4);
+        var bottomLine = terminal.CreateSnapshot().GetLineTrimmed(4);
         // Should contain bottom-left corner
         Assert.Contains("└", bottomLine);
         // Should contain bottom-right corner
@@ -202,8 +206,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_DrawsVerticalBorders()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -212,18 +218,19 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Middle rows should have vertical borders
-        var middleLine = terminal.GetLineTrimmed(2);
+        var middleLine = terminal.CreateSnapshot().GetLineTrimmed(2);
         Assert.Contains("│", middleLine);
     }
 
     [Fact]
     public void Render_CompleteBorderBox()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" }
@@ -232,12 +239,11 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 6, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Check complete border structure
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
-        var line2 = terminal.GetLineTrimmed(2);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
+        var line2 = terminal.CreateSnapshot().GetLineTrimmed(2);
 
         Assert.StartsWith("┌", line0);
         Assert.EndsWith("┐", line0);
@@ -253,8 +259,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithTitle_ShowsTitleInTopBorder()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Content" },
@@ -264,17 +272,18 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("My Title", topLine);
     }
 
     [Fact]
     public void Render_WithLongTitle_TruncatesTitle()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -284,9 +293,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(15, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be truncated to fit within border (innerWidth=8, title max=6 chars)
         Assert.DoesNotContain("Very Long Title", topLine);
         Assert.Contains("This I", topLine);  // First 6 chars of title
@@ -295,8 +303,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithShortTitle_CentersTitleInBorder()
     {
-        using var terminal = new Hex1bTerminal(30, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -306,9 +316,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be present
         Assert.Contains("T", topLine);
         // Should have horizontal lines on both sides
@@ -319,8 +328,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithEmptyTitle_DrawsNormalBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -330,9 +341,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should be ┌────────┐ without title
         Assert.Equal("┌────────┐", topLine);
     }
@@ -340,8 +350,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithNullTitle_DrawsNormalBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "" },
@@ -351,9 +363,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("┌────────┐", topLine);
     }
 
@@ -364,8 +375,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_RendersChildContent()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hello" }
@@ -374,16 +387,17 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 15, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Hello", terminal.GetScreenText());
+        Assert.Contains("Hello", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
     public void Render_ChildContentInsideBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "Hi" }
@@ -392,29 +406,29 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Child "Hi" should be somewhere in the screen between borders
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Hi", screenText);
         // First line should have top border
-        var line0 = terminal.GetLineTrimmed(0);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("┌", line0);
     }
 
     [Fact]
     public void Render_WithNoChild_DrawsEmptyBorder()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 5, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
         Assert.Contains("┐", screenText);
         Assert.Contains("└", screenText);
@@ -428,8 +442,10 @@ public class BorderNodeTests
     [Fact]
     public void Render_InNarrowTerminal_StillDrawsBorder()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode
         {
             Child = new TextBlockNode { Text = "LongContent" }
@@ -438,9 +454,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 7, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
         Assert.Contains("┐", screenText);
         Assert.Contains("└", screenText);
@@ -450,17 +465,18 @@ public class BorderNodeTests
     [Fact]
     public void Render_MinimalBorder_DrawsCorrectly()
     {
-        using var terminal = new Hex1bTerminal(10, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 2, 2));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
         
         // With width=2, we get: ┌┐ on top, └┘ on bottom
         Assert.Equal("┌┐", line0);
@@ -474,7 +490,9 @@ public class BorderNodeTests
     [Fact]
     public void Render_WithCustomTheme_UsesThemeCharacters()
     {
-        using var terminal = new Hex1bTerminal(20, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -482,7 +500,7 @@ public class BorderNodeTests
             .Set(BorderTheme.BottomRightCorner, "╝")
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║");
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
@@ -492,9 +510,8 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("╔", screenText);
         Assert.Contains("╗", screenText);
         Assert.Contains("╚", screenText);
@@ -506,7 +523,9 @@ public class BorderNodeTests
     [Fact]
     public void Render_DoubleLineBorderTheme_DrawsCorrectly()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
         var theme = new Hex1bTheme("DoubleLine")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -514,7 +533,7 @@ public class BorderNodeTests
             .Set(BorderTheme.BottomRightCorner, "╝")
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║");
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
@@ -524,11 +543,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(15, 5));
         node.Arrange(new Rect(0, 0, 6, 3));
         node.Render(context);
-        terminal.FlushOutput();
 
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
-        var line2 = terminal.GetLineTrimmed(2);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
+        var line2 = terminal.CreateSnapshot().GetLineTrimmed(2);
 
         Assert.Equal("╔════╗", line0);
         Assert.StartsWith("║", line1);
@@ -653,52 +671,66 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithTextBlock_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Hello World"))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Hello World"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
         // Check raw output for border characters (since they may have ANSI codes)
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
-        Assert.Contains("└", terminal.RawOutput);
-        Assert.Contains("┘", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("└", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┘", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_BorderWithTitle_ShowsTitle()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("Content"), title: "My Panel")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("My Panel"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Check raw output first - this always works
-        Assert.Contains("My Panel", terminal.RawOutput);
-        Assert.Contains("Content", terminal.RawOutput);
+        Assert.Contains("My Panel", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_BorderWithVStack_RendersMultipleLines()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -708,37 +740,48 @@ public class BorderNodeTests
                     v.Text("Line 3")
                 ], title: "List")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Line 3"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("Line 2", terminal.RawOutput);
-        Assert.Contains("Line 3", terminal.RawOutput);
-        Assert.Contains("List", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("List", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_BorderWithTextBox_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var text = "";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.TextBox(text).OnTextChanged(args => text = args.NewText), title: "Input")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Type into the textbox then complete
-        terminal.TypeText("Hello");
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        // Type into the textbox then exit
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Type("Hello")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hello", text);
     }
@@ -746,7 +789,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_NestedBorders_RenderCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -755,43 +800,55 @@ public class BorderNodeTests
                     title: "Outer"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Nested"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Outer", terminal.RawOutput);
-        Assert.Contains("Inner", terminal.RawOutput);
-        Assert.Contains("Nested", terminal.RawOutput);
+        Assert.Contains("Outer", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Inner", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Nested", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_BorderInNarrowTerminal_TruncatesGracefully()
     {
-        using var terminal = new Hex1bTerminal(12, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 12, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Border characters should be in the raw output
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_MultipleBordersInHStack_RenderSideBySide()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -800,37 +857,47 @@ public class BorderNodeTests
                     h.Border(ctx.Text("Right"), title: "R")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Right"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Left", terminal.RawOutput);
-        Assert.Contains("Right", terminal.RawOutput);
-        Assert.Contains("L", terminal.RawOutput);
-        Assert.Contains("R", terminal.RawOutput);
+        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("L", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("R", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_BorderWithButton_HandlesClick()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var clicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }), title: "Actions")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Press enter to click the button then complete
-        terminal.SendKey(ConsoleKey.Enter);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        // Press enter to click the button then exit
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
     }
@@ -838,7 +905,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderWithMultipleButtons_NavigatesFocus()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
         var clickedButton = "";
 
         using var app = new Hex1bApp(
@@ -848,15 +917,19 @@ public class BorderNodeTests
                     v.Button("Second").OnClick(_ => { clickedButton = "Second"; return Task.CompletedTask; })
                 ], title: "Buttons")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to second button, then click it
-        terminal.SendKey(ConsoleKey.Tab);
-        terminal.SendKey(ConsoleKey.Enter);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Tab()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Second", clickedButton);
     }
@@ -864,7 +937,9 @@ public class BorderNodeTests
     [Fact]
     public async Task Integration_BorderAtOffset_RendersAtCorrectPosition()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -873,40 +948,50 @@ public class BorderNodeTests
                     v.Border(ctx.Text("Content"))
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Header"));
-        Assert.True(terminal.ContainsText("Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
         // Border characters should be present
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_EmptyBorder_RendersMinimalBox()
     {
-        using var terminal = new Hex1bTerminal(20, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 20, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(ctx.Text(""))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Should still have complete border in raw output
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
-        Assert.Contains("└", terminal.RawOutput);
-        Assert.Contains("┘", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("└", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┘", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

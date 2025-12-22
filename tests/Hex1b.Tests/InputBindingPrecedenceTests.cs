@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -40,7 +41,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'X'
         // EXPECTED: Global binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -55,15 +59,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(globalBindingFired, "Global binding should fire when no focused widget exists");
 
@@ -79,7 +82,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'Y' (no binding)
         // EXPECTED: Binding for 'X' does NOT fire
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var anyBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -94,15 +100,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.Y, 'y');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.Y).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.False(anyBindingFired, "No binding should fire for unbound key");
 
@@ -118,7 +123,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'X'
         // EXPECTED: Child's binding fires (reconciled after parent)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var parentBindingFired = false;
         var childBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -143,15 +151,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Parent X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(childBindingFired, "Child (last reconciled) binding should fire");
         Assert.False(parentBindingFired, "Parent binding should NOT fire (overridden by child)");
@@ -172,7 +179,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus button, press 'X'
         // EXPECTED: Focus binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var focusBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -188,7 +198,7 @@ public class InputBindingPrecedenceTests
                 }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -197,8 +207,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Button should auto-focus as first focusable widget
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(focusBindingFired, "Focus binding should fire when widget is focused");
 
@@ -214,7 +223,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus textbox, press 'a'
         // EXPECTED: TextBox captures the character (HandleInput handles it)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var textChanged = "";
 
@@ -223,7 +235,7 @@ public class InputBindingPrecedenceTests
                 v.TextBox("").OnTextChanged(e => { textChanged = e.NewText; return Task.CompletedTask; }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -232,8 +244,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // TextBox should auto-focus
-        terminal.SendKey(Hex1bKey.A, 'a');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.A).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.Equal("a", textChanged);
 
@@ -249,7 +260,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'Q'
         // EXPECTED: Global binding fires as fallback
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -265,7 +279,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Q");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -274,8 +288,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Button is focused, press Q (button doesn't handle it)
-        terminal.SendKey(Hex1bKey.Q, 'q');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.Q).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(globalBindingFired, "Global binding should fire when focus chain doesn't handle");
 
@@ -295,7 +308,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus button, press 'X'
         // EXPECTED: Focus binding fires, global does NOT
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var focusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -319,7 +335,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -327,8 +343,7 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(focusBindingFired, "Focus binding should fire");
         Assert.False(globalBindingFired, "Global binding should NOT fire (overridden by focus)");
@@ -345,7 +360,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus Button2, press 'X'
         // EXPECTED: Global binding fires (Button1's focus binding doesn't apply)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1FocusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -370,7 +388,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -379,11 +397,10 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Tab to move focus from Button1 to Button2
-        terminal.SendKey(Hex1bKey.Tab, '\t');
-        await Task.Delay(50);
-        
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Tab().Wait(50)
+            .Key(Hex1bKey.X).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         Assert.False(button1FocusBindingFired, "Button1's focus binding should NOT fire (not focused)");
         Assert.True(globalBindingFired, "Global binding should fire as fallback");
@@ -405,7 +422,9 @@ public class InputBindingPrecedenceTests
         // EXPECTED: Inner VStack's binding fires
         
         // Note: This is the same as A3, included for completeness
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var outerFired = false;
         var innerFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -430,15 +449,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Outer X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(innerFired, "Inner (last reconciled) should win");
         Assert.False(outerFired, "Outer should be overridden");
@@ -455,7 +473,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'X'
         // EXPECTED: Deepest VStack's binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var rootFired = false;
         var deepFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -482,15 +503,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Root X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(deepFired, "Deepest (last reconciled) should win");
         Assert.False(rootFired, "Root should be overridden");
@@ -511,14 +531,17 @@ public class InputBindingPrecedenceTests
         // ACTION: Press Ctrl+C
         // EXPECTED: App stops gracefully
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = true }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = true }
         );
 
         var runTask = app.RunAsync(CancellationToken.None);
@@ -526,7 +549,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Send Ctrl+C
-        terminal.SendKey(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
+        new Hex1bTestSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().Apply(terminal);
         
         // App should stop within reasonable time
         var completed = await Task.WhenAny(runTask, Task.Delay(1000)) == runTask;
@@ -541,7 +564,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press Ctrl+C
         // EXPECTED: User binding fires, app does NOT stop
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var userBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -556,7 +582,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "User Ctrl+C");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = true }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = true }
         );
 
         using var cts = new CancellationTokenSource();
@@ -564,8 +590,7 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Ctrl().Key(Hex1bKey.C).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(userBindingFired, "User binding should fire");
         Assert.False(runTask.IsCompleted, "App should NOT stop (user overrode Ctrl+C)");
@@ -586,7 +611,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus button, press 'g', press 'g'
         // EXPECTED: Chord completes and fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -602,7 +630,7 @@ public class InputBindingPrecedenceTests
                 }),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -610,10 +638,10 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.G).Wait(50)
+            .Key(Hex1bKey.G).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         Assert.True(chordFired, "Chord should complete and fire");
 
@@ -629,7 +657,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'g', press 'g'
         // EXPECTED: Chord completes and fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -644,7 +675,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global gg chord");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -652,10 +683,10 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.G).Wait(50)
+            .Key(Hex1bKey.G).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         Assert.True(chordFired, "Global chord should complete and fire");
 
@@ -671,7 +702,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'g', press Escape, press 'g'
         // EXPECTED: Chord does NOT fire (was cancelled)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -686,7 +720,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global gg chord");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -694,12 +728,11 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.Escape, '\x1b');
-        await Task.Delay(50);
-        terminal.SendKey(Hex1bKey.G, 'g');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Key(Hex1bKey.G).Wait(50)
+            .Escape().Wait(50)
+            .Key(Hex1bKey.G).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         Assert.False(chordFired, "Chord should be cancelled by Escape");
 
@@ -719,7 +752,10 @@ public class InputBindingPrecedenceTests
         // ACTION: No focus exists, press 'X'
         // EXPECTED: Binding fires (it's global)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -734,15 +770,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "VStack X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(bindingFired, "VStack binding should fire as global binding");
 
@@ -758,7 +793,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus Button2, press 'X'
         // EXPECTED: Button1's binding does NOT fire (focus bindings only when focused)
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1BindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -775,7 +813,7 @@ public class InputBindingPrecedenceTests
                 v.Button("Button2"),
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
             ]),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -784,11 +822,10 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Tab to Button2
-        terminal.SendKey(Hex1bKey.Tab, '\t');
-        await Task.Delay(50);
-        
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder()
+            .Tab().Wait(50)
+            .Key(Hex1bKey.X).Wait(100)
+            .Build().ApplyAsync(terminal);
 
         Assert.False(button1BindingFired, "Button1's focus binding should NOT fire when Button2 is focused");
 
@@ -808,7 +845,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press 'X'
         // EXPECTED: Binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -825,7 +865,7 @@ public class InputBindingPrecedenceTests
             }),
             new Hex1bAppOptions 
             { 
-                WorkloadAdapter = terminal.WorkloadAdapter, 
+                WorkloadAdapter = workload, 
                 EnableDefaultCtrlCExit = false,
                 EnableRescue = true  // Explicitly enable rescue (default)
             }
@@ -835,8 +875,7 @@ public class InputBindingPrecedenceTests
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, 'x');
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(bindingFired, "Global binding should fire even with RescueWidget wrapping");
 
@@ -856,7 +895,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press Ctrl+X
         // EXPECTED: Binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -871,15 +913,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Ctrl+X");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.X, '\x18', Hex1bModifiers.Control);
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Ctrl().Key(Hex1bKey.X).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(bindingFired, "Ctrl+X global binding should fire");
 
@@ -895,7 +936,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Focus button, press Ctrl+S
         // EXPECTED: Focus binding fires, global does NOT
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var focusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -919,7 +963,7 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Ctrl+S");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
@@ -927,8 +971,7 @@ public class InputBindingPrecedenceTests
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
-        terminal.SendKey(Hex1bKey.S, '\x13', Hex1bModifiers.Control);
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Ctrl().Key(Hex1bKey.S).Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(focusBindingFired, "Focus Ctrl+S binding should fire");
         Assert.False(globalBindingFired, "Global Ctrl+S should NOT fire");
@@ -949,7 +992,10 @@ public class InputBindingPrecedenceTests
         // ACTION: Press Shift+Tab
         // EXPECTED: Binding fires
         
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -964,15 +1010,14 @@ public class InputBindingPrecedenceTests
                     return Task.CompletedTask;
                 }, "Global Shift+Tab");
             }),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, EnableDefaultCtrlCExit = false }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        terminal.SendKey(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift);
-        await Task.Delay(100);
+        await new Hex1bTestSequenceBuilder().Shift().Tab().Wait(100).Build().ApplyAsync(terminal);
 
         Assert.True(bindingFired, "Shift+Tab global binding should fire");
 

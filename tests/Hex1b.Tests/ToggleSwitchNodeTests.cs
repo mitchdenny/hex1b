@@ -1,6 +1,7 @@
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -99,8 +100,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_Unfocused_ShowsOptions()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -113,9 +116,8 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
-        terminal.FlushOutput();
 
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("A", line);
         Assert.Contains("B", line);
         Assert.Contains("C", line);
@@ -124,8 +126,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_Focused_ContainsAnsiCodes()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState
@@ -138,19 +142,22 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain ANSI escape codes for styling
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
-        using var focusedTerminal = new Hex1bTerminal(40, 5);
-        using var unfocusedTerminal = new Hex1bTerminal(40, 5);
-        var focusedContext = new Hex1bRenderContext(focusedTerminal.WorkloadAdapter);
-        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal.WorkloadAdapter);
+        using var focusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        var focusedContext = new Hex1bRenderContext(focusedWorkload);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
         var focusedNode = new ToggleSwitchNode
         {
@@ -166,9 +173,7 @@ public class ToggleSwitchNodeTests
         unfocusedNode.Arrange(new Rect(0, 0, 40, 1));
 
         focusedNode.Render(focusedContext);
-        focusedTerminal.FlushOutput();
         unfocusedNode.Render(unfocusedContext);
-        unfocusedTerminal.FlushOutput();
 
         Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
     }
@@ -176,8 +181,10 @@ public class ToggleSwitchNodeTests
     [Fact]
     public void Render_EmptyOptions_DoesNotThrow()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
             State = new ToggleSwitchState { Options = [] },
@@ -447,7 +454,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Manual", "Auto", "Delayed"]
@@ -459,22 +468,28 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Manual"));
-        Assert.True(terminal.ContainsText("Auto"));
-        Assert.True(terminal.ContainsText("Delayed"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Manual"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Auto"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Delayed"));
     }
 
     [Fact]
     public async Task Integration_ToggleSwitch_ArrowNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Off", "On"]
@@ -486,13 +501,17 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(2))
+            .Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(1, state.SelectedIndex);
         Assert.Equal("On", state.SelectedOption);
@@ -501,7 +520,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_MultipleNavigations()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var state = new ToggleSwitchState
         {
             Options = ["Low", "Medium", "High"]
@@ -513,14 +534,17 @@ public class ToggleSwitchNodeTests
                     v.ToggleSwitch(state)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(2))
+            .Right().Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(2, state.SelectedIndex);
         Assert.Equal("High", state.SelectedOption);
@@ -529,7 +553,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_WithOtherWidgets_TabNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var toggleState = new ToggleSwitchState { Options = ["A", "B"] };
         var buttonClicked = false;
 
@@ -540,16 +566,18 @@ public class ToggleSwitchNodeTests
                     v.Button("Click").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
+        var runTask = app.RunAsync();
         // Navigate right on toggle, then tab to button, then click
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2))
+            .Right().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(1, toggleState.SelectedIndex);
         Assert.True(buttonClicked);
@@ -558,7 +586,9 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task Integration_ToggleSwitch_CallbackTriggered()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var lastSelectedValue = "";
         var state = new ToggleSwitchState
         {
@@ -572,13 +602,17 @@ public class ToggleSwitchNodeTests
                         .OnSelectionChanged(args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.RightArrow, '\0');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(2))
+            .Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Mode2", lastSelectedValue);
     }

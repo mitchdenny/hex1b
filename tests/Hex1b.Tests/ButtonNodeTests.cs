@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -74,8 +75,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Unfocused_ShowsBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "OK",
@@ -83,17 +86,18 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Theme-dependent bracket style, but should contain label
-        Assert.Contains("OK", terminal.GetLineTrimmed(0));
+        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void Render_Unfocused_ContainsBracketCharacters()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "Test",
@@ -101,9 +105,8 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
@@ -111,8 +114,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Unfocused_EmptyLabel_StillRendersBrackets()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "",
@@ -120,9 +125,8 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
@@ -134,8 +138,10 @@ public class ButtonNodeTests
     [Fact]
     public void Render_Focused_HasDifferentStyle()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "OK",
@@ -143,18 +149,19 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
         // Should contain ANSI escape codes for focus styling
-        Assert.Contains("\x1b[", terminal.RawOutput);
-        Assert.Contains("OK", terminal.GetLineTrimmed(0));
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void Render_Focused_ContainsLabel()
     {
-        using var terminal = new Hex1bTerminal(40, 5);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
             Label = "Submit Form",
@@ -162,26 +169,27 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Submit Form", terminal.GetLineTrimmed(0));
+        Assert.Contains("Submit Form", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
     public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
-        using var focusedTerminal = new Hex1bTerminal(40, 5);
-        using var unfocusedTerminal = new Hex1bTerminal(40, 5);
-        var focusedContext = new Hex1bRenderContext(focusedTerminal.WorkloadAdapter);
-        var unfocusedContext = new Hex1bRenderContext(unfocusedTerminal.WorkloadAdapter);
+        using var focusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
+
+        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        var focusedContext = new Hex1bRenderContext(focusedWorkload);
+        var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
         var focusedNode = new ButtonNode { Label = "Click", IsFocused = true };
         var unfocusedNode = new ButtonNode { Label = "Click", IsFocused = false };
 
         focusedNode.Render(focusedContext);
         unfocusedNode.Render(unfocusedContext);
-        focusedTerminal.FlushOutput();
-        unfocusedTerminal.FlushOutput();
 
         // Raw output should differ due to ANSI codes
         Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
@@ -328,7 +336,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_RendersViaHex1bApp()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -336,20 +346,26 @@ public class ButtonNodeTests
                     v.Button("Click Me").OnClick(_ => Task.CompletedTask)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Click Me"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
     [Fact]
     public async Task Integration_Button_Enter_TriggersAction()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -358,13 +374,17 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
     }
@@ -372,7 +392,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_Space_TriggersAction()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -381,13 +403,17 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Spacebar, ' ');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
+            .Space()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
     }
@@ -395,7 +421,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_ClickUpdatesState()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -405,26 +433,31 @@ public class ButtonNodeTests
                     v.Button("Increment").OnClick(_ => { counter++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Click the button 3 times
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Enter()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(3, counter);
-        Assert.True(terminal.ContainsText("Count: 3"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 3"));
     }
 
     [Fact]
     public async Task Integration_MultipleButtons_TabNavigates()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -435,15 +468,19 @@ public class ButtonNodeTests
                     v.Button("Button 2").OnClick(_ => { button2Clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to second button and press Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
+            .Tab()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.False(button1Clicked);
         Assert.True(button2Clicked);
@@ -452,7 +489,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(15, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 5);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -461,23 +500,28 @@ public class ButtonNodeTests
                     v.Button("OK").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
-        Assert.True(terminal.ContainsText("OK"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("OK"));
     }
 
     [Fact]
     public async Task Integration_Button_LongLabelInNarrowTerminal_Wraps()
     {
-        using var terminal = new Hex1bTerminal(12, 5);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 12, 5);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -485,21 +529,27 @@ public class ButtonNodeTests
                     v.Button("Click Here Now").OnClick(_ => Task.CompletedTask)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // The button text should be present (possibly wrapped)
-        Assert.True(terminal.ContainsText("Click Here"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Click Here"));
     }
 
     [Fact]
     public async Task Integration_Button_WithTextBox_TabBetween()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text = "";
         var buttonClicked = false;
 
@@ -510,19 +560,20 @@ public class ButtonNodeTests
                     v.Button("Submit").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Type in text box
-        terminal.SendKey(ConsoleKey.H, 'H', shift: true);
-        terminal.SendKey(ConsoleKey.I, 'i');
-        // Tab to button
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        // Press button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        // Type in text box, tab to button, press button
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(2))
+            .Type("Hi")
+            .Tab()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hi", text);
         Assert.True(buttonClicked);
@@ -531,7 +582,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_MultipleClicks_AllProcessed()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clickCount = 0;
 
         using var app = new Hex1bApp(
@@ -540,17 +593,22 @@ public class ButtonNodeTests
                     v.Button("Click").OnClick(_ => { clickCount++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Click 5 times rapidly
+        var runTask = app.RunAsync();
+        var builder = new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2));
         for (int i = 0; i < 5; i++)
         {
-            terminal.SendKey(ConsoleKey.Enter, '\r');
+            builder.Enter();
         }
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        await builder
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(5, clickCount);
     }
@@ -558,7 +616,9 @@ public class ButtonNodeTests
     [Fact]
     public async Task Integration_Button_DynamicLabel_UpdatesOnRender()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -567,17 +627,20 @@ public class ButtonNodeTests
                     v.Button($"Clicked {counter} times").OnClick(_ => { counter++; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Clicked 0 times"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        await app.RunAsync();
-        terminal.FlushOutput();
-
-        Assert.True(terminal.ContainsText("Clicked 2 times"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Clicked 2 times"));
     }
 
     #endregion

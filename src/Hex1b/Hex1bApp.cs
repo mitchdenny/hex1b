@@ -127,10 +127,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         {
             // Default: create console terminal using new architecture
             var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
-            var workload = new Hex1bAppWorkloadAdapter(
-                presentation.Width, 
-                presentation.Height, 
-                presentation.Capabilities);
+            var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
             _ownedTerminal = new Hex1bTerminal(presentation, workload);
             _adapter = workload;
         }
@@ -189,9 +186,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        // Start the terminal if we own it (pumps I/O between presentation and workload)
-        _ownedTerminal?.Start();
-        
         _context.EnterAlternateScreen();
         try
         {

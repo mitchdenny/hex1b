@@ -1,8 +1,10 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -11,9 +13,9 @@ namespace Hex1b.Tests;
 /// </summary>
 public class SplitterNodeTests
 {
-    private static Hex1bRenderContext CreateContext(Hex1bTerminal terminal, Hex1bTheme? theme = null)
+    private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
     {
-        return new Hex1bRenderContext(terminal.WorkloadAdapter, theme);
+        return new Hex1bRenderContext(workload, theme);
     }
 
     #region Measurement Tests
@@ -145,8 +147,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_ShowsDivider()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -157,17 +161,18 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Default divider character is "│"
-        Assert.Contains("│", terminal.RawOutput);
+        Assert.Contains("│", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_ShowsLeftContent()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left Pane Content" },
@@ -178,16 +183,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Left Pane Content", terminal.RawOutput);
+        Assert.Contains("Left Pane Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_ShowsRightContent()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -198,16 +204,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Right Pane Content", terminal.RawOutput);
+        Assert.Contains("Right Pane Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_DividerSpansFullHeight()
     {
-        using var terminal = new Hex1bTerminal(50, 5);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 5);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "L" },
@@ -218,13 +225,12 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 5));
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Count occurrences of divider chars in raw output - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
-        var dividerCount = terminal.RawOutput.Split("│").Length - 1;
-        var leftArrowCount = terminal.RawOutput.Split("◀").Length - 1;
-        var rightArrowCount = terminal.RawOutput.Split("▶").Length - 1;
+        var dividerCount = terminal.CreateSnapshot().RawOutput.Split("│").Length - 1;
+        var leftArrowCount = terminal.CreateSnapshot().RawOutput.Split("◀").Length - 1;
+        var rightArrowCount = terminal.CreateSnapshot().RawOutput.Split("▶").Length - 1;
         Assert.Equal(5, dividerCount + leftArrowCount + rightArrowCount);
     }
 
@@ -235,10 +241,12 @@ public class SplitterNodeTests
     [Fact]
     public void Render_WithCustomDividerColor_AppliesColor()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerColor, Hex1bColor.Cyan);
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -249,19 +257,20 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Cyan is RGB(0, 255, 255)
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput);
+        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_WithCustomDividerCharacter_UsesCustomCharacter()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerCharacter, "║");
-        var context = CreateContext(terminal, theme);
+        var context = CreateContext(workload, theme);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -272,16 +281,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("║", terminal.RawOutput);
+        Assert.Contains("║", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_WhenFocused_InvertsDividerColors()
     {
-        using var terminal = new Hex1bTerminal(50, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             Left = new TextBlockNode { Text = "Left" },
@@ -293,10 +303,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // When focused, should have background color on divider
-        Assert.Contains("\x1b[48;2;", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -655,7 +664,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_Splitter_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -665,22 +676,28 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Right Content"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Left Content", terminal.RawOutput);
-        Assert.Contains("Right Content", terminal.RawOutput);
-        Assert.Contains("│", terminal.RawOutput);
+        Assert.Contains("Left Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("│", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_SplitterWithVStackPanes_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -690,23 +707,29 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Right 2"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Left 1", terminal.RawOutput);
-        Assert.Contains("Left 2", terminal.RawOutput);
-        Assert.Contains("Right 1", terminal.RawOutput);
-        Assert.Contains("Right 2", terminal.RawOutput);
+        Assert.Contains("Left 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Left 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_SplitterWithButtons_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var leftClicked = false;
 
         using var app = new Hex1bApp(
@@ -717,13 +740,18 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Enter clicks the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(leftClicked);
     }
@@ -731,7 +759,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterNavigation_TabSwitchesFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var rightClicked = false;
 
         using var app = new Hex1bApp(
@@ -742,15 +772,18 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab through: left -> splitter -> right, then Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .Tab().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(rightClicked);
     }
@@ -758,7 +791,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterResize_ArrowKeysWork()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -768,27 +803,32 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
-        terminal.SendKey(ConsoleKey.LeftArrow);
-        terminal.SendKey(ConsoleKey.LeftArrow);
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .Left().Left()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // The splitter would have received initial focus since Left is just text
         // So arrow keys should have resized it
         // We can't easily verify the exact size without inspecting the node
         // But we can verify the app ran without error
-        Assert.Contains("Left", terminal.RawOutput);
+        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_SplitterWithList_HandlesNavigation()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
@@ -799,23 +839,30 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Down arrow navigates the list
-        terminal.SendKey(ConsoleKey.DownArrow);
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .Down()
+            .WaitUntil(s => s.RawOutput.Contains("> Item 2"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.Contains("> Item 2", terminal.RawOutput);
+        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_SplitterWithTextBox_HandlesTyping()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var text = "";
 
         using var app = new Hex1bApp(
@@ -826,12 +873,18 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.TypeText("Hello Splitter");
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Type("Hello Splitter")
+            .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Hello Splitter", text);
     }
@@ -839,7 +892,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_SplitterInsideBorder_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(70, 12);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 70, 12);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -852,17 +907,21 @@ public class SplitterNodeTests
                     "Split View"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Split View"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Split View", terminal.RawOutput);
-        Assert.Contains("Left", terminal.RawOutput);
-        Assert.Contains("Right", terminal.RawOutput);
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("Split View", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -1046,8 +1105,10 @@ public class SplitterNodeTests
     [Fact]
     public void Render_Vertical_ShowsHorizontalDivider()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1059,17 +1120,18 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Default horizontal divider character is "─"
-        Assert.Contains("─", terminal.RawOutput);
+        Assert.Contains("─", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_Vertical_ShowsTopContent()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top Content" },
@@ -1081,16 +1143,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Top Content", terminal.RawOutput);
+        Assert.Contains("Top Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_Vertical_ShowsBottomContent()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1102,16 +1165,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("Bottom Content", terminal.RawOutput);
+        Assert.Contains("Bottom Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public void Render_Vertical_WhenFocused_InvertsDividerColors()
     {
-        using var terminal = new Hex1bTerminal(30, 10);
-        var context = CreateContext(terminal);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        var context = CreateContext(workload);
         var node = new SplitterNode
         {
             First = new TextBlockNode { Text = "Top" },
@@ -1124,10 +1188,9 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // When focused, should have background color on divider
-        Assert.Contains("\x1b[48;2;", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -1269,7 +1332,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitter_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1279,22 +1344,28 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Bottom Content"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Top Content", terminal.RawOutput);
-        Assert.Contains("Bottom Content", terminal.RawOutput);
-        Assert.Contains("─", terminal.RawOutput); // Horizontal divider
+        Assert.Contains("Top Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("─", terminal.CreateSnapshot().RawOutput); // Horizontal divider
     }
 
     [Fact]
     public async Task Integration_VSplitterWithVStackPanes_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1304,23 +1375,29 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Bottom 2"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Top 1", terminal.RawOutput);
-        Assert.Contains("Top 2", terminal.RawOutput);
-        Assert.Contains("Bottom 1", terminal.RawOutput);
-        Assert.Contains("Bottom 2", terminal.RawOutput);
+        Assert.Contains("Top 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Top 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_VSplitterWithButtons_HandlesFocus()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
         var topClicked = false;
 
         using var app = new Hex1bApp(
@@ -1331,13 +1408,18 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Enter clicks the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(topClicked);
     }
@@ -1345,7 +1427,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterNavigation_TabSwitchesFocus()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
         var bottomClicked = false;
 
         using var app = new Hex1bApp(
@@ -1356,15 +1440,18 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Tab through: top -> splitter -> bottom, then Enter
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .Tab().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(bottomClicked);
     }
@@ -1372,7 +1459,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_VSplitterResize_ArrowKeysWork()
     {
-        using var terminal = new Hex1bTerminal(40, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1382,25 +1471,30 @@ public class SplitterNodeTests
                     topHeight: 5
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Since first child is just text (not focusable), splitter gets focus
         // Up/down arrows should resize it
-        terminal.SendKey(ConsoleKey.UpArrow);
-        terminal.SendKey(ConsoleKey.UpArrow);
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .Up().Up()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Top", terminal.RawOutput);
-        Assert.Contains("Bottom", terminal.RawOutput);
+        Assert.Contains("Top", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_VSplitterInsideBorder_RendersCorrectly()
     {
-        using var terminal = new Hex1bTerminal(50, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 50, 15);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1413,23 +1507,29 @@ public class SplitterNodeTests
                     "Vertical Split"
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Vertical Split"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Vertical Split", terminal.RawOutput);
-        Assert.Contains("Top", terminal.RawOutput);
-        Assert.Contains("Bottom", terminal.RawOutput);
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("Vertical Split", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Top", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
     public async Task Integration_NestedSplitters_HorizontalInsideVertical()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1443,16 +1543,20 @@ public class SplitterNodeTests
                     topHeight: 8
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Contains("Bottom"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.Contains("Top-Left", terminal.RawOutput);
-        Assert.Contains("Top-Right", terminal.RawOutput);
-        Assert.Contains("Bottom", terminal.RawOutput);
+        Assert.Contains("Top-Left", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Top-Right", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -1468,7 +1572,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromListInVStackInsideSplitter_MovesFocusToNextPane()
     {
-        using var terminal = new Hex1bTerminal(60, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
         var rightButtonClicked = false;
 
@@ -1482,15 +1588,18 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List starts focused, Tab should move through: List -> Splitter -> Right Button
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Button"), TimeSpan.FromSeconds(2))
+            .Tab().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from List through Splitter to Right Button");
     }
@@ -1502,7 +1611,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromSecondButtonInVStackInsideSplitter_MovesFocusToNextPane()
     {
-        using var terminal = new Hex1bTerminal(60, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
         var rightButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1515,17 +1626,19 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Focus order: First -> Second -> Splitter -> Right
         // (VStack doesn't handle Tab when inside Splitter, so it bubbles up to Splitter)
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // First -> Second
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Second -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button  
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Tab().Tab().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from Second Button through Splitter to Right Button");
     }
@@ -1536,7 +1649,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_ShiftTabFromButtonInsideSplitter_MovesFocusToPreviousPane()
     {
-        using var terminal = new Hex1bTerminal(60, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 15);
         var leftButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1547,18 +1662,21 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Navigate to Right Button first
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Left Button -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Right Button
-        // Now Shift+Tab back
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Right Button -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true); // Splitter -> Left Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
-        terminal.CompleteInput();
-        await app.RunAsync();
+        // Tab, Tab, then Shift+Tab, Shift+Tab, then Enter
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Button"), TimeSpan.FromSeconds(2))
+            .Tab().Tab()  // Left Button -> Splitter -> Right Button
+            .Shift().Tab().Shift().Tab()  // Right Button -> Splitter -> Left Button
+            .Enter()  // Click the button
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(leftButtonClicked, "Shift+Tab should have moved focus back to Left Button");
     }
@@ -1570,7 +1688,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TabFromWidgetInDeepNesting_BubblesUpToSplitter()
     {
-        using var terminal = new Hex1bTerminal(70, 15);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 70, 15);
         IReadOnlyList<string> items = ["Theme 1", "Theme 2"];
         var rightButtonClicked = false;
 
@@ -1595,15 +1715,18 @@ public class SplitterNodeTests
                     leftWidth: 25
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // List is focused initially, Tab should navigate to Splitter, then to Button
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // List -> Splitter
-        terminal.SendKey(ConsoleKey.Tab, '\t'); // Splitter -> Button
-        terminal.SendKey(ConsoleKey.Enter, '\r'); // Click the button
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .Tab().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(rightButtonClicked, "Tab should bubble up from deeply nested List to Splitter");
     }
@@ -1789,7 +1912,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_NestedSplitters_InnerSplitterDoesNotOverrideFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
         var outerLeftClicked = false;
         
         // The outer splitter's left pane has a button.
@@ -1809,13 +1934,18 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         // Just press Enter - should click the focused button
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button, not Inner Left");
     }
@@ -1826,7 +1956,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_NestedVSplitterInHSplitter_OuterGetsInitialFocus()
     {
-        using var terminal = new Hex1bTerminal(60, 20);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 60, 20);
         var outerLeftClicked = false;
         
         using var app = new Hex1bApp(
@@ -1841,12 +1973,17 @@ public class SplitterNodeTests
                     leftWidth: 20
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button");
     }
@@ -1857,7 +1994,9 @@ public class SplitterNodeTests
     [Fact]
     public async Task Integration_TripleNestedSplitters_OnlyRootSetsFocus()
     {
-        using var terminal = new Hex1bTerminal(80, 25);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 25);
         var level1Clicked = false;
         
         using var app = new Hex1bApp(
@@ -1876,12 +2015,17 @@ public class SplitterNodeTests
                     leftWidth: 18
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Level 1"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(level1Clicked, "Initial focus should be on Level 1 button (first focusable at root level)");
     }

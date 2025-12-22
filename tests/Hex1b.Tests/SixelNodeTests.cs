@@ -74,14 +74,15 @@ public class SixelNodeTests : IDisposable
         node.SetSixelSupport(true);
         
         // Should not throw and should render Sixel (tested indirectly)
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // With no image data, should show "[No image data]"
-        Assert.Contains("[No image data]", terminal.RawOutput);
+        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -93,14 +94,16 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(false);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
-        Assert.Contains("Fallback content", terminal.RawOutput);
+        Assert.Contains("Fallback content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -112,14 +115,15 @@ public class SixelNodeTests : IDisposable
         node.ResetSixelDetection();
         
         // After reset, node should query again on next render
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should send DA1 query
-        Assert.Contains("\x1b[c", terminal.RawOutput);
+        Assert.Contains("\x1b[c", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -128,8 +132,11 @@ public class SixelNodeTests : IDisposable
         var node = new SixelNode();
         // Don't set support - node should query
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         
         // First render sends query
@@ -138,8 +145,7 @@ public class SixelNodeTests : IDisposable
         
         // Second render while waiting shows loading
         node.Render(context);
-        terminal.FlushOutput();
-        Assert.Contains("Checking Sixel support", terminal.RawOutput);
+        Assert.Contains("Checking Sixel support", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -147,8 +153,11 @@ public class SixelNodeTests : IDisposable
     {
         var node = new SixelNode();
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         
         // Start query
@@ -159,10 +168,9 @@ public class SixelNodeTests : IDisposable
         
         terminal.ClearRawOutput();
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should now render Sixel (or no image data message)
-        Assert.Contains("[No image data]", terminal.RawOutput);
+        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -173,8 +181,11 @@ public class SixelNodeTests : IDisposable
             Fallback = new TextBlockNode { Text = "No Sixel" }
         };
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         
@@ -186,9 +197,8 @@ public class SixelNodeTests : IDisposable
         
         terminal.ClearRawOutput();
         node.Render(context);
-        terminal.FlushOutput();
         
-        Assert.Contains("No Sixel", terminal.RawOutput);
+        Assert.Contains("No Sixel", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -258,15 +268,17 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(true);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should wrap in Sixel DCS sequence: ESC P q ... ESC \
-        Assert.Contains("\x1bPq", terminal.RawOutput);
-        Assert.Contains("\x1b\\", terminal.RawOutput);
+        Assert.Contains("\x1bPq", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("\x1b\\", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -280,14 +292,16 @@ public class SixelNodeTests : IDisposable
         };
         node.SetSixelSupport(true);
         
-        using var terminal = new Hex1bTerminal(80, 24);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        terminal.FlushOutput();
         
         // Should output as-is without double-wrapping
-        Assert.Equal(1, CountOccurrences(terminal.RawOutput, "\x1bPq"));
+        Assert.Equal(1, CountOccurrences(terminal.CreateSnapshot().RawOutput, "\x1bPq"));
     }
 
     private static int CountOccurrences(string text, string pattern)

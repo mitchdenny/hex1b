@@ -27,13 +27,13 @@ namespace Hex1b.Terminal;
 /// </remarks>
 /// <example>
 /// <code>
-/// var workload = new Hex1bAppWorkloadAdapter(80, 24);
-/// var terminal = new Hex1bTerminal(presentation, workload);
+/// var workload = new Hex1bAppWorkloadAdapter();
+/// var terminal = new Hex1bTerminal(workload, 80, 24);
 /// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -41,17 +41,20 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
     private int _height;
     private bool _disposed;
     private bool _inTuiMode;
+    private bool _dimensionsInitialized;
 
     /// <summary>
-    /// Creates a new app workload adapter with the specified terminal dimensions.
+    /// Creates a new app workload adapter.
     /// </summary>
-    /// <param name="width">Terminal width in characters.</param>
-    /// <param name="height">Terminal height in lines.</param>
     /// <param name="capabilities">Terminal capabilities. If null, defaults with full support.</param>
-    public Hex1bAppWorkloadAdapter(int width = 80, int height = 24, TerminalCapabilities? capabilities = null)
+    /// <remarks>
+    /// Dimensions are set by the terminal via <see cref="ResizeAsync"/>.
+    /// Initial dimensions default to 0x0 until the terminal notifies.
+    /// </remarks>
+    public Hex1bAppWorkloadAdapter(TerminalCapabilities? capabilities = null)
     {
-        _width = width;
-        _height = height;
+        _width = 0;
+        _height = 0;
         Capabilities = capabilities ?? new TerminalCapabilities
         {
             SupportsMouse = true,
@@ -270,10 +273,19 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
     /// <inheritdoc />
     public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
     {
+        var wasInitialized = _dimensionsInitialized;
+        _dimensionsInitialized = true;
+        
+        var changed = _width != width || _height != height;
         _width = width;
         _height = height;
-        // Write resize event to input channel
-        _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(width, height));
+        
+        // Only fire resize event if dimensions changed AND we were already initialized
+        // (skip the initial dimension setup from terminal constructor)
+        if (changed && wasInitialized)
+        {
+            _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(width, height));
+        }
         return ValueTask.CompletedTask;
     }
 
@@ -324,14 +336,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
         }
     }
 
-    /// <summary>
-    /// Completes the input channel (for testing).
-    /// </summary>
-    public void CompleteInput()
-    {
-        _inputChannel.Writer.Complete();
-    }
-
     // ========================================
     // Private helpers
     // ========================================
@@ -372,9 +376,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
     }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    public void Dispose()
     {
-        if (_disposed) return ValueTask.CompletedTask;
+        if (_disposed) return;
         _disposed = true;
 
         if (_inTuiMode)
@@ -385,6 +389,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
         _outputChannel.Writer.TryComplete();
         _inputChannel.Writer.TryComplete();
         Disconnected?.Invoke();
+    }
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
         return ValueTask.CompletedTask;
     }
 }

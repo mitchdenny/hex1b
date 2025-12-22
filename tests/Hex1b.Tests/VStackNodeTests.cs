@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -283,8 +284,10 @@ public class VStackNodeTests
     [Fact]
     public void Render_RendersAllChildren()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -298,17 +301,18 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Contains("First", terminal.GetScreenText());
-        Assert.Contains("Second", terminal.GetScreenText());
+        Assert.Contains("First", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Second", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
     public void Render_ChildrenAppearOnDifferentLines()
     {
-        using var terminal = new Hex1bTerminal(40, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -323,18 +327,19 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
-        Assert.Equal("Line A", terminal.GetLineTrimmed(0));
-        Assert.Equal("Line B", terminal.GetLineTrimmed(1));
-        Assert.Equal("Line C", terminal.GetLineTrimmed(2));
+        Assert.Equal("Line A", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Line B", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("Line C", terminal.CreateSnapshot().GetLineTrimmed(2));
     }
 
     [Fact]
     public void Render_InNarrowTerminal_TextWrapsAtEdge()
     {
-        using var terminal = new Hex1bTerminal(10, 10);
-        var context = new Hex1bRenderContext(terminal.WorkloadAdapter);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 10, 10);
+        var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
         {
@@ -347,11 +352,10 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(10, 10));
         node.Arrange(new Rect(0, 0, 10, 10));
         node.Render(context);
-        terminal.FlushOutput();
 
         // Text wraps at terminal edge
-        Assert.Equal("LongTextHe", terminal.GetLine(0));
-        Assert.Equal("re", terminal.GetLineTrimmed(1));
+        Assert.Equal("LongTextHe", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("re", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     #endregion
@@ -361,7 +365,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_RendersMultipleChildren()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -371,22 +377,28 @@ public class VStackNodeTests
                     v.Text("Footer")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Header"));
-        Assert.True(terminal.ContainsText("Body Content"));
-        Assert.True(terminal.ContainsText("Footer"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Body Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
     }
 
     [Fact]
     public async Task Integration_VStack_TabNavigatesThroughFocusables()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
         var text3 = "";
@@ -400,20 +412,26 @@ public class VStackNodeTests
                     v.TextBox(text3).OnTextChanged(args => text3 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Type in first box
-        terminal.SendKey(ConsoleKey.D1, '1');
-        // Tab to second
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.D2, '2');
-        // Tab to third
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.D3, '3');
-        terminal.CompleteInput();
+        var runTask = app.RunAsync();
 
-        await app.RunAsync();
+        // Type in first box, wait for it to appear, tab to second, type, etc.
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Type("1")
+            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(2))
+            .Tab()
+            .Type("2")
+            .WaitUntil(s => s.ContainsText("2"), TimeSpan.FromSeconds(2))
+            .Tab()
+            .Type("3")
+            .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("1", text1);
         Assert.Equal("2", text2);
@@ -423,7 +441,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_ShiftTabNavigatesBackward()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var text1 = "";
         var text2 = "";
 
@@ -434,16 +454,21 @@ public class VStackNodeTests
                     v.TextBox(text2).OnTextChanged(args => text2 = args.NewText)
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Tab forward then shift-tab back
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Tab, '\t', shift: true);
-        terminal.SendKey(ConsoleKey.A, 'A', shift: true);
-        terminal.CompleteInput();
+        var runTask = app.RunAsync();
 
-        await app.RunAsync();
+        // Tab forward then shift-tab back - wait for any render to complete
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.RawOutput.Length > 0, TimeSpan.FromSeconds(2))
+            .Tab()
+            .Shift().Tab()
+            .Type("A")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("A", text1);
         Assert.Equal("", text2);
@@ -452,7 +477,9 @@ public class VStackNodeTests
     [Fact]
     public async Task Integration_VStack_InNarrowTerminal_StillWorks()
     {
-        using var terminal = new Hex1bTerminal(15, 10);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 15, 10);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -462,22 +489,28 @@ public class VStackNodeTests
                     v.Text("Very long text indeed")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Short"));
-        Assert.True(terminal.ContainsText("Medium text"));
-        Assert.True(terminal.ContainsText("Very long text"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Medium text"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Very long text"));
     }
 
     [Fact]
     public async Task Integration_VStack_WithMixedContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -488,25 +521,31 @@ public class VStackNodeTests
                     v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Tab to button and click
-        terminal.SendKey(ConsoleKey.Tab, '\t');
-        terminal.SendKey(ConsoleKey.Enter, '\r');
-        terminal.CompleteInput();
+        var runTask = app.RunAsync();
 
-        await app.RunAsync();
-        terminal.FlushOutput();
+        // Tab to button and click
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(2))
+            .Tab()
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.True(clicked);
-        Assert.True(terminal.ContainsText("Title"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Title"));
     }
 
     [Fact]
     public async Task Integration_VStack_NestedVStacks()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -519,58 +558,76 @@ public class VStackNodeTests
                     v.Text("Outer 2")
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer 1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Outer 1"));
-        Assert.True(terminal.ContainsText("Inner 1"));
-        Assert.True(terminal.ContainsText("Inner 2"));
-        Assert.True(terminal.ContainsText("Outer 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 2"));
     }
 
     [Fact]
     public async Task Integration_VStack_EmptyStack_DoesNotCrash()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => Array.Empty<Hex1bWidget>())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        // Empty stack - wait for alternate screen mode, then exit
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         // Should complete without error
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
     public async Task Integration_VStack_DynamicContent()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
         var items = new List<string> { "Item 1", "Item 2", "Item 3" };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => items.Select(item => v.Text(item)).ToArray())
             ),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
-        Assert.True(terminal.ContainsText("Item 1"));
-        Assert.True(terminal.ContainsText("Item 2"));
-        Assert.True(terminal.ContainsText("Item 3"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
     }
 
     #endregion

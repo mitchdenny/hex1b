@@ -148,13 +148,11 @@ try
     var presentation = new ConsolePresentationAdapter(enableMouse: true);
     
     // Create the workload adapter that Hex1bApp will use
-    var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
+    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
     // Create the terminal that bridges presentation ↔ workload
+    // The terminal auto-starts I/O pumps when a presentation adapter is provided
     using var terminal = new Hex1bTerminal(presentation, workload);
-    
-    // Start the I/O pump tasks
-    terminal.Start();
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [

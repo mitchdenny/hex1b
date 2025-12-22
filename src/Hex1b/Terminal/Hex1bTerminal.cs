@@ -62,28 +62,16 @@ public sealed class Hex1bTerminal : IDisposable
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
 
-    /// <summary>
-    /// Creates a new headless terminal for testing with the specified dimensions.
-    /// This constructor creates an internal <see cref="Hex1bAppWorkloadAdapter"/> that
-    /// can be accessed via the <see cref="WorkloadAdapter"/> property.
-    /// </summary>
-    /// <param name="width">Terminal width in characters.</param>
-    /// <param name="height">Terminal height in lines.</param>
-    public Hex1bTerminal(int width, int height)
-        : this(null, new Hex1bAppWorkloadAdapter(width, height))
-    {
-        _width = width;
-        _height = height;
-        _screenBuffer = new TerminalCell[height, width];
-        ClearBuffer();
-    }
+
 
     /// <summary>
-    /// Creates a new headless terminal for testing with the specified workload adapter.
+    /// Creates a new headless terminal for testing with the specified workload adapter and dimensions.
     /// </summary>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload)
-        : this(presentation: null, workload: workload)
+    /// <param name="width">Terminal width in characters.</param>
+    /// <param name="height">Terminal height in lines.</param>
+    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload, int width, int height)
+        : this(presentation: null, workload: workload, width: width, height: height)
     {
     }
 
@@ -92,14 +80,24 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     /// <param name="presentation">The presentation adapter for actual I/O. Pass null for headless/test mode.</param>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
+    /// <param name="width">Terminal width (used when presentation is null). Ignored if presentation is provided.</param>
+    /// <param name="height">Terminal height (used when presentation is null). Ignored if presentation is provided.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
-        IHex1bTerminalWorkloadAdapter workload)
+        IHex1bTerminalWorkloadAdapter workload,
+        int width = 80,
+        int height = 24)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
-        _width = presentation?.Width ?? 80;
-        _height = presentation?.Height ?? 24;
+        
+        // Get dimensions from presentation if available, otherwise use provided dimensions
+        _width = presentation?.Width ?? width;
+        _height = presentation?.Height ?? height;
+        
+        // Notify workload of initial dimensions (ResizeAsync handles not firing event on init)
+        _ = _workload.ResizeAsync(_width, _height);
+        
         _rawOutput = new StringBuilder();
         _screenBuffer = new TerminalCell[_height, _width];
         
@@ -109,11 +107,13 @@ public sealed class Hex1bTerminal : IDisposable
         if (_presentation != null)
         {
             _presentation.Resized += OnPresentationResized;
-            _presentation.Disconnected += OnPresentationDisconnected;
         }
 
-        // Subscribe to workload disconnect
-        _workload.Disconnected += OnWorkloadDisconnected;
+        // Auto-start I/O pumps when presentation is provided (production mode)
+        if (_presentation != null)
+        {
+            Start();
+        }
     }
 
     private int _width;
@@ -128,57 +128,25 @@ public sealed class Hex1bTerminal : IDisposable
         _ = _workload.ResizeAsync(width, height);
     }
 
-    private void OnPresentationDisconnected()
-    {
-        Disconnected?.Invoke();
-    }
-
-    private void OnWorkloadDisconnected()
-    {
-        Disconnected?.Invoke();
-    }
-
     // === Configuration ===
 
     /// <summary>
     /// Terminal width.
     /// </summary>
-    public int Width => _width;
+    internal int Width => _width;
 
     /// <summary>
     /// Terminal height.
     /// </summary>
-    public int Height => _height;
-
-    /// <summary>
-    /// Gets the workload adapter. For headless terminals created with (width, height),
-    /// this returns the internal <see cref="Hex1bAppWorkloadAdapter"/>.
-    /// For terminals created with explicit adapters, this returns the provided workload.
-    /// </summary>
-    /// <remarks>
-    /// This property is primarily for testing scenarios where the terminal is created
-    /// with dimensions and the workload adapter is needed for Hex1bApp or context creation.
-    /// </remarks>
-    public IHex1bAppTerminalWorkloadAdapter WorkloadAdapter => 
-        _workload as IHex1bAppTerminalWorkloadAdapter 
-        ?? throw new InvalidOperationException("Workload adapter is not an IHex1bAppTerminalWorkloadAdapter");
-
-    /// <summary>
-    /// Raised when the terminal disconnects (either presentation or workload).
-    /// </summary>
-    public event Action? Disconnected;
+    internal int Height => _height;
 
     // === Terminal Control ===
 
     /// <summary>
     /// Starts the terminal's I/O pump loops.
-    /// Call this after constructing the terminal to begin processing I/O.
+    /// Called automatically when a presentation adapter is provided.
     /// </summary>
-    /// <remarks>
-    /// If a presentation adapter is present, this also enters TUI mode on the presentation
-    /// (raw mode, alternate screen, etc.) so that input can be captured properly.
-    /// </remarks>
-    public void Start()
+    private void Start()
     {
         // Enter TUI mode on presentation if present (enables raw mode for input capture)
         if (_presentation != null)
@@ -202,14 +170,13 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Synchronously drains any pending output from the workload and processes it
-    /// into the screen buffer. Useful for testing scenarios.
+    /// into the screen buffer.
     /// </summary>
     /// <remarks>
-    /// In headless testing mode, the app writes output to the workload adapter's channel.
-    /// This method reads all pending output and processes it immediately, allowing
-    /// tests to assert on screen content without needing async pump loops.
+    /// This is called automatically by screen buffer read operations (GetScreenText, 
+    /// ContainsText, RawOutput, etc.) so callers don't need to call it directly.
     /// </remarks>
-    public void FlushOutput()
+    internal void FlushOutput()
     {
         if (_workload is not Hex1bAppWorkloadAdapter appWorkload)
             return;
@@ -369,29 +336,61 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the current cursor X position (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public int CursorX => _cursorX;
+    internal int CursorX
+    {
+        get
+        {
+            FlushOutput();
+            return _cursorX;
+        }
+    }
 
     /// <summary>
     /// Gets the current cursor Y position (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public int CursorY => _cursorY;
+    internal int CursorY
+    {
+        get
+        {
+            FlushOutput();
+            return _cursorY;
+        }
+    }
 
     /// <summary>
     /// Gets whether the terminal is currently in alternate screen mode.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public bool InAlternateScreen => _inAlternateScreen;
+    internal bool InAlternateScreen
+    {
+        get
+        {
+            FlushOutput();
+            return _inAlternateScreen;
+        }
+    }
 
     /// <summary>
     /// Gets the raw output written to this terminal, including ANSI escape sequences.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public string RawOutput => _rawOutput.ToString();
+    internal string RawOutput
+    {
+        get
+        {
+            FlushOutput();
+            return _rawOutput.ToString();
+        }
+    }
 
     /// <summary>
     /// Enters alternate screen mode (for testing purposes).
     /// In headless mode, this just sets the flag and clears the buffer.
     /// </summary>
-    public void EnterAlternateScreen()
+    internal void EnterAlternateScreen()
     {
         ProcessOutput("\x1b[?1049h");
     }
@@ -400,16 +399,18 @@ public sealed class Hex1bTerminal : IDisposable
     /// Exits alternate screen mode (for testing purposes).
     /// In headless mode, this just clears the flag.
     /// </summary>
-    public void ExitAlternateScreen()
+    internal void ExitAlternateScreen()
     {
         ProcessOutput("\x1b[?1049l");
     }
 
     /// <summary>
     /// Gets a copy of the current screen buffer.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public TerminalCell[,] GetScreenBuffer()
+    internal TerminalCell[,] GetScreenBuffer()
     {
+        FlushOutput();
         var copy = new TerminalCell[_height, _width];
         Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
         return copy;
@@ -417,8 +418,16 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of the screen buffer as a string, with lines separated by newlines.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public string GetScreenText()
+    internal string GetScreenText()
+    {
+        FlushOutput();
+        return GetScreenTextInternal();
+    }
+
+    // Internal version that doesn't flush (for use after already flushing)
+    private string GetScreenTextInternal()
     {
         var sb = new StringBuilder();
         for (int y = 0; y < _height; y++)
@@ -437,8 +446,16 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of a specific line (0-based).
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public string GetLine(int lineIndex)
+    internal string GetLine(int lineIndex)
+    {
+        FlushOutput();
+        return GetLineInternal(lineIndex);
+    }
+
+    // Internal version that doesn't flush (for use after already flushing)
+    private string GetLineInternal(int lineIndex)
     {
         if (lineIndex < 0 || lineIndex >= _height)
             throw new ArgumentOutOfRangeException(nameof(lineIndex));
@@ -453,17 +470,20 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Gets the text content of a specific line, trimmed of trailing whitespace.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public string GetLineTrimmed(int lineIndex) => GetLine(lineIndex).TrimEnd();
+    internal string GetLineTrimmed(int lineIndex) => GetLine(lineIndex).TrimEnd();
 
     /// <summary>
     /// Gets all non-empty lines from the screen buffer.
+    /// Automatically flushes pending output before returning.
     /// </summary>
-    public IEnumerable<string> GetNonEmptyLines()
+    internal IEnumerable<string> GetNonEmptyLines()
     {
+        FlushOutput();
         for (int y = 0; y < _height; y++)
         {
-            var line = GetLineTrimmed(y);
+            var line = GetLineInternal(y).TrimEnd();
             if (!string.IsNullOrWhiteSpace(line))
             {
                 yield return line;
@@ -473,23 +493,27 @@ public sealed class Hex1bTerminal : IDisposable
 
     /// <summary>
     /// Checks if the screen contains the specified text anywhere.
+    /// Automatically flushes pending output before checking.
     /// </summary>
-    public bool ContainsText(string text)
+    internal bool ContainsText(string text)
     {
-        var screenText = GetScreenText();
+        FlushOutput();
+        var screenText = GetScreenTextInternal();
         return screenText.Contains(text, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Finds all occurrences of the specified text on the screen.
     /// Returns a list of (line, column) positions.
+    /// Automatically flushes pending output before searching.
     /// </summary>
-    public List<(int Line, int Column)> FindText(string text)
+    internal List<(int Line, int Column)> FindText(string text)
     {
+        FlushOutput();
         var results = new List<(int, int)>();
         for (int y = 0; y < _height; y++)
         {
-            var line = GetLine(y);
+            var line = GetLineInternal(y);
             var index = 0;
             while ((index = line.IndexOf(text, index, StringComparison.Ordinal)) >= 0)
             {
@@ -503,68 +527,33 @@ public sealed class Hex1bTerminal : IDisposable
     /// <summary>
     /// Clears the raw output buffer.
     /// </summary>
-    public void ClearRawOutput() => _rawOutput.Clear();
+    internal void ClearRawOutput() => _rawOutput.Clear();
 
     // === Input Injection APIs (Testing) ===
 
     /// <summary>
-    /// Injects a key input event into the terminal (for testing).
+    /// Sends any input event to the terminal (for testing).
+    /// This is the unified API for injecting keyboard, mouse, and other events.
     /// Only works with Hex1bAppWorkloadAdapter.
     /// </summary>
-    public void SendKey(ConsoleKey key, char keyChar = '\0', bool shift = false, bool alt = false, bool control = false)
+    /// <param name="evt">The event to send.</param>
+    internal void SendEvent(Hex1bEvent evt)
     {
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {
-            appWorkload.SendKey(key, keyChar, shift, alt, control);
+            appWorkload.TryWriteInputEvent(evt);
         }
     }
 
     /// <summary>
-    /// Injects a key input event using the Hex1bKey type (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
+    /// Creates an immutable snapshot of the current terminal state.
+    /// Useful for assertions and wait conditions in tests.
+    /// Automatically flushes pending output before creating the snapshot.
     /// </summary>
-    public void SendKey(Hex1bKey key, char keyChar = '\0', Hex1bModifiers modifiers = Hex1bModifiers.None)
+    public Testing.Hex1bTerminalSnapshot CreateSnapshot()
     {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.SendKey(key, keyChar, modifiers);
-        }
-    }
-
-    /// <summary>
-    /// Injects a mouse input event (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void SendMouse(MouseButton button, MouseAction action, int x, int y, Hex1bModifiers modifiers = Hex1bModifiers.None, int clickCount = 1)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.SendMouse(button, action, x, y, modifiers, clickCount);
-        }
-    }
-
-    /// <summary>
-    /// Types a string of characters into the terminal (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void TypeText(string text)
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.TypeText(text);
-        }
-    }
-
-    /// <summary>
-    /// Completes the input channel, signaling end of input (for testing).
-    /// Only works with Hex1bAppWorkloadAdapter.
-    /// </summary>
-    public void CompleteInput()
-    {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-        {
-            appWorkload.CompleteInput();
-        }
+        FlushOutput();
+        return new Testing.Hex1bTerminalSnapshot(this);
     }
 
     /// <summary>
@@ -1143,10 +1132,7 @@ public sealed class Hex1bTerminal : IDisposable
             // Fire and forget - ExitTuiModeAsync is typically synchronous for console
             _ = _presentation.ExitTuiModeAsync();
             _presentation.Resized -= OnPresentationResized;
-            _presentation.Disconnected -= OnPresentationDisconnected;
         }
-
-        _workload.Disconnected -= OnWorkloadDisconnected;
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();
@@ -1163,11 +1149,9 @@ public sealed class Hex1bTerminal : IDisposable
             // Exit TUI mode before disposing
             await _presentation.ExitTuiModeAsync();
             _presentation.Resized -= OnPresentationResized;
-            _presentation.Disconnected -= OnPresentationDisconnected;
             await _presentation.DisposeAsync();
         }
 
-        _workload.Disconnected -= OnWorkloadDisconnected;
         await _workload.DisposeAsync();
 
         _disposeCts.Cancel();
