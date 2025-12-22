@@ -11,6 +11,12 @@ public abstract class Hex1bNode
     public Rect Bounds { get; set; }
 
     /// <summary>
+    /// The bounds from the previous frame, used for dirty region tracking.
+    /// Before the first arrange, this will be an empty rect at (0,0).
+    /// </summary>
+    public Rect PreviousBounds { get; private set; }
+
+    /// <summary>
     /// The parent node in the tree (set during reconciliation).
     /// </summary>
     public Hex1bNode? Parent { get; set; }
@@ -63,9 +69,11 @@ public abstract class Hex1bNode
 
     /// <summary>
     /// Assigns final bounds to this node and arranges children.
+    /// Saves the previous bounds before updating for dirty region tracking.
     /// </summary>
     public virtual void Arrange(Rect bounds)
     {
+        PreviousBounds = Bounds;
         Bounds = bounds;
     }
 
