@@ -107,4 +107,103 @@ public class Hex1bNodeTests
     }
 
     #endregion
+
+    #region Dirty Flag Tests
+
+    [Fact]
+    public void NewNode_IsDirty()
+    {
+        var node = new TestNode();
+
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void ClearDirty_SetsIsDirtyToFalse()
+    {
+        var node = new TestNode();
+        Assert.True(node.IsDirty); // New node starts dirty
+
+        node.ClearDirty();
+
+        Assert.False(node.IsDirty);
+    }
+
+    [Fact]
+    public void MarkDirty_SetsIsDirtyToTrue()
+    {
+        var node = new TestNode();
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+
+        node.MarkDirty();
+
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void Arrange_WithDifferentBounds_MarksDirty()
+    {
+        var node = new TestNode();
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+
+        node.Arrange(new Rect(5, 5, 10, 5)); // Different position
+
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void Arrange_WithSameBounds_DoesNotMarkDirty()
+    {
+        var node = new TestNode();
+        var bounds = new Rect(0, 0, 10, 5);
+        node.Arrange(bounds);
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+
+        node.Arrange(bounds); // Same bounds
+
+        Assert.False(node.IsDirty);
+    }
+
+    [Fact]
+    public void Arrange_WithDifferentSize_MarksDirty()
+    {
+        var node = new TestNode();
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.ClearDirty();
+
+        node.Arrange(new Rect(0, 0, 20, 10)); // Different size
+
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void DirtyFlag_CanBeMarkedAndClearedMultipleTimes()
+    {
+        var node = new TestNode();
+        
+        // Start dirty
+        Assert.True(node.IsDirty);
+        
+        // Clear and verify
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+        
+        // Mark and verify
+        node.MarkDirty();
+        Assert.True(node.IsDirty);
+        
+        // Clear again
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+        
+        // Mark again
+        node.MarkDirty();
+        Assert.True(node.IsDirty);
+    }
+
+    #endregion
 }

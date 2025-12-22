@@ -338,8 +338,27 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _context.Clear();
         _rootNode?.Render(_context);
         
-        // Step 7: Render mouse cursor overlay if enabled
+        // Step 8: Render mouse cursor overlay if enabled
         RenderMouseCursor();
+        
+        // Step 9: Clear dirty flags on all nodes (they've been rendered)
+        if (_rootNode != null)
+        {
+            ClearDirtyFlags(_rootNode);
+        }
+    }
+    
+    /// <summary>
+    /// Recursively clears the dirty flag on a node and all its children.
+    /// Called after rendering to prepare for the next frame.
+    /// </summary>
+    private static void ClearDirtyFlags(Hex1bNode node)
+    {
+        node.ClearDirty();
+        foreach (var child in node.GetChildren())
+        {
+            ClearDirtyFlags(child);
+        }
     }
     
     /// <summary>
@@ -526,6 +545,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
+        
+        // Mark new nodes as dirty (they need to be rendered for the first time)
+        if (context.IsNew)
+        {
+            node.MarkDirty();
+        }
         
         // Inject default CTRL-C binding if enabled
         if (_enableDefaultCtrlCExit)

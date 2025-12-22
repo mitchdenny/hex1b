@@ -17,6 +17,49 @@ public abstract class Hex1bNode
     public Rect PreviousBounds { get; private set; }
 
     /// <summary>
+    /// Whether this node needs to be re-rendered.
+    /// New nodes start dirty. The framework clears this after each render frame.
+    /// </summary>
+    /// <remarks>
+    /// This flag is automatically managed by the framework:
+    /// <list type="bullet">
+    ///   <item>New nodes are created with IsDirty = true</item>
+    ///   <item>Nodes are marked dirty when their bounds change during Arrange()</item>
+    ///   <item>The framework calls ClearDirty() on all nodes after rendering</item>
+    /// </list>
+    /// Widget authors can call MarkDirty() for internal state changes that don't
+    /// flow through reconciliation (e.g., animation timers, cursor blink).
+    /// </remarks>
+    public bool IsDirty { get; private set; } = true;
+
+    /// <summary>
+    /// Marks this node as needing re-rendering.
+    /// Call this when internal state changes that don't flow through widget reconciliation.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // In a custom node with a blinking cursor:
+    /// private void OnBlinkTimer()
+    /// {
+    ///     _cursorVisible = !_cursorVisible;
+    ///     MarkDirty();
+    /// }
+    /// </code>
+    /// </example>
+    public void MarkDirty()
+    {
+        IsDirty = true;
+    }
+
+    /// <summary>
+    /// Clears the dirty flag after rendering. Called by the framework.
+    /// </summary>
+    internal void ClearDirty()
+    {
+        IsDirty = false;
+    }
+
+    /// <summary>
     /// The parent node in the tree (set during reconciliation).
     /// </summary>
     public Hex1bNode? Parent { get; set; }
@@ -70,10 +113,18 @@ public abstract class Hex1bNode
     /// <summary>
     /// Assigns final bounds to this node and arranges children.
     /// Saves the previous bounds before updating for dirty region tracking.
+    /// Marks the node dirty if bounds changed.
     /// </summary>
     public virtual void Arrange(Rect bounds)
     {
         PreviousBounds = Bounds;
+        
+        // Mark dirty if position or size changed
+        if (Bounds != bounds)
+        {
+            MarkDirty();
+        }
+        
         Bounds = bounds;
     }
 
