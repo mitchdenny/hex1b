@@ -156,6 +156,176 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         // Mouse wheel scrolling
         bindings.Mouse(MouseButton.ScrollUp).Action(() => { State.ScrollUp(3); MarkDirty(); }, "Scroll up");
         bindings.Mouse(MouseButton.ScrollDown).Action(() => { State.ScrollDown(3); MarkDirty(); }, "Scroll down");
+        
+        // Mouse drag on scrollbar (handles both clicks and thumb dragging)
+        bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
+    }
+
+    private DragHandler HandleScrollbarDrag(int localX, int localY)
+    {
+        if (!State.IsScrollable || !ShowScrollbar)
+        {
+            return new DragHandler(); // No-op
+        }
+        
+        if (Orientation == ScrollOrientation.Vertical)
+        {
+            return HandleVerticalScrollbarDrag(localX, localY);
+        }
+        else
+        {
+            return HandleHorizontalScrollbarDrag(localX, localY);
+        }
+    }
+
+    private DragHandler HandleVerticalScrollbarDrag(int localX, int localY)
+    {
+        // Check if click is on the scrollbar (rightmost column)
+        var scrollbarX = Bounds.Width - ScrollbarSize;
+        if (localX < scrollbarX || localX >= Bounds.Width)
+        {
+            return new DragHandler(); // Click not on scrollbar
+        }
+        
+        var scrollbarHeight = _viewportRect.Height;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarHeight - 2)));
+        var scrollRange = scrollbarHeight - 2 - thumbSize;
+        var thumbPosition = scrollRange > 0 
+            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            : 0;
+        
+        // Check which part of the scrollbar was clicked
+        if (localY == 0)
+        {
+            // Up arrow clicked
+            State.ScrollUp();
+            MarkDirty();
+            return new DragHandler(); // No drag
+        }
+        else if (localY == scrollbarHeight - 1)
+        {
+            // Down arrow clicked
+            State.ScrollDown();
+            MarkDirty();
+            return new DragHandler(); // No drag
+        }
+        else if (localY > 0 && localY < scrollbarHeight - 1)
+        {
+            var trackY = localY - 1; // Offset by 1 for the up arrow
+            
+            if (trackY >= thumbPosition && trackY < thumbPosition + thumbSize)
+            {
+                // Clicked on thumb - start drag
+                var startOffset = State.Offset;
+                var trackHeight = scrollbarHeight - 2; // Exclude arrows
+                var contentPerPixel = State.MaxOffset > 0 && trackHeight > thumbSize
+                    ? (double)State.MaxOffset / (trackHeight - thumbSize)
+                    : 0;
+                
+                return new DragHandler(
+                    onMove: (deltaX, deltaY) =>
+                    {
+                        if (contentPerPixel > 0)
+                        {
+                            var newOffset = (int)Math.Round(startOffset + deltaY * contentPerPixel);
+                            State.Offset = Math.Clamp(newOffset, 0, State.MaxOffset);
+                            MarkDirty();
+                        }
+                    }
+                );
+            }
+            else if (trackY < thumbPosition)
+            {
+                // Clicked above thumb - page up
+                State.PageUp();
+                MarkDirty();
+                return new DragHandler(); // No drag
+            }
+            else
+            {
+                // Clicked below thumb - page down
+                State.PageDown();
+                MarkDirty();
+                return new DragHandler(); // No drag
+            }
+        }
+        
+        return new DragHandler(); // No-op
+    }
+
+    private DragHandler HandleHorizontalScrollbarDrag(int localX, int localY)
+    {
+        // Check if click is on the scrollbar (bottom row)
+        var scrollbarY = Bounds.Height - ScrollbarSize;
+        if (localY < scrollbarY || localY >= Bounds.Height)
+        {
+            return new DragHandler(); // Click not on scrollbar
+        }
+        
+        var scrollbarWidth = _viewportRect.Width;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)State.ViewportSize / State.ContentSize * (scrollbarWidth - 2)));
+        var scrollRange = scrollbarWidth - 2 - thumbSize;
+        var thumbPosition = scrollRange > 0 
+            ? (int)Math.Round((double)State.Offset / State.MaxOffset * scrollRange) 
+            : 0;
+        
+        // Check which part of the scrollbar was clicked
+        if (localX == 0)
+        {
+            // Left arrow clicked
+            State.ScrollUp(); // ScrollUp decreases offset
+            MarkDirty();
+            return new DragHandler(); // No drag
+        }
+        else if (localX == scrollbarWidth - 1)
+        {
+            // Right arrow clicked
+            State.ScrollDown(); // ScrollDown increases offset
+            MarkDirty();
+            return new DragHandler(); // No drag
+        }
+        else if (localX > 0 && localX < scrollbarWidth - 1)
+        {
+            var trackX = localX - 1; // Offset by 1 for the left arrow
+            
+            if (trackX >= thumbPosition && trackX < thumbPosition + thumbSize)
+            {
+                // Clicked on thumb - start drag
+                var startOffset = State.Offset;
+                var trackWidth = scrollbarWidth - 2; // Exclude arrows
+                var contentPerPixel = State.MaxOffset > 0 && trackWidth > thumbSize
+                    ? (double)State.MaxOffset / (trackWidth - thumbSize)
+                    : 0;
+                
+                return new DragHandler(
+                    onMove: (deltaX, deltaY) =>
+                    {
+                        if (contentPerPixel > 0)
+                        {
+                            var newOffset = (int)Math.Round(startOffset + deltaX * contentPerPixel);
+                            State.Offset = Math.Clamp(newOffset, 0, State.MaxOffset);
+                            MarkDirty();
+                        }
+                    }
+                );
+            }
+            else if (trackX < thumbPosition)
+            {
+                // Clicked left of thumb - page left
+                State.PageUp();
+                MarkDirty();
+                return new DragHandler(); // No drag
+            }
+            else
+            {
+                // Clicked right of thumb - page right
+                State.PageDown();
+                MarkDirty();
+                return new DragHandler(); // No drag
+            }
+        }
+        
+        return new DragHandler(); // No-op
     }
 
     private void ScrollUp()

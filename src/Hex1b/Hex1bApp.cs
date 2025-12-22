@@ -403,31 +403,70 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     /// <summary>
     /// Recursively clears dirty regions in the node tree.
-    /// For each dirty node, clears the union of its previous and current bounds.
+    /// For each dirty node, clears the union of its previous and current bounds,
+    /// intersected with any active clip rect from ancestor layout providers.
     /// </summary>
-    private void ClearDirtyRegions(Hex1bNode node)
+    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null)
     {
+        // If this node is an ILayoutProvider, intersect its clip rect with the current one
+        var effectiveClipRect = clipRect;
+        if (node is Nodes.ILayoutProvider layoutProvider && layoutProvider.ClipMode == Widgets.ClipMode.Clip)
+        {
+            effectiveClipRect = effectiveClipRect.HasValue 
+                ? Intersect(effectiveClipRect.Value, layoutProvider.ClipRect)
+                : layoutProvider.ClipRect;
+        }
+        
         if (node.IsDirty)
         {
-            // Clear the previous bounds (where the node was)
+            // Clear the previous bounds (where the node was), clipped to effective clip rect
             if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
             {
-                _context.ClearRegion(node.PreviousBounds);
+                var regionToClear = effectiveClipRect.HasValue 
+                    ? Intersect(node.PreviousBounds, effectiveClipRect.Value)
+                    : node.PreviousBounds;
+                if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                {
+                    _context.ClearRegion(regionToClear);
+                }
             }
             
-            // Clear the current bounds (where the node will be)
+            // Clear the current bounds (where the node will be), clipped to effective clip rect
             // This handles the case where content shrinks or moves
             if (node.Bounds != node.PreviousBounds)
             {
-                _context.ClearRegion(node.Bounds);
+                var regionToClear = effectiveClipRect.HasValue 
+                    ? Intersect(node.Bounds, effectiveClipRect.Value)
+                    : node.Bounds;
+                if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                {
+                    _context.ClearRegion(regionToClear);
+                }
             }
         }
         
-        // Recurse into children
+        // Recurse into children with the effective clip rect
         foreach (var child in node.GetChildren())
         {
-            ClearDirtyRegions(child);
+            ClearDirtyRegions(child, effectiveClipRect);
         }
+    }
+    
+    /// <summary>
+    /// Computes the intersection of two rectangles.
+    /// Returns a zero-sized rect if they don't intersect.
+    /// </summary>
+    private static Rect Intersect(Rect a, Rect b)
+    {
+        var x = Math.Max(a.X, b.X);
+        var y = Math.Max(a.Y, b.Y);
+        var right = Math.Min(a.X + a.Width, b.X + b.Width);
+        var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
+        
+        var width = Math.Max(0, right - x);
+        var height = Math.Max(0, bottom - y);
+        
+        return new Rect(x, y, width, height);
     }
     
     /// <summary>

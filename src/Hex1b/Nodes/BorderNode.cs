@@ -10,7 +10,20 @@ namespace Hex1b.Nodes;
 public sealed class BorderNode : Hex1bNode
 {
     public Hex1bNode? Child { get; set; }
-    public string? Title { get; set; }
+    
+    private string? _title;
+    public string? Title 
+    { 
+        get => _title; 
+        set
+        {
+            if (_title != value)
+            {
+                _title = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override Size Measure(Constraints constraints)
     {
