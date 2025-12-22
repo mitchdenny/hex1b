@@ -89,6 +89,14 @@ public sealed class ReconcileContext
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
+        
+        // Mark new nodes as dirty (they need to be rendered for the first time)
+        // Note: Existing nodes are marked dirty by individual widgets when their
+        // properties change, or by Arrange() when bounds change.
+        if (childContext.IsNew)
+        {
+            node.MarkDirty();
+        }
 
         return node;
     }
