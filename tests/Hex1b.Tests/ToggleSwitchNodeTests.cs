@@ -463,8 +463,13 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
 
         Assert.True(terminal.ContainsText("Manual"));
@@ -490,10 +495,14 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder().Right().Build().Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(2))
+            .Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(1, state.SelectedIndex);
         Assert.Equal("On", state.SelectedOption);
@@ -517,10 +526,14 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder().Right().Right().Build().Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(2))
+            .Right().Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(2, state.SelectedIndex);
         Assert.Equal("High", state.SelectedOption);
@@ -543,11 +556,15 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
+        var runTask = app.RunAsync();
         // Navigate right on toggle, then tab to button, then click
-        new Hex1bTestSequenceBuilder().Right().Tab().Enter().Build().Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2))
+            .Right().Tab().Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal(1, toggleState.SelectedIndex);
         Assert.True(buttonClicked);
@@ -573,10 +590,14 @@ public class ToggleSwitchNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bTestSequenceBuilder().Right().Build().Apply(terminal);
-        terminal.CompleteInput();
-
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(2))
+            .Right()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
 
         Assert.Equal("Mode2", lastSelectedValue);
     }

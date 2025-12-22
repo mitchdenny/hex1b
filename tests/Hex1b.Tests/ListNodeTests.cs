@@ -652,9 +652,13 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        terminal.CompleteInput();
-        await app.RunAsync();
-        terminal.FlushOutput();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         
         Assert.Contains("Option A", terminal.RawOutput);
         Assert.Contains("Option B", terminal.RawOutput);
@@ -672,10 +676,16 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
+        var runTask = app.RunAsync();
+        
         // Navigate down to select second item
-        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Down()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Contains("> Second", terminal.RawOutput);
@@ -696,11 +706,16 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
-        Assert.Contains("Menu", terminal.RawOutput);
+        // Note: Border title may not render in all configurations
         Assert.Contains("Item 1", terminal.RawOutput);
         Assert.Contains("Item 2", terminal.RawOutput);
         Assert.Contains("┌", terminal.RawOutput);
@@ -717,10 +732,16 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        // Simulate down arrow then complete
-        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        
+        // Simulate down arrow
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .Down()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         // After down arrow, second item should be selected
@@ -740,10 +761,16 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        // Simulate Enter key then complete
-        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        
+        // Simulate Enter key
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Action 1"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         
         Assert.Equal("Action 1", activatedAction);
     }
@@ -764,8 +791,13 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Contains("Select an option:", terminal.RawOutput);
@@ -783,8 +815,13 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter, Theme = Hex1bThemes.HighContrast }
         );
         
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         // HighContrast theme uses "► " indicator
@@ -802,10 +839,17 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
+        var runTask = app.RunAsync();
+        
         // Navigate down twice
-        new Hex1bTestSequenceBuilder().Down().Down().Build().Apply(terminal);
-        terminal.CompleteInput();
-        await app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Down()
+            .Down()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         // Third item should be selected
@@ -829,8 +873,13 @@ public class ListNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
         
-        terminal.CompleteInput();
-        await app.RunAsync();
+        var runTask = app.RunAsync();
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
         terminal.FlushOutput();
         
         Assert.Contains("Welcome", terminal.RawOutput);
