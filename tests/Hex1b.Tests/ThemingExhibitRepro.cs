@@ -1,5 +1,7 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal.Testing;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -57,9 +59,17 @@ public class ThemingExhibitRepro
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        // Complete immediately - we just want to see the initial render
-        terminal.CompleteInput();
-        await app.RunAsync();
+        // Start the app first, then interact with it
+        var runTask = app.RunAsync();
+
+        // Wait for the content to render, then exit
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+
+        await runTask;
         terminal.FlushOutput();
 
         // Debug: Print all non-empty lines
@@ -269,8 +279,17 @@ public class ThemingExhibitRepro
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        terminal.CompleteInput();
-        await app.RunAsync();
+        // Start the app first, then interact with it
+        var runTask = app.RunAsync();
+
+        // Wait for the content to render, then exit
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+
+        await runTask;
         terminal.FlushOutput();
 
         // Check for cursor colors in the output

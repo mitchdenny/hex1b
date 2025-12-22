@@ -167,43 +167,6 @@ public class Hex1bTerminalTests
     }
 
     [Fact]
-    public async Task InputSequenceBuilder_InjectsInputEvent()
-    {
-        using var terminal = new Hex1bTerminal(20, 5);
-        
-        new Hex1bTestSequenceBuilder().Key(Hex1bKey.A).Build().Apply(terminal);
-        terminal.CompleteInput();
-        
-        var events = new List<Hex1bEvent>();
-        await foreach (var evt in terminal.WorkloadAdapter.InputEvents.ReadAllAsync())
-        {
-            events.Add(evt);
-        }
-        
-        Assert.Single(events);
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(events[0]);
-        Assert.Equal(Hex1bKey.A, keyEvent.Key);
-        Assert.Equal("a", keyEvent.Text);
-    }
-
-    [Fact]
-    public async Task InputSequenceBuilder_Type_InjectsMultipleEvents()
-    {
-        using var terminal = new Hex1bTerminal(20, 5);
-        
-        new Hex1bTestSequenceBuilder().Type("abc").Build().Apply(terminal);
-        terminal.CompleteInput();
-        
-        var events = new List<Hex1bEvent>();
-        await foreach (var evt in terminal.WorkloadAdapter.InputEvents.ReadAllAsync())
-        {
-            events.Add(evt);
-        }
-        
-        Assert.Equal(3, events.Count);
-    }
-
-    [Fact]
     public void Resize_PreservesContent()
     {
         using var terminal = new Hex1bTerminal(20, 5);

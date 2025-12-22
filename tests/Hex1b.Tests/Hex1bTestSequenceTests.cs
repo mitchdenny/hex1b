@@ -537,9 +537,8 @@ public class Hex1bTestSequenceTests
             .Type("Test")
             .Build();
 
-        // Should not throw
+        // Should not throw - just verifies Apply works without an app running
         sequence.Apply(terminal);
-        terminal.CompleteInput();
     }
 
     #endregion
