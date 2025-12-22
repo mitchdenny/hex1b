@@ -22,6 +22,14 @@ public readonly struct Rect : IEquatable<Rect>
     public int Bottom => Y + Height;
     public Size Size => new(Width, Height);
 
+    /// <summary>
+    /// Checks if a point is inside this rectangle.
+    /// </summary>
+    /// <param name="px">The X coordinate of the point.</param>
+    /// <param name="py">The Y coordinate of the point.</param>
+    /// <returns>True if the point is inside the rectangle, false otherwise.</returns>
+    public bool Contains(int px, int py) => px >= X && px < Right && py >= Y && py < Bottom;
+
     public static Rect Zero => new(0, 0, 0, 0);
     public static Rect FromSize(Size size) => new(0, 0, size.Width, size.Height);
 

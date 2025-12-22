@@ -3,12 +3,82 @@ using Hex1b.Layout;
 
 namespace Hex1b;
 
+/// <summary>
+/// Specifies the shape of the terminal cursor.
+/// </summary>
+public enum CursorShape
+{
+    /// <summary>Use the terminal's default cursor shape.</summary>
+    Default = 0,
+    /// <summary>Blinking block cursor (▓).</summary>
+    BlinkingBlock = 1,
+    /// <summary>Steady block cursor (█).</summary>
+    SteadyBlock = 2,
+    /// <summary>Blinking underline cursor (_).</summary>
+    BlinkingUnderline = 3,
+    /// <summary>Steady underline cursor (_).</summary>
+    SteadyUnderline = 4,
+    /// <summary>Blinking bar cursor (│).</summary>
+    BlinkingBar = 5,
+    /// <summary>Steady bar cursor (│).</summary>
+    SteadyBar = 6
+}
+
 public abstract class Hex1bNode
 {
     /// <summary>
     /// The bounds assigned to this node after layout.
     /// </summary>
     public Rect Bounds { get; set; }
+
+    /// <summary>
+    /// The bounds from the previous frame, used for dirty region tracking.
+    /// Before the first arrange, this will be an empty rect at (0,0).
+    /// </summary>
+    public Rect PreviousBounds { get; private set; }
+
+    /// <summary>
+    /// Whether this node needs to be re-rendered.
+    /// New nodes start dirty. The framework clears this after each render frame.
+    /// </summary>
+    /// <remarks>
+    /// This flag is automatically managed by the framework:
+    /// <list type="bullet">
+    ///   <item>New nodes are created with IsDirty = true</item>
+    ///   <item>Nodes are marked dirty when their bounds change during Arrange()</item>
+    ///   <item>The framework calls ClearDirty() on all nodes after rendering</item>
+    /// </list>
+    /// Widget authors can call MarkDirty() for internal state changes that don't
+    /// flow through reconciliation (e.g., animation timers, cursor blink).
+    /// </remarks>
+    public bool IsDirty { get; private set; } = true;
+
+    /// <summary>
+    /// Marks this node as needing re-rendering.
+    /// Call this when internal state changes that don't flow through widget reconciliation.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // In a custom node with a blinking cursor:
+    /// private void OnBlinkTimer()
+    /// {
+    ///     _cursorVisible = !_cursorVisible;
+    ///     MarkDirty();
+    /// }
+    /// </code>
+    /// </example>
+    public void MarkDirty()
+    {
+        IsDirty = true;
+    }
+
+    /// <summary>
+    /// Clears the dirty flag after rendering. Called by the framework.
+    /// </summary>
+    internal void ClearDirty()
+    {
+        IsDirty = false;
+    }
 
     /// <summary>
     /// The parent node in the tree (set during reconciliation).
@@ -63,9 +133,19 @@ public abstract class Hex1bNode
 
     /// <summary>
     /// Assigns final bounds to this node and arranges children.
+    /// Saves the previous bounds before updating for dirty region tracking.
+    /// Marks the node dirty if bounds changed.
     /// </summary>
     public virtual void Arrange(Rect bounds)
     {
+        PreviousBounds = Bounds;
+        
+        // Mark dirty if position or size changed
+        if (Bounds != bounds)
+        {
+            MarkDirty();
+        }
+        
         Bounds = bounds;
     }
 
@@ -97,6 +177,12 @@ public abstract class Hex1bNode
     /// Returns true if this node can receive focus.
     /// </summary>
     public virtual bool IsFocusable => false;
+
+    /// <summary>
+    /// Gets the preferred cursor shape when the mouse is over this node.
+    /// Override this to customize cursor appearance (e.g., text input uses a bar cursor).
+    /// </summary>
+    public virtual CursorShape PreferredCursorShape => CursorShape.SteadyBlock;
 
     /// <summary>
     /// Gets or sets whether this node is currently focused.
@@ -148,4 +234,20 @@ public abstract class Hex1bNode
     /// of the bounds should respond to clicks (e.g., SplitterNode's divider).
     /// </summary>
     public virtual Rect HitTestBounds => Bounds;
+    
+    /// <summary>
+    /// Checks if this node or any of its descendants need rendering.
+    /// Used to determine if a subtree can be skipped entirely.
+    /// </summary>
+    public bool NeedsRender()
+    {
+        if (IsDirty) return true;
+        
+        foreach (var child in GetChildren())
+        {
+            if (child.NeedsRender()) return true;
+        }
+        
+        return false;
+    }
 }

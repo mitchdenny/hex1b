@@ -16,15 +16,43 @@ public sealed class SplitterNode : Hex1bNode
     /// </summary>
     public Hex1bNode? Second { get; set; }
     
+    private int _firstSize = 30;
+    
     /// <summary>
     /// The size of the first pane in characters (width for horizontal, height for vertical).
     /// </summary>
-    public int FirstSize { get; set; } = 30;
+    public int FirstSize 
+    { 
+        get => _firstSize;
+        set
+        {
+            if (_firstSize != value)
+            {
+                _firstSize = value;
+                MarkDirty();
+                // Also mark children dirty since their bounds will change
+                First?.MarkDirty();
+                Second?.MarkDirty();
+            }
+        }
+    }
     
+    private SplitterOrientation _orientation = SplitterOrientation.Horizontal;
     /// <summary>
     /// The orientation of the splitter.
     /// </summary>
-    public SplitterOrientation Orientation { get; set; } = SplitterOrientation.Horizontal;
+    public SplitterOrientation Orientation 
+    { 
+        get => _orientation; 
+        set 
+        {
+            if (_orientation != value)
+            {
+                _orientation = value;
+                MarkDirty();
+            }
+        }
+    }
     
     // Legacy property aliases for backward compatibility
     public Hex1bNode? Left { get => First; set => First = value; }
@@ -32,10 +60,32 @@ public sealed class SplitterNode : Hex1bNode
     public int LeftWidth { get => FirstSize; set => FirstSize = value; }
     
     private bool _isFocused;
-    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+    public override bool IsFocused 
+    { 
+        get => _isFocused; 
+        set 
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     private bool _isHovered;
-    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+    public override bool IsHovered 
+    { 
+        get => _isHovered; 
+        set 
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
     
     /// <summary>
     /// The amount to move the splitter when pressing arrow keys.

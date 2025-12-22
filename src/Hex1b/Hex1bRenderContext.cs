@@ -1,3 +1,4 @@
+using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Terminal;
 using Hex1b.Theming;
@@ -81,6 +82,36 @@ public class Hex1bRenderContext
     public void SetCursorPosition(int left, int top) => _adapter.SetCursorPosition(left, top);
     public int Width => _adapter.Width;
     public int Height => _adapter.Height;
+    
+    /// <summary>
+    /// Clears a rectangular region by writing spaces.
+    /// Used for dirty region clearing to avoid full-screen flicker.
+    /// </summary>
+    /// <param name="rect">The rectangle to clear.</param>
+    public void ClearRegion(Rect rect)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        
+        // Clamp to terminal bounds
+        var startX = Math.Max(0, rect.X);
+        var startY = Math.Max(0, rect.Y);
+        var endX = Math.Min(Width, rect.X + rect.Width);
+        var endY = Math.Min(Height, rect.Y + rect.Height);
+        
+        if (startX >= endX || startY >= endY) return;
+        
+        var width = endX - startX;
+        var spaces = new string(' ', width);
+        
+        // Reset colors before clearing
+        Write("\x1b[0m");
+        
+        for (var y = startY; y < endY; y++)
+        {
+            SetCursorPosition(startX, y);
+            Write(spaces);
+        }
+    }
     
     /// <summary>
     /// Writes text at the specified position, respecting the current layout provider's clipping.

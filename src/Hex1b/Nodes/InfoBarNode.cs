@@ -9,15 +9,39 @@ namespace Hex1b.Nodes;
 /// </summary>
 public sealed class InfoBarNode : Hex1bNode
 {
+    private IReadOnlyList<InfoBarSection> _sections = [];
     /// <summary>
     /// The sections to display in the info bar.
     /// </summary>
-    public IReadOnlyList<InfoBarSection> Sections { get; set; } = [];
+    public IReadOnlyList<InfoBarSection> Sections 
+    { 
+        get => _sections; 
+        set 
+        {
+            if (!ReferenceEquals(_sections, value))
+            {
+                _sections = value;
+                MarkDirty();
+            }
+        }
+    }
 
+    private bool _invertColors = true;
     /// <summary>
     /// Whether to invert foreground/background colors from the theme.
     /// </summary>
-    public bool InvertColors { get; set; } = true;
+    public bool InvertColors 
+    { 
+        get => _invertColors; 
+        set 
+        {
+            if (_invertColors != value)
+            {
+                _invertColors = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override Size Measure(Constraints constraints)
     {

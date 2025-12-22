@@ -18,7 +18,19 @@ public sealed class SixelNode : Hex1bNode
     /// <summary>
     /// The Sixel-encoded image data to render.
     /// </summary>
-    public string ImageData { get; set; } = "";
+    private string _imageData = "";
+    public string ImageData 
+    { 
+        get => _imageData; 
+        set
+        {
+            if (_imageData != value)
+            {
+                _imageData = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// The fallback node to render if Sixel is not supported.
@@ -28,12 +40,36 @@ public sealed class SixelNode : Hex1bNode
     /// <summary>
     /// Requested width in character cells. If null, uses natural image width.
     /// </summary>
-    public int? RequestedWidth { get; set; }
+    private int? _requestedWidth;
+    public int? RequestedWidth 
+    { 
+        get => _requestedWidth; 
+        set
+        {
+            if (_requestedWidth != value)
+            {
+                _requestedWidth = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// Requested height in character cells. If null, uses natural image height.
     /// </summary>
-    public int? RequestedHeight { get; set; }
+    private int? _requestedHeight;
+    public int? RequestedHeight 
+    { 
+        get => _requestedHeight; 
+        set
+        {
+            if (_requestedHeight != value)
+            {
+                _requestedHeight = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// Sixel support status: null = not yet determined, true = supported, false = not supported.

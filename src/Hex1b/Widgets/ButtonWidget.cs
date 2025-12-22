@@ -26,6 +26,13 @@ public sealed record ButtonWidget(string Label) : Hex1bWidget
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ButtonNode ?? new ButtonNode();
+        
+        // Mark dirty if label changed
+        if (node.Label != Label)
+        {
+            node.MarkDirty();
+        }
+        
         node.Label = Label;
         node.SourceWidget = this;
         

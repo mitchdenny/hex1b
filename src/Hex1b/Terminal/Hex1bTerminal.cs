@@ -121,8 +121,8 @@ public sealed class Hex1bTerminal : IDisposable
 
     private void OnPresentationResized(int width, int height)
     {
-        _width = width;
-        _height = height;
+        // IMPORTANT: Call Resize() first before updating _width/_height
+        // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);
@@ -528,6 +528,18 @@ public sealed class Hex1bTerminal : IDisposable
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {
             appWorkload.SendKey(key, keyChar, modifiers);
+        }
+    }
+
+    /// <summary>
+    /// Injects a mouse input event (for testing).
+    /// Only works with Hex1bAppWorkloadAdapter.
+    /// </summary>
+    public void SendMouse(MouseButton button, MouseAction action, int x, int y, Hex1bModifiers modifiers = Hex1bModifiers.None, int clickCount = 1)
+    {
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            appWorkload.SendMouse(button, action, x, y, modifiers, clickCount);
         }
     }
 

@@ -56,10 +56,16 @@ public class TestWidgetTests
         await runTask;
 
         // The app does two render cycles: initial render, then one more after RequestStop (which calls Invalidate)
-        // Each cycle creates a new TestWidget, so each reports count=1
+        // First cycle: new TestWidget created, reconciled (count=1), rendered (count=1)
+        // Second cycle: same TestWidget reused, reconciled again (count=2) - reports ReconcileCount=1 because
+        //   each TestWidget instance maintains its own count, but the widget is the same instance...
+        //   Actually, each cycle creates a NEW TestWidget via ctx.Test(), so each starts at count=1.
+        // With render optimization:
+        // - First cycle: new node → dirty → rendered
+        // - Second cycle: same node reused → not dirty → NOT rendered (optimization skips clean nodes)
         Assert.NotNull(initialNode);
         Assert.Equal([1, 1], reconcileCounts); // Two cycles, each widget starts at count 1
         Assert.Same(initialNode, lastExistingNode); // Second reconcile receives the node from first cycle
-        Assert.Equal([1, 1], renderCounts);
+        Assert.Equal([1], renderCounts); // With render optimization, clean nodes don't re-render
     }
 }

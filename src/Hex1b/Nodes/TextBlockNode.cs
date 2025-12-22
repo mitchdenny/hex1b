@@ -6,8 +6,33 @@ namespace Hex1b;
 
 public sealed class TextBlockNode : Hex1bNode
 {
-    public string Text { get; set; } = "";
-    public TextOverflow Overflow { get; set; } = TextOverflow.Overflow;
+    private string _text = "";
+    public string Text 
+    { 
+        get => _text; 
+        set 
+        {
+            if (_text != value)
+            {
+                _text = value;
+                MarkDirty();
+            }
+        }
+    }
+    
+    private TextOverflow _overflow = TextOverflow.Overflow;
+    public TextOverflow Overflow 
+    { 
+        get => _overflow; 
+        set 
+        {
+            if (_overflow != value)
+            {
+                _overflow = value;
+                MarkDirty();
+            }
+        }
+    }
     
     /// <summary>
     /// Cached wrapped lines, computed during Measure when Overflow is Wrap.

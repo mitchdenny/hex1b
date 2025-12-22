@@ -77,6 +77,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private int _dragStartX;
     private int _dragStartY;
     
+    // Render optimization - track if this is the first frame (needs full clear)
+    private bool _isFirstFrame = true;
+    
     // Channel for signaling that a re-render is needed (from Invalidate() calls)
     private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) 
@@ -218,8 +221,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                             continue;
                         
                         // Resize events trigger a re-layout and re-render
-                        case Hex1bResizeEvent:
-                            // Just re-render - the terminal's Width/Height properties will reflect the new size
+                        case Hex1bResizeEvent resizeEvent:
+                            // Terminal size changed - we need a full re-render
+                            // Mark root dirty to ensure everything re-renders at new size
+                            _rootNode?.MarkDirty();
+                            // Force full clear to handle new screen regions
+                            _isFirstFrame = true;
                             break;
                         
                         // Key events are routed to the focused node through the tree
@@ -334,12 +341,145 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 7: Render the node tree to the terminal
-        _context.Clear();
-        _rootNode?.Render(_context);
+        // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
+        // On first frame or when root is new, do a full clear
+        if (_isFirstFrame)
+        {
+            _context.Clear();
+            _isFirstFrame = false;
+        }
+        else if (_rootNode != null)
+        {
+            ClearDirtyRegions(_rootNode);
+        }
         
-        // Step 7: Render mouse cursor overlay if enabled
+        // Step 8: Render the node tree to the terminal (only dirty nodes)
+        if (_rootNode != null)
+        {
+            RenderTree(_rootNode);
+        }
+        
+        // Step 9: Render mouse cursor overlay if enabled
         RenderMouseCursor();
+        
+        // Step 10: Clear dirty flags on all nodes (they've been rendered)
+        if (_rootNode != null)
+        {
+            ClearDirtyFlags(_rootNode);
+        }
+    }
+    
+    /// <summary>
+    /// Renders the node tree, skipping clean subtrees that don't need re-rendering.
+    /// </summary>
+    /// <remarks>
+    /// This method performs a smart traversal:
+    /// - If a node is dirty, render it (which includes its children)
+    /// - If a node is clean but has dirty descendants, traverse children
+    /// - If a subtree is entirely clean, skip it
+    /// </remarks>
+    private void RenderTree(Hex1bNode node)
+    {
+        // If this subtree has no dirty nodes, skip it entirely
+        if (!node.NeedsRender())
+        {
+            return;
+        }
+        
+        // If this specific node is dirty, render it (and its children)
+        if (node.IsDirty)
+        {
+            _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
+            node.Render(_context);
+            return;
+        }
+        
+        // Node is clean but has dirty descendants - traverse children
+        foreach (var child in node.GetChildren())
+        {
+            RenderTree(child);
+        }
+    }
+    
+    /// <summary>
+    /// Recursively clears dirty regions in the node tree.
+    /// For each dirty node, clears the union of its previous and current bounds,
+    /// intersected with any active clip rect from ancestor layout providers.
+    /// </summary>
+    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null)
+    {
+        // If this node is an ILayoutProvider, intersect its clip rect with the current one
+        var effectiveClipRect = clipRect;
+        if (node is Nodes.ILayoutProvider layoutProvider && layoutProvider.ClipMode == Widgets.ClipMode.Clip)
+        {
+            effectiveClipRect = effectiveClipRect.HasValue 
+                ? Intersect(effectiveClipRect.Value, layoutProvider.ClipRect)
+                : layoutProvider.ClipRect;
+        }
+        
+        if (node.IsDirty)
+        {
+            // Clear the previous bounds (where the node was), clipped to effective clip rect
+            if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
+            {
+                var regionToClear = effectiveClipRect.HasValue 
+                    ? Intersect(node.PreviousBounds, effectiveClipRect.Value)
+                    : node.PreviousBounds;
+                if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                {
+                    _context.ClearRegion(regionToClear);
+                }
+            }
+            
+            // Clear the current bounds (where the node will be), clipped to effective clip rect
+            // This handles the case where content shrinks or moves
+            if (node.Bounds != node.PreviousBounds)
+            {
+                var regionToClear = effectiveClipRect.HasValue 
+                    ? Intersect(node.Bounds, effectiveClipRect.Value)
+                    : node.Bounds;
+                if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                {
+                    _context.ClearRegion(regionToClear);
+                }
+            }
+        }
+        
+        // Recurse into children with the effective clip rect
+        foreach (var child in node.GetChildren())
+        {
+            ClearDirtyRegions(child, effectiveClipRect);
+        }
+    }
+    
+    /// <summary>
+    /// Computes the intersection of two rectangles.
+    /// Returns a zero-sized rect if they don't intersect.
+    /// </summary>
+    private static Rect Intersect(Rect a, Rect b)
+    {
+        var x = Math.Max(a.X, b.X);
+        var y = Math.Max(a.Y, b.Y);
+        var right = Math.Min(a.X + a.Width, b.X + b.Width);
+        var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
+        
+        var width = Math.Max(0, right - x);
+        var height = Math.Max(0, bottom - y);
+        
+        return new Rect(x, y, width, height);
+    }
+    
+    /// <summary>
+    /// Recursively clears the dirty flag on a node and all its children.
+    /// Called after rendering to prepare for the next frame.
+    /// </summary>
+    private static void ClearDirtyFlags(Hex1bNode node)
+    {
+        node.ClearDirty();
+        foreach (var child in node.GetChildren())
+        {
+            ClearDirtyFlags(child);
+        }
     }
     
     /// <summary>
@@ -366,22 +506,49 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
         if (!showCursor) return;
         
-        var fgColor = _context.Theme.Get(MouseTheme.CursorForegroundColor);
-        var bgColor = _context.Theme.Get(MouseTheme.CursorBackgroundColor);
-        
-        // Position cursor and render a highlighted block
-        // We use a special marker character or just change the colors at that position
+        // Use the terminal's native cursor - just position it and show it
+        // This avoids overwriting cell content and eliminates flicker
         _context.SetCursorPosition(_mouseX, _mouseY);
+        _context.Write("\x1b[?25h"); // Show cursor
         
-        var colorCodes = "";
-        if (!fgColor.IsDefault) colorCodes += fgColor.ToForegroundAnsi();
-        if (!bgColor.IsDefault) colorCodes += bgColor.ToBackgroundAnsi();
-        
-        // Render a visible cursor marker (block cursor style)
-        // Using a space with background color, or a special character
-        _context.Write($"{colorCodes} \x1b[0m");
+        // Set cursor shape based on the node's preferred cursor
+        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
+        var shape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        var cursorEscape = shape switch
+        {
+            CursorShape.BlinkingBlock => "\x1b[1 q",
+            CursorShape.SteadyBlock => "\x1b[2 q",
+            CursorShape.BlinkingUnderline => "\x1b[3 q",
+            CursorShape.SteadyUnderline => "\x1b[4 q",
+            CursorShape.BlinkingBar => "\x1b[5 q",
+            CursorShape.SteadyBar => "\x1b[6 q",
+            _ => "\x1b[0 q" // Default
+        };
+        _context.Write(cursorEscape);
     }
     
+    /// <summary>
+    /// Finds the deepest (topmost) node at the given position by traversing the tree.
+    /// </summary>
+    private static Hex1bNode? FindNodeAt(Hex1bNode? node, int x, int y)
+    {
+        if (node == null) return null;
+        
+        // Check if point is within this node's bounds
+        if (!node.Bounds.Contains(x, y)) return null;
+        
+        // Check children in reverse order (last = topmost)
+        var children = node.GetChildren().ToList();
+        for (int i = children.Count - 1; i >= 0; i--)
+        {
+            var hit = FindNodeAt(children[i], x, y);
+            if (hit != null) return hit;
+        }
+        
+        // No child contains the point, return this node
+        return node;
+    }
+
     /// <summary>
     /// Handles a mouse click by hit testing and routing through bindings.
     /// May initiate a drag if a drag binding matches.
@@ -526,6 +693,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
+        
+        // Mark new nodes as dirty (they need to be rendered for the first time)
+        if (context.IsNew)
+        {
+            node.MarkDirty();
+        }
         
         // Inject default CTRL-C binding if enabled
         if (_enableDefaultCtrlCExit)

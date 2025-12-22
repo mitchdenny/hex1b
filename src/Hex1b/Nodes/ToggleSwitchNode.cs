@@ -24,10 +24,32 @@ public sealed class ToggleSwitchNode : Hex1bNode
     internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
     
     private bool _isFocused;
-    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+    public override bool IsFocused 
+    { 
+        get => _isFocused; 
+        set 
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     private bool _isHovered;
-    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+    public override bool IsHovered 
+    { 
+        get => _isHovered; 
+        set 
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override bool IsFocusable => true;
 
@@ -40,6 +62,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
     private async Task MovePreviousWithEvent(InputBindingActionContext ctx)
     {
         State.MovePrevious();
+        MarkDirty();
         if (SelectionChangedAction != null)
         {
             await SelectionChangedAction(ctx);
@@ -49,6 +72,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
     private async Task MoveNextWithEvent(InputBindingActionContext ctx)
     {
         State.MoveNext();
+        MarkDirty();
         if (SelectionChangedAction != null)
         {
             await SelectionChangedAction(ctx);
@@ -76,6 +100,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
             if (localX >= currentX && localX < endX)
             {
                 State.SelectedIndex = i;
+                MarkDirty();
                 return InputResult.Handled;
             }
             
