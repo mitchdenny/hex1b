@@ -81,6 +81,11 @@ public sealed class TextBoxNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    /// <summary>
+    /// TextBox uses a blinking bar cursor to indicate text input position.
+    /// </summary>
+    public override CursorShape PreferredCursorShape => CursorShape.BlinkingBar;
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation

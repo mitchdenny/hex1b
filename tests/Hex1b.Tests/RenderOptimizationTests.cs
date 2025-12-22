@@ -258,11 +258,11 @@ public class RenderOptimizationTests
     }
 
     [Fact]
-    public async Task MouseCursorMove_ShouldMarkOldPositionDirty()
+    public async Task MouseCursorMove_WithNativeCursor_ShouldNotCauseExtraRenders()
     {
-        // This test verifies that when the mouse cursor moves, the node at the
-        // old cursor position is marked dirty so it gets re-rendered (to restore
-        // the content that was under the cursor).
+        // This test verifies that mouse cursor movement using the terminal's native cursor
+        // does not cause extra re-renders. The native cursor is rendered by the terminal
+        // itself, so we don't need to mark widgets dirty when the cursor moves.
         using var terminal = new Hex1bTerminal(80, 24);
         var renderCount = 0;
 
@@ -277,22 +277,18 @@ public class RenderOptimizationTests
             }
         );
 
-        // Initial render
-        // Move mouse to position (5, 5) - this starts cursor tracking
+        // Move mouse multiple times - with native cursor, this should NOT trigger re-renders
         terminal.SendMouse(MouseButton.None, MouseAction.Move, 5, 5);
-        // Move mouse to position (10, 10) - old position should trigger re-render of node
         terminal.SendMouse(MouseButton.None, MouseAction.Move, 10, 10);
+        terminal.SendMouse(MouseButton.None, MouseAction.Move, 15, 15);
         terminal.CompleteInput();
 
         await app.RunAsync();
         terminal.FlushOutput();
 
-        // The test widget should have been rendered multiple times:
-        // 1. Initial frame
-        // 2. After first mouse move (cursor drawn on top, no re-render yet)
-        // 3. After second mouse move (old position marked dirty, widget re-rendered)
-        // The exact count depends on the frame structure, but key point is > 1 renders
-        // when mouse moves over the widget.
-        Assert.True(renderCount >= 2, $"Expected at least 2 renders due to mouse movement, got {renderCount}");
+        // With native terminal cursor, mouse movement should NOT trigger extra renders.
+        // The widget should only render once (initial frame) since we use the terminal's
+        // native cursor instead of drawing a colored block that overwrites content.
+        Assert.Equal(1, renderCount);
     }
 }

@@ -52,10 +52,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private int _mouseY = -1;
     private bool _mouseEnabled;
     
-    // Previous mouse cursor position (for restoring content under cursor)
-    private int _prevCursorX = -1;
-    private int _prevCursorY = -1;
-    
     // Hover tracking
     private Hex1bNode? _hoveredNode;
     
@@ -341,12 +337,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 6.5: Mark old cursor position dirty if cursor moved (to restore content)
-        if (_rootNode != null)
-        {
-            MarkCursorAreaDirty();
-        }
-
         // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
         // On first frame or when root is new, do a full clear
         if (_isFirstFrame)
@@ -473,70 +463,46 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
         if (!showCursor) return;
         
-        var fgColor = _context.Theme.Get(MouseTheme.CursorForegroundColor);
-        var bgColor = _context.Theme.Get(MouseTheme.CursorBackgroundColor);
-        
-        // Position cursor and render a highlighted block
-        // We use a special marker character or just change the colors at that position
+        // Use the terminal's native cursor - just position it and show it
+        // This avoids overwriting cell content and eliminates flicker
         _context.SetCursorPosition(_mouseX, _mouseY);
+        _context.Write("\x1b[?25h"); // Show cursor
         
-        var colorCodes = "";
-        if (!fgColor.IsDefault) colorCodes += fgColor.ToForegroundAnsi();
-        if (!bgColor.IsDefault) colorCodes += bgColor.ToBackgroundAnsi();
-        
-        // Render a visible cursor marker (block cursor style)
-        // Using a space with background color, or a special character
-        _context.Write($"{colorCodes} \x1b[0m");
-        
-        // Update previous cursor position for next frame's cleanup
-        _prevCursorX = _mouseX;
-        _prevCursorY = _mouseY;
+        // Set cursor shape based on the node's preferred cursor
+        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
+        var shape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        var cursorEscape = shape switch
+        {
+            CursorShape.BlinkingBlock => "\x1b[1 q",
+            CursorShape.SteadyBlock => "\x1b[2 q",
+            CursorShape.BlinkingUnderline => "\x1b[3 q",
+            CursorShape.SteadyUnderline => "\x1b[4 q",
+            CursorShape.BlinkingBar => "\x1b[5 q",
+            CursorShape.SteadyBar => "\x1b[6 q",
+            _ => "\x1b[0 q" // Default
+        };
+        _context.Write(cursorEscape);
     }
     
     /// <summary>
-    /// Marks the node at the previous cursor position as dirty when the cursor has moved.
-    /// This ensures the area under the old cursor gets re-rendered to restore its content.
+    /// Finds the deepest (topmost) node at the given position by traversing the tree.
     /// </summary>
-    private void MarkCursorAreaDirty()
+    private static Hex1bNode? FindNodeAt(Hex1bNode? node, int x, int y)
     {
-        // Skip if cursor tracking is disabled or this is the first cursor position
-        if (!_mouseEnabled) return;
-        if (_prevCursorX < 0 || _prevCursorY < 0) return;
+        if (node == null) return null;
         
-        // Skip if cursor hasn't moved
-        if (_prevCursorX == _mouseX && _prevCursorY == _mouseY) return;
+        // Check if point is within this node's bounds
+        if (!node.Bounds.Contains(x, y)) return null;
         
-        // Skip if cursor was not shown
-        var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
-        if (!showCursor) return;
-        
-        // Find the node at the old cursor position and mark it dirty
-        if (_rootNode != null)
+        // Check children in reverse order (last = topmost)
+        var children = node.GetChildren().ToList();
+        for (int i = children.Count - 1; i >= 0; i--)
         {
-            var nodeAtOldPosition = FindNodeAt(_rootNode, _prevCursorX, _prevCursorY);
-            nodeAtOldPosition?.MarkDirty();
-        }
-    }
-    
-    /// <summary>
-    /// Finds the deepest node whose bounds contain the specified position.
-    /// Returns null if no node contains the position.
-    /// </summary>
-    private static Hex1bNode? FindNodeAt(Hex1bNode node, int x, int y)
-    {
-        // Check if this node contains the point
-        if (!node.Bounds.Contains(x, y))
-            return null;
-        
-        // Check children (depth-first) to find the deepest match
-        foreach (var child in node.GetChildren())
-        {
-            var found = FindNodeAt(child, x, y);
-            if (found != null)
-                return found;
+            var hit = FindNodeAt(children[i], x, y);
+            if (hit != null) return hit;
         }
         
-        // No child contains it, so this node is the deepest match
+        // No child contains the point, return this node
         return node;
     }
 
