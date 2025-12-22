@@ -12,10 +12,22 @@ public sealed class ListNode : Hex1bNode
     /// </summary>
     public ListWidget? SourceWidget { get; set; }
 
+    private IReadOnlyList<string> _items = [];
     /// <summary>
     /// The list items to display.
     /// </summary>
-    public IReadOnlyList<string> Items { get; set; } = [];
+    public IReadOnlyList<string> Items 
+    { 
+        get => _items; 
+        set 
+        {
+            if (!ReferenceEquals(_items, value))
+            {
+                _items = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// The currently selected index. This is preserved across reconciliation.

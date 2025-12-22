@@ -22,21 +22,67 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public ScrollState State { get; set; } = new();
     
+    private ScrollOrientation _orientation = ScrollOrientation.Vertical;
     /// <summary>
     /// The scroll orientation (vertical or horizontal).
     /// </summary>
-    public ScrollOrientation Orientation { get; set; } = ScrollOrientation.Vertical;
+    public ScrollOrientation Orientation 
+    { 
+        get => _orientation; 
+        set 
+        {
+            if (_orientation != value)
+            {
+                _orientation = value;
+                MarkDirty();
+            }
+        }
+    }
     
+    private bool _showScrollbar = true;
     /// <summary>
     /// Whether to show the scrollbar when content is scrollable.
     /// </summary>
-    public bool ShowScrollbar { get; set; } = true;
+    public bool ShowScrollbar 
+    { 
+        get => _showScrollbar; 
+        set 
+        {
+            if (_showScrollbar != value)
+            {
+                _showScrollbar = value;
+                MarkDirty();
+            }
+        }
+    }
     
     private bool _isFocused;
-    public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+    public override bool IsFocused 
+    { 
+        get => _isFocused; 
+        set 
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     private bool _isHovered;
-    public override bool IsHovered { get => _isHovered; set => _isHovered = value; }
+    public override bool IsHovered 
+    { 
+        get => _isHovered; 
+        set 
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
 
     public override bool IsFocusable => true;
 

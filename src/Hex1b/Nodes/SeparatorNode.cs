@@ -9,25 +9,73 @@ namespace Hex1b.Nodes;
 /// </summary>
 public sealed class SeparatorNode : Hex1bNode
 {
+    private char _horizontalChar = '─';
     /// <summary>
     /// The character to use for horizontal separators.
     /// </summary>
-    public char HorizontalChar { get; set; } = '─';
+    public char HorizontalChar 
+    { 
+        get => _horizontalChar; 
+        set 
+        {
+            if (_horizontalChar != value)
+            {
+                _horizontalChar = value;
+                MarkDirty();
+            }
+        }
+    }
     
+    private char _verticalChar = '│';
     /// <summary>
     /// The character to use for vertical separators.
     /// </summary>
-    public char VerticalChar { get; set; } = '│';
+    public char VerticalChar 
+    { 
+        get => _verticalChar; 
+        set 
+        {
+            if (_verticalChar != value)
+            {
+                _verticalChar = value;
+                MarkDirty();
+            }
+        }
+    }
     
+    private LayoutAxis? _explicitAxis;
     /// <summary>
     /// Optional explicit axis. If set, overrides the inferred axis.
     /// </summary>
-    public LayoutAxis? ExplicitAxis { get; set; }
+    public LayoutAxis? ExplicitAxis 
+    { 
+        get => _explicitAxis; 
+        set 
+        {
+            if (_explicitAxis != value)
+            {
+                _explicitAxis = value;
+                MarkDirty();
+            }
+        }
+    }
     
+    private LayoutAxis? _inferredAxis;
     /// <summary>
     /// The axis inferred from the parent container during reconciliation.
     /// </summary>
-    public LayoutAxis? InferredAxis { get; set; }
+    public LayoutAxis? InferredAxis 
+    { 
+        get => _inferredAxis; 
+        set 
+        {
+            if (_inferredAxis != value)
+            {
+                _inferredAxis = value;
+                MarkDirty();
+            }
+        }
+    }
     
     /// <summary>
     /// The effective axis (explicit or inferred, defaulting to Vertical which produces horizontal lines).
