@@ -493,7 +493,7 @@ public class Hex1bTestSequenceTests
         await runTask;
         
         // Third item should be selected
-        Assert.Contains("> Item 3", terminal.RawOutput);
+        Assert.Contains("> Item 3", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]

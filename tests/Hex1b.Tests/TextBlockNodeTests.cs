@@ -167,7 +167,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
 
-        Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
 
-        Assert.Equal("", terminal.GetLineTrimmed(0));
+        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
 
-        Assert.Equal("Hello → World ← Test", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello → World ← Test", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -211,9 +211,9 @@ public class TextBlockNodeTests
         node.Render(context);
 
         // The first line should contain the first 10 characters
-        Assert.Equal("This is a ", terminal.GetLine(0));
+        Assert.Equal("This is a ", terminal.CreateSnapshot().GetLine(0));
         // The rest wraps to the next line (terminal behavior, not widget)
-        Assert.Equal("long text", terminal.GetLineTrimmed(1));
+        Assert.Equal("long text", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class TextBlockNodeTests
         node.Render(context);
 
         // Check that text appears at the right position
-        var line = terminal.GetLine(3);
+        var line = terminal.CreateSnapshot().GetLine(3);
         Assert.Equal("     Positioned", line.TrimEnd());
     }
 
@@ -246,9 +246,9 @@ public class TextBlockNodeTests
         node.Render(context);
 
         // First 20 chars on line 0
-        Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.GetLine(0));
+        Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.CreateSnapshot().GetLine(0));
         // Remaining chars on line 1
-        Assert.Equal("UVWXYZ", terminal.GetLineTrimmed(1));
+        Assert.Equal("UVWXYZ", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     #endregion
@@ -279,7 +279,7 @@ public class TextBlockNodeTests
         node.Render(context);
         
         // Text should be clipped to 10 characters
-        Assert.Equal("Hello Worl", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello Worl", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public class TextBlockNodeTests
         node.Render(context);
         
         // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
-        var line = terminal.GetLine(0);
+        var line = terminal.CreateSnapshot().GetLine(0);
         Assert.Equal("     FGHIJKLMNO", line.Substring(0, 15));
     }
 
@@ -331,7 +331,7 @@ public class TextBlockNodeTests
         node.Render(context);
         
         // Full text should appear (no clipping)
-        Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public class TextBlockNodeTests
         node.Render(context);
         
         // Full text should appear
-        Assert.Equal("Hello World", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     #endregion
@@ -412,7 +412,7 @@ public class TextBlockNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Integration Test"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Integration Test"));
     }
 
     [Fact]
@@ -441,14 +441,14 @@ public class TextBlockNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("First Line"));
-        Assert.True(terminal.ContainsText("Second Line"));
-        Assert.True(terminal.ContainsText("Third Line"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("First Line"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Second Line"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Third Line"));
 
         // Verify they appear at different positions
-        var firstPositions = terminal.FindText("First Line");
-        var secondPositions = terminal.FindText("Second Line");
-        var thirdPositions = terminal.FindText("Third Line");
+        var firstPositions = terminal.CreateSnapshot().FindText("First Line");
+        var secondPositions = terminal.CreateSnapshot().FindText("Second Line");
+        var thirdPositions = terminal.CreateSnapshot().FindText("Third Line");
 
         Assert.Single(firstPositions);
         Assert.Single(secondPositions);
@@ -523,9 +523,9 @@ public class TextBlockNodeTests
         await runTask;
 
         // "Short" should fit on its line
-        Assert.True(terminal.ContainsText("Short"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
         // Long text will wrap at terminal edge
-        Assert.True(terminal.ContainsText("A longer text h"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("A longer text h"));
     }
 
     [Fact]
@@ -551,7 +551,7 @@ public class TextBlockNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Hello from State"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello from State"));
     }
 
     [Fact]
@@ -598,8 +598,8 @@ public class TextBlockNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("日本語テスト"));
-        Assert.True(terminal.ContainsText("🎉"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("日本語テスト"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("🎉"));
     }
 
     #endregion

@@ -125,7 +125,7 @@ public class TextBoxNodeTests
 
         node.Render(context);
 
-        Assert.Contains("[test]", terminal.GetLineTrimmed(0));
+        Assert.Contains("[test]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class TextBoxNodeTests
 
         node.Render(context);
 
-        Assert.Contains("[]", terminal.GetLineTrimmed(0));
+        Assert.Contains("[]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class TextBoxNodeTests
 
         node.Render(context);
 
-        Assert.Contains("[This is a longer piece of text]", terminal.GetLineTrimmed(0));
+        Assert.Contains("[This is a longer piece of text]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     #endregion
@@ -185,11 +185,11 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // When focused, the cursor character should be highlighted with ANSI codes
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
         // The text content should still be visible
-        Assert.Contains("a", terminal.GetLineTrimmed(0));
-        Assert.Contains("b", terminal.GetLineTrimmed(0));
-        Assert.Contains("c", terminal.GetLineTrimmed(0));
+        Assert.Contains("a", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("b", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("c", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -209,8 +209,8 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should have ANSI codes for cursor highlighting
-        Assert.Contains("\x1b[", terminal.RawOutput);
-        Assert.Contains("hello", terminal.GetLineTrimmed(0));
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("hello", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // When cursor is at end, a space is shown as cursor placeholder
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -250,9 +250,9 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should still have the brackets and ANSI codes for cursor
-        Assert.Contains("[", terminal.GetLineTrimmed(0));
-        Assert.Contains("]", terminal.GetLineTrimmed(0));
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("[", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("]", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -273,10 +273,10 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should have ANSI codes for selection highlighting
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
         // The text should still be present
-        Assert.Contains("hello", terminal.GetLineTrimmed(0));
-        Assert.Contains("world", terminal.GetLineTrimmed(0));
+        Assert.Contains("hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("world", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -293,9 +293,9 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should contain the full text
-        Assert.Contains("abcdefgh", terminal.GetLineTrimmed(0));
+        Assert.Contains("abcdefgh", terminal.CreateSnapshot().GetLineTrimmed(0));
         // Should have selection ANSI codes
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -620,7 +620,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Initial Text"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Initial Text"));
     }
 
     [Fact]
@@ -842,7 +842,7 @@ public class TextBoxNodeTests
         // The text box renders as "[LongTextHere]" which is 14 chars
         // In a 10-char wide terminal, it will wrap
         // Check that the text content is present (split across lines)
-        Assert.True(terminal.ContainsText("[LongText"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("[LongText"));
     }
 
     #endregion
@@ -879,7 +879,7 @@ public class TextBoxNodeTests
         await runTask;
 
         // The typed text should be visible in the terminal output
-        Assert.True(terminal.ContainsText("Hello"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
     }
 
     [Fact]
@@ -914,8 +914,8 @@ public class TextBoxNodeTests
         await runTask;
 
         // Both texts should be visible
-        Assert.True(terminal.ContainsText("AA"));
-        Assert.True(terminal.ContainsText("BB"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("AA"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("BB"));
     }
 
     [Fact]
@@ -979,7 +979,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Click Me"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
     [Fact]
@@ -1006,7 +1006,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Initial"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Initial"));
     }
 
     [Fact]
@@ -1162,7 +1162,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("pre-filled"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("pre-filled"));
     }
 
     [Fact]
@@ -1191,7 +1191,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("test-value"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("test-value"));
     }
 
     [Fact]
@@ -1219,7 +1219,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Click Me"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
     [Fact]
@@ -1247,7 +1247,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("test"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("test"));
     }
 
     #endregion

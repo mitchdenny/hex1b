@@ -175,7 +175,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Visible", screenText);
         Assert.DoesNotContain("Hidden", screenText);
     }
@@ -203,7 +203,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.DoesNotContain("Hidden", screenText);
     }
 
@@ -444,7 +444,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
 
-        Assert.Contains("Inner", terminal.GetScreenText());
+        Assert.Contains("Inner", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -474,7 +474,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
 
-        Assert.Contains("Fallback", terminal.GetScreenText());
+        Assert.Contains("Fallback", terminal.CreateSnapshot().GetScreenText());
     }
 
     #region Integration Tests with Fluent API
@@ -504,8 +504,8 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Wide View: Full Details", terminal.RawOutput);
-        Assert.DoesNotContain("Compact", terminal.RawOutput);
+        Assert.Contains("Wide View: Full Details", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Compact", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -533,8 +533,8 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Compact View", terminal.RawOutput);
-        Assert.DoesNotContain("Wide View", terminal.RawOutput);
+        Assert.Contains("Compact View", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Wide View", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -564,9 +564,9 @@ public class ResponsiveNodeTests
         await runTask;
 
         // 75 width should match Medium tier
-        Assert.Contains("Medium", terminal.RawOutput);
-        Assert.DoesNotContain("Large", terminal.RawOutput);
-        Assert.DoesNotContain("Small", terminal.RawOutput);
+        Assert.Contains("Medium", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Large", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Small", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -595,8 +595,8 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Wide", terminal.RawOutput);
-        Assert.DoesNotContain("Very Wide", terminal.RawOutput);
+        Assert.Contains("Wide", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Very Wide", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -624,7 +624,7 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Large Screen", terminal.RawOutput);
+        Assert.Contains("Large Screen", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -656,8 +656,8 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Border takes 2 columns, so inner space is 48, which is < 100
-        Assert.Contains("Narrow", terminal.RawOutput);
-        Assert.Contains("Container", terminal.RawOutput);
+        Assert.Contains("Narrow", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Container", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -750,9 +750,9 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Header", terminal.RawOutput);
-        Assert.Contains("Wide Content", terminal.RawOutput);
-        Assert.Contains("Footer", terminal.RawOutput);
+        Assert.Contains("Header", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Wide Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Footer", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -781,8 +781,8 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.DoesNotContain("Very Wide", terminal.RawOutput);
-        Assert.DoesNotContain("Wide", terminal.RawOutput);
+        Assert.DoesNotContain("Very Wide", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Wide", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -814,7 +814,7 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.Contains("> Item 2", terminal.RawOutput);
+        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -853,8 +853,8 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Wide layout uses HStack
-        Assert.Contains("Left Panel", terminal.RawOutput);
-        Assert.Contains("Right Panel", terminal.RawOutput);
+        Assert.Contains("Left Panel", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right Panel", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -893,8 +893,8 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Narrow layout uses VStack
-        Assert.Contains("Top Panel", terminal.RawOutput);
-        Assert.Contains("Bottom Panel", terminal.RawOutput);
+        Assert.Contains("Top Panel", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Bottom Panel", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -926,8 +926,8 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Wide Left", terminal.RawOutput);
-        Assert.Contains("Right Panel", terminal.RawOutput);
+        Assert.Contains("Wide Left", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right Panel", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -955,7 +955,7 @@ public class ResponsiveNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Hello from state", terminal.RawOutput);
+        Assert.Contains("Hello from state", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

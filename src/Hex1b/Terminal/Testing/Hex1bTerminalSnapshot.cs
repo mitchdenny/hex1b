@@ -16,6 +16,7 @@ public sealed class Hex1bTerminalSnapshot
         Height = terminal.Height;
         CursorX = terminal.CursorX;
         CursorY = terminal.CursorY;
+        InAlternateScreen = terminal.InAlternateScreen;
         Timestamp = DateTimeOffset.UtcNow;
         RawOutput = terminal.RawOutput;
 
@@ -59,6 +60,11 @@ public sealed class Hex1bTerminalSnapshot
     /// When the snapshot was taken.
     /// </summary>
     public DateTimeOffset Timestamp { get; }
+
+    /// <summary>
+    /// Whether the terminal was in alternate screen mode at snapshot time.
+    /// </summary>
+    public bool InAlternateScreen { get; }
 
     /// <summary>
     /// Raw ANSI output at snapshot time.
@@ -120,11 +126,42 @@ public sealed class Hex1bTerminalSnapshot
     }
 
     /// <summary>
-    /// Gets all lines as a single string for display/debugging.
+    /// Gets the full screen text with all lines separated by newlines.
+    /// </summary>
+    public string GetScreenText()
+    {
+        return string.Join("\n", _lineCache);
+    }
+
+    /// <summary>
+    /// Gets all lines as a single string for display/debugging (non-empty lines only).
     /// </summary>
     public string GetDisplayText()
     {
         return string.Join("\n", GetNonEmptyLines());
+    }
+
+    /// <summary>
+    /// Finds all occurrences of the specified text on the screen.
+    /// Returns a list of (line, column) positions.
+    /// </summary>
+    public List<(int Line, int Column)> FindText(string text)
+    {
+        var results = new List<(int, int)>();
+        if (string.IsNullOrEmpty(text))
+            return results;
+
+        for (int y = 0; y < Height; y++)
+        {
+            var line = _lineCache[y];
+            var index = 0;
+            while ((index = line.IndexOf(text, index, StringComparison.Ordinal)) >= 0)
+            {
+                results.Add((y, index));
+                index++;
+            }
+        }
+        return results;
     }
 
     private string BuildLine(int y)

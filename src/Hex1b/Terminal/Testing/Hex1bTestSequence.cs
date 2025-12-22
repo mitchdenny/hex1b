@@ -28,25 +28,30 @@ public sealed class Hex1bTestSequence
     /// <summary>
     /// Applies this test sequence to the terminal.
     /// Steps are executed in order, with timing handled by the steps themselves.
+    /// Returns a snapshot of the terminal state after the sequence completes.
     /// </summary>
     /// <param name="terminal">The terminal to apply the sequence to.</param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task ApplyAsync(Hex1bTerminal terminal, CancellationToken ct = default)
+    /// <returns>A snapshot of the terminal state after all steps have been executed.</returns>
+    public async Task<Hex1bTerminalSnapshot> ApplyAsync(Hex1bTerminal terminal, CancellationToken ct = default)
     {
         foreach (var step in _steps)
         {
             ct.ThrowIfCancellationRequested();
             await step.ExecuteAsync(terminal, _options, ct);
         }
+        return terminal.CreateSnapshot();
     }
 
     /// <summary>
     /// Applies this test sequence synchronously.
     /// Only works correctly for sequences without delays or wait conditions.
+    /// Returns a snapshot of the terminal state after the sequence completes.
     /// </summary>
     /// <param name="terminal">The terminal to apply the sequence to.</param>
-    public void Apply(Hex1bTerminal terminal)
+    /// <returns>A snapshot of the terminal state after all steps have been executed.</returns>
+    public Hex1bTerminalSnapshot Apply(Hex1bTerminal terminal)
     {
-        ApplyAsync(terminal, CancellationToken.None).GetAwaiter().GetResult();
+        return ApplyAsync(terminal, CancellationToken.None).GetAwaiter().GetResult();
     }
 }

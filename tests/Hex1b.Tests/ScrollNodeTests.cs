@@ -389,7 +389,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Should contain scrollbar characters
-        Assert.Contains("█", terminal.RawOutput);
+        Assert.Contains("█", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -410,8 +410,8 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        Assert.Contains("▲", terminal.RawOutput);
-        Assert.Contains("▼", terminal.RawOutput);
+        Assert.Contains("▲", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("▼", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -433,8 +433,8 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Content fits, so no scrollbar needed
-        Assert.DoesNotContain("▲", terminal.RawOutput);
-        Assert.DoesNotContain("▼", terminal.RawOutput);
+        Assert.DoesNotContain("▲", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("▼", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -456,9 +456,9 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Lines 1-5 should be visible, line 6+ should be clipped
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("Line 5", terminal.RawOutput);
-        Assert.DoesNotContain("Line 6", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 5", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Line 6", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -482,10 +482,10 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Lines 6-10 should be visible (offset by 5)
-        Assert.Contains("Line 6", terminal.RawOutput);
-        Assert.Contains("Line 10", terminal.RawOutput);
-        Assert.DoesNotContain("Line 5", terminal.RawOutput);
-        Assert.DoesNotContain("Line 11", terminal.RawOutput);
+        Assert.Contains("Line 6", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 10", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Line 5", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Line 11", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -511,7 +511,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Should contain scrollbar characters
-        Assert.Contains("█", terminal.RawOutput);
+        Assert.Contains("█", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -532,8 +532,8 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        Assert.Contains("◀", terminal.RawOutput);
-        Assert.Contains("▶", terminal.RawOutput);
+        Assert.Contains("◀", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("▶", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -561,7 +561,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Cyan foreground ANSI code
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput);
+        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -586,7 +586,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Yellow foreground ANSI code
-        Assert.Contains("\x1b[38;2;255;255;0m", terminal.RawOutput);
+        Assert.Contains("\x1b[38;2;255;255;0m", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -936,9 +936,9 @@ public class ScrollNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("▲", terminal.RawOutput);
-        Assert.Contains("▼", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("▲", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("▼", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -1054,8 +1054,8 @@ public class ScrollNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Left Side", terminal.RawOutput);
-        Assert.Contains("Scrollable", terminal.RawOutput);
+        Assert.Contains("Left Side", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Scrollable", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -1089,8 +1089,8 @@ public class ScrollNodeTests
         await runTask;
         await runTask;
 
-        Assert.Contains("◀", terminal.RawOutput);
-        Assert.Contains("▶", terminal.RawOutput);
+        Assert.Contains("◀", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("▶", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

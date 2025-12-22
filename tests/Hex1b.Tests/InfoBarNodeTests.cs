@@ -100,7 +100,7 @@ public class InfoBarNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
 
-        Assert.Contains("Ready", terminal.GetScreenText());
+        Assert.Contains("Ready", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class InfoBarNodeTests
         node.Arrange(new Rect(0, 0, 60, 1));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Mode: Normal", screenText);
         Assert.Contains("|", screenText);
         Assert.Contains("Line 1, Col 15", screenText);
@@ -153,8 +153,8 @@ public class InfoBarNodeTests
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
         // So we should see white background ANSI code
-        Assert.Contains("\x1b[48;2;255;255;255m", terminal.RawOutput);
-        Assert.Contains("\x1b[38;2;0;0;0m", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;255;255;255m", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("\x1b[38;2;0;0;0m", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public class InfoBarNodeTests
         node.Render(context);
 
         // Should use the specified colors directly
-        Assert.Contains("\x1b[38;2;0;255;0m", terminal.RawOutput); // Green foreground
-        Assert.Contains("\x1b[48;2;0;0;255m", terminal.RawOutput); // Blue background
+        Assert.Contains("\x1b[38;2;0;255;0m", terminal.CreateSnapshot().RawOutput); // Green foreground
+        Assert.Contains("\x1b[48;2;0;0;255m", terminal.CreateSnapshot().RawOutput); // Blue background
     }
 
     [Fact]
@@ -205,8 +205,8 @@ public class InfoBarNodeTests
         node.Render(context);
 
         // Error section should have its own colors
-        Assert.Contains("\x1b[38;2;255;0;0m", terminal.RawOutput); // Red foreground
-        Assert.Contains("\x1b[48;2;255;255;0m", terminal.RawOutput); // Yellow background
+        Assert.Contains("\x1b[38;2;255;0;0m", terminal.CreateSnapshot().RawOutput); // Red foreground
+        Assert.Contains("\x1b[48;2;255;255;0m", terminal.CreateSnapshot().RawOutput); // Yellow background
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class InfoBarNodeTests
         node.Render(context);
 
         // Text should be truncated to fit
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.DoesNotContain("for the bar", screenText);
     }
 
@@ -292,7 +292,7 @@ public class InfoBarNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Ready", terminal.RawOutput);
+        Assert.Contains("Ready", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -323,9 +323,9 @@ public class InfoBarNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Mode: Insert", terminal.RawOutput);
-        Assert.Contains("UTF-8", terminal.RawOutput);
-        Assert.Contains("Ln 42, Col 7", terminal.RawOutput);
+        Assert.Contains("Mode: Insert", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("UTF-8", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Ln 42, Col 7", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -353,8 +353,8 @@ public class InfoBarNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Main Content", terminal.RawOutput);
-        Assert.Contains("Status Bar", terminal.RawOutput);
+        Assert.Contains("Main Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Status Bar", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -382,9 +382,9 @@ public class InfoBarNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Themed", terminal.RawOutput);
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.RawOutput); // Cyan
-        Assert.Contains("\x1b[48;2;64;64;64m", terminal.RawOutput); // DarkGray
+        Assert.Contains("Themed", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput); // Cyan
+        Assert.Contains("\x1b[48;2;64;64;64m", terminal.CreateSnapshot().RawOutput); // DarkGray
     }
 
     #endregion

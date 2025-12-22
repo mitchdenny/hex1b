@@ -82,7 +82,7 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // With no image data, should show "[No image data]"
-        Assert.Contains("[No image data]", terminal.RawOutput);
+        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class SixelNodeTests : IDisposable
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        Assert.Contains("Fallback content", terminal.RawOutput);
+        Assert.Contains("Fallback content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // Should send DA1 query
-        Assert.Contains("\x1b[c", terminal.RawOutput);
+        Assert.Contains("\x1b[c", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class SixelNodeTests : IDisposable
         
         // Second render while waiting shows loading
         node.Render(context);
-        Assert.Contains("Checking Sixel support", terminal.RawOutput);
+        Assert.Contains("Checking Sixel support", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // Should now render Sixel (or no image data message)
-        Assert.Contains("[No image data]", terminal.RawOutput);
+        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class SixelNodeTests : IDisposable
         terminal.ClearRawOutput();
         node.Render(context);
         
-        Assert.Contains("No Sixel", terminal.RawOutput);
+        Assert.Contains("No Sixel", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -277,8 +277,8 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // Should wrap in Sixel DCS sequence: ESC P q ... ESC \
-        Assert.Contains("\x1bPq", terminal.RawOutput);
-        Assert.Contains("\x1b\\", terminal.RawOutput);
+        Assert.Contains("\x1bPq", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("\x1b\\", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -301,7 +301,7 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // Should output as-is without double-wrapping
-        Assert.Equal(1, CountOccurrences(terminal.RawOutput, "\x1bPq"));
+        Assert.Equal(1, CountOccurrences(terminal.CreateSnapshot().RawOutput, "\x1bPq"));
     }
 
     private static int CountOccurrences(string text, string pattern)

@@ -94,7 +94,7 @@ public class Hex1bTerminalTests_Workload
         
         workload.Write("Hello");
         
-        Assert.Contains("Hello", terminal.RawOutput);
+        Assert.Contains("Hello", terminal.CreateSnapshot().RawOutput);
     }
     
     [Fact]

@@ -117,7 +117,7 @@ public class ToggleSwitchNodeTests
 
         node.Render(context);
 
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("A", line);
         Assert.Contains("B", line);
         Assert.Contains("C", line);
@@ -144,7 +144,7 @@ public class ToggleSwitchNodeTests
         node.Render(context);
 
         // Should contain ANSI escape codes for styling
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -479,9 +479,9 @@ public class ToggleSwitchNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Manual"));
-        Assert.True(terminal.ContainsText("Auto"));
-        Assert.True(terminal.ContainsText("Delayed"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Manual"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Auto"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Delayed"));
     }
 
     [Fact]

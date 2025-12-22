@@ -56,7 +56,7 @@ public class Hex1bAppIntegrationTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("Hello World", terminal.RawOutput);
+        Assert.Contains("Hello World", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class Hex1bAppIntegrationTests
         // Should not throw
         await runTask;
         
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
@@ -176,9 +176,9 @@ public class Hex1bAppIntegrationTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("Line 2", terminal.RawOutput);
-        Assert.Contains("Line 3", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
         
         // Verify via rendered output that third item is selected
-        Assert.Contains("> Item 3", terminal.RawOutput);
+        Assert.Contains("> Item 3", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public class Hex1bAppIntegrationTests
         
         Assert.Equal(2, counter);
         // The last render should show the updated count
-        Assert.Contains("Count: 2", terminal.RawOutput);
+        Assert.Contains("Count: 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render
         await Task.Delay(50);
-        Assert.Contains("Count: 0", terminal.RawOutput);
+        Assert.Contains("Count: 0", terminal.CreateSnapshot().RawOutput);
         
         // Change state externally and invalidate
         counter = 42;
@@ -346,7 +346,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for re-render
         await Task.Delay(50);
-        Assert.Contains("Count: 42", terminal.RawOutput);
+        Assert.Contains("Count: 42", terminal.CreateSnapshot().RawOutput);
         
         cts.Cancel();
         await runTask;
@@ -428,7 +428,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
 
         // App should have exited gracefully
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]

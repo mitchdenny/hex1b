@@ -135,10 +135,8 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height, presentation.Capabilities);
     
     // Create the terminal that bridges presentation ↔ workload
+    // Terminal auto-starts I/O pumps when presentation is provided
     using var terminal = new Hex1bTerminal(presentation, workload);
-    
-    // Start the I/O pump tasks
-    terminal.Start();
     
     // Check if the example manages its own app lifecycle
     var runTask = example.RunAsync(workload, cts.Token);

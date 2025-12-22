@@ -277,8 +277,8 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        Assert.Contains("Left", terminal.GetScreenText());
-        Assert.Contains("Right", terminal.GetScreenText());
+        Assert.Contains("Left", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Right", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("AAA", line);
         Assert.Contains("BBB", line);
         Assert.Contains("CCC", line);
@@ -331,7 +331,7 @@ public class HStackNodeTests
         node.Render(context);
 
         // Content wraps at terminal edge
-        Assert.Contains("AAAA", terminal.GetLine(0));
+        Assert.Contains("AAAA", terminal.CreateSnapshot().GetLine(0));
     }
 
     #endregion
@@ -364,9 +364,9 @@ public class HStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Left"));
-        Assert.True(terminal.ContainsText("|"));
-        Assert.True(terminal.ContainsText("Right"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("|"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
     }
 
     [Fact]
@@ -430,9 +430,9 @@ public class HStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("A"));
-        Assert.True(terminal.ContainsText("B"));
-        Assert.True(terminal.ContainsText("C"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("A"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("B"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("C"));
     }
 
     [Fact]
@@ -466,10 +466,10 @@ public class HStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Left Top"));
-        Assert.True(terminal.ContainsText("Left Bottom"));
-        Assert.True(terminal.ContainsText("Right Top"));
-        Assert.True(terminal.ContainsText("Right Bottom"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left Top"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left Bottom"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right Top"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right Bottom"));
     }
 
     [Fact]
@@ -559,7 +559,7 @@ public class HStackNodeTests
         await runTask;
 
         // Content wraps at terminal boundary
-        Assert.True(terminal.ContainsText("VeryLongWord"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("VeryLongWord"));
     }
 
     [Fact]
@@ -585,9 +585,9 @@ public class HStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("[A]"));
-        Assert.True(terminal.ContainsText("[B]"));
-        Assert.True(terminal.ContainsText("[C]"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("[A]"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("[B]"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("[C]"));
     }
 
     [Fact]

@@ -130,9 +130,9 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("Item 1", terminal.RawOutput);
-        Assert.Contains("Item 2", terminal.RawOutput);
-        Assert.Contains("Item 3", terminal.RawOutput);
+        Assert.Contains("Item 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Item 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Item 3", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Should not crash and output should be minimal
-        Assert.DoesNotContain("Item", terminal.RawOutput);
+        Assert.DoesNotContain("Item", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("Only Item", terminal.RawOutput);
+        Assert.Contains("Only Item", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -183,7 +183,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Default selected indicator is "> "
-        Assert.Contains("> Item 1", terminal.RawOutput);
+        Assert.Contains("> Item 1", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Default unselected indicator is "  " (two spaces)
-        Assert.Contains("  Item 2", terminal.RawOutput);
+        Assert.Contains("  Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -214,9 +214,9 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("  First", terminal.RawOutput);
-        Assert.Contains("> Second", terminal.RawOutput);
-        Assert.Contains("  Third", terminal.RawOutput);
+        Assert.Contains("  First", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("> Second", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("  Third", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -231,9 +231,9 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("  First", terminal.RawOutput);
-        Assert.Contains("  Second", terminal.RawOutput);
-        Assert.Contains("> Third", terminal.RawOutput);
+        Assert.Contains("  First", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("  Second", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("> Third", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -253,7 +253,7 @@ public class ListNodeTests
         node.Render(context);
         
         // The raw output should contain ANSI codes for the focused+selected item
-        Assert.Contains("\x1b[", terminal.RawOutput);
+        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Still shows indicator but without selection colors
-        Assert.Contains("> Item 1", terminal.RawOutput);
+        Assert.Contains("> Item 1", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -289,7 +289,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Check that content is rendered - the terminal places it at the right position internally
-        Assert.Contains("Test Item", terminal.RawOutput);
+        Assert.Contains("Test Item", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -308,9 +308,9 @@ public class ListNodeTests
         node.Render(context);
         
         // All items should be rendered
-        Assert.Contains("Item A", terminal.RawOutput);
-        Assert.Contains("Item B", terminal.RawOutput);
-        Assert.Contains("Item C", terminal.RawOutput);
+        Assert.Contains("Item A", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Item B", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Item C", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -333,9 +333,9 @@ public class ListNodeTests
         node.Render(context);
         
         // Yellow foreground: \x1b[38;2;255;255;0m
-        Assert.Contains("\x1b[38;2;255;255;0m", terminal.RawOutput);
+        Assert.Contains("\x1b[38;2;255;255;0m", terminal.CreateSnapshot().RawOutput);
         // Red background: \x1b[48;2;255;0;0m
-        Assert.Contains("\x1b[48;2;255;0;0m", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;255;0;0m", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -352,7 +352,7 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("► Item 1", terminal.RawOutput);
+        Assert.Contains("► Item 1", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -369,7 +369,7 @@ public class ListNodeTests
         
         node.Render(context);
         
-        Assert.Contains("- Item 2", terminal.RawOutput);
+        Assert.Contains("- Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public class ListNodeTests
         node.Render(context);
         
         // HighContrast theme uses "► " indicator
-        Assert.Contains("► Item 1", terminal.RawOutput);
+        Assert.Contains("► Item 1", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -409,7 +409,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Content is rendered, truncation depends on terminal handling
-        Assert.Contains("Very Long", terminal.RawOutput);
+        Assert.Contains("Very Long", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public class ListNodeTests
         node.Render(context);
         
         // Should still render the indicator
-        Assert.Contains(">", terminal.RawOutput);
+        Assert.Contains(">", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion
@@ -680,9 +680,9 @@ public class ListNodeTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("Option A", terminal.RawOutput);
-        Assert.Contains("Option B", terminal.RawOutput);
-        Assert.Contains("Option C", terminal.RawOutput);
+        Assert.Contains("Option A", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Option B", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Option C", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -709,9 +709,9 @@ public class ListNodeTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("> Second", terminal.RawOutput);
-        Assert.Contains("  First", terminal.RawOutput);
-        Assert.Contains("  Third", terminal.RawOutput);
+        Assert.Contains("> Second", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("  First", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("  Third", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -738,9 +738,9 @@ public class ListNodeTests
         await runTask;
         
         // Note: Border title may not render in all configurations
-        Assert.Contains("Item 1", terminal.RawOutput);
-        Assert.Contains("Item 2", terminal.RawOutput);
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("Item 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Item 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -768,7 +768,7 @@ public class ListNodeTests
         await runTask;
         
         // After down arrow, second item should be selected
-        Assert.Contains("> Item 2", terminal.RawOutput);
+        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -826,8 +826,8 @@ public class ListNodeTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("Select an option:", terminal.RawOutput);
-        Assert.Contains("Menu Item", terminal.RawOutput);
+        Assert.Contains("Select an option:", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Menu Item", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -852,7 +852,7 @@ public class ListNodeTests
         await runTask;
         
         // HighContrast theme uses "► " indicator
-        Assert.Contains("► Themed Item", terminal.RawOutput);
+        Assert.Contains("► Themed Item", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -881,7 +881,7 @@ public class ListNodeTests
         await runTask;
         
         // Third item should be selected
-        Assert.Contains("> Third", terminal.RawOutput);
+        Assert.Contains("> Third", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -911,11 +911,11 @@ public class ListNodeTests
             .ApplyAsync(terminal);
         await runTask;
         
-        Assert.Contains("Welcome", terminal.RawOutput);
-        Assert.Contains("Options", terminal.RawOutput);
-        Assert.Contains("Option A", terminal.RawOutput);
-        Assert.Contains("Option B", terminal.RawOutput);
-        Assert.Contains("OK", terminal.RawOutput);
+        Assert.Contains("Welcome", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Options", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Option A", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Option B", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("OK", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

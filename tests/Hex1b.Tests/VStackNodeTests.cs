@@ -302,8 +302,8 @@ public class VStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        Assert.Contains("First", terminal.GetScreenText());
-        Assert.Contains("Second", terminal.GetScreenText());
+        Assert.Contains("First", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Second", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -328,9 +328,9 @@ public class VStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        Assert.Equal("Line A", terminal.GetLineTrimmed(0));
-        Assert.Equal("Line B", terminal.GetLineTrimmed(1));
-        Assert.Equal("Line C", terminal.GetLineTrimmed(2));
+        Assert.Equal("Line A", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Line B", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("Line C", terminal.CreateSnapshot().GetLineTrimmed(2));
     }
 
     [Fact]
@@ -354,8 +354,8 @@ public class VStackNodeTests
         node.Render(context);
 
         // Text wraps at terminal edge
-        Assert.Equal("LongTextHe", terminal.GetLine(0));
-        Assert.Equal("re", terminal.GetLineTrimmed(1));
+        Assert.Equal("LongTextHe", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("re", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     #endregion
@@ -388,9 +388,9 @@ public class VStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Header"));
-        Assert.True(terminal.ContainsText("Body Content"));
-        Assert.True(terminal.ContainsText("Footer"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Body Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
     }
 
     [Fact]
@@ -500,9 +500,9 @@ public class VStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Short"));
-        Assert.True(terminal.ContainsText("Medium text"));
-        Assert.True(terminal.ContainsText("Very long text"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Medium text"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Very long text"));
     }
 
     [Fact]
@@ -537,7 +537,7 @@ public class VStackNodeTests
         await runTask;
 
         Assert.True(clicked);
-        Assert.True(terminal.ContainsText("Title"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Title"));
     }
 
     [Fact]
@@ -569,10 +569,10 @@ public class VStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Outer 1"));
-        Assert.True(terminal.ContainsText("Inner 1"));
-        Assert.True(terminal.ContainsText("Inner 2"));
-        Assert.True(terminal.ContainsText("Outer 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 2"));
     }
 
     [Fact]
@@ -599,7 +599,7 @@ public class VStackNodeTests
         await runTask;
 
         // Should complete without error
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
@@ -625,9 +625,9 @@ public class VStackNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Item 1"));
-        Assert.True(terminal.ContainsText("Item 2"));
-        Assert.True(terminal.ContainsText("Item 3"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
     }
 
     #endregion

@@ -171,7 +171,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should contain top-left corner
         Assert.Contains("┌", topLine);
         // Should contain horizontal line
@@ -196,7 +196,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var bottomLine = terminal.GetLineTrimmed(4);
+        var bottomLine = terminal.CreateSnapshot().GetLineTrimmed(4);
         // Should contain bottom-left corner
         Assert.Contains("└", bottomLine);
         // Should contain bottom-right corner
@@ -220,7 +220,7 @@ public class BorderNodeTests
         node.Render(context);
 
         // Middle rows should have vertical borders
-        var middleLine = terminal.GetLineTrimmed(2);
+        var middleLine = terminal.CreateSnapshot().GetLineTrimmed(2);
         Assert.Contains("│", middleLine);
     }
 
@@ -241,9 +241,9 @@ public class BorderNodeTests
         node.Render(context);
 
         // Check complete border structure
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
-        var line2 = terminal.GetLineTrimmed(2);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
+        var line2 = terminal.CreateSnapshot().GetLineTrimmed(2);
 
         Assert.StartsWith("┌", line0);
         Assert.EndsWith("┐", line0);
@@ -273,7 +273,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("My Title", topLine);
     }
 
@@ -294,7 +294,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be truncated to fit within border (innerWidth=8, title max=6 chars)
         Assert.DoesNotContain("Very Long Title", topLine);
         Assert.Contains("This I", topLine);  // First 6 chars of title
@@ -317,7 +317,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be present
         Assert.Contains("T", topLine);
         // Should have horizontal lines on both sides
@@ -342,7 +342,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should be ┌────────┐ without title
         Assert.Equal("┌────────┐", topLine);
     }
@@ -364,7 +364,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var topLine = terminal.GetLineTrimmed(0);
+        var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("┌────────┐", topLine);
     }
 
@@ -388,7 +388,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 15, 5));
         node.Render(context);
 
-        Assert.Contains("Hello", terminal.GetScreenText());
+        Assert.Contains("Hello", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -408,10 +408,10 @@ public class BorderNodeTests
         node.Render(context);
 
         // Child "Hi" should be somewhere in the screen between borders
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Hi", screenText);
         // First line should have top border
-        var line0 = terminal.GetLineTrimmed(0);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("┌", line0);
     }
 
@@ -428,7 +428,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 5, 3));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
         Assert.Contains("┐", screenText);
         Assert.Contains("└", screenText);
@@ -455,7 +455,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 7, 3));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
         Assert.Contains("┐", screenText);
         Assert.Contains("└", screenText);
@@ -475,8 +475,8 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 2, 2));
         node.Render(context);
 
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
         
         // With width=2, we get: ┌┐ on top, └┘ on bottom
         Assert.Equal("┌┐", line0);
@@ -511,7 +511,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("╔", screenText);
         Assert.Contains("╗", screenText);
         Assert.Contains("╚", screenText);
@@ -544,9 +544,9 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 6, 3));
         node.Render(context);
 
-        var line0 = terminal.GetLineTrimmed(0);
-        var line1 = terminal.GetLineTrimmed(1);
-        var line2 = terminal.GetLineTrimmed(2);
+        var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
+        var line2 = terminal.CreateSnapshot().GetLineTrimmed(2);
 
         Assert.Equal("╔════╗", line0);
         Assert.StartsWith("║", line1);
@@ -690,12 +690,12 @@ public class BorderNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Hello World"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
         // Check raw output for border characters (since they may have ANSI codes)
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
-        Assert.Contains("└", terminal.RawOutput);
-        Assert.Contains("┘", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("└", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┘", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -721,8 +721,8 @@ public class BorderNodeTests
         await runTask;
 
         // Check raw output first - this always works
-        Assert.Contains("My Panel", terminal.RawOutput);
-        Assert.Contains("Content", terminal.RawOutput);
+        Assert.Contains("My Panel", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -751,10 +751,10 @@ public class BorderNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("Line 2", terminal.RawOutput);
-        Assert.Contains("Line 3", terminal.RawOutput);
-        Assert.Contains("List", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("List", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -811,9 +811,9 @@ public class BorderNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Outer", terminal.RawOutput);
-        Assert.Contains("Inner", terminal.RawOutput);
-        Assert.Contains("Nested", terminal.RawOutput);
+        Assert.Contains("Outer", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Inner", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Nested", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -839,8 +839,8 @@ public class BorderNodeTests
         await runTask;
 
         // Border characters should be in the raw output
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -868,10 +868,10 @@ public class BorderNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Left", terminal.RawOutput);
-        Assert.Contains("Right", terminal.RawOutput);
-        Assert.Contains("L", terminal.RawOutput);
-        Assert.Contains("R", terminal.RawOutput);
+        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Right", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("L", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("R", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -959,10 +959,10 @@ public class BorderNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.True(terminal.ContainsText("Header"));
-        Assert.True(terminal.ContainsText("Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
         // Border characters should be present
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -988,10 +988,10 @@ public class BorderNodeTests
         await runTask;
 
         // Should still have complete border in raw output
-        Assert.Contains("┌", terminal.RawOutput);
-        Assert.Contains("┐", terminal.RawOutput);
-        Assert.Contains("└", terminal.RawOutput);
-        Assert.Contains("┘", terminal.RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┐", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("└", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┘", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

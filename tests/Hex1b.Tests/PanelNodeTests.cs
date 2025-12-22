@@ -95,7 +95,7 @@ public class PanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        Assert.Contains("Panel Content", terminal.GetScreenText());
+        Assert.Contains("Panel Content", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class PanelNodeTests
         node.Render(context);
 
         // Should contain background color ANSI escape code
-        Assert.Contains("\x1b[48;2;", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class PanelNodeTests
         node.Render(context);
 
         // Should contain foreground color ANSI escape code
-        Assert.Contains("\x1b[38;2;", terminal.RawOutput);
+        Assert.Contains("\x1b[38;2;", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class PanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        Assert.Contains("Content", terminal.GetScreenText());
+        Assert.Contains("Content", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class PanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Box", screenText);
         Assert.Contains("Nested", screenText);
         Assert.Contains("┌", screenText);
@@ -310,7 +310,7 @@ public class PanelNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Panel Content", terminal.RawOutput);
+        Assert.Contains("Panel Content", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -339,9 +339,9 @@ public class PanelNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Line 1", terminal.RawOutput);
-        Assert.Contains("Line 2", terminal.RawOutput);
-        Assert.Contains("Line 3", terminal.RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -421,8 +421,8 @@ public class PanelNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Panel Inside Border", terminal.RawOutput);
-        Assert.Contains("┌", terminal.RawOutput);
+        Assert.Contains("Panel Inside Border", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -450,7 +450,7 @@ public class PanelNodeTests
         await runTask;
 
         // Should contain background color ANSI code
-        Assert.Contains("\x1b[48;2;50;50;100m", terminal.RawOutput);
+        Assert.Contains("\x1b[48;2;50;50;100m", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -475,7 +475,7 @@ public class PanelNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Deep Nested", terminal.RawOutput);
+        Assert.Contains("Deep Nested", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -504,9 +504,9 @@ public class PanelNodeTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Header", terminal.RawOutput);
-        Assert.Contains("Panel Content", terminal.RawOutput);
-        Assert.Contains("Footer", terminal.RawOutput);
+        Assert.Contains("Header", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Panel Content", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Footer", terminal.CreateSnapshot().RawOutput);
     }
 
     [Fact]
@@ -534,7 +534,7 @@ public class PanelNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.Contains("> Item 2", terminal.RawOutput);
+        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
     }
 
     #endregion

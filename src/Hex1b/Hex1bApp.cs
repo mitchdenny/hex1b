@@ -186,9 +186,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        // Start the terminal if we own it (pumps I/O between presentation and workload)
-        _ownedTerminal?.Start();
-        
         _context.EnterAlternateScreen();
         try
         {

@@ -75,23 +75,23 @@ public class ThemingExhibitRepro
 
         // Debug: Print all non-empty lines
         Console.WriteLine("=== Screen output ===");
-        foreach (var line in terminal.GetNonEmptyLines())
+        foreach (var line in terminal.CreateSnapshot().GetNonEmptyLines())
         {
             Console.WriteLine(line);
         }
         
         Console.WriteLine("\n=== Raw output (to check for ANSI codes) ===");
-        Console.WriteLine(terminal.RawOutput);
+        Console.WriteLine(terminal.CreateSnapshot().RawOutput);
         
         // The List should have focus (first focusable in the splitter)
         // The TextBox should NOT show cursor styling
         
         // Look for cursor color codes in the raw output
         // Default cursor colors: black foreground (38;2;0;0;0), white background (48;2;255;255;255)
-        var rawOutput = terminal.RawOutput;
+        var rawOutput = terminal.CreateSnapshot().RawOutput;
         
         // Check that our text appears in the screen (without ANSI codes)
-        var screenText = terminal.GetScreenText();
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Sample text", screenText);
         
         // Look for cursor background color (white - 48;2;255;255;255) in the WHOLE output.
@@ -189,7 +189,7 @@ public class ThemingExhibitRepro
 
         node.Render(context);
 
-        var output = terminal.RawOutput;
+        var output = terminal.CreateSnapshot().RawOutput;
         
         // Default cursor colors from theme:
         // CursorForegroundColor = Black (0,0,0)
@@ -220,7 +220,7 @@ public class ThemingExhibitRepro
 
         node.Render(context);
 
-        var output = terminal.RawOutput;
+        var output = terminal.CreateSnapshot().RawOutput;
         
         // Default cursor background = White (255,255,255)
         var cursorBgCode = "48;2;255;255;255";
@@ -298,8 +298,8 @@ public class ThemingExhibitRepro
         await runTask;
 
         // Check for cursor colors in the output
-        var rawOutput = terminal.RawOutput;
-        var screenText = terminal.GetScreenText();
+        var rawOutput = terminal.CreateSnapshot().RawOutput;
+        var screenText = terminal.CreateSnapshot().GetScreenText();
         
         // Escape the raw output for display (so ANSI codes are visible)
         var escapedOutput = rawOutput.Replace("\x1b", "\\x1b");

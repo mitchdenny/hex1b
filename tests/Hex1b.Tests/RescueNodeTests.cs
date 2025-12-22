@@ -87,7 +87,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         
-        Assert.Contains("Hello", terminal.RawOutput);
+        Assert.Contains("Hello", terminal.CreateSnapshot().RawOutput);
     }
     
     #endregion
@@ -186,7 +186,7 @@ public class RescueNodeTests
         node.Render(context);
         
         // Should show error message (new RescueFallbackWidget uses "UNHANDLED EXCEPTION")
-        Assert.Contains("UNHANDLED EXCEPTION", terminal.RawOutput);
+        Assert.Contains("UNHANDLED EXCEPTION", terminal.CreateSnapshot().RawOutput);
     }
     
     [Fact]
@@ -214,7 +214,7 @@ public class RescueNodeTests
         node.Render(context);
         
         // Should show custom error message
-        Assert.Contains("Custom error: Test exception", terminal.RawOutput);
+        Assert.Contains("Custom error: Test exception", terminal.CreateSnapshot().RawOutput);
     }
     
     [Fact]
@@ -238,7 +238,7 @@ public class RescueNodeTests
         node.Render(context);
         
         // Should show stack trace in details mode
-        Assert.Contains("Stack Trace", terminal.RawOutput);
+        Assert.Contains("Stack Trace", terminal.CreateSnapshot().RawOutput);
     }
     
     [Fact]
@@ -262,8 +262,8 @@ public class RescueNodeTests
         node.Render(context);
         
         // Should show friendly message without details
-        Assert.Contains("Something went wrong", terminal.RawOutput);
-        Assert.DoesNotContain("Stack Trace", terminal.RawOutput);
+        Assert.Contains("Something went wrong", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("Stack Trace", terminal.CreateSnapshot().RawOutput);
     }
     
     #endregion

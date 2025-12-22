@@ -26,7 +26,7 @@ public class Hex1bTerminalTests
 
         using var terminal = new Hex1bTerminal(workload, 10, 5);
         
-        var line = terminal.GetLineTrimmed(0);
+        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("", line);
     }
 
@@ -39,9 +39,9 @@ public class Hex1bTerminalTests
         
         workload.Write("Hello");
         
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
-        Assert.Equal(5, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal(5, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public class Hex1bTerminalTests
         
         workload.Write("Line1\nLine2\nLine3");
         
-        Assert.Equal("Line1", terminal.GetLineTrimmed(0));
-        Assert.Equal("Line2", terminal.GetLineTrimmed(1));
-        Assert.Equal("Line3", terminal.GetLineTrimmed(2));
+        Assert.Equal("Line1", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Line2", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("Line3", terminal.CreateSnapshot().GetLineTrimmed(2));
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public class Hex1bTerminalTests
         
         workload.Write("HelloWorld");
         
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
-        Assert.Equal("World", terminal.GetLineTrimmed(1));
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("World", terminal.CreateSnapshot().GetLineTrimmed(1));
     }
 
     [Fact]
@@ -81,9 +81,9 @@ public class Hex1bTerminalTests
         
         workload.Clear();
         
-        Assert.Equal("", terminal.GetLineTrimmed(0));
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal(0, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class Hex1bTerminalTests
         workload.SetCursorPosition(5, 2);
         workload.Write("X");
         
-        var line = terminal.GetLine(2);
+        var line = terminal.CreateSnapshot().GetLine(2);
         Assert.Equal('X', line[5]);
     }
 
@@ -109,8 +109,8 @@ public class Hex1bTerminalTests
         
         workload.SetCursorPosition(100, 100);
         
-        Assert.Equal(9, terminal.CursorX);
-        Assert.Equal(4, terminal.CursorY);
+        Assert.Equal(9, terminal.CreateSnapshot().CursorX);
+        Assert.Equal(4, terminal.CreateSnapshot().CursorY);
     }
 
     [Fact]
@@ -120,11 +120,11 @@ public class Hex1bTerminalTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
         
         terminal.EnterAlternateScreen();
         
-        Assert.True(terminal.InAlternateScreen);
+        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class Hex1bTerminalTests
         
         terminal.ExitAlternateScreen();
         
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
         workload.Write("Hello World");
         
-        Assert.True(terminal.ContainsText("World"));
-        Assert.False(terminal.ContainsText("Foo"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("World"));
+        Assert.False(terminal.CreateSnapshot().ContainsText("Foo"));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
         workload.Write("Hello World\nHello Again");
         
-        var results = terminal.FindText("Hello");
+        var results = terminal.CreateSnapshot().FindText("Hello");
         
         Assert.Equal(2, results.Count);
         Assert.Equal((0, 0), results[0]);
@@ -175,7 +175,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
         workload.Write("Line 1\n\nLine 3");
         
-        var lines = terminal.GetNonEmptyLines().ToList();
+        var lines = terminal.CreateSnapshot().GetNonEmptyLines().ToList();
         
         Assert.Equal(2, lines.Count);
         Assert.Equal("Line 1", lines[0]);
@@ -194,7 +194,7 @@ public class Hex1bTerminalTests
         
         Assert.Equal(40, terminal.Width);
         Assert.Equal(10, terminal.Height);
-        Assert.Equal("Hello", terminal.GetLineTrimmed(0));
+        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public class Hex1bTerminalTests
         
         workload.Write("Hello\x1b[31mRed\x1b[0mNormal");
         
-        var raw = terminal.RawOutput;
+        var raw = terminal.CreateSnapshot().RawOutput;
         Assert.Contains("\x1b[31m", raw);
         Assert.Contains("\x1b[0m", raw);
     }
@@ -220,7 +220,7 @@ public class Hex1bTerminalTests
         
         workload.Write("\x1b[31mRed Text\x1b[0m");
         
-        Assert.Equal("Red Text", terminal.GetLineTrimmed(0));
+        Assert.Equal("Red Text", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class Hex1bTerminalTests
         // ANSI positions are 1-based, so row 2, col 5
         workload.Write("\x1b[2;5HX");
         
-        var line = terminal.GetLine(1); // 0-based
+        var line = terminal.CreateSnapshot().GetLine(1); // 0-based
         Assert.Equal('X', line[4]); // 0-based
     }
 
@@ -247,7 +247,7 @@ public class Hex1bTerminalTests
         
         workload.Write("\x1b[2J");
         
-        Assert.Equal("", terminal.GetLineTrimmed(0));
+        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
@@ -275,10 +275,10 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         
         workload.Write("\x1b[?1049h");
-        Assert.True(terminal.InAlternateScreen);
+        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
         
         workload.Write("\x1b[?1049l");
-        Assert.False(terminal.InAlternateScreen);
+        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     #region Resize Behavior
