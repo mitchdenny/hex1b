@@ -35,7 +35,8 @@ export default defineConfig({
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },
-            { text: 'Theming', link: '/guide/theming' }
+            { text: 'Theming', link: '/guide/theming' },
+            { text: 'Testing', link: '/guide/testing' }
           ]
         },
         {

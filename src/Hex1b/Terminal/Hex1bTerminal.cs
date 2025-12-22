@@ -568,6 +568,20 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
+    /// Sends any input event to the terminal (for testing).
+    /// This is the unified API for injecting keyboard, mouse, and other events.
+    /// Only works with Hex1bAppWorkloadAdapter.
+    /// </summary>
+    /// <param name="evt">The event to send.</param>
+    public void SendEvent(Hex1bEvent evt)
+    {
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            appWorkload.TryWriteInputEvent(evt);
+        }
+    }
+
+    /// <summary>
     /// Resizes the terminal, preserving content where possible.
     /// </summary>
     public void Resize(int newWidth, int newHeight)
