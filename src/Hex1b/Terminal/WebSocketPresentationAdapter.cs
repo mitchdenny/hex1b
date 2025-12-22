@@ -128,14 +128,14 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                 var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 
                 // Handle JSON format: {"type":"resize","cols":80,"rows":24}
-                if (text.StartsWith("{") && text.Contains("\"type\":\"resize\""))
+                if (text.StartsWith("{") && text.Contains("resize"))
                 {
                     if (TryParseJsonResize(text, out var newWidth, out var newHeight))
                     {
                         Resize(newWidth, newHeight);
+                        // Return empty for resize messages - not actual input
+                        return await ReadInputAsync(ct);
                     }
-                    // Return empty for resize messages - not actual input
-                    return await ReadInputAsync(ct);
                 }
                 
                 // Handle legacy format: resize:80,24
