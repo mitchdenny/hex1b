@@ -534,6 +534,15 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
+    /// Creates an immutable snapshot of the current terminal state.
+    /// Useful for assertions and wait conditions in tests.
+    /// </summary>
+    public Testing.Hex1bTerminalSnapshot CreateSnapshot()
+    {
+        return new Testing.Hex1bTerminalSnapshot(this);
+    }
+
+    /// <summary>
     /// Resizes the terminal, preserving content where possible.
     /// </summary>
     public void Resize(int newWidth, int newHeight)

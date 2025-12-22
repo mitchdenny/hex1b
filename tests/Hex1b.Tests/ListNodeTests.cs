@@ -673,7 +673,7 @@ public class ListNodeTests
         );
         
         // Navigate down to select second item
-        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -718,7 +718,7 @@ public class ListNodeTests
         );
         
         // Simulate down arrow then complete
-        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();
@@ -741,7 +741,7 @@ public class ListNodeTests
         );
         
         // Simulate Enter key then complete
-        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         
@@ -803,7 +803,7 @@ public class ListNodeTests
         );
         
         // Navigate down twice
-        new Hex1bInputSequenceBuilder().Down().Down().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Down().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();

@@ -5,9 +5,12 @@ namespace Hex1b.Terminal.Testing;
 /// <summary>
 /// A step that types a string of text, optionally with delays between keystrokes.
 /// </summary>
-public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : InputStep
+public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : TestStep
 {
-    internal override async Task ExecuteAsync(Hex1bTerminal terminal, CancellationToken ct)
+    internal override async Task ExecuteAsync(
+        Hex1bTerminal terminal,
+        Hex1bTestSequenceOptions options,
+        CancellationToken ct)
     {
         foreach (var c in Text)
         {

@@ -736,7 +736,7 @@ public class BorderNodeTests
         );
 
         // Type into the textbox then complete
-        new Hex1bInputSequenceBuilder().Type("Hello").Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Type("Hello").Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -828,7 +828,7 @@ public class BorderNodeTests
         );
 
         // Press enter to click the button then complete
-        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();
@@ -853,7 +853,7 @@ public class BorderNodeTests
         );
 
         // Tab to second button, then click it
-        new Hex1bInputSequenceBuilder().Tab().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Tab().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

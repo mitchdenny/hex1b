@@ -171,7 +171,7 @@ public class Hex1bTerminalTests
     {
         using var terminal = new Hex1bTerminal(20, 5);
         
-        new Hex1bInputSequenceBuilder().Key(Hex1bKey.A).Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Key(Hex1bKey.A).Build().Apply(terminal);
         terminal.CompleteInput();
         
         var events = new List<Hex1bEvent>();
@@ -191,7 +191,7 @@ public class Hex1bTerminalTests
     {
         using var terminal = new Hex1bTerminal(20, 5);
         
-        new Hex1bInputSequenceBuilder().Type("abc").Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Type("abc").Build().Apply(terminal);
         terminal.CompleteInput();
         
         var events = new List<Hex1bEvent>();

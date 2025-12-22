@@ -623,7 +623,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("Hello")
             .Build()
             .Apply(terminal);
@@ -649,7 +649,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .End()
             .Type("X")
             .Build()
@@ -679,7 +679,7 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab to second, type in second
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("AB")
             .Tab()
             .Type("XY")
@@ -708,7 +708,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .End()
             .Backspace()
             .Backspace()
@@ -737,7 +737,7 @@ public class TextBoxNodeTests
         );
 
         // Go to start, then right, then insert
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Home()
             .Right()
             .Type("X")
@@ -765,7 +765,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("@!#")
             .Build()
             .Apply(terminal);
@@ -821,7 +821,7 @@ public class TextBoxNodeTests
         );
 
         // Type some text
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("Hello")
             .Build()
             .Apply(terminal);
@@ -851,7 +851,7 @@ public class TextBoxNodeTests
         );
 
         // Type in first box, tab, type in second box
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("AA")
             .Tab()
             .Type("BB")
@@ -883,7 +883,7 @@ public class TextBoxNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .End()
             .Type("X")
             .Build()

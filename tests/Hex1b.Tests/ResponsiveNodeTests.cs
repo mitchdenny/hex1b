@@ -635,7 +635,7 @@ public class ResponsiveNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -658,7 +658,7 @@ public class ResponsiveNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Type("Responsive input").Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Type("Responsive input").Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -733,7 +733,7 @@ public class ResponsiveNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();

@@ -75,7 +75,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key
-        await new Hex1bInputSequenceBuilder().Key(key).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Key(key).Build().ApplyAsync(terminal);
 
         // Wait a bit for the input to be processed
         await Task.Delay(100);
@@ -128,7 +128,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key with Ctrl modifier
-        await new Hex1bInputSequenceBuilder().Ctrl().Key(key).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Ctrl().Key(key).Build().ApplyAsync(terminal);
 
         await Task.Delay(100);
 
@@ -178,7 +178,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the key with Shift modifier
-        await new Hex1bInputSequenceBuilder().Shift().Key(key).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Shift().Key(key).Build().ApplyAsync(terminal);
 
         await Task.Delay(100);
 
@@ -227,7 +227,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send each key
-        await new Hex1bInputSequenceBuilder()
+        await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A).Wait(50)
             .Key(Hex1bKey.B).Wait(50)
             .Key(Hex1bKey.C).Wait(50)
@@ -307,7 +307,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Send X key
-        await new Hex1bInputSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         
         // Wait for input processing
         await Task.Delay(200);
@@ -355,7 +355,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
         
         // Send X key
-        await new Hex1bInputSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         
         // Wait for input processing
         await Task.Delay(200);
@@ -404,7 +404,7 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Act - Send the chord sequence
-        await new Hex1bInputSequenceBuilder()
+        await new Hex1bTestSequenceBuilder()
             .Ctrl().Key(Hex1bKey.K).Wait(50)
             .Ctrl().Key(Hex1bKey.C).Wait(100)
             .Build().ApplyAsync(terminal);
@@ -453,7 +453,7 @@ public class InputBindingFluentApiTests
         Assert.True(reconcileCount >= 1, "Expected at least one reconciliation");
 
         // Fire binding before re-render
-        await new Hex1bInputSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         await Task.Delay(50);
         Assert.Equal(1, bindingFireCount);
 
@@ -463,7 +463,7 @@ public class InputBindingFluentApiTests
         Assert.True(reconcileCount >= 2, "Expected second reconciliation after invalidate");
 
         // Fire binding again after re-render
-        await new Hex1bInputSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
+        await new Hex1bTestSequenceBuilder().Key(Hex1bKey.X).Build().ApplyAsync(terminal);
         await Task.Delay(50);
         Assert.Equal(2, bindingFireCount);
 

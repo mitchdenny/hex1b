@@ -11,9 +11,12 @@ public sealed record MouseInputStep(
     int X, 
     int Y, 
     Hex1bModifiers Modifiers,
-    int ClickCount = 1) : InputStep
+    int ClickCount = 1) : TestStep
 {
-    internal override Task ExecuteAsync(Hex1bTerminal terminal, CancellationToken ct)
+    internal override Task ExecuteAsync(
+        Hex1bTerminal terminal,
+        Hex1bTestSequenceOptions options,
+        CancellationToken ct)
     {
         terminal.SendEvent(new Hex1bMouseEvent(Button, Action, X, Y, Modifiers, ClickCount));
         return Task.CompletedTask;

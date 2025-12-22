@@ -379,7 +379,7 @@ public class HStackNodeTests
         );
 
         // Tab to second button and click
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Enter()
             .Build()
@@ -467,7 +467,7 @@ public class HStackNodeTests
         );
 
         // Type in textbox then tab to button and click
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("Hi")
             .Tab()
             .Enter()
@@ -568,7 +568,7 @@ public class HStackNodeTests
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Enter()
             .Build()
@@ -598,7 +598,7 @@ public class HStackNodeTests
         );
 
         // Button 1 starts focused
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Enter()
             .Build()
@@ -641,7 +641,7 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()   // List -> TextBox (enters VStack)
             .Tab()   // TextBox -> Add (within VStack)
             .Tab()   // Add -> Other (escapes VStack at boundary!)
@@ -681,7 +681,7 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()                    // List -> TextBox (enters VStack)
             .Shift().Tab()            // TextBox -> List (escapes VStack!)
             .Enter()                  // Click List button

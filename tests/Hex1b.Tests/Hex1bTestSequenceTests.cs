@@ -5,16 +5,16 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Tests for the Hex1bInputSequenceBuilder and Hex1bInputSequence.
+/// Tests for the Hex1bTestSequenceBuilder and Hex1bTestSequence.
 /// </summary>
-public class Hex1bInputSequenceTests
+public class Hex1bTestSequenceTests
 {
     #region Builder Basic Tests
 
     [Fact]
     public void Build_EmptySequence_ReturnsEmptySequence()
     {
-        var sequence = new Hex1bInputSequenceBuilder().Build();
+        var sequence = new Hex1bTestSequenceBuilder().Build();
         
         Assert.Empty(sequence.Steps);
     }
@@ -22,7 +22,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Key_AddsKeyInputStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)
             .Build();
         
@@ -36,7 +36,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Shift_Key_AddsShiftModifier()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Shift().Key(Hex1bKey.A)
             .Build();
         
@@ -49,7 +49,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Ctrl_Key_AddsControlModifier()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build();
         
@@ -61,7 +61,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Ctrl_Shift_Key_AddsCombinedModifiers()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Ctrl().Shift().Key(Hex1bKey.Z)
             .Build();
         
@@ -72,7 +72,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ModifiersResetAfterKey()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Ctrl().Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Build();
@@ -91,7 +91,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Type_AddsTextInputStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Type("Hello")
             .Build();
         
@@ -104,7 +104,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void FastType_AddsTextInputStepWithNoDelay()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .FastType("Test")
             .Build();
         
@@ -115,19 +115,19 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void SlowType_AddsTextInputStepWithDefaultDelay()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .SlowType("Test")
             .Build();
         
         var step = Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bInputSequenceBuilder.DefaultSlowTypeDelay, step.DelayBetweenKeys);
+        Assert.Equal(Hex1bTestSequenceOptions.Default.SlowTypeDelay, step.DelayBetweenKeys);
     }
 
     [Fact]
     public void SlowType_WithCustomDelay_UsesCustomDelay()
     {
         var delay = TimeSpan.FromMilliseconds(100);
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .SlowType("Test", delay)
             .Build();
         
@@ -142,7 +142,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Enter_AddsEnterKeyStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder().Enter().Build();
+        var sequence = new Hex1bTestSequenceBuilder().Enter().Build();
         
         var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
         Assert.Equal(Hex1bKey.Enter, step.Key);
@@ -151,7 +151,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Tab_AddsTabKeyStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder().Tab().Build();
+        var sequence = new Hex1bTestSequenceBuilder().Tab().Build();
         
         var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
         Assert.Equal(Hex1bKey.Tab, step.Key);
@@ -160,7 +160,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Escape_AddsEscapeKeyStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder().Escape().Build();
+        var sequence = new Hex1bTestSequenceBuilder().Escape().Build();
         
         var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
         Assert.Equal(Hex1bKey.Escape, step.Key);
@@ -169,7 +169,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ArrowKeys_AddCorrectKeySteps()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Up().Down().Left().Right()
             .Build();
         
@@ -183,7 +183,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Shift_Tab_AddsBackTab()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Shift().Tab()
             .Build();
         
@@ -199,7 +199,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void MouseMoveTo_AddsMouseMoveStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .MouseMoveTo(10, 20)
             .Build();
         
@@ -213,7 +213,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void MouseMove_AddsRelativeMove()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .MouseMoveTo(10, 10)
             .MouseMove(5, -3)
             .Build();
@@ -226,7 +226,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Click_AddsDownAndUpSteps()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .MouseMoveTo(5, 5)
             .Click()
             .Build();
@@ -244,7 +244,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ClickAt_MovesToPositionAndClicks()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .ClickAt(15, 25)
             .Build();
         
@@ -256,7 +256,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void DoubleClick_SetsClickCountTo2()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .MouseMoveTo(5, 5)
             .DoubleClick()
             .Build();
@@ -268,7 +268,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Drag_CreatesDownDragUpSequence()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Drag(10, 10, 20, 15)
             .Build();
         
@@ -293,7 +293,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Ctrl_Click_AddsControlModifier()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .MouseMoveTo(5, 5)
             .Ctrl().Click()
             .Build();
@@ -305,7 +305,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ScrollUp_AddsScrollSteps()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .ScrollUp(3)
             .Build();
         
@@ -320,7 +320,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ScrollDown_AddsScrollSteps()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .ScrollDown(2)
             .Build();
         
@@ -337,7 +337,7 @@ public class Hex1bInputSequenceTests
     public void Wait_AddsWaitStep()
     {
         var duration = TimeSpan.FromMilliseconds(100);
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Wait(duration)
             .Build();
         
@@ -348,7 +348,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void Wait_Milliseconds_AddsWaitStep()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Wait(50)
             .Build();
         
@@ -363,7 +363,7 @@ public class Hex1bInputSequenceTests
     [Fact]
     public void ComplexSequence_BuildsCorrectly()
     {
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Type("search")
             .Wait(50)
             .Enter()
@@ -400,7 +400,7 @@ public class Hex1bInputSequenceTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Type("Hello")
             .Build();
 
@@ -439,7 +439,7 @@ public class Hex1bInputSequenceTests
             }
         );
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Ctrl().Key(Hex1bKey.X)
             .Build();
 
@@ -471,7 +471,7 @@ public class Hex1bInputSequenceTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Down()
             .Down()
             .Build();
@@ -508,7 +508,7 @@ public class Hex1bInputSequenceTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Type("First")
             .Tab()
             .Type("Second")
@@ -533,7 +533,7 @@ public class Hex1bInputSequenceTests
     {
         using var terminal = new Hex1bTerminal(80, 24);
         
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTestSequenceBuilder()
             .Type("Test")
             .Build();
 

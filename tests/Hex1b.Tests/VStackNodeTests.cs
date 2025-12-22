@@ -405,7 +405,7 @@ public class VStackNodeTests
         );
 
         // Type in first box, tab to second, type, tab to third, type
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("1")
             .Tab()
             .Type("2")
@@ -440,7 +440,7 @@ public class VStackNodeTests
         );
 
         // Tab forward then shift-tab back
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Shift().Tab()
             .Type("A")
@@ -497,7 +497,7 @@ public class VStackNodeTests
         );
 
         // Tab to button and click
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Enter()
             .Build()

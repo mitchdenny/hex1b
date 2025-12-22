@@ -66,7 +66,7 @@ public class Hex1bAppIntegrationTests
         );
 
         // Send some keys then complete
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
             .Build()
@@ -95,7 +95,7 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Build()
             .Apply(terminal);
@@ -174,7 +174,7 @@ public class Hex1bAppIntegrationTests
         );
 
         // Type in first box, tab to second, type in second
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("a")
             .Tab()
             .Type("b")
@@ -210,7 +210,7 @@ public class Hex1bAppIntegrationTests
         );
 
         // Navigate down twice
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Down()
             .Down()
             .Build()
@@ -244,7 +244,7 @@ public class Hex1bAppIntegrationTests
         );
 
         // Click the button twice
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Enter()
             .Build()
@@ -370,7 +370,7 @@ public class Hex1bAppIntegrationTests
         await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Send CTRL-C after the first render to exercise the default binding
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);
@@ -419,7 +419,7 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50);
         
         // Send CTRL-C
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);
@@ -468,7 +468,7 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50);
         
         // Send CTRL-C
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);

@@ -339,7 +339,7 @@ public class PanelNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -359,7 +359,7 @@ public class PanelNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Type("Hello Panel").Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Type("Hello Panel").Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
 
@@ -466,7 +466,7 @@ public class PanelNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder().Down().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Down().Build().Apply(terminal);
         terminal.CompleteInput();
         await app.RunAsync();
         terminal.FlushOutput();

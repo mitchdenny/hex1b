@@ -458,7 +458,7 @@ public class TextBlockNodeTests
         );
 
         // Press Enter to trigger button (causes re-render)
-        new Hex1bInputSequenceBuilder().Enter().Build().Apply(terminal);
+        new Hex1bTestSequenceBuilder().Enter().Build().Apply(terminal);
         terminal.CompleteInput();
 
         await app.RunAsync();

@@ -1,25 +1,32 @@
 namespace Hex1b.Terminal.Testing;
 
 /// <summary>
-/// A sequence of input steps that can be applied to a terminal.
-/// Built using <see cref="Hex1bInputSequenceBuilder"/>.
+/// A sequence of test steps that can be applied to a terminal.
+/// Built using <see cref="Hex1bTestSequenceBuilder"/>.
 /// </summary>
-public sealed class Hex1bInputSequence
+public sealed class Hex1bTestSequence
 {
-    private readonly IReadOnlyList<InputStep> _steps;
+    private readonly IReadOnlyList<TestStep> _steps;
+    private readonly Hex1bTestSequenceOptions _options;
 
-    internal Hex1bInputSequence(IReadOnlyList<InputStep> steps)
+    internal Hex1bTestSequence(IReadOnlyList<TestStep> steps, Hex1bTestSequenceOptions options)
     {
         _steps = steps;
+        _options = options;
     }
 
     /// <summary>
     /// Gets the steps in this sequence.
     /// </summary>
-    public IReadOnlyList<InputStep> Steps => _steps;
+    public IReadOnlyList<TestStep> Steps => _steps;
 
     /// <summary>
-    /// Applies this input sequence to the terminal.
+    /// Gets the options for this sequence.
+    /// </summary>
+    public Hex1bTestSequenceOptions Options => _options;
+
+    /// <summary>
+    /// Applies this test sequence to the terminal.
     /// Steps are executed in order, with timing handled by the steps themselves.
     /// </summary>
     /// <param name="terminal">The terminal to apply the sequence to.</param>
@@ -29,13 +36,13 @@ public sealed class Hex1bInputSequence
         foreach (var step in _steps)
         {
             ct.ThrowIfCancellationRequested();
-            await step.ExecuteAsync(terminal, ct);
+            await step.ExecuteAsync(terminal, _options, ct);
         }
     }
 
     /// <summary>
-    /// Applies this input sequence synchronously.
-    /// Only works correctly for sequences without delays.
+    /// Applies this test sequence synchronously.
+    /// Only works correctly for sequences without delays or wait conditions.
     /// </summary>
     /// <param name="terminal">The terminal to apply the sequence to.</param>
     public void Apply(Hex1bTerminal terminal)

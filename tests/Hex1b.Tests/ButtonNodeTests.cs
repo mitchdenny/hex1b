@@ -362,7 +362,7 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Build()
             .Apply(terminal);
@@ -388,7 +388,7 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Space()
             .Build()
             .Apply(terminal);
@@ -416,7 +416,7 @@ public class ButtonNodeTests
         );
 
         // Click the button 3 times
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Enter()
             .Enter()
@@ -449,7 +449,7 @@ public class ButtonNodeTests
         );
 
         // Tab to second button and press Enter
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Tab()
             .Enter()
             .Build()
@@ -477,7 +477,7 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Build()
             .Apply(terminal);
@@ -530,7 +530,7 @@ public class ButtonNodeTests
         );
 
         // Type in text box, tab to button, press button
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Type("Hi")
             .Tab()
             .Enter()
@@ -560,7 +560,7 @@ public class ButtonNodeTests
         );
 
         // Click 5 times rapidly
-        var builder = new Hex1bInputSequenceBuilder();
+        var builder = new Hex1bTestSequenceBuilder();
         for (int i = 0; i < 5; i++)
         {
             builder.Enter();
@@ -588,7 +588,7 @@ public class ButtonNodeTests
             new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
         );
 
-        new Hex1bInputSequenceBuilder()
+        new Hex1bTestSequenceBuilder()
             .Enter()
             .Enter()
             .Build()
