@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -254,5 +255,44 @@ public class RenderOptimizationTests
         // - Frame 2 (after 'a'): testWidget at index 0 → same node reused → clean → NOT rendered (1)  
         // - Frame 3 (after 'b'): testWidget at index 1 → NEW TestWidgetNode created → rendered (2)
         Assert.Equal(2, renderCount);
+    }
+
+    [Fact]
+    public async Task MouseCursorMove_ShouldMarkOldPositionDirty()
+    {
+        // This test verifies that when the mouse cursor moves, the node at the
+        // old cursor position is marked dirty so it gets re-rendered (to restore
+        // the content that was under the cursor).
+        using var terminal = new Hex1bTerminal(80, 24);
+        var renderCount = 0;
+
+        var testWidget = new TestWidget().OnRender(_ => renderCount++);
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [testWidget]),
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = terminal.WorkloadAdapter,
+                EnableMouse = true
+            }
+        );
+
+        // Initial render
+        // Move mouse to position (5, 5) - this starts cursor tracking
+        terminal.SendMouse(MouseButton.None, MouseAction.Move, 5, 5);
+        // Move mouse to position (10, 10) - old position should trigger re-render of node
+        terminal.SendMouse(MouseButton.None, MouseAction.Move, 10, 10);
+        terminal.CompleteInput();
+
+        await app.RunAsync();
+        terminal.FlushOutput();
+
+        // The test widget should have been rendered multiple times:
+        // 1. Initial frame
+        // 2. After first mouse move (cursor drawn on top, no re-render yet)
+        // 3. After second mouse move (old position marked dirty, widget re-rendered)
+        // The exact count depends on the frame structure, but key point is > 1 renders
+        // when mouse moves over the widget.
+        Assert.True(renderCount >= 2, $"Expected at least 2 renders due to mouse movement, got {renderCount}");
     }
 }

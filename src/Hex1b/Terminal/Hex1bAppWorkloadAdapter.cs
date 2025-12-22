@@ -303,6 +303,15 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter
     }
 
     /// <summary>
+    /// Injects a mouse input event (for testing).
+    /// </summary>
+    public void SendMouse(MouseButton button, MouseAction action, int x, int y, Hex1bModifiers modifiers = Hex1bModifiers.None, int clickCount = 1)
+    {
+        var evt = new Hex1bMouseEvent(button, action, x, y, modifiers, clickCount);
+        _inputChannel.Writer.TryWrite(evt);
+    }
+
+    /// <summary>
     /// Types a string of characters (for testing).
     /// </summary>
     public void TypeText(string text)

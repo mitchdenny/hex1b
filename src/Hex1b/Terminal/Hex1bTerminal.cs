@@ -532,6 +532,18 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
+    /// Injects a mouse input event (for testing).
+    /// Only works with Hex1bAppWorkloadAdapter.
+    /// </summary>
+    public void SendMouse(MouseButton button, MouseAction action, int x, int y, Hex1bModifiers modifiers = Hex1bModifiers.None, int clickCount = 1)
+    {
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            appWorkload.SendMouse(button, action, x, y, modifiers, clickCount);
+        }
+    }
+
+    /// <summary>
     /// Types a string of characters into the terminal (for testing).
     /// Only works with Hex1bAppWorkloadAdapter.
     /// </summary>
