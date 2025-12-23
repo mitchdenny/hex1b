@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Terminal.Testing;
 using Hex1b.Widgets;
+using Hex1bTheming = Hex1b.Theming;
 
 namespace Hex1b.Tests;
 
@@ -34,7 +35,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Same widget instance = same node = clean = only initial render
         Assert.Equal(1, renderCount);
@@ -65,7 +65,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Each frame has different text, so each frame should render
         // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) + Ctrl+C (Counter: 4) = 4 renders
@@ -99,7 +98,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Both widgets have same content each frame - only initial render
         Assert.Equal(1, renderCount);
@@ -140,7 +138,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // The static widget should only render once (initial frame)
         Assert.Equal(1, staticRenderCount);
@@ -320,7 +317,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // With native terminal cursor, mouse movement should NOT trigger extra renders.
         // The widget should only render once (initial frame) since we use the terminal's
@@ -365,7 +361,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // The widget in the right pane should re-render when the splitter moves
         // because its bounds change: initial render (1) + after drag moves bounds (2)
@@ -402,7 +397,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
         
         var snapshot = terminal.CreateSnapshot();
         var output = snapshot.GetScreenText();
@@ -440,9 +434,6 @@ public class RenderOptimizationTests
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
-        // Write some content first
-        terminal.FlushOutput();
-        
         // Enlarge the terminal - this should not crash
         terminal.Resize(120, 40);
         
@@ -476,9 +467,65 @@ public class RenderOptimizationTests
             .Build()
             .ApplyAsync(terminal);
         await runTask;
-        terminal.FlushOutput();
 
         // Should render twice: initial render + after resize
         Assert.True(renderCount >= 2, $"Expected at least 2 renders but got {renderCount}. Resize should trigger full re-render.");
+    }
+
+    [Fact]
+    public async Task ButtonHoverInPanel_ShouldPreserveBackgroundColor()
+    {
+        // This test verifies that when a button inside a panel becomes hovered,
+        // the dirty region clearing should use the panel's background color,
+        // not the terminal's default background.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        
+        // Use a theme with a visible panel background color
+        var panelBgColor = Hex1bTheming.Hex1bColor.FromRgb(30, 30, 60); // Dark blue
+        var theme = new Hex1bTheming.Hex1bTheme("Test")
+            .Set(Hex1bTheming.PanelTheme.BackgroundColor, panelBgColor);
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Panel(p => [
+                p.VStack(v => [
+                    v.Text("Label before button"),
+                    v.Button("Click Me"),
+                    v.Text("Label after button")
+                ])
+            ]),
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = workload,
+                EnableMouse = true,
+                Theme = theme
+            }
+        );
+
+        var runTask = app.RunAsync();
+        
+        // Wait for initial render, then move mouse over button to trigger hover state
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .MouseMoveTo(5, 1)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal);
+        await runTask;
+        
+        // Check that the background color is preserved after hover
+        var finalSnapshot = terminal.CreateSnapshot();
+        
+        // Find any cells that have null (default) background instead of the panel color
+        // We specifically check the area to the right of the button on the same row
+        // The button is "[ Click Me ]" which is about 13 characters, starting around column 0
+        // Check columns 15-40 on row 1 - these should still have the panel background
+        var mismatches = finalSnapshot.FindMismatchedBackgrounds(15, 1, 25, 1, panelBgColor);
+        
+        Assert.True(mismatches.Count == 0,
+            $"Expected cells to the right of button to have panel background color {panelBgColor}, " +
+            $"but found {mismatches.Count} cells with wrong background.\n" +
+            $"Background visualization:\n{finalSnapshot.VisualizeBackgroundColors(0, 0, 40, 5, panelBgColor)}\n" +
+            $"Mismatched cells: {string.Join(", ", mismatches.Select(m => $"({m.X},{m.Y})={m.ActualBackground?.ToString() ?? "null"}"))}");
     }
 }

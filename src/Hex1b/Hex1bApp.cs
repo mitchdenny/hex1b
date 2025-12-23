@@ -418,8 +418,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Recursively clears dirty regions in the node tree.
     /// For each dirty node, clears the union of its previous and current bounds,
     /// intersected with any active clip rect from ancestor layout providers.
+    /// Tracks inherited background color from PanelNodes to ensure proper clearing.
     /// </summary>
-    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null)
+    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Hex1bColor? inheritedBackground = null)
     {
         // If this node is an ILayoutProvider, intersect its clip rect with the current one
         var effectiveClipRect = clipRect;
@@ -430,8 +431,26 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 : layoutProvider.ClipRect;
         }
         
+        // Track inherited background from PanelNode
+        var effectiveBackground = inheritedBackground;
+        if (node is PanelNode)
+        {
+            var panelBg = _context.Theme.Get(PanelTheme.BackgroundColor);
+            if (!panelBg.IsDefault)
+            {
+                effectiveBackground = panelBg;
+            }
+        }
+        
         if (node.IsDirty)
         {
+            // Set the inherited background for clearing
+            var previousInherited = _context.InheritedBackground;
+            if (effectiveBackground.HasValue)
+            {
+                _context.InheritedBackground = effectiveBackground.Value;
+            }
+            
             // Clear the previous bounds (where the node was), clipped to effective clip rect
             if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
             {
@@ -456,12 +475,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     _context.ClearRegion(regionToClear);
                 }
             }
+            
+            // Restore previous inherited background
+            _context.InheritedBackground = previousInherited;
         }
         
-        // Recurse into children with the effective clip rect
+        // Recurse into children with the effective clip rect and background
         foreach (var child in node.GetChildren())
         {
-            ClearDirtyRegions(child, effectiveClipRect);
+            ClearDirtyRegions(child, effectiveClipRect, effectiveBackground);
         }
     }
     

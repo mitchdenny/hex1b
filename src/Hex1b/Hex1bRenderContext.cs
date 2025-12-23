@@ -86,6 +86,7 @@ public class Hex1bRenderContext
     /// <summary>
     /// Clears a rectangular region by writing spaces.
     /// Used for dirty region clearing to avoid full-screen flicker.
+    /// Respects InheritedBackground color if set.
     /// </summary>
     /// <param name="rect">The rectangle to clear.</param>
     public void ClearRegion(Rect rect)
@@ -103,14 +104,25 @@ public class Hex1bRenderContext
         var width = endX - startX;
         var spaces = new string(' ', width);
         
-        // Reset colors before clearing
-        Write("\x1b[0m");
+        // Use inherited background color if set, otherwise reset to default
+        if (!InheritedBackground.IsDefault)
+        {
+            var bgCode = InheritedBackground.ToBackgroundAnsi();
+            Write(bgCode);
+        }
+        else
+        {
+            Write("\x1b[0m");
+        }
         
         for (var y = startY; y < endY; y++)
         {
             SetCursorPosition(startX, y);
             Write(spaces);
         }
+        
+        // Reset after clearing
+        Write("\x1b[0m");
     }
     
     /// <summary>

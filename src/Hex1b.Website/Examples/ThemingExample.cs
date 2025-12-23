@@ -32,6 +32,21 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
         {
             Options = ["Manual", "Auto", "Delayed"]
         };
+        
+        // Cached enhanced theme to avoid creating new instances on every render
+        private int _cachedThemeIndex = -1;
+        private Hex1bTheme? _cachedEnhancedTheme;
+        
+        public Hex1bTheme GetEnhancedTheme()
+        {
+            // Only create a new enhanced theme when the selection changes
+            if (_cachedThemeIndex != SelectedThemeIndex || _cachedEnhancedTheme is null)
+            {
+                _cachedThemeIndex = SelectedThemeIndex;
+                _cachedEnhancedTheme = CreateThemeWithPanelBackgrounds(Themes[SelectedThemeIndex]);
+            }
+            return _cachedEnhancedTheme;
+        }
     }
 
     // Thread-local session state for each websocket connection
@@ -122,7 +137,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
     public override Func<Hex1bTheme>? CreateThemeProvider()
     {
         var session = _currentSession!;
-        return () => CreateThemeWithPanelBackgrounds(session.Themes[session.SelectedThemeIndex]);
+        return () => session.GetEnhancedTheme();
     }
 
     /// <summary>
