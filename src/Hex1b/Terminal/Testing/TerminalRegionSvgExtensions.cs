@@ -1,5 +1,6 @@
 using System.Text;
 using System.Web;
+using Hex1b.Terminal;
 
 namespace Hex1b.Terminal.Testing;
 
@@ -57,6 +58,60 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("      @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.3; } }");
         sb.AppendLine("      .blink { animation: blink 1s infinite; }");
         sb.AppendLine("    </style>");
+
+        // Pre-generate clip paths for wide character truncation
+        // Only create clips for wide characters that have FEWER owned cells than expected
+        // (i.e., their continuation cell was overwritten by something else)
+        var clipId = 0;
+        var clipPaths = new Dictionary<(int x, int y, int widthCells), string>();
+        
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                var ch = cell.Character;
+                
+                // Skip empty/continuation cells
+                if (string.IsNullOrEmpty(ch) || ch == "\0")
+                    continue;
+                
+                // Calculate expected display width
+                var expectedWidth = DisplayWidth.GetGraphemeWidth(ch);
+                
+                // Only need clips for wide characters
+                if (expectedWidth <= 1)
+                    continue;
+                
+                // Count how many continuation cells have matching sequence
+                var ownedCells = 1;
+                for (int i = 1; i < expectedWidth && (x + i) < region.Width; i++)
+                {
+                    var contCell = region.GetCell(x + i, y);
+                    // Continuation cell should be empty string with same sequence
+                    if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
+                        ownedCells++;
+                    else
+                        break;
+                }
+                
+                // Only generate clip path if this character is TRUNCATED (fewer owned cells than expected)
+                if (ownedCells < expectedWidth)
+                {
+                    var clipKey = (x, y, ownedCells);
+                    if (!clipPaths.ContainsKey(clipKey))
+                    {
+                        var id = $"clip-{clipId++}";
+                        clipPaths[clipKey] = id;
+                        var clipX = x * cellWidth;
+                        var clipY = y * cellHeight;
+                        var clipW = ownedCells * cellWidth;
+                        sb.AppendLine($"""    <clipPath id="{id}"><rect x="{clipX}" y="{clipY}" width="{clipW}" height="{cellHeight}"/></clipPath>""");
+                    }
+                }
+            }
+        }
+        
         sb.AppendLine("  </defs>");
 
         // Background rectangle
@@ -83,41 +138,66 @@ public static class TerminalRegionSvgExtensions
         foreach (var (x, y, cell) in cells)
         {
             var attrs = cell.Attributes;
-            
-            // Render background for this cell - always opaque for proper clipping behavior
-            var isReverse = (attrs & CellAttributes.Reverse) != 0;
-            var rectX = x * cellWidth;
-            var rectY = y * cellHeight;
-            
-            string bgColor;
-            if (isReverse)
-            {
-                // Reverse: use foreground as background (or default foreground)
-                bgColor = cell.Foreground.HasValue 
-                    ? $"rgb({cell.Foreground.Value.R},{cell.Foreground.Value.G},{cell.Foreground.Value.B})"
-                    : options.DefaultForeground;
-            }
-            else if (cell.Background.HasValue)
-            {
-                var bg = cell.Background.Value;
-                bgColor = $"rgb({bg.R},{bg.G},{bg.B})";
-            }
-            else
-            {
-                // Use default background for opaque cells
-                bgColor = options.DefaultBackground;
-            }
-            
-            sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{cellWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
-            
-            // Blink indicator: subtle border/glow around blinking cells
-            if ((attrs & CellAttributes.Blink) != 0)
-            {
-                sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{cellWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
-            }
-
-            // Now render the text character
             var ch = cell.Character;
+            var isReverse = (attrs & CellAttributes.Reverse) != 0;
+            
+            // Skip background rendering for continuation cells (empty string)
+            // These cells are visually "owned" by the wide character in the previous cell
+            // and should not render their own background
+            var isContinuationCell = ch == "";
+            
+            if (!isContinuationCell)
+            {
+                // Render background for this cell - always opaque for proper clipping behavior
+                var rectX = x * cellWidth;
+                var rectY = y * cellHeight;
+                
+                string bgColor;
+                if (isReverse)
+                {
+                    // Reverse: use foreground as background (or default foreground)
+                    bgColor = cell.Foreground.HasValue 
+                        ? $"rgb({cell.Foreground.Value.R},{cell.Foreground.Value.G},{cell.Foreground.Value.B})"
+                        : options.DefaultForeground;
+                }
+                else if (cell.Background.HasValue)
+                {
+                    var bg = cell.Background.Value;
+                    bgColor = $"rgb({bg.R},{bg.G},{bg.B})";
+                }
+                else
+                {
+                    // Use default background for opaque cells
+                    bgColor = options.DefaultBackground;
+                }
+                
+                // For wide characters, render a background that spans all owned cells
+                var bgCharWidth = string.IsNullOrEmpty(ch) || ch == "\0" ? 1 : DisplayWidth.GetGraphemeWidth(ch);
+                var bgWidth = cellWidth;
+                
+                if (bgCharWidth > 1)
+                {
+                    // Count how many continuation cells this character owns
+                    var ownedCells = 1;
+                    for (int i = 1; i < bgCharWidth && (x + i) < region.Width; i++)
+                    {
+                        var contCell = region.GetCell(x + i, y);
+                        if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
+                            ownedCells++;
+                        else
+                            break;
+                    }
+                    bgWidth = ownedCells * cellWidth;
+                }
+                
+                sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
+                
+                // Blink indicator: subtle border/glow around blinking cells
+                if ((attrs & CellAttributes.Blink) != 0)
+                {
+                    sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
+                }
+            }
 
             // Skip empty continuation cells (used for wide characters)
             if (string.IsNullOrEmpty(ch))
@@ -188,7 +268,36 @@ public static class TerminalRegionSvgExtensions
             var blinkClass = (attrs & CellAttributes.Blink) != 0 ? " class=\"blink\"" : "";
 
             var escapedChar = HttpUtility.HtmlEncode(ch);
-            sb.AppendLine($"""    <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{blinkClass}>{escapedChar}</text>""");
+            
+            // Check if this is a wide character that needs clipping
+            var charWidth = DisplayWidth.GetGraphemeWidth(ch);
+            string clipAttr = "";
+            
+            if (charWidth > 1)
+            {
+                // Count owned continuation cells (matching sequence)
+                var ownedCells = 1;
+                for (int i = 1; i < charWidth && (x + i) < region.Width; i++)
+                {
+                    var contCell = region.GetCell(x + i, y);
+                    if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
+                        ownedCells++;
+                    else
+                        break;
+                }
+                
+                // If truncated (owned < expected), apply clip path
+                if (ownedCells < charWidth)
+                {
+                    var clipKey = (x, y, ownedCells);
+                    if (clipPaths.TryGetValue(clipKey, out var clipPathId))
+                    {
+                        clipAttr = $""" clip-path="url(#{clipPathId})" """;
+                    }
+                }
+            }
+            
+            sb.AppendLine($"""    <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{blinkClass}{clipAttr}>{escapedChar}</text>""");
         }
 
         sb.AppendLine("  </g>");

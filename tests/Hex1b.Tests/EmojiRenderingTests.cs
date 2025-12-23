@@ -123,6 +123,16 @@ public class EmojiRenderingTests
         Assert.True(ContainsGrapheme(snapshot, "😀"), "Smile emoji should be present");
         Assert.True(ContainsGrapheme(snapshot, "🚀"), "Rocket emoji should be present");
         Assert.True(ContainsGrapheme(snapshot, "🍕"), "Pizza emoji should be present");
+        
+        // Debug: Check the cell state for a simple emoji line
+        // "Faces:    " is 10 chars, then first emoji at col 10
+        var emojiCell = snapshot.GetCell(10, 3); // Row 4 (0-indexed=3), "Faces:" line
+        var contCell = snapshot.GetCell(11, 3);
+        
+        // Verify emoji is in cell and continuation is empty with matching sequence
+        Assert.Equal("😀", emojiCell.Character);
+        Assert.Equal("", contCell.Character);
+        Assert.Equal(emojiCell.Sequence, contCell.Sequence);
 
         TestSvgHelper.Capture(test.Terminal, "simple-emoji");
     }
