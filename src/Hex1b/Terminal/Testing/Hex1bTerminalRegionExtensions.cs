@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Hex1b.Terminal.Testing;
 
 /// <summary>
@@ -13,13 +15,21 @@ public static class Hex1bTerminalRegionExtensions
         if (y < 0 || y >= region.Height)
             return "";
 
-        var chars = new char[region.Width];
+        var sb = new StringBuilder();
         for (int x = 0; x < region.Width; x++)
         {
             var cell = region.GetCell(x, y);
-            chars[x] = cell.Character == '\0' ? ' ' : cell.Character;
+            var ch = cell.Character;
+            // Skip empty continuation cells (used for wide characters)
+            if (string.IsNullOrEmpty(ch))
+                continue;
+            // Replace null character with space for display
+            if (ch == "\0")
+                sb.Append(' ');
+            else
+                sb.Append(ch);
         }
-        return new string(chars);
+        return sb.ToString();
     }
 
     /// <summary>
@@ -149,9 +159,9 @@ public static class Hex1bTerminalRegionExtensions
 
     private static bool CellsEqual(TerminalCell a, TerminalCell b)
     {
-        // Compare character (treating null as space)
-        var charA = a.Character == '\0' ? ' ' : a.Character;
-        var charB = b.Character == '\0' ? ' ' : b.Character;
+        // Compare character (treating empty/null as space)
+        var charA = string.IsNullOrEmpty(a.Character) || a.Character == "\0" ? " " : a.Character;
+        var charB = string.IsNullOrEmpty(b.Character) || b.Character == "\0" ? " " : b.Character;
         if (charA != charB)
             return false;
 

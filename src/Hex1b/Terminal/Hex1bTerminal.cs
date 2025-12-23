@@ -1,5 +1,6 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
+using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
@@ -57,10 +58,12 @@ public sealed class Hex1bTerminal : IDisposable
     private int _cursorY;
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
+    private CellAttributes _currentAttributes;
     private bool _disposed;
     private bool _inAlternateScreen;
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
+    private long _writeSequence; // Monotonically increasing write order counter
 
 
 
@@ -434,7 +437,12 @@ public sealed class Hex1bTerminal : IDisposable
         {
             for (int x = 0; x < _width; x++)
             {
-                sb.Append(_screenBuffer[y, x].Character);
+                var ch = _screenBuffer[y, x].Character;
+                // Skip empty continuation cells (used for wide characters)
+                if (ch.Length > 0)
+                {
+                    sb.Append(ch);
+                }
             }
             if (y < _height - 1)
             {
@@ -463,7 +471,12 @@ public sealed class Hex1bTerminal : IDisposable
         var sb = new StringBuilder(_width);
         for (int x = 0; x < _width; x++)
         {
-            sb.Append(_screenBuffer[lineIndex, x].Character);
+            var ch = _screenBuffer[lineIndex, x].Character;
+            // Skip empty continuation cells (used for wide characters)
+            if (ch.Length > 0)
+            {
+                sb.Append(ch);
+            }
         }
         return sb.ToString();
     }
@@ -605,7 +618,11 @@ public sealed class Hex1bTerminal : IDisposable
         _currentBackground = null;
     }
 
-    private void ProcessOutput(string text)
+    /// <summary>
+    /// Process ANSI output text into the screen buffer.
+    /// </summary>
+    /// <param name="text">Text containing ANSI escape sequences.</param>
+    internal void ProcessOutput(string text)
     {
         int i = 0;
         while (i < text.Length)
@@ -632,10 +649,32 @@ public sealed class Hex1bTerminal : IDisposable
             }
             else
             {
+                // Extract the grapheme cluster starting at position i
+                var grapheme = GetGraphemeAt(text, i);
+                var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+                
                 if (_cursorX < _width && _cursorY < _height)
                 {
-                    _screenBuffer[_cursorY, _cursorX] = new TerminalCell(text[i], _currentForeground, _currentBackground);
-                    _cursorX++;
+                    // Assign sequence number and timestamp for this write operation
+                    var sequence = ++_writeSequence;
+                    var writtenAt = DateTimeOffset.UtcNow;
+                    
+                    // Write the grapheme to the current cell
+                    _screenBuffer[_cursorY, _cursorX] = new TerminalCell(
+                        grapheme, _currentForeground, _currentBackground, _currentAttributes,
+                        sequence, writtenAt);
+                    
+                    // For wide characters (width > 1), fill subsequent cells with continuation markers
+                    // Use the same sequence and timestamp so they're part of the same logical write
+                    for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                    {
+                        // Use empty string as continuation marker (the previous cell "owns" this space)
+                        _screenBuffer[_cursorY, _cursorX + w] = new TerminalCell(
+                            "", _currentForeground, _currentBackground, _currentAttributes,
+                            sequence, writtenAt);
+                    }
+                    
+                    _cursorX += graphemeWidth;
                     if (_cursorX >= _width)
                     {
                         _cursorX = 0;
@@ -647,9 +686,25 @@ public sealed class Hex1bTerminal : IDisposable
                         }
                     }
                 }
-                i++;
+                i += grapheme.Length;
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the grapheme cluster starting at the given position in the text.
+    /// </summary>
+    private static string GetGraphemeAt(string text, int index)
+    {
+        if (index >= text.Length)
+            return "";
+            
+        var enumerator = StringInfo.GetTextElementEnumerator(text, index);
+        if (enumerator.MoveNext())
+        {
+            return (string)enumerator.Current;
+        }
+        return text[index].ToString();
     }
 
     private int ProcessAnsiSequence(string text, int start)
@@ -711,6 +766,7 @@ public sealed class Hex1bTerminal : IDisposable
         {
             _currentForeground = null;
             _currentBackground = null;
+            _currentAttributes = CellAttributes.None;
             return;
         }
 
@@ -725,7 +781,67 @@ public sealed class Hex1bTerminal : IDisposable
                 case 0:
                     _currentForeground = null;
                     _currentBackground = null;
+                    _currentAttributes = CellAttributes.None;
                     break;
+
+                // Text attributes - set
+                case 1:
+                    _currentAttributes |= CellAttributes.Bold;
+                    break;
+                case 2:
+                    _currentAttributes |= CellAttributes.Dim;
+                    break;
+                case 3:
+                    _currentAttributes |= CellAttributes.Italic;
+                    break;
+                case 4:
+                    _currentAttributes |= CellAttributes.Underline;
+                    break;
+                case 5:
+                case 6: // Rapid blink treated same as slow blink
+                    _currentAttributes |= CellAttributes.Blink;
+                    break;
+                case 7:
+                    _currentAttributes |= CellAttributes.Reverse;
+                    break;
+                case 8:
+                    _currentAttributes |= CellAttributes.Hidden;
+                    break;
+                case 9:
+                    _currentAttributes |= CellAttributes.Strikethrough;
+                    break;
+                case 53:
+                    _currentAttributes |= CellAttributes.Overline;
+                    break;
+
+                // Text attributes - reset
+                case 21: // Double underline OR bold off (varies by terminal)
+                case 22: // Normal intensity (not bold, not dim)
+                    _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
+                    break;
+                case 23:
+                    _currentAttributes &= ~CellAttributes.Italic;
+                    break;
+                case 24:
+                    _currentAttributes &= ~CellAttributes.Underline;
+                    break;
+                case 25:
+                    _currentAttributes &= ~CellAttributes.Blink;
+                    break;
+                case 27:
+                    _currentAttributes &= ~CellAttributes.Reverse;
+                    break;
+                case 28:
+                    _currentAttributes &= ~CellAttributes.Hidden;
+                    break;
+                case 29:
+                    _currentAttributes &= ~CellAttributes.Strikethrough;
+                    break;
+                case 55:
+                    _currentAttributes &= ~CellAttributes.Overline;
+                    break;
+
+                // Foreground colors
                 case >= 30 and <= 37:
                     _currentForeground = StandardColorFromCode(code - 30);
                     break;

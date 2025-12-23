@@ -49,60 +49,146 @@ public static class TerminalRegionSvgExtensions
         // SVG header
         sb.AppendLine($"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">""");
 
-        // Style definitions
-        sb.AppendLine("  <style>");
-        sb.AppendLine($"    .terminal-text {{ font-family: {options.FontFamily}; font-size: {options.FontSize}px; }}");
-        sb.AppendLine($"    .cursor {{ fill: {options.CursorColor}; opacity: 0.7; }}");
-        sb.AppendLine("  </style>");
+        // Style definitions including blink animation
+        sb.AppendLine("  <defs>");
+        sb.AppendLine("    <style>");
+        sb.AppendLine($"      .terminal-text {{ font-family: {options.FontFamily}; font-size: {options.FontSize}px; }}");
+        sb.AppendLine($"      .cursor {{ fill: {options.CursorColor}; opacity: 0.7; }}");
+        sb.AppendLine("      @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.3; } }");
+        sb.AppendLine("      .blink { animation: blink 1s infinite; }");
+        sb.AppendLine("    </style>");
+        sb.AppendLine("  </defs>");
 
         // Background rectangle
         sb.AppendLine($"""  <rect width="{width}" height="{height}" fill="{options.DefaultBackground}"/>""");
 
-        // Group for cells
-        sb.AppendLine("  <g class=\"terminal-text\">");
-
-        // Render background colors first (as rectangles)
+        // Collect all cells with their positions for sequence-ordered rendering
+        var cells = new List<(int X, int Y, TerminalCell Cell)>();
         for (int y = 0; y < region.Height; y++)
         {
             for (int x = 0; x < region.Width; x++)
             {
-                var cell = region.GetCell(x, y);
-                if (cell.Background.HasValue)
-                {
-                    var bg = cell.Background.Value;
-                    var bgColor = $"rgb({bg.R},{bg.G},{bg.B})";
-                    var rectX = x * cellWidth;
-                    var rectY = y * cellHeight;
-                    sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{cellWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
-                }
+                cells.Add((x, y, region.GetCell(x, y)));
             }
         }
 
-        // Render text characters
-        for (int y = 0; y < region.Height; y++)
+        // Sort by sequence number (ascending) so older writes render first, newer writes render on top
+        cells.Sort((a, b) => a.Cell.Sequence.CompareTo(b.Cell.Sequence));
+
+        // Group for cells
+        sb.AppendLine("  <g class=\"terminal-text\">");
+
+        // Render all cells in sequence order (backgrounds first, then text)
+        // This allows newer content to naturally overlap/obscure older wide characters
+        foreach (var (x, y, cell) in cells)
         {
-            for (int x = 0; x < region.Width; x++)
+            var attrs = cell.Attributes;
+            
+            // Render background for this cell - always opaque for proper clipping behavior
+            var isReverse = (attrs & CellAttributes.Reverse) != 0;
+            var rectX = x * cellWidth;
+            var rectY = y * cellHeight;
+            
+            string bgColor;
+            if (isReverse)
             {
-                var cell = region.GetCell(x, y);
-                var ch = cell.Character == '\0' ? ' ' : cell.Character;
-
-                // Skip spaces unless they have a foreground color
-                if (ch == ' ' && !cell.Foreground.HasValue)
-                    continue;
-
-                var textX = x * cellWidth + (cellWidth / 2.0);
-                var textY = y * cellHeight + (cellHeight * 0.75); // Baseline adjustment
-
-                var fgColor = options.DefaultForeground;
-                if (cell.Foreground.HasValue)
-                {
-                    var fg = cell.Foreground.Value;
-                    fgColor = $"rgb({fg.R},{fg.G},{fg.B})";
-                }
-
-                var escapedChar = HttpUtility.HtmlEncode(ch.ToString());
-                sb.AppendLine($"""    <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="middle">{escapedChar}</text>""");
+                // Reverse: use foreground as background (or default foreground)
+                bgColor = cell.Foreground.HasValue 
+                    ? $"rgb({cell.Foreground.Value.R},{cell.Foreground.Value.G},{cell.Foreground.Value.B})"
+                    : options.DefaultForeground;
             }
+            else if (cell.Background.HasValue)
+            {
+                var bg = cell.Background.Value;
+                bgColor = $"rgb({bg.R},{bg.G},{bg.B})";
+            }
+            else
+            {
+                // Use default background for opaque cells
+                bgColor = options.DefaultBackground;
+            }
+            
+            sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{cellWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
+            
+            // Blink indicator: subtle border/glow around blinking cells
+            if ((attrs & CellAttributes.Blink) != 0)
+            {
+                sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{cellWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
+            }
+
+            // Now render the text character
+            var ch = cell.Character;
+
+            // Skip empty continuation cells (used for wide characters)
+            if (string.IsNullOrEmpty(ch))
+                continue;
+
+            // Normalize null character to space
+            if (ch == "\0")
+                ch = " ";
+
+            // Hidden attribute: don't render the character at all
+            if ((attrs & CellAttributes.Hidden) != 0)
+                continue;
+
+            // Skip spaces unless they have a foreground color or special attributes
+            if (ch == " " && !cell.Foreground.HasValue && attrs == CellAttributes.None)
+                continue;
+
+            var textX = x * cellWidth;
+            var textY = y * cellHeight + (cellHeight * 0.75); // Baseline adjustment
+
+            // Determine foreground color
+            string fgColor;
+            if (isReverse)
+            {
+                // Reverse: use background as foreground (or default background)
+                fgColor = cell.Background.HasValue 
+                    ? $"rgb({cell.Background.Value.R},{cell.Background.Value.G},{cell.Background.Value.B})"
+                    : options.DefaultBackground;
+            }
+            else if (cell.Foreground.HasValue)
+            {
+                var fg = cell.Foreground.Value;
+                fgColor = $"rgb({fg.R},{fg.G},{fg.B})";
+            }
+            else
+            {
+                fgColor = options.DefaultForeground;
+            }
+
+            // Build style attributes based on CellAttributes
+            var styleBuilder = new StringBuilder();
+            
+            // Bold
+            if ((attrs & CellAttributes.Bold) != 0)
+                styleBuilder.Append("font-weight:bold;");
+            
+            // Dim (reduced opacity)
+            if ((attrs & CellAttributes.Dim) != 0)
+                styleBuilder.Append("opacity:0.5;");
+            
+            // Italic
+            if ((attrs & CellAttributes.Italic) != 0)
+                styleBuilder.Append("font-style:italic;");
+            
+            // Text decorations (can be combined)
+            var decorations = new List<string>();
+            if ((attrs & CellAttributes.Underline) != 0)
+                decorations.Add("underline");
+            if ((attrs & CellAttributes.Strikethrough) != 0)
+                decorations.Add("line-through");
+            if ((attrs & CellAttributes.Overline) != 0)
+                decorations.Add("overline");
+            
+            if (decorations.Count > 0)
+                styleBuilder.Append($"text-decoration:{string.Join(" ", decorations)};");
+
+            var style = styleBuilder.Length > 0 ? $""" style="{styleBuilder}" """ : "";
+            var blinkClass = (attrs & CellAttributes.Blink) != 0 ? " class=\"blink\"" : "";
+
+            var escapedChar = HttpUtility.HtmlEncode(ch);
+            sb.AppendLine($"""    <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{blinkClass}>{escapedChar}</text>""");
         }
 
         sb.AppendLine("  </g>");

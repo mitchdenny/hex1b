@@ -260,7 +260,7 @@ public class Hex1bTerminalTests
         
         var buffer = terminal.GetScreenBuffer();
         
-        Assert.Equal('R', buffer[0, 0].Character);
+        Assert.Equal("R", buffer[0, 0].Character);
         Assert.NotNull(buffer[0, 0].Foreground);
         Assert.Equal(255, buffer[0, 0].Foreground!.Value.R);
         Assert.Equal(0, buffer[0, 0].Foreground!.Value.G);

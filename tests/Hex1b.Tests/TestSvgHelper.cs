@@ -3,7 +3,7 @@ using Hex1b.Terminal.Testing;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Helper class for capturing and attaching terminal SVG snapshots to test results.
+/// Helper class for capturing and attaching terminal SVG/HTML snapshots to test results.
 /// </summary>
 public static class TestSvgHelper
 {
@@ -31,6 +31,51 @@ public static class TestSvgHelper
     }
 
     /// <summary>
+    /// Captures an interactive HTML snapshot of the terminal with cell inspection.
+    /// </summary>
+    /// <param name="terminal">The terminal to capture.</param>
+    /// <param name="name">Name for the HTML file (without extension). Must be unique within a test.</param>
+    public static void CaptureHtml(Hex1bTerminal terminal, string name = "snapshot")
+    {
+        var snapshot = terminal.CreateSnapshot();
+        var html = snapshot.ToHtml();
+        AttachFile($"{name}.html", html);
+    }
+
+    /// <summary>
+    /// Captures an interactive HTML snapshot of the terminal snapshot with cell inspection.
+    /// </summary>
+    /// <param name="snapshot">The terminal snapshot to render.</param>
+    /// <param name="name">Name for the HTML file (without extension). Must be unique within a test.</param>
+    public static void CaptureHtml(Hex1bTerminalSnapshot snapshot, string name = "snapshot")
+    {
+        var html = snapshot.ToHtml();
+        AttachFile($"{name}.html", html);
+    }
+
+    /// <summary>
+    /// Captures both SVG and interactive HTML snapshots of the terminal.
+    /// </summary>
+    /// <param name="terminal">The terminal to capture.</param>
+    /// <param name="name">Base name for the files (without extension). Must be unique within a test.</param>
+    public static void Capture(Hex1bTerminal terminal, string name = "snapshot")
+    {
+        CaptureSvg(terminal, name);
+        CaptureHtml(terminal, name);
+    }
+
+    /// <summary>
+    /// Captures both SVG and interactive HTML snapshots of the terminal snapshot.
+    /// </summary>
+    /// <param name="snapshot">The terminal snapshot to render.</param>
+    /// <param name="name">Base name for the files (without extension). Must be unique within a test.</param>
+    public static void Capture(Hex1bTerminalSnapshot snapshot, string name = "snapshot")
+    {
+        CaptureSvg(snapshot, name);
+        CaptureHtml(snapshot, name);
+    }
+
+    /// <summary>
     /// Attaches an SVG string to the test context as a proper test attachment.
     /// In xUnit v3, attachments are recorded in test results XML/JSON.
     /// Also writes to disk for easy viewing.
@@ -40,8 +85,18 @@ public static class TestSvgHelper
     /// <exception cref="ArgumentException">Thrown if an attachment with the same name already exists.</exception>
     public static void AttachSvg(string name, string svg)
     {
+        AttachFile(name, svg);
+    }
+
+    /// <summary>
+    /// Attaches a file to the test context.
+    /// </summary>
+    /// <param name="name">The filename (with extension). Must be unique within a test.</param>
+    /// <param name="content">The file content.</param>
+    public static void AttachFile(string name, string content)
+    {
         // Attach to xUnit test context - will throw if name is duplicate
-        TestContext.Current.AddAttachment(name, svg);
+        TestContext.Current.AddAttachment(name, content);
 
         // Build path: TestResults/svg/{TestClass}/{TestName}/{attachment}
         var testContext = TestContext.Current;
@@ -62,13 +117,22 @@ public static class TestSvgHelper
         var sanitizedClass = SanitizeFileName(testClass);
         var sanitizedMethod = SanitizeFileName(methodWithParams);
 
+        // Determine output subdirectory based on file type
+        var extension = Path.GetExtension(name).ToLowerInvariant();
+        var subDir = extension switch
+        {
+            ".html" => "html",
+            ".svg" => "svg",
+            _ => "files"
+        };
+
         // Build output path - use a consistent location
         var assemblyDir = Path.GetDirectoryName(typeof(TestSvgHelper).Assembly.Location)!;
-        var outputDir = Path.Combine(assemblyDir, "TestResults", "svg", sanitizedClass, sanitizedMethod);
+        var outputDir = Path.Combine(assemblyDir, "TestResults", subDir, sanitizedClass, sanitizedMethod);
         Directory.CreateDirectory(outputDir);
         
         var filePath = Path.Combine(outputDir, name);
-        File.WriteAllText(filePath, svg);
+        File.WriteAllText(filePath, content);
     }
 
     /// <summary>
