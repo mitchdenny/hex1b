@@ -16,7 +16,7 @@ internal sealed record CaptureStep(string Name) : TestStep
         Hex1bTestSequenceOptions options,
         CancellationToken ct)
     {
-        TestSvgHelper.Capture(terminal, Name);
+        TestCaptureHelper.Capture(terminal, Name);
         return Task.CompletedTask;
     }
 }

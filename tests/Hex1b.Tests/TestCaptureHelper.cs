@@ -3,9 +3,9 @@ using Hex1b.Terminal.Testing;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Helper class for capturing and attaching terminal SVG/HTML snapshots to test results.
+/// Helper class for capturing and attaching terminal snapshots (SVG, HTML, ANSI) to test results.
 /// </summary>
-public static class TestSvgHelper
+public static class TestCaptureHelper
 {
     /// <summary>
     /// Captures an SVG snapshot of the terminal and attaches it to the test context.
@@ -54,7 +54,32 @@ public static class TestSvgHelper
     }
 
     /// <summary>
-    /// Captures both SVG and interactive HTML snapshots of the terminal.
+    /// Captures an ANSI escape code representation of the terminal.
+    /// The output can be piped to a terminal with `cat` to display the captured state.
+    /// </summary>
+    /// <param name="terminal">The terminal to capture.</param>
+    /// <param name="name">Name for the ANSI file (without extension). Must be unique within a test.</param>
+    public static void CaptureAnsi(Hex1bTerminal terminal, string name = "snapshot")
+    {
+        var snapshot = terminal.CreateSnapshot();
+        var ansi = snapshot.ToAnsi();
+        AttachFile($"{name}.ansi", ansi);
+    }
+
+    /// <summary>
+    /// Captures an ANSI escape code representation of the terminal snapshot.
+    /// The output can be piped to a terminal with `cat` to display the captured state.
+    /// </summary>
+    /// <param name="snapshot">The terminal snapshot to render.</param>
+    /// <param name="name">Name for the ANSI file (without extension). Must be unique within a test.</param>
+    public static void CaptureAnsi(Hex1bTerminalSnapshot snapshot, string name = "snapshot")
+    {
+        var ansi = snapshot.ToAnsi();
+        AttachFile($"{name}.ansi", ansi);
+    }
+
+    /// <summary>
+    /// Captures SVG, HTML, and ANSI snapshots of the terminal.
     /// </summary>
     /// <param name="terminal">The terminal to capture.</param>
     /// <param name="name">Base name for the files (without extension). Must be unique within a test.</param>
@@ -62,10 +87,11 @@ public static class TestSvgHelper
     {
         CaptureSvg(terminal, name);
         CaptureHtml(terminal, name);
+        CaptureAnsi(terminal, name);
     }
 
     /// <summary>
-    /// Captures both SVG and interactive HTML snapshots of the terminal snapshot.
+    /// Captures SVG, HTML, and ANSI snapshots of the terminal snapshot.
     /// </summary>
     /// <param name="snapshot">The terminal snapshot to render.</param>
     /// <param name="name">Base name for the files (without extension). Must be unique within a test.</param>
@@ -73,6 +99,7 @@ public static class TestSvgHelper
     {
         CaptureSvg(snapshot, name);
         CaptureHtml(snapshot, name);
+        CaptureAnsi(snapshot, name);
     }
 
     /// <summary>
@@ -98,7 +125,7 @@ public static class TestSvgHelper
         // Attach to xUnit test context - will throw if name is duplicate
         TestContext.Current.AddAttachment(name, content);
 
-        // Build path: TestResults/svg/{TestClass}/{TestName}/{attachment}
+        // Build path: TestResults/{type}/{TestClass}_{TestName}_{attachment}
         var testContext = TestContext.Current;
         var testClass = testContext.Test?.TestCase?.TestClassName ?? "UnknownClass";
         var testMethodName = testContext.Test?.TestCase?.TestMethod?.MethodName ?? "UnknownMethod";
@@ -123,15 +150,18 @@ public static class TestSvgHelper
         {
             ".html" => "html",
             ".svg" => "svg",
+            ".ansi" => "ansi",
             _ => "files"
         };
 
-        // Build output path - use a consistent location
-        var assemblyDir = Path.GetDirectoryName(typeof(TestSvgHelper).Assembly.Location)!;
-        var outputDir = Path.Combine(assemblyDir, "TestResults", subDir, sanitizedClass, sanitizedMethod);
+        // Build output path - flattened structure with _ separator instead of subdirectories
+        var assemblyDir = Path.GetDirectoryName(typeof(TestCaptureHelper).Assembly.Location)!;
+        var outputDir = Path.Combine(assemblyDir, "TestResults", subDir);
         Directory.CreateDirectory(outputDir);
         
-        var filePath = Path.Combine(outputDir, name);
+        // Flatten: {TestClass}_{TestMethod}_{attachment}
+        var flattenedName = $"{sanitizedClass}_{sanitizedMethod}_{name}";
+        var filePath = Path.Combine(outputDir, flattenedName);
         File.WriteAllText(filePath, content);
     }
 

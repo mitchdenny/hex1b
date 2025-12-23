@@ -109,7 +109,7 @@ public class CellAttributeMatrixTests
         Assert.True(HasCellWithAttributes(snapshot, 'S', CellAttributes.Strikethrough), "Strikethrough");
         Assert.True(HasCellWithAttributes(snapshot, 'O', CellAttributes.Overline), "Overline");
 
-        TestSvgHelper.Capture(test.Terminal, "individual-attributes");
+        TestCaptureHelper.Capture(test.Terminal, "individual-attributes");
     }
 
     /// <summary>
@@ -169,7 +169,7 @@ public class CellAttributeMatrixTests
         Assert.True(HasCellWithAttributes(snapshot, '7', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline), "Bold+Italic+Underline");
         Assert.True(HasCellWithAttributes(snapshot, '8', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline | CellAttributes.Strikethrough), "All four");
 
-        TestSvgHelper.Capture(test.Terminal, "common-combinations");
+        TestCaptureHelper.Capture(test.Terminal, "common-combinations");
     }
 
     /// <summary>
@@ -213,7 +213,7 @@ public class CellAttributeMatrixTests
         test.Write("\n");
         test.Write("\x1b[1;3;4;9;95mBold Italic Underline Strike Magenta\x1b[0m\n");
 
-        TestSvgHelper.Capture(test.Terminal, "attributes-with-colors");
+        TestCaptureHelper.Capture(test.Terminal, "attributes-with-colors");
     }
 
     /// <summary>
@@ -270,7 +270,7 @@ public class CellAttributeMatrixTests
         test.Write("\n");
         test.Write("Legend: Each cell shows attribute + column attribute combined\n");
 
-        TestSvgHelper.Capture(test.Terminal, "full-matrix");
+        TestCaptureHelper.Capture(test.Terminal, "full-matrix");
     }
 
     /// <summary>
@@ -328,7 +328,7 @@ public class CellAttributeMatrixTests
         Assert.True(HasCellWithAttributes(snapshot, 'Q', CellAttributes.None),
             "Q should be normal");
 
-        TestSvgHelper.Capture(test.Terminal, "attribute-reset");
+        TestCaptureHelper.Capture(test.Terminal, "attribute-reset");
     }
 
     /// <summary>
@@ -380,6 +380,6 @@ public class CellAttributeMatrixTests
             }
         }
 
-        TestSvgHelper.Capture(test.Terminal, "common-power-set");
+        TestCaptureHelper.Capture(test.Terminal, "common-power-set");
     }
 }

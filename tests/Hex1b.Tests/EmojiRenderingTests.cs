@@ -134,7 +134,7 @@ public class EmojiRenderingTests
         Assert.Equal("", contCell.Character);
         Assert.Equal(emojiCell.Sequence, contCell.Sequence);
 
-        TestSvgHelper.Capture(test.Terminal, "simple-emoji");
+        TestCaptureHelper.Capture(test.Terminal, "simple-emoji");
     }
 
     /// <summary>
@@ -165,7 +165,7 @@ public class EmojiRenderingTests
         Assert.True(ContainsGrapheme(snapshot, ThumbsUpLight), "Light skin tone should be present");
         Assert.True(ContainsGrapheme(snapshot, ThumbsUpDark), "Dark skin tone should be present");
 
-        TestSvgHelper.Capture(test.Terminal, "skin-tone-modifiers");
+        TestCaptureHelper.Capture(test.Terminal, "skin-tone-modifiers");
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public class EmojiRenderingTests
         Assert.True(ContainsGrapheme(snapshot, Family), "Family emoji should be present");
         Assert.True(ContainsGrapheme(snapshot, ManTechnologist), "Man technologist should be present");
 
-        TestSvgHelper.Capture(test.Terminal, "zwj-sequences");
+        TestCaptureHelper.Capture(test.Terminal, "zwj-sequences");
     }
 
     /// <summary>
@@ -229,7 +229,7 @@ public class EmojiRenderingTests
         Assert.True(ContainsGrapheme(snapshot, FlagUS), "US flag should be present");
         Assert.True(ContainsGrapheme(snapshot, FlagJP), "Japan flag should be present");
 
-        TestSvgHelper.Capture(test.Terminal, "flag-emoji");
+        TestCaptureHelper.Capture(test.Terminal, "flag-emoji");
     }
 
     /// <summary>
@@ -256,7 +256,7 @@ public class EmojiRenderingTests
 
         Assert.True(ContainsGrapheme(snapshot, Keycap1), "Keycap 1 should be present");
 
-        TestSvgHelper.Capture(test.Terminal, "keycaps-and-symbols");
+        TestCaptureHelper.Capture(test.Terminal, "keycaps-and-symbols");
     }
 
     /// <summary>
@@ -295,7 +295,7 @@ public class EmojiRenderingTests
         test.Write("  ⏳ Code review pending\n");
         test.Write("  ❌ Deploy to production\n");
 
-        TestSvgHelper.Capture(test.Terminal, "emoji-with-text-and-colors");
+        TestCaptureHelper.Capture(test.Terminal, "emoji-with-text-and-colors");
     }
 
     /// <summary>
@@ -331,7 +331,7 @@ public class EmojiRenderingTests
         test.Write("│ Skip   │  ⏭️  │    5   │\n");
         test.Write("└────────┴──────┴────────┘\n");
 
-        TestSvgHelper.Capture(test.Terminal, "emoji-display-width");
+        TestCaptureHelper.Capture(test.Terminal, "emoji-display-width");
     }
 
     /// <summary>
@@ -370,7 +370,7 @@ public class EmojiRenderingTests
         test.Write("│ 🏠 🏡 🏢 🏣 🏤 🏥 🏦 🏨 🏩 🏪 🏫 🏬 🏭 🏯 🏰 💒 🗼 🗽 ⛪ 🕌 🛕 🕍 │\n");
         test.Write("└──────────────────────────────────────────────────────────────────────────┘\n");
 
-        TestSvgHelper.Capture(test.Terminal, "emoji-showcase");
+        TestCaptureHelper.Capture(test.Terminal, "emoji-showcase");
     }
 
     /// <summary>
@@ -427,7 +427,7 @@ public class EmojiRenderingTests
         // Verify sequence numbers are being assigned
         Assert.True(cell.Sequence > 0, "Cell should have a sequence number");
 
-        TestSvgHelper.Capture(test.Terminal, "wide-char-truncation");
+        TestCaptureHelper.Capture(test.Terminal, "wide-char-truncation");
     }
 
     /// <summary>
@@ -464,7 +464,7 @@ public class EmojiRenderingTests
         Assert.True(overwriteCell.Sequence > emojiCell.Sequence, 
             "Overwrite should have higher sequence than original emoji");
 
-        TestSvgHelper.Capture(test.Terminal, "sequence-ordering");
+        TestCaptureHelper.Capture(test.Terminal, "sequence-ordering");
     }
 
     #region Helper Methods

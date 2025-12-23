@@ -57,7 +57,7 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<rect", svg); // Should have background rectangles
 
         // Attach SVG to test output
-        TestSvgHelper.AttachSvg("full-snapshot.svg", svg);
+        TestCaptureHelper.AttachSvg("full-snapshot.svg", svg);
     }
 
     [Fact]
@@ -107,11 +107,11 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<text", svg);
 
         // Attach SVG to test output
-        TestSvgHelper.AttachSvg("arbitrary-region.svg", svg);
+        TestCaptureHelper.AttachSvg("arbitrary-region.svg", svg);
 
         // Also render full snapshot for comparison
         var fullSvg = snapshot.ToSvg();
-        TestSvgHelper.AttachSvg("arbitrary-region-full.svg", fullSvg);
+        TestCaptureHelper.AttachSvg("arbitrary-region-full.svg", fullSvg);
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<text", buttonSvg); // Should have text elements
 
         // Attach SVGs to test output
-        TestSvgHelper.AttachSvg("button-control.svg", buttonSvg);
-        TestSvgHelper.AttachSvg("button-control-full.svg", snapshot.ToSvg());
+        TestCaptureHelper.AttachSvg("button-control.svg", buttonSvg);
+        TestCaptureHelper.AttachSvg("button-control-full.svg", snapshot.ToSvg());
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class TerminalSvgRenderingTests
         Assert.Contains("cursor", svg);
 
         // Attach SVG to test output
-        TestSvgHelper.AttachSvg("cursor-demo.svg", svg);
+        TestCaptureHelper.AttachSvg("cursor-demo.svg", svg);
     }
 
     [Fact]
@@ -250,6 +250,6 @@ public class TerminalSvgRenderingTests
         Assert.Contains("#282c34", svg);
 
         // Attach SVG to test output
-        TestSvgHelper.AttachSvg("custom-options.svg", svg);
+        TestCaptureHelper.AttachSvg("custom-options.svg", svg);
     }
 }
