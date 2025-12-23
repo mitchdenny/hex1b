@@ -31,9 +31,10 @@ public class RenderOptimizationTests
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Key(Hex1bKey.C)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Same widget instance = same node = clean = only initial render
@@ -61,9 +62,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Each frame has different text, so each frame should render
@@ -94,9 +96,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Both widgets have same content each frame - only initial render
@@ -134,9 +137,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The static widget should only render once (initial frame)
@@ -185,9 +189,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Frame 1: testWidget at index 0 → new node
@@ -228,9 +233,10 @@ public class RenderOptimizationTests
         // First render only
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // After first frame and Ctrl+C frame, verify node state
@@ -274,9 +280,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .Key(Hex1bKey.A)  // triggers frame 2: [testWidget] - same node, clean, NOT rendered
             .Key(Hex1bKey.B)  // triggers frame 3: [Text, testWidget] - new node at index 1, rendered
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Due to VStack's index-based reconciliation:
@@ -313,9 +320,10 @@ public class RenderOptimizationTests
             .MouseMoveTo(5, 5)
             .MouseMoveTo(10, 10)
             .MouseMoveTo(15, 15)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // With native terminal cursor, mouse movement should NOT trigger extra renders.
@@ -357,9 +365,10 @@ public class RenderOptimizationTests
             // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
             // Drag right by 5 characters
             .Drag(21, 5, 26, 5)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The widget in the right pane should re-render when the splitter moves
@@ -393,9 +402,10 @@ public class RenderOptimizationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .Drag(21, 5, 31, 5)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         var snapshot = terminal.CreateSnapshot();
@@ -463,9 +473,10 @@ public class RenderOptimizationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await workload.ResizeAsync(100, 30, TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Should render twice: initial render + after resize
@@ -508,9 +519,10 @@ public class RenderOptimizationTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(5, 1)
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Check that the background color is preserved after hover

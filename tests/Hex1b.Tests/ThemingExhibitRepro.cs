@@ -67,9 +67,10 @@ public class ThemingExhibitRepro
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
@@ -291,9 +292,10 @@ public class ThemingExhibitRepro
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 

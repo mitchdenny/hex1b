@@ -305,9 +305,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Panel Content"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Panel Content", terminal.CreateSnapshot().RawOutput);
@@ -334,9 +335,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
@@ -363,9 +365,10 @@ public class PanelNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -391,9 +394,10 @@ public class PanelNodeTests
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello Panel")
             .WaitUntil(s => s.ContainsText("Hello Panel"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hello Panel", text);
@@ -416,9 +420,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Panel Inside Border"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Panel Inside Border", terminal.CreateSnapshot().RawOutput);
@@ -444,9 +449,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Should contain background color ANSI code
@@ -470,9 +476,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Deep Nested"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Deep Nested", terminal.CreateSnapshot().RawOutput);
@@ -499,9 +506,10 @@ public class PanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Header", terminal.CreateSnapshot().RawOutput);
@@ -528,9 +536,10 @@ public class PanelNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Verify second item is selected via rendered output

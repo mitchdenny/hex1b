@@ -682,9 +682,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Right Content"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Left Content", terminal.CreateSnapshot().RawOutput);
@@ -713,9 +714,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Right 2"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Left 1", terminal.CreateSnapshot().RawOutput);
@@ -748,9 +750,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(leftClicked);
@@ -780,9 +783,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
             .Tab().Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(rightClicked);
@@ -811,9 +815,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
             .Left().Left()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // The splitter would have received initial focus since Left is just text
@@ -848,9 +853,10 @@ public class SplitterNodeTests
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .WaitUntil(s => s.RawOutput.Contains("> Item 2"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Verify second item is selected via rendered output
@@ -881,9 +887,10 @@ public class SplitterNodeTests
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello Splitter")
             .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hello Splitter", text);
@@ -913,9 +920,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Split View"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Split View", terminal.CreateSnapshot().RawOutput);
@@ -1350,9 +1358,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Bottom Content"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Top Content", terminal.CreateSnapshot().RawOutput);
@@ -1381,9 +1390,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Bottom 2"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Top 1", terminal.CreateSnapshot().RawOutput);
@@ -1416,9 +1426,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(topClicked);
@@ -1448,9 +1459,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
             .Tab().Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(bottomClicked);
@@ -1480,9 +1492,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
             .Up().Up()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Top", terminal.CreateSnapshot().RawOutput);
@@ -1513,9 +1526,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Vertical Split"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Vertical Split", terminal.CreateSnapshot().RawOutput);
@@ -1549,9 +1563,10 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Bottom"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Top-Left", terminal.CreateSnapshot().RawOutput);
@@ -1596,9 +1611,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right Button"), TimeSpan.FromSeconds(2))
             .Tab().Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from List through Splitter to Right Button");
@@ -1635,9 +1651,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Tab().Tab().Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from Second Button through Splitter to Right Button");
@@ -1673,9 +1690,10 @@ public class SplitterNodeTests
             .Tab().Tab()  // Left Button -> Splitter -> Right Button
             .Shift().Tab().Shift().Tab()  // Right Button -> Splitter -> Left Button
             .Enter()  // Click the button
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(leftButtonClicked, "Shift+Tab should have moved focus back to Left Button");
@@ -1723,9 +1741,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Tab().Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(rightButtonClicked, "Tab should bubble up from deeply nested List to Splitter");
@@ -1942,9 +1961,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button, not Inner Left");
@@ -1980,9 +2000,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(outerLeftClicked, "Initial focus should be on Outer Left button");
@@ -2022,9 +2043,10 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Level 1"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(level1Clicked, "Initial focus should be on Level 1 button (first focusable at root level)");

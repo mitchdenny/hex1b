@@ -685,9 +685,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
@@ -715,9 +716,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("My Panel"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Check raw output first - this always works
@@ -746,9 +748,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Line 3"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
@@ -778,9 +781,10 @@ public class BorderNodeTests
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hello", text);
@@ -806,9 +810,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Nested"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Outer", terminal.CreateSnapshot().RawOutput);
@@ -833,9 +838,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Border characters should be in the raw output
@@ -863,9 +869,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Right"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
@@ -894,9 +901,10 @@ public class BorderNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -926,9 +934,10 @@ public class BorderNodeTests
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Second", clickedButton);
@@ -954,9 +963,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
@@ -982,9 +992,10 @@ public class BorderNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Should still have complete border in raw output

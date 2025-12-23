@@ -28,9 +28,10 @@ public class Hex1bAppIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Test passed - app entered alternate screen and exited cleanly
@@ -51,9 +52,10 @@ public class Hex1bAppIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Hello World"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("Hello World", terminal.CreateSnapshot().RawOutput);
@@ -85,9 +87,10 @@ public class Hex1bAppIntegrationTests
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
             .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Equal("Hi", text);
@@ -116,9 +119,10 @@ public class Hex1bAppIntegrationTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.True(clicked);
@@ -171,9 +175,10 @@ public class Hex1bAppIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.RawOutput.Contains("Line 3"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
@@ -209,9 +214,10 @@ public class Hex1bAppIntegrationTests
             .Tab()
             .Type("b")
             .WaitUntil(s => s.ContainsText("b"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Equal("a", text1);
@@ -248,9 +254,10 @@ public class Hex1bAppIntegrationTests
             .Down()
             .Down()
             .WaitUntil(s => s.RawOutput.Contains("> Item 3"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Verify via rendered output that third item is selected
@@ -285,9 +292,10 @@ public class Hex1bAppIntegrationTests
             .Enter()
             .Enter()
             .WaitUntil(s => s.RawOutput.Contains("Count: 2"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         Assert.Equal(2, counter);
@@ -310,9 +318,10 @@ public class Hex1bAppIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
         // Should not throw

@@ -40,9 +40,10 @@ public class TerminalSvgRenderingTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         var snapshot = terminal.CreateSnapshot();
@@ -56,7 +57,7 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<rect", svg); // Should have background rectangles
 
         // Attach SVG to test output
-        AttachSvg("full-snapshot.svg", svg);
+        TestSvgHelper.AttachSvg("full-snapshot.svg", svg);
     }
 
     [Fact]
@@ -86,9 +87,10 @@ public class TerminalSvgRenderingTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         var snapshot = terminal.CreateSnapshot();
@@ -105,11 +107,11 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<text", svg);
 
         // Attach SVG to test output
-        AttachSvg("arbitrary-region.svg", svg);
+        TestSvgHelper.AttachSvg("arbitrary-region.svg", svg);
 
         // Also render full snapshot for comparison
         var fullSvg = snapshot.ToSvg();
-        AttachSvg("arbitrary-region-full.svg", fullSvg);
+        TestSvgHelper.AttachSvg("arbitrary-region-full.svg", fullSvg);
     }
 
     [Fact]
@@ -141,9 +143,10 @@ public class TerminalSvgRenderingTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         var snapshot = terminal.CreateSnapshot();
@@ -163,8 +166,8 @@ public class TerminalSvgRenderingTests
         Assert.Contains("<text", buttonSvg); // Should have text elements
 
         // Attach SVGs to test output
-        AttachSvg("button-control.svg", buttonSvg);
-        AttachSvg("button-control-full.svg", snapshot.ToSvg());
+        TestSvgHelper.AttachSvg("button-control.svg", buttonSvg);
+        TestSvgHelper.AttachSvg("button-control-full.svg", snapshot.ToSvg());
     }
 
     [Fact]
@@ -187,9 +190,10 @@ public class TerminalSvgRenderingTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Type here"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.Tab) // Focus on textbox
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         var snapshot = terminal.CreateSnapshot();
@@ -200,7 +204,7 @@ public class TerminalSvgRenderingTests
         Assert.Contains("cursor", svg);
 
         // Attach SVG to test output
-        AttachSvg("cursor-demo.svg", svg);
+        TestSvgHelper.AttachSvg("cursor-demo.svg", svg);
     }
 
     [Fact]
@@ -219,9 +223,10 @@ public class TerminalSvgRenderingTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Custom"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         var snapshot = terminal.CreateSnapshot();
@@ -245,78 +250,6 @@ public class TerminalSvgRenderingTests
         Assert.Contains("#282c34", svg);
 
         // Attach SVG to test output
-        AttachSvg("custom-options.svg", svg);
-    }
-
-    /// <summary>
-    /// Attaches an SVG string to the test context as a proper test attachment.
-    /// In xUnit v3, attachments are recorded in test results XML/JSON.
-    /// Also writes to disk for easy viewing.
-    /// </summary>
-    private static void AttachSvg(string name, string svg)
-    {
-        // Use xUnit v3's native test attachment API
-        TestContext.Current.AddAttachment(name, svg);
-
-        // Build path: TestResults/svg/{TestClass}/{TestName}/{attachment}
-        var testContext = TestContext.Current;
-        var testClass = testContext.Test?.TestCase?.TestClassName ?? "UnknownClass";
-        var testMethodName = testContext.Test?.TestCase?.TestMethod?.MethodName ?? "UnknownMethod";
-        
-        // Get test display name which includes theory parameters
-        var testDisplayName = testContext.Test?.TestDisplayName ?? testMethodName;
-        
-        // Extract just the method part with parameters if it's a theory
-        var methodWithParams = testDisplayName;
-        if (methodWithParams.Contains('.'))
-        {
-            methodWithParams = methodWithParams[(methodWithParams.LastIndexOf('.') + 1)..];
-        }
-
-        // Sanitize for filesystem
-        var sanitizedClass = SanitizeFileName(testClass);
-        var sanitizedMethod = SanitizeFileName(methodWithParams);
-
-        // Build output path
-        var assemblyDir = Path.GetDirectoryName(typeof(TerminalSvgRenderingTests).Assembly.Location)!;
-        var outputDir = Path.Combine(assemblyDir, "TestResults", "svg", sanitizedClass, sanitizedMethod);
-        Directory.CreateDirectory(outputDir);
-        
-        var filePath = Path.Combine(outputDir, name);
-        File.WriteAllText(filePath, svg);
-    }
-
-    /// <summary>
-    /// Sanitizes a string for use as a file or directory name.
-    /// </summary>
-    private static string SanitizeFileName(string name)
-    {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var result = new System.Text.StringBuilder(name.Length);
-        
-        foreach (var c in name)
-        {
-            if (Array.IndexOf(invalidChars, c) >= 0)
-            {
-                result.Append('_');
-            }
-            else if (c == '"')
-            {
-                result.Append('\'');
-            }
-            else
-            {
-                result.Append(c);
-            }
-        }
-        
-        // Truncate if too long (some filesystems have limits)
-        var sanitized = result.ToString();
-        if (sanitized.Length > 200)
-        {
-            sanitized = sanitized[..200];
-        }
-        
-        return sanitized;
+        TestSvgHelper.AttachSvg("custom-options.svg", svg);
     }
 }

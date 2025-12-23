@@ -22,7 +22,7 @@ namespace Hex1b.Terminal.Testing;
 /// </example>
 public sealed class Hex1bTestSequenceBuilder
 {
-    private readonly List<TestStep> _steps = [];
+    internal readonly List<TestStep> _steps = [];
     private Hex1bModifiers _pendingModifiers = Hex1bModifiers.None;
     private int _mouseX;
     private int _mouseY;
