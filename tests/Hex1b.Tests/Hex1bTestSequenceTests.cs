@@ -409,9 +409,9 @@ public class Hex1bTestSequenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50);
-        await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
@@ -450,9 +450,9 @@ public class Hex1bTestSequenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50);
-        await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
@@ -485,15 +485,15 @@ public class Hex1bTestSequenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50);
-        await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
         
         // Third item should be selected
-        Assert.Contains("> Item 3", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 3"));
     }
 
     [Fact]
@@ -524,9 +524,9 @@ public class Hex1bTestSequenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50);
-        await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;

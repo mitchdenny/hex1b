@@ -210,11 +210,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     
                     switch (inputEvent)
                     {
-                        // Terminal capability events (e.g., DA1 for Sixel detection) are handled at app level
-                        case Hex1bTerminalEvent terminalEvent:
-                            Nodes.SixelNode.HandleDA1Response(terminalEvent.Response);
-                            // Re-render to reflect the updated capability detection
-                            await RenderFrameAsync(cancellationToken);
+                        // Terminal capability events are logged but capabilities are now
+                        // provided via TerminalCapabilities at startup rather than runtime detection
+                        case Hex1bTerminalEvent:
+                            // No action needed - capabilities come from workload adapter
                             continue;
                         
                         // Resize events trigger a re-layout and re-render

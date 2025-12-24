@@ -84,6 +84,11 @@ public class Hex1bRenderContext
     public int Height => _adapter.Height;
     
     /// <summary>
+    /// Terminal capabilities (Sixel support, colors, etc.).
+    /// </summary>
+    public TerminalCapabilities Capabilities => _adapter.Capabilities;
+    
+    /// <summary>
     /// Clears a rectangular region by writing spaces.
     /// Used for dirty region clearing to avoid full-screen flicker.
     /// Respects InheritedBackground color if set.

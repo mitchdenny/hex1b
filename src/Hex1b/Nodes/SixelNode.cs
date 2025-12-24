@@ -27,6 +27,9 @@ public sealed class SixelNode : Hex1bNode
             if (_imageData != value)
             {
                 _imageData = value;
+                // Mark parent dirty to force full re-render of the container
+                // This is a sledgehammer fix for Sixel ghost pixels when switching images
+                Parent?.MarkDirty();
                 MarkDirty();
             }
         }
@@ -72,23 +75,6 @@ public sealed class SixelNode : Hex1bNode
     }
 
     /// <summary>
-    /// Sixel support status: null = not yet determined, true = supported, false = not supported.
-    /// </summary>
-    private bool? _sixelSupported;
-
-    /// <summary>
-    /// Timeout for Sixel support detection (1 second).
-    /// </summary>
-    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(1);
-
-    /// <summary>
-    /// Escape sequence to query terminal capabilities (DA1 - Primary Device Attributes).
-    /// Response format: ESC [ ? {params} c
-    /// If response contains ";4" it indicates Sixel graphics support.
-    /// </summary>
-    private const string DA1Query = "\x1b[c";
-
-    /// <summary>
     /// Start of Sixel data (DCS - Device Control String).
     /// Format: DCS q [sixel data] ST
     /// Using minimal DCS header (parameters default to 0 anyway).
@@ -99,18 +85,6 @@ public sealed class SixelNode : Hex1bNode
     /// End of Sixel data (ST - String Terminator).
     /// </summary>
     private const string SixelEnd = "\x1b\\";
-
-    /// <summary>
-    /// Global Sixel support status shared across all SixelNodes.
-    /// Once determined for one node, all nodes use the same value.
-    /// </summary>
-    private static bool? _globalSixelSupported;
-
-    /// <summary>
-    /// Global query state - only one probe is needed per application.
-    /// </summary>
-    private static bool _globalQuerySent;
-    private static DateTime _globalQueryTime;
 
     public override Size Measure(Constraints constraints)
     {
@@ -136,8 +110,9 @@ public sealed class SixelNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // Only return fallback focusables if Sixel is NOT supported (fallback is being shown)
-        if (_sixelSupported != true && Fallback != null)
+        // SixelNode itself isn't focusable, but fallback might be
+        // We return fallback focusables always since we don't know capabilities at this point
+        if (Fallback != null)
         {
             foreach (var focusable in Fallback.GetFocusableNodes())
             {
@@ -148,44 +123,10 @@ public sealed class SixelNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Use global state if already determined
-        if (_globalSixelSupported.HasValue)
-        {
-            _sixelSupported = _globalSixelSupported;
-        }
+        // Use capabilities from the render context (flows from presentation → terminal → workload → app)
+        var sixelSupported = context.Capabilities.SupportsSixel;
 
-        // Check for query timeout
-        if (_globalQuerySent && !_globalSixelSupported.HasValue)
-        {
-            var elapsed = DateTime.UtcNow - _globalQueryTime;
-            if (elapsed > QueryTimeout)
-            {
-                // Timed out waiting for response - assume Sixel is not supported
-                _globalSixelSupported = false;
-                _sixelSupported = false;
-            }
-        }
-
-        // If support status is still unknown and we haven't queried yet, send the probe
-        if (!_sixelSupported.HasValue && !_globalQuerySent)
-        {
-            SendSixelProbe(context);
-            // Show a brief loading state
-            context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write("Checking Sixel support...");
-            return;
-        }
-
-        // If still waiting for response, show loading
-        if (!_sixelSupported.HasValue)
-        {
-            context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write("Checking Sixel support...");
-            return;
-        }
-
-        // Now we know the support status - render appropriately
-        if (_sixelSupported == true)
+        if (sixelSupported)
         {
             RenderSixel(context);
         }
@@ -193,70 +134,6 @@ public sealed class SixelNode : Hex1bNode
         {
             RenderFallback(context);
         }
-    }
-
-    private void SendSixelProbe(Hex1bRenderContext context)
-    {
-        _globalQuerySent = true;
-        _globalQueryTime = DateTime.UtcNow;
-
-        // Send the DA1 query to the terminal
-        // The response will come back through the input channel
-        context.Write(DA1Query);
-    }
-
-    /// <summary>
-    /// Called when a DA1 response is received from the terminal.
-    /// This should be called from input handling when a DA1 response is detected.
-    /// </summary>
-    /// <param name="response">The DA1 response string from the terminal.</param>
-    public static void HandleDA1Response(string response)
-    {
-        if (_globalSixelSupported.HasValue)
-        {
-            Console.Error.WriteLine($"[Sixel] HandleDA1Response called but already determined: {_globalSixelSupported}");
-            return; // Already determined
-        }
-
-        // DA1 response format: ESC [ ? {params} c
-        // Parameter 4 indicates Sixel graphics support
-        // Examples:
-        //   \x1b[?62;4;6;22c - has ;4; so supports Sixel
-        //   \x1b[?62;6;22c - no ;4; so no Sixel support
-        var hasSixel = response.Contains(";4") || 
-                       response.Contains("?4;") || 
-                       response.Contains("?4c");
-        
-        Console.Error.WriteLine($"[Sixel] HandleDA1Response: hasSixel={hasSixel}, response={response.Replace("\x1b", "ESC")}");
-        _globalSixelSupported = hasSixel;
-    }
-
-    /// <summary>
-    /// Force Sixel support to a known value (useful for testing or manual override).
-    /// </summary>
-    public void SetSixelSupport(bool supported)
-    {
-        _sixelSupported = supported;
-        _globalSixelSupported = supported;
-    }
-
-    /// <summary>
-    /// Reset Sixel support detection globally to re-probe on next render.
-    /// </summary>
-    public static void ResetGlobalSixelDetection()
-    {
-        _globalSixelSupported = null;
-        _globalQuerySent = false;
-    }
-
-    /// <summary>
-    /// Reset this node's Sixel support detection.
-    /// Also resets global state to allow re-probing.
-    /// </summary>
-    public void ResetSixelDetection()
-    {
-        _sixelSupported = null;
-        ResetGlobalSixelDetection();
     }
 
     private void RenderSixel(Hex1bRenderContext context)
@@ -284,10 +161,8 @@ public sealed class SixelNode : Hex1bNode
         }
         else
         {
-            // Wrap in Sixel sequence
-            context.Write(SixelStart);
-            context.Write(ImageData);
-            context.Write(SixelEnd);
+            // Wrap in Sixel sequence - write as a single string so parser can detect it
+            context.Write($"{SixelStart}{ImageData}{SixelEnd}");
         }
     }
 
@@ -307,11 +182,10 @@ public sealed class SixelNode : Hex1bNode
 
     /// <summary>
     /// Gets the direct children of this container for input routing.
-    /// Only returns fallback children when Sixel is not supported (fallback is shown).
+    /// Always returns fallback as a potential child - actual rendering depends on capabilities.
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
     {
-        // Only return fallback as a child when Sixel is NOT supported (fallback is being shown)
-        if (_sixelSupported != true && Fallback != null) yield return Fallback;
+        if (Fallback != null) yield return Fallback;
     }
 }

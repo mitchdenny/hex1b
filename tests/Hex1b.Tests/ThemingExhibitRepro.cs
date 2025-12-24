@@ -62,14 +62,15 @@ public class ThemingExhibitRepro
         );
 
         // Start the app first, then interact with it
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
@@ -81,32 +82,26 @@ public class ThemingExhibitRepro
         }
         
         Console.WriteLine("\n=== Raw output (to check for ANSI codes) ===");
-        Console.WriteLine(terminal.CreateSnapshot().RawOutput);
+        Console.WriteLine(terminal.CreateSnapshot().GetScreenText());
         
         // The List should have focus (first focusable in the splitter)
         // The TextBox should NOT show cursor styling
         
         // Look for cursor color codes in the raw output
         // Default cursor colors: black foreground (38;2;0;0;0), white background (48;2;255;255;255)
-        var rawOutput = terminal.CreateSnapshot().RawOutput;
+        var snapshot = terminal.CreateSnapshot();
         
         // Check that our text appears in the screen (without ANSI codes)
-        var screenText = terminal.CreateSnapshot().GetScreenText();
+        var screenText = snapshot.GetScreenText();
         Assert.Contains("Sample text", screenText);
         
-        // Look for cursor background color (white - 48;2;255;255;255) in the WHOLE output.
+        // Look for cursor background color (white - 255,255,255) in the WHOLE output.
         // If the TextBox is unfocused, there should be NO cursor color codes at all.
-        var cursorBgPattern = "48;2;255;255;255"; // Default cursor background (white)
-        
         // The cursor colors should NOT appear in the rendering output when TextBox is unfocused
-        var hasCursorBg = rawOutput.Contains(cursorBgPattern);
-        
-        // Escape the raw output for display (so ANSI codes are visible)
-        var escapedOutput = rawOutput.Replace("\x1b", "\\x1b");
+        var hasCursorBg = snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255));
         
         Assert.False(hasCursorBg, 
-            $"TextBox should NOT have cursor colors when unfocused. " +
-            $"Escaped raw output:\n{escapedOutput}");
+            $"TextBox should NOT have cursor colors when unfocused.");
     }
 
     /// <summary>
@@ -189,14 +184,10 @@ public class ThemingExhibitRepro
 
         node.Render(context);
 
-        var output = terminal.CreateSnapshot().RawOutput;
-        
         // Default cursor colors from theme:
         // CursorForegroundColor = Black (0,0,0)
         // CursorBackgroundColor = White (255,255,255)
-        var cursorBgCode = "48;2;255;255;255"; // White background
-        
-        Assert.DoesNotContain(cursorBgCode, output);
+        Assert.False(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
         // Note: foreground might match other things, so we focus on the distinctive background
     }
 
@@ -220,12 +211,8 @@ public class ThemingExhibitRepro
 
         node.Render(context);
 
-        var output = terminal.CreateSnapshot().RawOutput;
-        
         // Default cursor background = White (255,255,255)
-        var cursorBgCode = "48;2;255;255;255";
-        
-        Assert.Contains(cursorBgCode, output);
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
     }
 
     /// <summary>
@@ -286,38 +273,31 @@ public class ThemingExhibitRepro
         );
 
         // Start the app first, then interact with it
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
         // Check for cursor colors in the output
-        var rawOutput = terminal.CreateSnapshot().RawOutput;
-        var screenText = terminal.CreateSnapshot().GetScreenText();
-        
-        // Escape the raw output for display (so ANSI codes are visible)
-        var escapedOutput = rawOutput.Replace("\x1b", "\\x1b");
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
         
         Console.WriteLine("=== Screen Text ===");
         Console.WriteLine(screenText);
-        Console.WriteLine("\n=== Escaped Raw Output ===");
-        Console.WriteLine(escapedOutput);
         
         // Verify our text is rendered
         Assert.Contains("Sample text", screenText);
         
-        // The cursor background (white by default: 48;2;255;255;255) should NOT appear
+        // The cursor background (white by default: 255,255,255) should NOT appear
         // if the TextBox is correctly unfocused
-        var cursorBgCode = "48;2;255;255;255";
-        
-        Assert.False(rawOutput.Contains(cursorBgCode),
-            $"TextBox should NOT render cursor colors when another widget (List) has focus.\n" +
-            $"Escaped raw output:\n{escapedOutput}");
+        Assert.False(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+            $"TextBox should NOT render cursor colors when another widget (List) has focus.");
     }
 }

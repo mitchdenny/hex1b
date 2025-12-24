@@ -389,7 +389,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Should contain scrollbar characters
-        Assert.Contains("█", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("█", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -410,8 +410,9 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        Assert.Contains("▲", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("▼", terminal.CreateSnapshot().RawOutput);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("▲"), "Should show up arrow");
+        Assert.True(snapshot.ContainsText("▼"), "Should show down arrow");
     }
 
     [Fact]
@@ -433,8 +434,8 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Content fits, so no scrollbar needed
-        Assert.DoesNotContain("▲", terminal.CreateSnapshot().RawOutput);
-        Assert.DoesNotContain("▼", terminal.CreateSnapshot().RawOutput);
+        Assert.DoesNotContain("▲", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("▼", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -456,9 +457,9 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Lines 1-5 should be visible, line 6+ should be clipped
-        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 5", terminal.CreateSnapshot().RawOutput);
-        Assert.DoesNotContain("Line 6", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().GetText());
+        Assert.Contains("Line 5", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("Line 6", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -482,10 +483,10 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Lines 6-10 should be visible (offset by 5)
-        Assert.Contains("Line 6", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 10", terminal.CreateSnapshot().RawOutput);
-        Assert.DoesNotContain("Line 5", terminal.CreateSnapshot().RawOutput);
-        Assert.DoesNotContain("Line 11", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 6", terminal.CreateSnapshot().GetText());
+        Assert.Contains("Line 10", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("Line 5", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("Line 11", terminal.CreateSnapshot().GetText());
     }
 
     #endregion
@@ -511,7 +512,7 @@ public class ScrollNodeTests
         node.Render(context);
 
         // Should contain scrollbar characters
-        Assert.Contains("█", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("█", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -532,8 +533,8 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        Assert.Contains("◀", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("▶", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("◀", terminal.CreateSnapshot().GetText());
+        Assert.Contains("▶", terminal.CreateSnapshot().GetText());
     }
 
     #endregion
@@ -560,8 +561,8 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        // Cyan foreground ANSI code
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput);
+        // Cyan foreground color should be applied
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Cyan));
     }
 
     [Fact]
@@ -585,8 +586,8 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
 
-        // Yellow foreground ANSI code
-        Assert.Contains("\x1b[38;2;255;255;0m", terminal.CreateSnapshot().RawOutput);
+        // Yellow foreground color should be applied
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Yellow));
     }
 
     #endregion
@@ -661,7 +662,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
@@ -681,7 +682,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(4, state.Offset);
@@ -701,7 +702,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
@@ -721,7 +722,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset);
@@ -741,7 +742,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(40, state.Offset);
@@ -761,7 +762,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, state.Offset);
     }
@@ -784,7 +785,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, state.Offset);
@@ -804,7 +805,7 @@ public class ScrollNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(9, state.Offset);
@@ -825,7 +826,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Up/down arrows match bindings but don't scroll horizontal
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, state.Offset); // No scroll
@@ -928,17 +929,18 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("▲", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("▼", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Line 1", terminal.CreateSnapshot().GetText());
+        Assert.Contains("▲", terminal.CreateSnapshot().GetText());
+        Assert.Contains("▼", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -970,13 +972,14 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("▼"), TimeSpan.FromSeconds(2)) // Wait for down scroll indicator
             .Down().Down().Down()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal(3, state.Offset);
@@ -1002,14 +1005,15 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Tab from scroll widget to button, then press enter
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Tab().Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(buttonClicked);
@@ -1046,16 +1050,17 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Side"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Left Side", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Scrollable", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("Left Side", terminal.CreateSnapshot().GetText());
+        Assert.Contains("Scrollable", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -1080,17 +1085,18 @@ public class ScrollNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("◀"), TimeSpan.FromSeconds(2)) // Wait for scroll indicator
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         await runTask;
 
-        Assert.Contains("◀", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("▶", terminal.CreateSnapshot().RawOutput);
+        Assert.Contains("◀", terminal.CreateSnapshot().GetText());
+        Assert.Contains("▶", terminal.CreateSnapshot().GetText());
     }
 
     #endregion

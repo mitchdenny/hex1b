@@ -376,9 +376,6 @@ terminal.GetNonEmptyLines()      // All non-blank lines
 terminal.ContainsText("Hello")   // Boolean check
 terminal.FindText("Error")       // List of (line, column) positions
 
-// Raw output (includes ANSI codes)
-terminal.RawOutput               // Everything written to terminal
-
 // Screen buffer (with colors)
 terminal.GetScreenBuffer()       // 2D array of TerminalCell
 

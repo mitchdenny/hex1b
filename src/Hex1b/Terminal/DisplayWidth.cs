@@ -57,6 +57,17 @@ public static class DisplayWidth
         // Emoji sequences (ZWJ, skin tones, flags) typically display as 2 cells.
         // Combining sequences display as the width of their base character.
         
+        // Check for special combining characters that force width 2:
+        // - U+20E3 (combining enclosing keycap) - makes keycap sequences like 1️⃣
+        // - U+FE0F (variation selector-16) - forces emoji presentation (width 2)
+        foreach (var rune in grapheme.EnumerateRunes())
+        {
+            if (rune.Value == 0x20E3) // Combining enclosing keycap
+                return 2;
+            if (rune.Value == 0xFE0F) // Variation selector-16 (emoji presentation)
+                return 2;
+        }
+        
         int width = 0;
         foreach (var rune in grapheme.EnumerateRunes())
         {
@@ -419,35 +430,108 @@ public static class DisplayWidth
 
     /// <summary>
     /// Checks if a code point is an emoji that typically displays as 2 cells.
+    /// This uses a comprehensive approach covering all known emoji blocks.
     /// </summary>
     private static bool IsEmojiPresentation(int codePoint)
     {
-        // Emoticons
-        if (codePoint >= 0x1F600 && codePoint <= 0x1F64F)
+        // SMP Emoji Blocks (U+1F000 - U+1FFFF range)
+        // Using broader ranges to be more future-proof
+        
+        // Mahjong Tiles and Domino Tiles
+        if (codePoint >= 0x1F000 && codePoint <= 0x1F0FF)
+            return true;
+        // Playing Cards
+        if (codePoint >= 0x1F0A0 && codePoint <= 0x1F0FF)
+            return true;
+        // Enclosed Alphanumeric Supplement (some emoji like 🅰️🅱️)
+        if (codePoint >= 0x1F100 && codePoint <= 0x1F1FF)
+            return true;
+        // Enclosed Ideographic Supplement
+        if (codePoint >= 0x1F200 && codePoint <= 0x1F2FF)
             return true;
         // Miscellaneous Symbols and Pictographs
         if (codePoint >= 0x1F300 && codePoint <= 0x1F5FF)
             return true;
+        // Emoticons
+        if (codePoint >= 0x1F600 && codePoint <= 0x1F64F)
+            return true;
+        // Ornamental Dingbats
+        if (codePoint >= 0x1F650 && codePoint <= 0x1F67F)
+            return true;
         // Transport and Map Symbols
         if (codePoint >= 0x1F680 && codePoint <= 0x1F6FF)
+            return true;
+        // Alchemical Symbols - skip (U+1F700-1F77F, not emoji)
+        // Geometric Shapes Extended (colored circles, squares like 🟠🟡🟢🔵)
+        if (codePoint >= 0x1F780 && codePoint <= 0x1F7FF)
+            return true;
+        // Supplemental Arrows-C
+        if (codePoint >= 0x1F800 && codePoint <= 0x1F8FF)
             return true;
         // Supplemental Symbols and Pictographs
         if (codePoint >= 0x1F900 && codePoint <= 0x1F9FF)
             return true;
-        // Symbols and Pictographs Extended-A
-        if (codePoint >= 0x1FA00 && codePoint <= 0x1FA6F)
+        // Chess Symbols, Symbols and Pictographs Extended-A/B
+        if (codePoint >= 0x1FA00 && codePoint <= 0x1FAFF)
             return true;
-        // Symbols and Pictographs Extended-B
-        if (codePoint >= 0x1FA70 && codePoint <= 0x1FAFF)
+        
+        // BMP Emoji Blocks
+        
+        // Miscellaneous Symbols (☀️⚡⚠️ etc)
+        if (codePoint >= 0x2600 && codePoint <= 0x26FF)
             return true;
-        // Regional Indicator Symbols (flags)
-        if (codePoint >= 0x1F1E0 && codePoint <= 0x1F1FF)
-            return true;
-        // Dingbats (some emoji)
+        // Dingbats (✂️✈️✉️ etc)
         if (codePoint >= 0x2700 && codePoint <= 0x27BF)
             return true;
-        // Miscellaneous Symbols
-        if (codePoint >= 0x2600 && codePoint <= 0x26FF)
+        // Supplemental Arrows-B (some arrow emoji)
+        if (codePoint >= 0x2900 && codePoint <= 0x297F)
+            return true;
+        // Miscellaneous Symbols and Arrows
+        if (codePoint >= 0x2B00 && codePoint <= 0x2BFF)
+            return true;
+        // CJK Symbols (some emoji like ㊗️㊙️)
+        if (codePoint >= 0x3200 && codePoint <= 0x32FF)
+            return true;
+        // Enclosed CJK Letters and Months
+        if (codePoint >= 0x3300 && codePoint <= 0x33FF)
+            return true;
+            
+        // Specific standalone emoji characters
+        // Copyright, Registered, Trademark
+        if (codePoint == 0x00A9 || codePoint == 0x00AE || codePoint == 0x2122)
+            return true;
+        // Information source (ℹ️)
+        if (codePoint == 0x2139)
+            return true;
+        // Left/right arrows (↩️↪️)
+        if (codePoint == 0x21A9 || codePoint == 0x21AA)
+            return true;
+        // Watch and hourglass
+        if (codePoint == 0x231A || codePoint == 0x231B)
+            return true;
+        // Keyboard (⌨️)
+        if (codePoint == 0x2328)
+            return true;
+        // Eject symbol (⏏️)
+        if (codePoint >= 0x23CF && codePoint <= 0x23F3)
+            return true;
+        // Media control symbols (⏩⏪⏫⏬ etc)
+        if (codePoint >= 0x23E9 && codePoint <= 0x23F3)
+            return true;
+        // Alarm clock, stopwatch, timer
+        if (codePoint >= 0x23F0 && codePoint <= 0x23F3)
+            return true;
+        // Additional media controls
+        if (codePoint >= 0x23F8 && codePoint <= 0x23FA)
+            return true;
+        // Scales, alembic, etc
+        if (codePoint == 0x2696 || codePoint == 0x2697 || codePoint == 0x2699)
+            return true;
+        // Black and white circles/squares as emoji
+        if (codePoint == 0x25AA || codePoint == 0x25AB || codePoint == 0x25B6 || codePoint == 0x25C0)
+            return true;
+        // Larger geometric shapes  
+        if (codePoint >= 0x25FB && codePoint <= 0x25FE)
             return true;
             
         return false;

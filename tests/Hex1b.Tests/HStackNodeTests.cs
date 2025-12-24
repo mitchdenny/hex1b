@@ -205,7 +205,7 @@ public class HStackNodeTests
         focusRing.Rebuild(node);
         var routerState = new InputRouterState();
 
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(button1.IsFocused);
@@ -228,7 +228,7 @@ public class HStackNodeTests
         var routerState2 = new InputRouterState();
 
         // Shift-tab from button1 should wrap to button2
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
         Assert.False(button1.IsFocused);
         Assert.True(button2.IsFocused);
@@ -247,7 +247,7 @@ public class HStackNodeTests
         var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
         Assert.True(clicked);
     }
@@ -356,12 +356,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
@@ -390,14 +391,15 @@ public class HStackNodeTests
         );
 
         // Tab to second button and click
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Btn1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.False(button1Clicked);
@@ -422,12 +424,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("A"));
@@ -458,12 +461,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right Bottom"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Top"));
@@ -493,15 +497,16 @@ public class HStackNodeTests
         );
 
         // Type in textbox then tab to button and click
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(2))
             .Type("Hi")
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("Hi", text);
@@ -522,12 +527,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Should complete without error - test is that we didn't throw
@@ -550,12 +556,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("VeryLongWord"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Content wraps at terminal boundary
@@ -577,12 +584,13 @@ public class HStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[C]"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("[A]"));
@@ -615,14 +623,15 @@ public class HStackNodeTests
         );
 
         // List starts focused; Tab should bubble up to HStack and move to Button
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Add"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(rightButtonClicked, "Tab should have moved focus from List in left VStack to Button in right VStack");
@@ -649,14 +658,15 @@ public class HStackNodeTests
         );
 
         // Button 1 starts focused
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.False(button1Clicked);
@@ -696,16 +706,17 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()   // List -> TextBox (enters VStack)
             .Tab()   // TextBox -> Add (within VStack)
             .Tab()   // Add -> Other (escapes VStack at boundary!)
             .Enter() // Click Other button
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.False(listClicked);
@@ -740,15 +751,16 @@ public class HStackNodeTests
         );
 
         // List button starts focused
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()                    // List -> TextBox (enters VStack)
             .Shift().Tab()            // TextBox -> List (escapes VStack!)
             .Enter()                  // Click List button
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(listClicked, "Shift+Tab at first VStack item should escape back to previous HStack child");

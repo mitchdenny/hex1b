@@ -13,9 +13,10 @@ public sealed record WaitUntilStep(
         Hex1bTestSequenceOptions options,
         CancellationToken ct)
     {
-        var deadline = DateTimeOffset.UtcNow + Timeout;
+        var timeProvider = options.TimeProvider ?? TimeProvider.System;
+        var deadline = timeProvider.GetUtcNow() + Timeout;
 
-        while (DateTimeOffset.UtcNow < deadline)
+        while (timeProvider.GetUtcNow() < deadline)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -25,7 +26,7 @@ public sealed record WaitUntilStep(
             if (Predicate(snapshot))
                 return;
 
-            await Task.Delay(options.PollInterval, ct);
+            await DelayAsync(timeProvider, options.PollInterval, ct);
         }
 
         // Timeout - capture final state for diagnostics

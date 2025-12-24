@@ -21,7 +21,15 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
             
             if (DelayBetweenKeys > TimeSpan.Zero)
             {
-                await Task.Delay(DelayBetweenKeys, ct);
+                if (options.TimeProvider is { } timeProvider)
+                {
+                    await DelayAsync(timeProvider, DelayBetweenKeys, ct);
+                    terminal.FlushOutput();
+                }
+                else
+                {
+                    await Task.Delay(DelayBetweenKeys, ct);
+                }
             }
         }
     }

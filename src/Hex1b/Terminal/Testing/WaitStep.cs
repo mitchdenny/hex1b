@@ -10,6 +10,16 @@ public sealed record WaitStep(TimeSpan Duration) : TestStep
         Hex1bTestSequenceOptions options,
         CancellationToken ct)
     {
-        await Task.Delay(Duration, ct);
+        if (options.TimeProvider is { } timeProvider)
+        {
+            // Use TimeProvider-based delay - when using FakeTimeProvider, the test
+            // should advance time externally to complete this delay
+            await DelayAsync(timeProvider, Duration, ct);
+            terminal.FlushOutput();
+        }
+        else
+        {
+            await Task.Delay(Duration, ct);
+        }
     }
 }

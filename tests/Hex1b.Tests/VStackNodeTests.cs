@@ -208,7 +208,7 @@ public class VStackNodeTests
         focusRing.Rebuild(node);
         var routerState = new InputRouterState();
 
-        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState);
+        var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.False(textBox1.IsFocused);
@@ -231,7 +231,7 @@ public class VStackNodeTests
         var routerState2 = new InputRouterState();
 
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
         Assert.True(textBox1.IsFocused);
         Assert.False(textBox2.IsFocused);
@@ -250,7 +250,7 @@ public class VStackNodeTests
         var routerState = new InputRouterState();
 
         // Use InputRouter to route input to the focused child
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing, routerState);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("helloX", textBox.Text);
     }
@@ -271,7 +271,7 @@ public class VStackNodeTests
         var routerState2 = new InputRouterState();
 
         // button2 starts focused at index 1, one Tab wraps to index 0
-        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState2);
+        await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
         Assert.True(button1.IsFocused);
         Assert.False(button2.IsFocused);
@@ -380,12 +380,13 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
@@ -415,7 +416,7 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Type in first box, wait for it to appear, tab to second, type, etc.
         await new Hex1bTestSequenceBuilder()
@@ -428,9 +429,10 @@ public class VStackNodeTests
             .Tab()
             .Type("3")
             .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("1", text1);
@@ -457,17 +459,18 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Tab forward then shift-tab back - wait for any render to complete
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Length > 0, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Tab()
             .Shift().Tab()
             .Type("A")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Equal("A", text1);
@@ -492,12 +495,13 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
@@ -524,16 +528,17 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Tab to button and click
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(clicked);
@@ -561,12 +566,13 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Outer 1"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Outer 1"));
@@ -589,13 +595,14 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Empty stack - wait for alternate screen mode, then exit
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Should complete without error
@@ -617,12 +624,13 @@ public class VStackNodeTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync();
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));

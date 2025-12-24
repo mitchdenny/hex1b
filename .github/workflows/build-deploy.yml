@@ -10,6 +10,57 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test Results
+          path: ./TestResults/*.trx
+          reporter: dotnet-trx
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: test-results
+          path: ./TestResults/
+
+      - name: Upload SVG attachments
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: svg-attachments
+          path: tests/Hex1b.Tests/bin/Debug/net10.0/TestResults/svg/
+          if-no-files-found: ignore
+
   build-pr:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -70,7 +121,7 @@ jobs:
 
   publish-pr:
     runs-on: ubuntu-latest
-    needs: build-pr
+    needs: [build-pr, test]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -207,7 +258,7 @@ jobs:
 
   publish-release:
     runs-on: ubuntu-latest
-    needs: build-release
+    needs: [build-release, test]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment: production
     permissions:

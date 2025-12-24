@@ -1,10 +1,13 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace Hex1b.Terminal;
 
 /// <summary>
 /// Unix (Linux/macOS) console driver using termios for raw mode.
 /// </summary>
+[SupportedOSPlatform("linux")]
+[SupportedOSPlatform("macos")]
 internal sealed class UnixConsoleDriver : IConsoleDriver
 {
     // File descriptors
@@ -151,7 +154,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
             if (!_inRawMode) return false;
             
             // Use poll() to check if stdin has data
-            var pfd = new pollfd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
+            var pfd = new PollFd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
             var result = poll(ref pfd, 1, 0); // timeout=0 for non-blocking check
             return result > 0 && (pfd.revents & POLLIN) != 0;
         }
@@ -171,7 +174,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
             while (!ct.IsCancellationRequested)
             {
                 // Poll with a short timeout to allow cancellation checks
-                var pfd = new pollfd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
+                var pfd = new PollFd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
                 var pollResult = poll(ref pfd, 1, 100); // 100ms timeout
                 
                 if (pollResult < 0)
@@ -250,7 +253,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         
         // Use poll() to check for and drain any pending input
         var buffer = new byte[256];
-        var pfd = new pollfd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
+        var pfd = new PollFd { fd = STDIN_FILENO, events = POLLIN, revents = 0 };
         
         while (true)
         {
@@ -303,7 +306,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     // P/Invoke for poll()
     [StructLayout(LayoutKind.Sequential)]
-    private struct pollfd
+    private struct PollFd
     {
         public int fd;
         public short events;
@@ -311,5 +314,5 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     }
     
     [DllImport("libc", SetLastError = true)]
-    private static extern int poll(ref pollfd fds, nuint nfds, int timeout);
+    private static extern int poll(ref PollFd fds, nuint nfds, int timeout);
 }

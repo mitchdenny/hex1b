@@ -84,7 +84,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -115,7 +115,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -152,7 +152,7 @@ public class InputRouterTests
         var keyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.S);
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -185,7 +185,7 @@ public class InputRouterTests
         var state = new InputRouterState();
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -208,7 +208,7 @@ public class InputRouterTests
         var state = new InputRouterState();
         
         // Act
-        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.NotHandled, result);
@@ -246,11 +246,11 @@ public class InputRouterTests
         
         // Act - trigger root binding
         var rootKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.R);
-        var rootResult = await InputRouter.RouteInputAsync(rootContainer, rootKeyEvent, focusRing, state);
+        var rootResult = await InputRouter.RouteInputAsync(rootContainer, rootKeyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Act - trigger middle binding
         var middleKeyEvent = Hex1bKeyEvent.WithCtrl(Hex1bKey.M);
-        var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent, focusRing, state);
+        var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.Equal(InputResult.Handled, rootResult);
@@ -331,7 +331,7 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -347,8 +347,8 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - two backspaces
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("hel", state.Text);
@@ -468,7 +468,7 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -484,9 +484,9 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.H, 'H', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.H, 'H', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.I, 'i', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("Hi!", state.Text);
@@ -501,7 +501,7 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = false };
 
         // Act
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.NotHandled, result);
@@ -523,7 +523,7 @@ public class InputRouterTests
         };
 
         // Act
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - key binding should win
         Assert.Equal(InputResult.Handled, result);
@@ -546,7 +546,7 @@ public class InputRouterTests
         };
 
         // Act
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - character binding should handle it
         Assert.Equal(InputResult.Handled, result);
@@ -567,7 +567,7 @@ public class InputRouterTests
         };
 
         // Act - F1 key has no text
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - character binding should not match
         Assert.Equal(InputResult.Handled, result);  // Handled by HandleInput fallback
@@ -588,7 +588,7 @@ public class InputRouterTests
         };
 
         // Act - '5' matches both, but digit comes first
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -609,7 +609,7 @@ public class InputRouterTests
         };
 
         // Act - 'a' doesn't match digit, falls through to any
-        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -644,7 +644,7 @@ public class InputRouterTests
         var state = new InputRouterState();
 
         // Act
-        var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), focusRing, state);
+        var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), focusRing, state, null, TestContext.Current.CancellationToken);
 
         // Assert - only child's character binding should fire (not parent's)
         Assert.Equal(InputResult.Handled, result);
@@ -660,7 +660,7 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert an emoji using FromText (simulating paste or input method)
-        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("😀"));
+        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("😀"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);
@@ -676,9 +676,9 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert multiple emojis
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("👍"));
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🎉"));
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🚀"));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("👍"), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🎉"), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🚀"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("👍🎉🚀", state.Text);
@@ -692,10 +692,10 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - insert various Unicode characters
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'é', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'ñ', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '中', Hex1bModifiers.None));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'é', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, 'ñ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '中', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("éñ中日", state.Text);
@@ -710,7 +710,7 @@ public class InputRouterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Act - paste "World!" as a single event
-        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("World!"));
+        var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("World!"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(InputResult.Handled, result);

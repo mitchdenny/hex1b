@@ -164,7 +164,7 @@ public class RescueFallbackWidgetTests
         // Route Tab 4 times to get from button 1 to button 4
         for (int i = 0; i < 4; i++)
         {
-            var result = await InputRouter.RouteInputAsync(node, tabEvent, focusRing, routerState);
+            var result = await InputRouter.RouteInputAsync(node, tabEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
             System.Console.WriteLine($"Tab {i+1}: result={result}, focused={focusRing.FocusedNode?.GetType().Name}");
             Assert.Equal(InputResult.Handled, result);
         }
@@ -210,7 +210,7 @@ public class RescueFallbackWidgetTests
         var tabEvent = new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None);
         for (int i = 0; i < 4; i++)
         {
-            await InputRouter.RouteInputAsync(node, tabEvent, focusRing, routerState);
+            await InputRouter.RouteInputAsync(node, tabEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
         }
         
         // Verify we're on ScrollNode
@@ -224,7 +224,7 @@ public class RescueFallbackWidgetTests
         
         // Press ArrowDown
         var downEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
-        var result = await InputRouter.RouteInputAsync(node, downEvent, focusRing, routerState);
+        var result = await InputRouter.RouteInputAsync(node, downEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
         
         System.Console.WriteLine($"ArrowDown result: {result}, new offset: {scrollNode.State.Offset}");
         

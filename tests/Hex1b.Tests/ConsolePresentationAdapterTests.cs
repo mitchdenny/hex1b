@@ -1,11 +1,12 @@
 using Hex1b.Terminal;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 
 public class ConsolePresentationAdapterTests
 {
     [Fact]
-    public void Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
+    public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {
         // This test verifies the factory pattern works correctly
         // On unsupported platforms (Windows for now), should throw
@@ -26,7 +27,7 @@ public class ConsolePresentationAdapterTests
                 var adapter = new ConsolePresentationAdapter(enableMouse: false);
                 Assert.NotNull(adapter);
                 // Clean up - must use async dispose
-                adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                await adapter.DisposeAsync();
             }
             catch (Exception ex) when (ex.Message.Contains("TTY") || ex.Message.Contains("terminal") || ex.Message.Contains("tcgetattr"))
             {
@@ -39,7 +40,20 @@ public class ConsolePresentationAdapterTests
     [Fact]
     public void UnixConsoleDriver_OnlyAvailableOnUnixPlatforms()
     {
-        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        if (OperatingSystem.IsLinux())
+        {
+            // Should be able to create the driver (but may fail without TTY)
+            try
+            {
+                using var driver = new UnixConsoleDriver();
+                Assert.NotNull(driver);
+            }
+            catch (Exception ex) when (ex.Message.Contains("TTY") || ex.Message.Contains("tcgetattr"))
+            {
+                // Expected in CI environments without a real TTY
+            }
+        }
+        else if (OperatingSystem.IsMacOS())
         {
             // Should be able to create the driver (but may fail without TTY)
             try
@@ -55,7 +69,10 @@ public class ConsolePresentationAdapterTests
         else
         {
             // On Windows, the driver should throw or not be available
+            // Suppress CA1416 - we're intentionally testing that this throws on unsupported platforms
+#pragma warning disable CA1416
             Assert.Throws<PlatformNotSupportedException>(() => new UnixConsoleDriver());
+#pragma warning restore CA1416
         }
     }
 }
@@ -94,7 +111,7 @@ public class Hex1bTerminalTests_Workload
         
         workload.Write("Hello");
         
-        Assert.Contains("Hello", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
     }
     
     [Fact]

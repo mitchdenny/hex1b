@@ -128,8 +128,12 @@ public sealed class BorderNode : Hex1bNode
             WriteLineClipped(context, x, y + height - 1, bottomLine);
         }
 
-        // Render child content
-        Child?.Render(context);
+        // Render child content - set cursor to child's bounds first
+        if (Child != null)
+        {
+            context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
+            Child.Render(context);
+        }
     }
 
     private static void WriteLineClipped(Hex1bRenderContext context, int x, int y, string text)

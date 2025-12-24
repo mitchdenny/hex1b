@@ -1,13 +1,15 @@
+using Hex1b.Layout;
+
 namespace Hex1b.Terminal.Testing;
 
 /// <summary>
 /// An immutable snapshot of terminal state at a point in time.
 /// Used for assertions and wait conditions in test sequences.
 /// </summary>
-public sealed class Hex1bTerminalSnapshot
+public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 {
     private readonly TerminalCell[,] _cells;
-    private readonly string[] _lineCache;
+    private bool _disposed;
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
     {
@@ -18,17 +20,11 @@ public sealed class Hex1bTerminalSnapshot
         CursorY = terminal.CursorY;
         InAlternateScreen = terminal.InAlternateScreen;
         Timestamp = DateTimeOffset.UtcNow;
-        RawOutput = terminal.RawOutput;
+        CellPixelWidth = terminal.Capabilities.CellPixelWidth;
+        CellPixelHeight = terminal.Capabilities.CellPixelHeight;
 
-        // Get a deep copy of the cell buffer
-        _cells = terminal.GetScreenBuffer();
-
-        // Pre-compute line cache for efficient text operations
-        _lineCache = new string[Height];
-        for (int y = 0; y < Height; y++)
-        {
-            _lineCache[y] = BuildLine(y);
-        }
+        // Get a deep copy of the cell buffer, adding refs for tracked objects
+        _cells = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
     }
 
     /// <summary>
@@ -65,15 +61,18 @@ public sealed class Hex1bTerminalSnapshot
     /// Whether the terminal was in alternate screen mode at snapshot time.
     /// </summary>
     public bool InAlternateScreen { get; }
-
+    
     /// <summary>
-    /// Raw ANSI output at snapshot time.
+    /// Width of a terminal character cell in pixels.
     /// </summary>
-    public string RawOutput { get; }
-
+    public int CellPixelWidth { get; }
+    
     /// <summary>
-    /// Gets the cell at the specified position.
+    /// Height of a terminal character cell in pixels.
     /// </summary>
+    public int CellPixelHeight { get; }
+
+    /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)
     {
         if (x < 0 || x >= Width || y < 0 || y >= Height)
@@ -81,97 +80,34 @@ public sealed class Hex1bTerminalSnapshot
         return _cells[y, x];
     }
 
-    /// <summary>
-    /// Gets the text content of a line.
-    /// </summary>
-    public string GetLine(int y)
+    /// <inheritdoc />
+    public Hex1bTerminalSnapshotRegion GetRegion(Rect bounds)
     {
-        if (y < 0 || y >= Height)
-            return "";
-        return _lineCache[y];
-    }
-
-    /// <summary>
-    /// Gets the text content of a line with trailing whitespace removed.
-    /// </summary>
-    public string GetLineTrimmed(int y) => GetLine(y).TrimEnd();
-
-    /// <summary>
-    /// Checks if the terminal contains the specified text anywhere.
-    /// </summary>
-    public bool ContainsText(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return true;
-
-        for (int y = 0; y < Height; y++)
-        {
-            if (_lineCache[y].Contains(text, StringComparison.Ordinal))
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Gets all non-empty lines from the terminal.
-    /// </summary>
-    public IEnumerable<string> GetNonEmptyLines()
-    {
-        for (int y = 0; y < Height; y++)
-        {
-            var line = GetLineTrimmed(y);
-            if (!string.IsNullOrEmpty(line))
-                yield return line;
-        }
+        return new Hex1bTerminalSnapshotRegion(this, bounds);
     }
 
     /// <summary>
     /// Gets the full screen text with all lines separated by newlines.
     /// </summary>
-    public string GetScreenText()
-    {
-        return string.Join("\n", _lineCache);
-    }
+    /// <remarks>Legacy method for backward compatibility.</remarks>
+    public string GetScreenText() => this.GetText();
 
     /// <summary>
-    /// Gets all lines as a single string for display/debugging (non-empty lines only).
+    /// Releases tracked object references held by this snapshot.
     /// </summary>
-    public string GetDisplayText()
+    public void Dispose()
     {
-        return string.Join("\n", GetNonEmptyLines());
-    }
+        if (_disposed)
+            return;
+        _disposed = true;
 
-    /// <summary>
-    /// Finds all occurrences of the specified text on the screen.
-    /// Returns a list of (line, column) positions.
-    /// </summary>
-    public List<(int Line, int Column)> FindText(string text)
-    {
-        var results = new List<(int, int)>();
-        if (string.IsNullOrEmpty(text))
-            return results;
-
+        // Release all Sixel data references
         for (int y = 0; y < Height; y++)
         {
-            var line = _lineCache[y];
-            var index = 0;
-            while ((index = line.IndexOf(text, index, StringComparison.Ordinal)) >= 0)
+            for (int x = 0; x < Width; x++)
             {
-                results.Add((y, index));
-                index++;
+                _cells[y, x].TrackedSixel?.Release();
             }
         }
-        return results;
-    }
-
-    private string BuildLine(int y)
-    {
-        var chars = new char[Width];
-        for (int x = 0; x < Width; x++)
-        {
-            var cell = _cells[y, x];
-            chars[x] = cell.Character == '\0' ? ' ' : cell.Character;
-        }
-        return new string(chars);
     }
 }

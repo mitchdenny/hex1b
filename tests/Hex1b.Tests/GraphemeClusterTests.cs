@@ -123,7 +123,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "Hello", CursorPosition = 5 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("Hello" + Emoji, state.Text);
         Assert.Equal(7, state.CursorPosition); // Moved by 2 chars
@@ -135,7 +135,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "Test", CursorPosition = 4 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("Test" + EmojiWithSkinTone, state.Text);
         Assert.Equal(4 + EmojiWithSkinTone.Length, state.CursorPosition);
@@ -147,7 +147,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FamilyEmoji));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FamilyEmoji), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(FamilyEmoji, state.Text);
         Assert.Equal(FamilyEmoji.Length, state.CursorPosition);
@@ -159,9 +159,9 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji));
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji));
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(Emoji + FlagEmoji + EmojiWithSkinTone, state.Text);
     }
@@ -174,7 +174,7 @@ public class GraphemeClusterTests
 
         // Insert the combining é after "caf"
         state.CursorPosition = 3;
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(CombiningE));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(CombiningE), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("caf" + CombiningE + "e", state.Text);
     }
@@ -185,7 +185,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "AB", CursorPosition = 1 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("A" + Emoji + "B", state.Text);
         Assert.Equal(1 + Emoji.Length, state.CursorPosition);
@@ -201,7 +201,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("AB", state.Text);
         Assert.Equal(1, state.CursorPosition);
@@ -213,7 +213,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "X" + EmojiWithSkinTone, CursorPosition = 1 + EmojiWithSkinTone.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("X", state.Text);
         Assert.Equal(1, state.CursorPosition);
@@ -225,7 +225,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -237,7 +237,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "Flag: " + FlagEmoji, CursorPosition = 6 + FlagEmoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("Flag: ", state.Text);
         Assert.Equal(6, state.CursorPosition);
@@ -249,7 +249,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "caf" + CombiningE, CursorPosition = 3 + CombiningE.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("caf", state.Text);
         Assert.Equal(3, state.CursorPosition);
@@ -261,7 +261,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = MultipleCombining, CursorPosition = MultipleCombining.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -278,7 +278,7 @@ public class GraphemeClusterTests
         state.CursorPosition = 2; // After A and first char of emoji
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Result should be valid text (no broken surrogate pairs)
         var enumerator = StringInfo.GetTextElementEnumerator(state.Text);
@@ -296,7 +296,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "AB" + Emoji, CursorPosition = 2 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("A" + Emoji, state.Text);
         Assert.Equal(1, state.CursorPosition);
@@ -309,15 +309,15 @@ public class GraphemeClusterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Delete flag
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         Assert.Equal("X" + Emoji, state.Text);
 
         // Delete emoji
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         Assert.Equal("X", state.Text);
 
         // Delete X
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         Assert.Equal("", state.Text);
     }
 
@@ -331,7 +331,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = Emoji + "B", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("B", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -343,7 +343,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "X" + EmojiWithSkinTone + "Y", CursorPosition = 1 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("XY", state.Text);
         Assert.Equal(1, state.CursorPosition);
@@ -355,7 +355,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = FamilyEmoji + "!", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("!", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -367,7 +367,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = CombiningE + "x", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("x", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -379,7 +379,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = Emoji + "AB", CursorPosition = Emoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(Emoji + "B", state.Text);
         Assert.Equal(Emoji.Length, state.CursorPosition);
@@ -395,7 +395,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Cursor should be before the emoji, not in the middle of it
         Assert.Equal(1, state.CursorPosition);
@@ -407,7 +407,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Cursor should be after the emoji
         Assert.Equal(1 + Emoji.Length, state.CursorPosition);
@@ -419,7 +419,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, state.CursorPosition);
     }
@@ -430,7 +430,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(FamilyEmoji.Length, state.CursorPosition);
     }
@@ -441,7 +441,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "a" + CombiningE + "b", CursorPosition = 1 + CombiningE.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, state.CursorPosition);
     }
@@ -452,7 +452,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "a" + CombiningE + "b", CursorPosition = 1 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(1 + CombiningE.Length, state.CursorPosition);
     }
@@ -469,7 +469,7 @@ public class GraphemeClusterTests
         // Move left through entire text
         while (state.CursorPosition > 0)
         {
-            await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+            await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
             Assert.Contains(state.CursorPosition, validPositions);
         }
     }
@@ -486,7 +486,7 @@ public class GraphemeClusterTests
         // Move right through entire text
         while (state.CursorPosition < text.Length)
         {
-            await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+            await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
             Assert.Contains(state.CursorPosition, validPositions);
         }
     }
@@ -501,7 +501,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(state.HasSelection);
         Assert.Equal(Emoji, state.SelectedText);
@@ -514,7 +514,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(state.HasSelection);
         Assert.Equal(Emoji, state.SelectedText);
@@ -527,7 +527,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(state.HasSelection);
         Assert.Equal(FamilyEmoji, state.SelectedText);
@@ -540,10 +540,10 @@ public class GraphemeClusterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Select right over emoji
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
         
         // Delete selection
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("AB", state.Text);
         Assert.Equal(1, state.CursorPosition);
@@ -558,13 +558,13 @@ public class GraphemeClusterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Select right over both emojis
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
         
         Assert.Equal(Emoji + FlagEmoji, state.SelectedText);
 
         // Delete selection
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("AB", state.Text);
     }
@@ -576,7 +576,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = text, CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
         Assert.True(state.HasSelection);
         Assert.Equal(text, state.SelectedText);
@@ -589,10 +589,10 @@ public class GraphemeClusterTests
         var node = new TextBoxNode { State = state, IsFocused = true };
 
         // Select the emoji
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
         
         // Type replacement text
-        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji));
+        await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("A" + FlagEmoji + "B", state.Text);
         Assert.Equal(1 + FlagEmoji.Length, state.CursorPosition);
@@ -644,7 +644,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -656,7 +656,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal("", state.Text);
         Assert.Equal(0, state.CursorPosition);
@@ -668,7 +668,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = Emoji, CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, state.CursorPosition);
     }
@@ -679,7 +679,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = Emoji, CursorPosition = Emoji.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(Emoji.Length, state.CursorPosition);
     }
@@ -691,7 +691,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = text, CursorPosition = text.Length };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, state.CursorPosition);
     }
@@ -703,7 +703,7 @@ public class GraphemeClusterTests
         var state = new TextBoxState { Text = text, CursorPosition = 0 };
         var node = new TextBoxNode { State = state, IsFocused = true };
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(text.Length, state.CursorPosition);
     }

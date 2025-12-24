@@ -198,20 +198,6 @@ public class Hex1bTerminalTests
     }
 
     [Fact]
-    public void RawOutput_CapturesEverything()
-    {
-        using var workload = new Hex1bAppWorkloadAdapter();
-
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
-        
-        workload.Write("Hello\x1b[31mRed\x1b[0mNormal");
-        
-        var raw = terminal.CreateSnapshot().RawOutput;
-        Assert.Contains("\x1b[31m", raw);
-        Assert.Contains("\x1b[0m", raw);
-    }
-
-    [Fact]
     public void AnsiSequences_AreProcessedButNotDisplayed()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -260,7 +246,7 @@ public class Hex1bTerminalTests
         
         var buffer = terminal.GetScreenBuffer();
         
-        Assert.Equal('R', buffer[0, 0].Character);
+        Assert.Equal("R", buffer[0, 0].Character);
         Assert.NotNull(buffer[0, 0].Foreground);
         Assert.Equal(255, buffer[0, 0].Foreground!.Value.R);
         Assert.Equal(0, buffer[0, 0].Foreground!.Value.G);
@@ -317,7 +303,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Now call ResizeAsync again (simulating a terminal resize)
-        await workload.ResizeAsync(100, 30);
+        await workload.ResizeAsync(100, 30, TestContext.Current.CancellationToken);
         
         // This should fire a resize event
         var hasEvent = workload.InputEvents.TryRead(out var evt);
@@ -335,7 +321,7 @@ public class Hex1bTerminalTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Resize to same dimensions
-        await workload.ResizeAsync(80, 24);
+        await workload.ResizeAsync(80, 24, TestContext.Current.CancellationToken);
         
         // Should NOT fire event (no change)
         var hasEvent = workload.InputEvents.TryRead(out _);

@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 

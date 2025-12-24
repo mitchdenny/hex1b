@@ -52,7 +52,7 @@ public class TestWidgetTests
         var runTask = appInstance.RunAsync(cts.Token);
 
         // Wait for initial render then stop the app
-        await firstRenderTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstRenderTcs.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         appInstance.RequestStop();
 
         await runTask;

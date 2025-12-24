@@ -13,4 +13,25 @@ public abstract record TestStep
         Hex1bTerminal terminal,
         Hex1bTestSequenceOptions options,
         CancellationToken ct);
+
+    /// <summary>
+    /// Creates a delay using the specified TimeProvider.
+    /// When using FakeTimeProvider, the test must advance time externally.
+    /// </summary>
+    protected static Task DelayAsync(TimeProvider timeProvider, TimeSpan delay, CancellationToken ct)
+    {
+        if (delay <= TimeSpan.Zero)
+            return Task.CompletedTask;
+
+        var tcs = new TaskCompletionSource();
+        using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+        
+        var timer = timeProvider.CreateTimer(
+            _ => tcs.TrySetResult(),
+            null,
+            delay,
+            Timeout.InfiniteTimeSpan);
+        
+        return tcs.Task.ContinueWith(_ => timer.Dispose(), CancellationToken.None);
+    }
 }
