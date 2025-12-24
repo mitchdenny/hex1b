@@ -540,4 +540,46 @@ public class Hex1bAppIntegrationTests
         await runTask;
     }
 
+    [Fact]
+    public async Task App_DisableDirtyRenderingOptimization_RendersAllNodes()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var counter = 0;
+        
+        using var app = new Hex1bApp(
+            ctx => 
+            {
+                var widget = new VStackWidget(new Hex1bWidget[]
+                {
+                    new TextBlockWidget($"Count: {counter}"),
+                    new ButtonWidget("Increment").OnClick(_ => { counter++; return Task.CompletedTask; })
+                });
+                return Task.FromResult<Hex1bWidget>(widget);
+            },
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = workload,
+                DisableDirtyRenderingOptimization = true  // Disable optimization
+            }
+        );
+
+        // Click the button and verify rendering still works
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Count: 1"), TimeSpan.FromSeconds(2))
+            .Capture("after_increment")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        Assert.Equal(1, counter);
+        // Verify the updated content was rendered even with optimization disabled
+        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 1"));
+    }
+
 }

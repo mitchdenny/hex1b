@@ -101,6 +101,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Default CTRL-C binding option
     private readonly bool _enableDefaultCtrlCExit;
+    
+    // Dirty rendering optimization option
+    private readonly bool _disableDirtyRenderingOptimization;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -145,6 +148,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Default CTRL-C binding option
         _enableDefaultCtrlCExit = options.EnableDefaultCtrlCExit;
+        
+        // Dirty rendering optimization option
+        _disableDirtyRenderingOptimization = options.DisableDirtyRenderingOptimization;
     }
 
     /// <summary>
@@ -389,9 +395,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// - If a node is dirty, render it (which includes its children)
     /// - If a node is clean but has dirty descendants, traverse children
     /// - If a subtree is entirely clean, skip it
+    /// - If dirty rendering optimization is disabled, always render all nodes
     /// </remarks>
     private void RenderTree(Hex1bNode node)
     {
+        // If dirty rendering optimization is disabled, always render all nodes
+        if (_disableDirtyRenderingOptimization)
+        {
+            _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
+            node.Render(_context);
+            return;
+        }
+        
         // If this subtree has no dirty nodes, skip it entirely
         if (!node.NeedsRender())
         {

@@ -62,4 +62,12 @@ public class Hex1bAppOptions
     /// Default is true.
     /// </summary>
     public bool EnableDefaultCtrlCExit { get; set; } = true;
+    
+    /// <summary>
+    /// Whether to disable the dirty rendering optimization that skips rendering clean nodes.
+    /// When enabled (true), all nodes will be re-rendered every frame regardless of their dirty state.
+    /// This can be useful for debugging rendering issues or when dirty tracking is unreliable.
+    /// Default is false (optimization enabled).
+    /// </summary>
+    public bool DisableDirtyRenderingOptimization { get; set; }
 }
