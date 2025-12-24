@@ -3,6 +3,7 @@ using Hex1b.Website;
 using Hex1b.Website.Examples;
 using Hex1b;
 using Hex1b.Terminal;
+using Microsoft.AspNetCore.Rewrite;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,6 +48,35 @@ var app = builder.Build();
 
 // Enable WebSockets
 app.UseWebSockets();
+
+// Configure URL rewriting for VitePress clean URLs
+var rewriteOptions = new RewriteOptions()
+    .Add(context =>
+    {
+        var request = context.HttpContext.Request;
+        var path = request.Path.Value ?? "";
+        
+        // Skip if it's an API endpoint, WebSocket endpoint, or already has an extension
+        if (path.StartsWith("/api") || 
+            path.StartsWith("/apps") || 
+            path.StartsWith("/examples") ||
+            path.StartsWith("/health") ||
+            Path.HasExtension(path))
+        {
+            return;
+        }
+        
+        // For clean URLs, try to find the corresponding .html file
+        var htmlPath = path + ".html";
+        var fileInfo = app.Environment.WebRootFileProvider.GetFileInfo(htmlPath);
+        
+        if (fileInfo.Exists)
+        {
+            request.Path = htmlPath;
+        }
+    });
+
+app.UseRewriter(rewriteOptions);
 
 // Serve static files (index.html)
 app.UseDefaultFiles();
