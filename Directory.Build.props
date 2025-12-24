@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <!-- 
+      Version is set via environment variable HEX1B_VERSION during CI/CD builds.
+      For local development, this will be empty and the default "1.0.0" will be used,
+      which triggers the VersionService to use git tags instead.
+    -->
+    <Hex1bVersion>$(HEX1B_VERSION)</Hex1bVersion>
+    <Hex1bVersion Condition="'$(Hex1bVersion)' == ''">1.0.0</Hex1bVersion>
+    
+    <!-- Set informational version for assemblies that need it -->
+    <InformationalVersion>$(Hex1bVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

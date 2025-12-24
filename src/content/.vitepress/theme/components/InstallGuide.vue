@@ -1,52 +1,77 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { codeToHtml } from 'shiki'
 
 interface InstallOption {
   id: string
   label: string
-  code: string
+  codeTemplate: string
   lang: string
 }
 
-const options: InstallOption[] = [
+const optionTemplates: InstallOption[] = [
   {
     id: 'dotnet-cli',
     label: '.NET CLI',
-    code: 'dotnet add package Hex1b@0.1.0',
+    codeTemplate: 'dotnet add package Hex1b@{{version}}',
     lang: 'bash'
   },
   {
     id: 'package-reference',
     label: 'PackageReference',
-    code: '<PackageReference Include="Hex1b" Version="0.1.0" />',
+    codeTemplate: '<PackageReference Include="Hex1b" Version="{{version}}" />',
     lang: 'xml'
   },
   {
     id: 'file-apps',
     label: 'File-based apps',
-    code: '#:package Hex1b@0.1.0',
+    codeTemplate: '#:package Hex1b@{{version}}',
     lang: 'csharp'
   }
 ]
 
+const packageVersion = ref('0.1.0')
 const selectedOption = ref('dotnet-cli')
 const highlightedCode = ref<Record<string, string>>({})
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 
-const currentOption = computed(() => options.find(o => o.id === selectedOption.value))
+const options = computed(() => optionTemplates.map(opt => ({
+  ...opt,
+  code: opt.codeTemplate.replace('{{version}}', packageVersion.value)
+})))
+
+const currentOption = computed(() => options.value.find(o => o.id === selectedOption.value))
 const currentCode = computed(() => highlightedCode.value[selectedOption.value])
 const currentCodeFallback = computed(() => currentOption.value?.code || '')
 
+async function fetchVersion() {
+  try {
+    const response = await fetch('/api/version')
+    if (response.ok) {
+      const data = await response.json()
+      if (data.version) {
+        packageVersion.value = data.version
+      }
+    }
+  } catch {
+    // Use default version on error
+  }
+}
+
 async function highlightOptions() {
-  for (const option of options) {
+  for (const option of options.value) {
     highlightedCode.value[option.id] = await codeToHtml(option.code, {
       lang: option.lang,
       theme: 'github-dark'
     })
   }
 }
+
+// Re-highlight when version changes
+watch(packageVersion, () => {
+  highlightOptions()
+})
 
 function selectOption(id: string) {
   selectedOption.value = id
@@ -58,7 +83,7 @@ function toggleDropdown() {
 }
 
 function copyToClipboard() {
-  const option = options.find(o => o.id === selectedOption.value)
+  const option = options.value.find(o => o.id === selectedOption.value)
   if (option) {
     navigator.clipboard.writeText(option.code)
   }
@@ -71,6 +96,7 @@ function handleClickOutside(event: MouseEvent) {
 }
 
 onMounted(() => {
+  fetchVersion()
   highlightOptions()
   document.addEventListener('click', handleClickOutside)
 })

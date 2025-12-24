@@ -1,6 +1,6 @@
 ```vue
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { codeToHtml } from 'shiki'
 import FloatingTerminal from './FloatingTerminal.vue'
 
@@ -10,10 +10,33 @@ const props = defineProps<{
   title?: string
 }>()
 
+const packageVersion = ref<string | null>(null)
 const highlightedCode = ref<string>('')
 const copied = ref(false)
 const terminalRef = ref<InstanceType<typeof FloatingTerminal> | null>(null)
 const backendAvailable = ref(false)
+
+// Replace {{version}} placeholder with the actual version
+const resolvedCommand = computed(() => {
+  if (packageVersion.value && props.command.includes('{{version}}')) {
+    return props.command.replace(/\{\{version\}\}/g, packageVersion.value)
+  }
+  return props.command
+})
+
+async function fetchVersion() {
+  try {
+    const response = await fetch('/api/version')
+    if (response.ok) {
+      const data = await response.json()
+      if (data.version) {
+        packageVersion.value = data.version
+      }
+    }
+  } catch {
+    // Use command as-is on error
+  }
+}
 
 async function checkBackend() {
   try {
@@ -25,14 +48,19 @@ async function checkBackend() {
 }
 
 async function highlightCommand() {
-  highlightedCode.value = await codeToHtml(props.command, {
+  highlightedCode.value = await codeToHtml(resolvedCommand.value, {
     lang: 'bash',
     theme: 'github-dark'
   })
 }
 
+// Re-highlight when resolved command changes
+watch(resolvedCommand, () => {
+  highlightCommand()
+})
+
 function copyToClipboard() {
-  navigator.clipboard.writeText(props.command)
+  navigator.clipboard.writeText(resolvedCommand.value)
   copied.value = true
   setTimeout(() => {
     copied.value = false
@@ -46,6 +74,10 @@ function openDemo() {
 }
 
 onMounted(() => {
+  // Fetch version if command contains the placeholder
+  if (props.command.includes('{{version}}')) {
+    fetchVersion()
+  }
   highlightCommand()
   if (props.example) {
     checkBackend()
@@ -68,7 +100,7 @@ onMounted(() => {
           class="code-display"
           v-html="highlightedCode"
         ></div>
-        <code v-else class="code-fallback">{{ command }}</code>
+        <code v-else class="code-fallback">{{ resolvedCommand }}</code>
       </div>
       <button class="copy-button" @click="copyToClipboard" :title="copied ? 'Copied!' : 'Copy command'">
         <svg v-if="!copied" class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

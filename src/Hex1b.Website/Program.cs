@@ -8,6 +8,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+// Register memory cache and HTTP client for version service
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("NuGet", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+// Register version service as both a singleton and a hosted background service
+builder.Services.AddSingleton<VersionService>();
+builder.Services.AddSingleton<IVersionService>(sp => sp.GetRequiredService<VersionService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<VersionService>());
+
 // Register all gallery examples
 builder.Services.AddSingleton<IGalleryExample, MinimalExample>();
 builder.Services.AddSingleton<IGalleryExample, TodoExample>();
@@ -39,6 +51,12 @@ app.UseWebSockets();
 // Serve static files (index.html)
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+// API endpoint for version info
+app.MapGet("/api/version", (IVersionService versionService) => new
+{
+    version = versionService.Version
+});
 
 // API endpoint to list all examples (new URL)
 app.MapGet("/examples", (IEnumerable<IGalleryExample> examples, HttpRequest request) =>

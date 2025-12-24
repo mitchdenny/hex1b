@@ -96,6 +96,11 @@ export default defineConfig({
     },
     server: {
       proxy: {
+        '/api': {
+          target: process.env.WEBSITE_HTTPS || process.env.WEBSITE_HTTP || 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false
+        },
         '/apps': {
           target: process.env.WEBSITE_HTTPS || process.env.WEBSITE_HTTP || 'http://localhost:5000',
           changeOrigin: true,
