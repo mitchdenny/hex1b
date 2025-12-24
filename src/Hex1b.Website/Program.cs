@@ -67,7 +67,9 @@ var rewriteOptions = new RewriteOptions()
         }
         
         // For clean URLs, try to find the corresponding .html file
-        var htmlPath = path + ".html";
+        // Remove trailing slash if present
+        var cleanPath = path.TrimEnd('/');
+        var htmlPath = cleanPath + ".html";
         var fileInfo = app.Environment.WebRootFileProvider.GetFileInfo(htmlPath);
         
         if (fileInfo.Exists)
