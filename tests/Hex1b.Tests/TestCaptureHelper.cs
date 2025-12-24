@@ -197,25 +197,28 @@ public static class TestCaptureHelper
 
     /// <summary>
     /// Sanitizes a string for use as a file or directory name.
+    /// Uses a stricter character set to ensure compatibility across platforms and artifact uploads.
     /// </summary>
     private static string SanitizeFileName(string name)
     {
-        var invalidChars = Path.GetInvalidFileNameChars();
         var result = new System.Text.StringBuilder(name.Length);
         
         foreach (var c in name)
         {
-            if (Array.IndexOf(invalidChars, c) >= 0)
+            // Only allow alphanumerics, dash, underscore, and dot
+            // This is stricter than what filesystems allow but ensures compatibility
+            // with artifact uploads, URLs, and cross-platform scenarios
+            if (char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.')
             {
-                result.Append('_');
+                result.Append(c);
             }
-            else if (c == '"')
+            else if (c == ' ')
             {
-                result.Append('\'');
+                result.Append('-');
             }
             else
             {
-                result.Append(c);
+                // Skip other characters (colons, parentheses, quotes, etc.)
             }
         }
         
