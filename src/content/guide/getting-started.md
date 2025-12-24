@@ -204,7 +204,7 @@ First, create a new console application:
 
 Add the Hex1b package to your project:
 
-<TerminalCommand command="dotnet add package Hex1b" />
+<TerminalCommand command="dotnet add package Hex1b --version {{version}}" />
 
 ## Step 1: Hello World
 
