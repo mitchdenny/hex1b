@@ -142,8 +142,8 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
             if (text != _lastNonCellSequence)
             {
                 await _inner.WriteOutputAsync(data, ct);
-                _lastNonCellSequence = text;
                 UpdateCachedState(text);
+                _lastNonCellSequence = text;
             }
             // else: suppress - same non-cell-modifying sequence sent twice
         }
@@ -156,6 +156,7 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
     {
         // Create a temporary state to simulate the output
         var testState = new TerminalCell[_height, _width];
+        // Array.Copy copies the entire backing storage of the 2D array in one operation
         Array.Copy(_lastSentState, testState, _lastSentState.Length);
         
         // Create a temporary terminal emulator to process the output
@@ -258,6 +259,8 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
         private Hex1bColor? _currentBackground;
         private CellAttributes _currentAttributes;
 
+        private const int FirstPrintableChar = 32;
+
         public AnsiEmulator(int width, int height, TerminalCell[,] cells)
         {
             _width = width;
@@ -290,7 +293,7 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
                     _cursorX = 0;
                     i++;
                 }
-                else if (text[i] >= 32) // Printable character
+                else if (text[i] >= FirstPrintableChar) // Printable character
                 {
                     if (_cursorY >= _height)
                     {
@@ -352,7 +355,8 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
                     break;
                 case 'h':
                 case 'l':
-                    if (parameters.Contains("?1049"))
+                    // More precise check for alternate screen sequence
+                    if (parameters == "?1049" || parameters.StartsWith("?1049;"))
                     {
                         if (command == 'h')
                         {
@@ -502,6 +506,7 @@ public sealed class OptimizedPresentationAdapter : IHex1bTerminalPresentationAda
             }
             _currentForeground = null;
             _currentBackground = null;
+            _currentAttributes = CellAttributes.None;
         }
 
         private void ClearFromCursor()
