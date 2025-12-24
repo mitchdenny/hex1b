@@ -175,6 +175,27 @@ onMounted(() => {
   background: linear-gradient(135deg, #4ecdc4 0%, #44a8a0 100%);
   padding: 14px 16px;
   overflow-x: auto;
+  scrollbar-width: thin; /* Firefox - thin scrollbar */
+  scrollbar-color: #3d9690 #44a8a0; /* Firefox - thumb and track colors */
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.command-content::-webkit-scrollbar {
+  height: 8px; /* Thin scrollbar */
+}
+
+.command-content::-webkit-scrollbar-track {
+  background: #44a8a0; /* Match the darker part of the gradient */
+  border-radius: 4px;
+}
+
+.command-content::-webkit-scrollbar-thumb {
+  background: #3d9690; /* Darker teal for the thumb */
+  border-radius: 4px;
+}
+
+.command-content::-webkit-scrollbar-thumb:hover {
+  background: #2d7e78; /* Even darker on hover */
 }
 
 .code-display :deep(pre) {
