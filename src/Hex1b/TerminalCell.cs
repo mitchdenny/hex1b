@@ -13,6 +13,7 @@ namespace Hex1b;
 /// <param name="Sequence">The write order of this cell. Higher values were written later. Used for z-ordering during rendering.</param>
 /// <param name="WrittenAt">The timestamp when this cell was written. Useful for debugging and future animation features.</param>
 /// <param name="TrackedSixel">Optional tracked reference to Sixel graphics data associated with this cell.</param>
+/// <param name="TrackedHyperlink">Optional tracked reference to hyperlink data associated with this cell.</param>
 public readonly record struct TerminalCell(
     string Character,
     Hex1bColor? Foreground,
@@ -20,7 +21,8 @@ public readonly record struct TerminalCell(
     CellAttributes Attributes = CellAttributes.None,
     long Sequence = 0,
     DateTimeOffset WrittenAt = default,
-    TrackedObject<SixelData>? TrackedSixel = null)
+    TrackedObject<SixelData>? TrackedSixel = null,
+    TrackedObject<HyperlinkData>? TrackedHyperlink = null)
 {
     /// <summary>An empty cell with default attributes.</summary>
     public static readonly TerminalCell Empty = new(" ", null, null, CellAttributes.None, 0, default);
@@ -60,4 +62,10 @@ public readonly record struct TerminalCell(
 
     /// <summary>Gets whether this cell has associated Sixel data.</summary>
     public bool HasSixelData => TrackedSixel is not null;
+
+    /// <summary>Gets the hyperlink data if this cell has any, otherwise null.</summary>
+    public HyperlinkData? HyperlinkData => TrackedHyperlink?.Data;
+
+    /// <summary>Gets whether this cell has associated hyperlink data.</summary>
+    public bool HasHyperlinkData => TrackedHyperlink is not null;
 }

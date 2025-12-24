@@ -412,6 +412,7 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      const seqInfo = cell.seq ? `Seq: ${cell.seq}` : 'Seq: 0';");
         sb.AppendLine("      const timeInfo = cell.t ? new Date(cell.t).toLocaleTimeString() : '-';");
         sb.AppendLine("      const hasSixel = cell.sixel;");
+        sb.AppendLine("      const hasLink = cell.link;");
         sb.AppendLine();
         sb.AppendLine("      return `");
         sb.AppendLine("        <div class=\"tooltip-header\">");
@@ -453,6 +454,14 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("          <div class=\"tooltip-value\">");
         sb.AppendLine("            ${cell.sixel.origin ? '<span class=\"attr-badge\" style=\"background:#4e9a06\">Origin</span>' : '<span class=\"attr-badge\">Continuation</span>'}");
         sb.AppendLine("            ${cell.sixel.w}×${cell.sixel.h} cells");
+        sb.AppendLine("          </div>");
+        sb.AppendLine("        </div>` : ''}");
+        sb.AppendLine("        ${hasLink ? `");
+        sb.AppendLine("        <div class=\"tooltip-section\">");
+        sb.AppendLine("          <div class=\"tooltip-label\">Hyperlink (OSC 8)</div>");
+        sb.AppendLine("          <div class=\"tooltip-value\">");
+        sb.AppendLine("            <a href=\"${cell.link.uri}\" target=\"_blank\" style=\"color:#00d4ff;text-decoration:underline;word-break:break-all\">${cell.link.uri}</a>");
+        sb.AppendLine("            ${cell.link.params ? `<br><span style=\"color:#888;font-size:11px\">Params: ${cell.link.params}</span>` : ''}");
         sb.AppendLine("          </div>");
         sb.AppendLine("        </div>` : ''}");
         sb.AppendLine("      `;");
@@ -678,7 +687,12 @@ public static class TerminalRegionHtmlExtensions
                     ? $"{{\"origin\":{(cell.IsSixel ? "true" : "false")},\"w\":{cell.SixelData.WidthInCells},\"h\":{cell.SixelData.HeightInCells}}}"
                     : "null";
 
-                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel}}}");
+                // Include hyperlink data if present
+                var hyperlink = cell.HyperlinkData != null
+                    ? $"{{\"uri\":\"{EscapeJsonString(cell.HyperlinkData.Uri)}\",\"params\":\"{EscapeJsonString(cell.HyperlinkData.Parameters)}\"}}"
+                    : "null";
+
+                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
             }
             rows.Add($"[{string.Join(",", cells)}]");
         }

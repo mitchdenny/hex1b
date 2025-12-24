@@ -19,6 +19,10 @@ internal sealed class TrackedObjectStore
 {
     // Content-addressable storage for Sixel data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<SixelData>> _sixelByHash = new(ByteArrayComparer.Instance);
+    
+    // Content-addressable storage for hyperlink data, keyed by content hash
+    private readonly Dictionary<byte[], TrackedObject<HyperlinkData>> _hyperlinkByHash = new(ByteArrayComparer.Instance);
+    
     private readonly object _lock = new();
 
     /// <summary>
@@ -31,6 +35,20 @@ internal sealed class TrackedObjectStore
             lock (_lock)
             {
                 return _sixelByHash.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the number of tracked hyperlink objects currently in the store.
+    /// </summary>
+    public int HyperlinkCount
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _hyperlinkByHash.Count;
             }
         }
     }
@@ -71,6 +89,40 @@ internal sealed class TrackedObjectStore
     }
 
     /// <summary>
+    /// Gets or creates a tracked hyperlink object for the given URI and parameters.
+    /// If an identical hyperlink already exists, adds a reference and returns it.
+    /// Otherwise, creates a new tracked object with refcount 1.
+    /// </summary>
+    /// <param name="uri">The hyperlink URI.</param>
+    /// <param name="parameters">Optional parameters from the OSC 8 sequence.</param>
+    /// <returns>A tracked hyperlink object (new or existing with added ref).</returns>
+    public TrackedObject<HyperlinkData> GetOrCreateHyperlink(string uri, string parameters)
+    {
+        var hash = HyperlinkData.ComputeHash(uri, parameters);
+
+        lock (_lock)
+        {
+            if (_hyperlinkByHash.TryGetValue(hash, out var existing))
+            {
+                // Found existing - add a reference and return it
+                existing.AddRef();
+                return existing;
+            }
+
+            // Create the data
+            var hyperlinkData = new HyperlinkData(uri, parameters, hash);
+            
+            // Create new tracked wrapper with removal callback
+            var tracked = new TrackedObject<HyperlinkData>(
+                hyperlinkData,
+                onZeroRefs: obj => RemoveHyperlink(obj.Data));
+
+            _hyperlinkByHash[hash] = tracked;
+            return tracked;
+        }
+    }
+
+    /// <summary>
     /// Clears all tracked objects, resetting the store.
     /// </summary>
     /// <remarks>
@@ -82,6 +134,7 @@ internal sealed class TrackedObjectStore
         lock (_lock)
         {
             _sixelByHash.Clear();
+            _hyperlinkByHash.Clear();
         }
     }
 
@@ -90,6 +143,14 @@ internal sealed class TrackedObjectStore
         lock (_lock)
         {
             _sixelByHash.Remove(sixel.ContentHash);
+        }
+    }
+
+    private void RemoveHyperlink(HyperlinkData hyperlink)
+    {
+        lock (_lock)
+        {
+            _hyperlinkByHash.Remove(hyperlink.ContentHash);
         }
     }
 

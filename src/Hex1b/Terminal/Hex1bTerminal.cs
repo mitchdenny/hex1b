@@ -63,6 +63,7 @@ public sealed class Hex1bTerminal : IDisposable
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
     private CellAttributes _currentAttributes;
+    private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
     private bool _inAlternateScreen;
     private Task? _inputProcessingTask;
@@ -694,7 +695,11 @@ public sealed class Hex1bTerminal : IDisposable
         // Release old Sixel data reference
         oldCell.TrackedSixel?.Release();
         
-        // Note: new cell's tracked object already has a reference from GetOrCreateSixel
+        // Release old hyperlink data reference
+        oldCell.TrackedHyperlink?.Release();
+        
+        // Note: new cell's tracked object already has a reference from GetOrCreateSixel/GetOrCreateHyperlink
+        // or was explicitly AddRef'd by the caller before creating the cell
         // No need to AddRef here - the caller is responsible for getting the object
         // with the correct refcount
         
@@ -715,6 +720,12 @@ public sealed class Hex1bTerminal : IDisposable
     /// Useful for testing to verify cleanup behavior.
     /// </summary>
     internal int TrackedSixelCount => _trackedObjects.SixelCount;
+
+    /// <summary>
+    /// Gets the number of tracked hyperlink objects in the store.
+    /// Useful for testing to verify cleanup behavior.
+    /// </summary>
+    internal int TrackedHyperlinkCount => _trackedObjects.HyperlinkCount;
 
     /// <summary>
     /// Gets the Sixel data at the specified cell position, if any.
@@ -758,6 +769,48 @@ public sealed class Hex1bTerminal : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Gets the hyperlink data at the specified cell position, if any.
+    /// Returns null if the cell doesn't contain hyperlink data.
+    /// </summary>
+    internal HyperlinkData? GetHyperlinkDataAt(int x, int y)
+    {
+        FlushOutput();
+        if (x < 0 || x >= _width || y < 0 || y >= _height)
+            return null;
+        return _screenBuffer[y, x].HyperlinkData;
+    }
+
+    /// <summary>
+    /// Gets the tracked hyperlink object at the specified cell position, if any.
+    /// Returns null if the cell doesn't contain hyperlink data.
+    /// Useful for testing reference count behavior.
+    /// </summary>
+    internal TrackedObject<HyperlinkData>? GetTrackedHyperlinkAt(int x, int y)
+    {
+        FlushOutput();
+        if (x < 0 || x >= _width || y < 0 || y >= _height)
+            return null;
+        return _screenBuffer[y, x].TrackedHyperlink;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the screen buffer contains hyperlink data.
+    /// </summary>
+    internal bool ContainsHyperlinkData()
+    {
+        FlushOutput();
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                if (_screenBuffer[y, x].TrackedHyperlink is not null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private void ClearBuffer()
     {
         for (int y = 0; y < _height; y++)
@@ -780,8 +833,14 @@ public sealed class Hex1bTerminal : IDisposable
         int i = 0;
         while (i < text.Length)
         {
+            // Check for OSC sequence (ESC ] or 0x9D) - OSC 8 is for hyperlinks
+            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload))
+            {
+                ProcessOscSequence(oscCommand, oscParams, oscPayload);
+                i += oscConsumed;
+            }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
+            else if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
             {
                 ProcessSixelData(sixelPayload);
                 i += sixelConsumed;
@@ -826,19 +885,26 @@ public sealed class Hex1bTerminal : IDisposable
                     var sequence = ++_writeSequence;
                     var writtenAt = _timeProvider.GetUtcNow();
                     
-                    // Write the grapheme to the current cell
+                    // Add reference to current hyperlink for this character (if any)
+                    // Each character that uses a hyperlink needs its own reference
+                    _currentHyperlink?.AddRef();
+                    
+                    // Write the grapheme to the current cell with current hyperlink if any
                     SetCell(_cursorY, _cursorX, new TerminalCell(
                         grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt));
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
                     
                     // For wide characters (width > 1), fill subsequent cells with continuation markers
                     // Use the same sequence and timestamp so they're part of the same logical write
                     for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                     {
+                        // Add reference for each continuation cell too
+                        _currentHyperlink?.AddRef();
+                        
                         // Use empty string as continuation marker (the previous cell "owns" this space)
                         SetCell(_cursorY, _cursorX + w, new TerminalCell(
                             "", _currentForeground, _currentBackground, _currentAttributes,
-                            sequence, writtenAt));
+                            sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
                     }
                     
                     _cursorX += graphemeWidth;
@@ -1326,6 +1392,129 @@ public sealed class Hex1bTerminal : IDisposable
 
         // Clamp to reasonable bounds
         return (Math.Clamp(width, 1, 200), Math.Clamp(height, 1, 100));
+    }
+
+    /// <summary>
+    /// Tries to parse an OSC (Operating System Command) sequence.
+    /// Format: ESC ] command ; params ; payload ST
+    /// where ST is either ESC \ or BEL (\x07)
+    /// </summary>
+    private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload)
+    {
+        consumed = 0;
+        command = "";
+        parameters = "";
+        payload = "";
+
+        // Check for OSC start: ESC ] (0x1b 0x5d) or 0x9D
+        bool isOscStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == ']')
+        {
+            isOscStart = true;
+            dataStart = start + 2;
+        }
+        else if (text[start] == '\x9d')
+        {
+            isOscStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isOscStart)
+            return false;
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c), BEL (\x07), or 0x9C
+        int dataEnd = -1;
+        int stLength = 0;
+        for (int j = dataStart; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                stLength = 2; // ESC \
+                break;
+            }
+            else if (text[j] == '\x07')
+            {
+                dataEnd = j;
+                stLength = 1; // BEL
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                stLength = 1; // 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        consumed = dataEnd + stLength - start;
+
+        // Extract the OSC data (between ESC ] and ST)
+        var oscData = text.Substring(dataStart, dataEnd - dataStart);
+
+        // Parse OSC data: command ; params ; payload
+        // For OSC 8: 8 ; params ; URI
+        var firstSemicolon = oscData.IndexOf(';');
+        if (firstSemicolon < 0)
+        {
+            // No semicolons - entire thing is command
+            command = oscData;
+            return true;
+        }
+
+        command = oscData.Substring(0, firstSemicolon);
+        
+        var secondSemicolon = oscData.IndexOf(';', firstSemicolon + 1);
+        if (secondSemicolon < 0)
+        {
+            // Only one semicolon - rest is payload
+            payload = oscData.Substring(firstSemicolon + 1);
+            return true;
+        }
+
+        parameters = oscData.Substring(firstSemicolon + 1, secondSemicolon - firstSemicolon - 1);
+        payload = oscData.Substring(secondSemicolon + 1);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Processes an OSC sequence, handling OSC 8 hyperlinks.
+    /// </summary>
+    private void ProcessOscSequence(string command, string parameters, string payload)
+    {
+        // OSC 8 is for hyperlinks
+        if (command == "8")
+        {
+            // Empty payload means end of hyperlink
+            if (string.IsNullOrEmpty(payload))
+            {
+                // Release current hyperlink if any
+                if (_currentHyperlink is not null)
+                {
+                    _currentHyperlink.Release();
+                    _currentHyperlink = null;
+                }
+            }
+            else
+            {
+                // Start a new hyperlink
+                // Release any previous hyperlink first
+                if (_currentHyperlink is not null)
+                {
+                    _currentHyperlink.Release();
+                }
+                
+                // Create or get existing hyperlink
+                _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(payload, parameters);
+            }
+        }
+        // Other OSC commands can be added here in the future
     }
 
     // === Static Input Parsing Helpers ===
