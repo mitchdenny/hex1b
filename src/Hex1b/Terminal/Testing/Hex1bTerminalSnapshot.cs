@@ -6,9 +6,10 @@ namespace Hex1b.Terminal.Testing;
 /// An immutable snapshot of terminal state at a point in time.
 /// Used for assertions and wait conditions in test sequences.
 /// </summary>
-public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion
+public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 {
     private readonly TerminalCell[,] _cells;
+    private bool _disposed;
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
     {
@@ -19,10 +20,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion
         CursorY = terminal.CursorY;
         InAlternateScreen = terminal.InAlternateScreen;
         Timestamp = DateTimeOffset.UtcNow;
-        RawOutput = terminal.RawOutput;
 
-        // Get a deep copy of the cell buffer
-        _cells = terminal.GetScreenBuffer();
+        // Get a deep copy of the cell buffer, adding refs for tracked objects
+        _cells = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
     }
 
     /// <summary>
@@ -60,11 +60,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion
     /// </summary>
     public bool InAlternateScreen { get; }
 
-    /// <summary>
-    /// Raw ANSI output at snapshot time.
-    /// </summary>
-    public string RawOutput { get; }
-
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)
     {
@@ -84,4 +79,23 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion
     /// </summary>
     /// <remarks>Legacy method for backward compatibility.</remarks>
     public string GetScreenText() => this.GetText();
+
+    /// <summary>
+    /// Releases tracked object references held by this snapshot.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+
+        // Release all Sixel data references
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                _cells[y, x].TrackedSixel?.Release();
+            }
+        }
+    }
 }

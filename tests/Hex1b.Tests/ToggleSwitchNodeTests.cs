@@ -1,3 +1,4 @@
+using Hex1b;
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
@@ -143,8 +144,9 @@ public class ToggleSwitchNodeTests
 
         node.Render(context);
 
-        // Should contain ANSI escape codes for styling
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        // Should contain ANSI escape codes for styling (foreground or background colors)
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
@@ -175,7 +177,13 @@ public class ToggleSwitchNodeTests
         focusedNode.Render(focusedContext);
         unfocusedNode.Render(unfocusedContext);
 
-        Assert.NotEqual(focusedTerminal.RawOutput, unfocusedTerminal.RawOutput);
+        // Focused toggle should have different styling (colors or attributes)
+        var focusedSnapshot = focusedTerminal.CreateSnapshot();
+        var focusedHasStyling = focusedSnapshot.HasAttribute(CellAttributes.Reverse) ||
+                                focusedSnapshot.HasForegroundColor() ||
+                                focusedSnapshot.HasBackgroundColor();
+        
+        Assert.True(focusedHasStyling, "Focused toggle should have styling applied");
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Hex1b.Terminal;
 using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
@@ -79,6 +80,34 @@ public static class TestCaptureHelper
     }
 
     /// <summary>
+    /// Captures an Asciinema cast file from a recorder and attaches it to the test context.
+    /// The .cast file can be played back with asciinema or embedded in web pages.
+    /// </summary>
+    /// <param name="recorder">The Asciinema recorder to save.</param>
+    /// <param name="name">Name for the cast file (without extension). Must be unique within a test.</param>
+    public static void CaptureCast(AsciinemaRecorder recorder, string name = "recording")
+    {
+        CaptureCastAsync(recorder, name).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Captures an Asciinema cast file asynchronously from a recorder and attaches it to the test context.
+    /// The .cast file can be played back with asciinema or embedded in web pages.
+    /// </summary>
+    /// <param name="recorder">The Asciinema recorder to save.</param>
+    /// <param name="name">Name for the cast file (without extension). Must be unique within a test.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public static async Task CaptureCastAsync(AsciinemaRecorder recorder, string name = "recording", CancellationToken ct = default)
+    {
+        // Flush any pending events to the file
+        await recorder.FlushAsync(ct);
+        
+        // Read the content from the recorder's file
+        var content = await File.ReadAllTextAsync(recorder.FilePath, ct);
+        AttachFile($"{name}.cast", content);
+    }
+
+    /// <summary>
     /// Captures SVG, HTML, and ANSI snapshots of the terminal.
     /// </summary>
     /// <param name="terminal">The terminal to capture.</param>
@@ -151,6 +180,7 @@ public static class TestCaptureHelper
             ".html" => "html",
             ".svg" => "svg",
             ".ansi" => "ansi",
+            ".cast" => "casts",
             _ => "files"
         };
 

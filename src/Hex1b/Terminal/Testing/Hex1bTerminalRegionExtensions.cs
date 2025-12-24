@@ -182,4 +182,87 @@ public static class Hex1bTerminalRegionExtensions
             return false;
         return a.Value.R == b.Value.R && a.Value.G == b.Value.G && a.Value.B == b.Value.B;
     }
+
+    /// <summary>
+    /// Checks if any cell in the region has the specified attribute.
+    /// </summary>
+    public static bool HasAttribute(this IHex1bTerminalRegion region, CellAttributes attribute)
+    {
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                if ((cell.Attributes & attribute) != 0)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the region has a non-null foreground color.
+    /// </summary>
+    public static bool HasForegroundColor(this IHex1bTerminalRegion region)
+    {
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                if (region.GetCell(x, y).Foreground is not null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the region has a non-null background color.
+    /// </summary>
+    public static bool HasBackgroundColor(this IHex1bTerminalRegion region)
+    {
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                if (region.GetCell(x, y).Background is not null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the region has the specified foreground color.
+    /// </summary>
+    public static bool HasForegroundColor(this IHex1bTerminalRegion region, Theming.Hex1bColor color)
+    {
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var fg = region.GetCell(x, y).Foreground;
+                if (fg is not null && ColorsEqual(fg, color))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the region has the specified background color.
+    /// </summary>
+    public static bool HasBackgroundColor(this IHex1bTerminalRegion region, Theming.Hex1bColor color)
+    {
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var bg = region.GetCell(x, y).Background;
+                if (bg is not null && ColorsEqual(bg, color))
+                    return true;
+            }
+        }
+        return false;
+    }
 }

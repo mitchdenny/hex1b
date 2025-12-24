@@ -163,7 +163,7 @@ public class SplitterNodeTests
         node.Render(context);
 
         // Default divider character is "│"
-        Assert.Contains("│", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("│"));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
 
-        Assert.Contains("Left Pane Content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left Pane Content"));
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
 
-        Assert.Contains("Right Pane Content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right Pane Content"));
     }
 
     [Fact]
@@ -226,11 +226,13 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
 
-        // Count occurrences of divider chars in raw output - should be 5 (one per row)
+        // Count occurrences of divider chars in screen text - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
-        var dividerCount = terminal.CreateSnapshot().RawOutput.Split("│").Length - 1;
-        var leftArrowCount = terminal.CreateSnapshot().RawOutput.Split("◀").Length - 1;
-        var rightArrowCount = terminal.CreateSnapshot().RawOutput.Split("▶").Length - 1;
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        var dividerCount = screenText.Split("│").Length - 1;
+        var leftArrowCount = screenText.Split("◀").Length - 1;
+        var rightArrowCount = screenText.Split("▶").Length - 1;
         Assert.Equal(5, dividerCount + leftArrowCount + rightArrowCount);
     }
 
@@ -259,7 +261,7 @@ public class SplitterNodeTests
         node.Render(context);
 
         // Cyan is RGB(0, 255, 255)
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)));
     }
 
     [Fact]
@@ -282,7 +284,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
 
-        Assert.Contains("║", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("║"));
     }
 
     [Fact]
@@ -305,7 +307,7 @@ public class SplitterNodeTests
         node.Render(context);
 
         // When focused, should have background color on divider
-        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
     }
 
     #endregion
@@ -681,16 +683,16 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Right Content"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right Content"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Left Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Right Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("│", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("│"));
     }
 
     [Fact]
@@ -713,17 +715,17 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Right 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Left 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Left 2", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Right 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Right 2", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right 2"));
     }
 
     [Fact]
@@ -825,7 +827,7 @@ public class SplitterNodeTests
         // So arrow keys should have resized it
         // We can't easily verify the exact size without inspecting the node
         // But we can verify the app ran without error
-        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
     }
 
     [Fact]
@@ -852,7 +854,7 @@ public class SplitterNodeTests
         await new Hex1bTestSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
-            .WaitUntil(s => s.RawOutput.Contains("> Item 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -860,7 +862,7 @@ public class SplitterNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
     }
 
     [Fact]
@@ -919,17 +921,17 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Split View"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Split View"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Split View", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Left", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Right", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Split View"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
     #endregion
@@ -1130,7 +1132,7 @@ public class SplitterNodeTests
         node.Render(context);
 
         // Default horizontal divider character is "─"
-        Assert.Contains("─", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("─"));
     }
 
     [Fact]
@@ -1152,7 +1154,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
 
-        Assert.Contains("Top Content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top Content"));
     }
 
     [Fact]
@@ -1174,7 +1176,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
 
-        Assert.Contains("Bottom Content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Content"));
     }
 
     [Fact]
@@ -1198,7 +1200,7 @@ public class SplitterNodeTests
         node.Render(context);
 
         // When focused, should have background color on divider
-        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
     }
 
     #endregion
@@ -1357,16 +1359,16 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Bottom Content"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Top Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("─", terminal.CreateSnapshot().RawOutput); // Horizontal divider
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("─")); // Horizontal divider
     }
 
     [Fact]
@@ -1389,17 +1391,17 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Bottom 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Top 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Top 2", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom 2", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom 2"));
     }
 
     [Fact]
@@ -1498,8 +1500,8 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Top", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
     }
 
     [Fact]
@@ -1525,17 +1527,17 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Vertical Split"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Vertical Split"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Vertical Split", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Top", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Vertical Split"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
     [Fact]
@@ -1562,16 +1564,16 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Bottom"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Top-Left", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Top-Right", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Bottom", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top-Left"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Top-Right"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
     }
 
     #endregion

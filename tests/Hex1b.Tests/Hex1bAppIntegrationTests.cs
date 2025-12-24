@@ -51,14 +51,14 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Hello World"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Contains("Hello World", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
     }
 
     [Fact]
@@ -174,16 +174,16 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Contains("Line 3"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 3"));
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public class Hex1bAppIntegrationTests
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
-            .WaitUntil(s => s.RawOutput.Contains("> Item 3"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -261,7 +261,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
         
         // Verify via rendered output that third item is selected
-        Assert.Contains("> Item 3", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 3"));
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class Hex1bAppIntegrationTests
             .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
-            .WaitUntil(s => s.RawOutput.Contains("Count: 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Count: 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -300,7 +300,7 @@ public class Hex1bAppIntegrationTests
         
         Assert.Equal(2, counter);
         // The last render should show the updated count
-        Assert.Contains("Count: 2", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 2"));
     }
 
     [Fact]
@@ -346,16 +346,15 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render
         await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.Contains("Count: 0", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 0"));
         
         // Change state externally and invalidate
         counter = 42;
-        terminal.ClearRawOutput();
         app.Invalidate();
         
         // Wait for re-render
         await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.Contains("Count: 42", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 42"));
         
         cts.Cancel();
         await runTask;

@@ -51,8 +51,11 @@ public sealed class Hex1bTerminal : IDisposable
 {
     private readonly IHex1bTerminalPresentationAdapter? _presentation;
     private readonly IHex1bTerminalWorkloadAdapter _workload;
+    private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
+    private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
     private readonly CancellationTokenSource _disposeCts = new();
-    private readonly StringBuilder _rawOutput;
+    private readonly DateTimeOffset _sessionStart;
+    private readonly TrackedObjectStore _trackedObjects = new();
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -79,20 +82,42 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
+    /// Creates a new terminal with the specified options.
+    /// </summary>
+    /// <param name="options">Terminal configuration options.</param>
+    public Hex1bTerminal(Hex1bTerminalOptions options)
+        : this(
+            presentation: options.PresentationAdapter,
+            workload: options.WorkloadAdapter ?? throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required"),
+            width: options.Width,
+            height: options.Height,
+            workloadFilters: options.WorkloadFilters,
+            presentationFilters: options.PresentationFilters)
+    {
+    }
+
+    /// <summary>
     /// Creates a new terminal with the specified presentation and workload adapters.
     /// </summary>
     /// <param name="presentation">The presentation adapter for actual I/O. Pass null for headless/test mode.</param>
     /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
     /// <param name="width">Terminal width (used when presentation is null). Ignored if presentation is provided.</param>
     /// <param name="height">Terminal height (used when presentation is null). Ignored if presentation is provided.</param>
+    /// <param name="workloadFilters">Filters applied on the workload side.</param>
+    /// <param name="presentationFilters">Filters applied on the presentation side.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
         IHex1bTerminalWorkloadAdapter workload,
         int width = 80,
-        int height = 24)
+        int height = 24,
+        IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
+        IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+        _workloadFilters = workloadFilters?.ToList() ?? [];
+        _presentationFilters = presentationFilters?.ToList() ?? [];
+        _sessionStart = DateTimeOffset.UtcNow;
         
         // Get dimensions from presentation if available, otherwise use provided dimensions
         _width = presentation?.Width ?? width;
@@ -101,7 +126,6 @@ public sealed class Hex1bTerminal : IDisposable
         // Notify workload of initial dimensions (ResizeAsync handles not firing event on init)
         _ = _workload.ResizeAsync(_width, _height);
         
-        _rawOutput = new StringBuilder();
         _screenBuffer = new TerminalCell[_height, _width];
         
         ClearBuffer();
@@ -111,6 +135,12 @@ public sealed class Hex1bTerminal : IDisposable
         {
             _presentation.Resized += OnPresentationResized;
         }
+
+        // Notify filters of session start
+        // Note: We fire-and-forget here since the constructor can't be async
+        // Filters should handle this gracefully
+        _ = NotifyWorkloadFiltersSessionStartAsync();
+        _ = NotifyPresentationFiltersSessionStartAsync();
 
         // Auto-start I/O pumps when presentation is provided (production mode)
         if (_presentation != null)
@@ -127,6 +157,11 @@ public sealed class Hex1bTerminal : IDisposable
         // IMPORTANT: Call Resize() first before updating _width/_height
         // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
+        
+        // Notify filters of resize
+        _ = NotifyPresentationFiltersResizeAsync(width, height);
+        _ = NotifyWorkloadFiltersResizeAsync(width, height);
+        
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);
     }
@@ -177,7 +212,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     /// <remarks>
     /// This is called automatically by screen buffer read operations (GetScreenText, 
-    /// ContainsText, RawOutput, etc.) so callers don't need to call it directly.
+    /// ContainsText, etc.) so callers don't need to call it directly.
     /// </remarks>
     internal void FlushOutput()
     {
@@ -192,10 +227,15 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
             }
 
+            // Notify workload filters of output FROM workload (fire-and-forget in sync context)
+            _ = NotifyWorkloadFiltersOutputAsync(data);
+
             var text = Encoding.UTF8.GetString(data.Span);
-            _rawOutput.Append(text);
             ProcessOutput(text);
         }
+
+        // Channel drained - notify frame complete (fire-and-forget in sync context)
+        _ = NotifyWorkloadFiltersFrameCompleteAsync();
     }
 
     // === I/O Pump Tasks ===
@@ -211,6 +251,12 @@ public sealed class Hex1bTerminal : IDisposable
                 {
                     break;
                 }
+
+                // Notify presentation filters of input FROM presentation
+                await NotifyPresentationFiltersInputAsync(data);
+
+                // Notify workload filters of input going TO workload
+                await NotifyWorkloadFiltersInputAsync(data);
 
                 // For Hex1bAppWorkloadAdapter, we parse input and send events directly
                 if (_workload is Hex1bAppWorkloadAdapter appWorkload)
@@ -239,20 +285,26 @@ public sealed class Hex1bTerminal : IDisposable
                 var data = await _workload.ReadOutputAsync(ct);
                 if (data.IsEmpty)
                 {
+                    // Channel empty - this is a frame boundary
+                    await NotifyWorkloadFiltersFrameCompleteAsync();
+                    
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);
                     continue;
                 }
 
-                var text = Encoding.UTF8.GetString(data.Span);
+                // Notify workload filters of output FROM workload
+                await NotifyWorkloadFiltersOutputAsync(data);
 
-                // Capture raw output and parse into screen buffer
-                _rawOutput.Append(text);
+                var text = Encoding.UTF8.GetString(data.Span);
                 ProcessOutput(text);
 
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
+                    // Notify presentation filters of output TO presentation
+                    await NotifyPresentationFiltersOutputAsync(data);
+                    
                     await _presentation.WriteOutputAsync(data);
                 }
             }
@@ -377,19 +429,6 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
-    /// Gets the raw output written to this terminal, including ANSI escape sequences.
-    /// Automatically flushes pending output before returning.
-    /// </summary>
-    internal string RawOutput
-    {
-        get
-        {
-            FlushOutput();
-            return _rawOutput.ToString();
-        }
-    }
-
-    /// <summary>
     /// Enters alternate screen mode (for testing purposes).
     /// In headless mode, this just sets the flag and clears the buffer.
     /// </summary>
@@ -411,11 +450,27 @@ public sealed class Hex1bTerminal : IDisposable
     /// Gets a copy of the current screen buffer.
     /// Automatically flushes pending output before returning.
     /// </summary>
-    internal TerminalCell[,] GetScreenBuffer()
+    /// <param name="addTrackedObjectRefs">
+    /// If true, adds references to tracked objects in the copied cells.
+    /// The caller is responsible for releasing these refs when done.
+    /// </param>
+    internal TerminalCell[,] GetScreenBuffer(bool addTrackedObjectRefs = false)
     {
         FlushOutput();
         var copy = new TerminalCell[_height, _width];
         Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
+        
+        if (addTrackedObjectRefs)
+        {
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    copy[y, x].TrackedSixel?.AddRef();
+                }
+            }
+        }
+        
         return copy;
     }
 
@@ -537,11 +592,6 @@ public sealed class Hex1bTerminal : IDisposable
         return results;
     }
 
-    /// <summary>
-    /// Clears the raw output buffer.
-    /// </summary>
-    internal void ClearRawOutput() => _rawOutput.Clear();
-
     // === Input Injection APIs (Testing) ===
 
     /// <summary>
@@ -585,7 +635,7 @@ public sealed class Hex1bTerminal : IDisposable
             }
         }
 
-        // Copy existing content
+        // Copy existing content that fits in the new size
         var copyHeight = Math.Min(_height, newHeight);
         var copyWidth = Math.Min(_width, newWidth);
         for (int y = 0; y < copyHeight; y++)
@@ -593,6 +643,20 @@ public sealed class Hex1bTerminal : IDisposable
             for (int x = 0; x < copyWidth; x++)
             {
                 newBuffer[y, x] = _screenBuffer[y, x];
+            }
+        }
+        
+        // Release tracked objects from cells that are being removed
+        // (cells outside the new bounds)
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                // Skip cells that were copied to the new buffer
+                if (y < copyHeight && x < copyWidth)
+                    continue;
+                    
+                _screenBuffer[y, x].TrackedSixel?.Release();
             }
         }
 
@@ -605,13 +669,88 @@ public sealed class Hex1bTerminal : IDisposable
 
     // === Screen Buffer Parsing ===
 
+    /// <summary>
+    /// Sets a cell in the screen buffer, properly managing tracked object references.
+    /// Releases the old cell's tracked object (if any) and adds a reference for the new one (if any).
+    /// </summary>
+    private void SetCell(int y, int x, TerminalCell newCell)
+    {
+        ref var oldCell = ref _screenBuffer[y, x];
+        
+        // Release old Sixel data reference
+        oldCell.TrackedSixel?.Release();
+        
+        // Note: new cell's tracked object already has a reference from GetOrCreateSixel
+        // No need to AddRef here - the caller is responsible for getting the object
+        // with the correct refcount
+        
+        oldCell = newCell;
+    }
+
+    /// <summary>
+    /// Gets or creates a tracked Sixel object for the given payload.
+    /// The returned object has a reference count that accounts for this request.
+    /// </summary>
+    internal TrackedObject<SixelData> GetOrCreateSixel(string payload, int widthInCells, int heightInCells)
+    {
+        return _trackedObjects.GetOrCreateSixel(payload, widthInCells, heightInCells);
+    }
+
+    /// <summary>
+    /// Gets the number of tracked Sixel objects in the store.
+    /// Useful for testing to verify cleanup behavior.
+    /// </summary>
+    internal int TrackedSixelCount => _trackedObjects.SixelCount;
+
+    /// <summary>
+    /// Gets the Sixel data at the specified cell position, if any.
+    /// Returns null if the cell doesn't contain Sixel data or is a continuation cell.
+    /// </summary>
+    internal SixelData? GetSixelDataAt(int x, int y)
+    {
+        FlushOutput();
+        if (x < 0 || x >= _width || y < 0 || y >= _height)
+            return null;
+        return _screenBuffer[y, x].SixelData;
+    }
+
+    /// <summary>
+    /// Gets the tracked Sixel object at the specified cell position, if any.
+    /// Returns null if the cell doesn't contain Sixel data.
+    /// Useful for testing reference count behavior.
+    /// </summary>
+    internal TrackedObject<SixelData>? GetTrackedSixelAt(int x, int y)
+    {
+        FlushOutput();
+        if (x < 0 || x >= _width || y < 0 || y >= _height)
+            return null;
+        return _screenBuffer[y, x].TrackedSixel;
+    }
+
+    /// <summary>
+    /// Checks if any cell in the screen buffer contains Sixel data.
+    /// </summary>
+    internal bool ContainsSixelData()
+    {
+        FlushOutput();
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                if (_screenBuffer[y, x].TrackedSixel is not null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private void ClearBuffer()
     {
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                _screenBuffer[y, x] = TerminalCell.Empty;
+                SetCell(y, x, TerminalCell.Empty);
             }
         }
         _currentForeground = null;
@@ -627,7 +766,13 @@ public sealed class Hex1bTerminal : IDisposable
         int i = 0;
         while (i < text.Length)
         {
-            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
+            // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
+            if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
+            {
+                ProcessSixelData(sixelPayload);
+                i += sixelConsumed;
+            }
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
             {
                 i = ProcessAnsiSequence(text, i);
             }
@@ -653,6 +798,14 @@ public sealed class Hex1bTerminal : IDisposable
                 var grapheme = GetGraphemeAt(text, i);
                 var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
                 
+                // Scroll if cursor is past the bottom of the screen BEFORE writing
+                // This implements "delayed line wrap" behavior
+                if (_cursorY >= _height)
+                {
+                    ScrollUp();
+                    _cursorY = _height - 1;
+                }
+                
                 if (_cursorX < _width && _cursorY < _height)
                 {
                     // Assign sequence number and timestamp for this write operation
@@ -660,18 +813,18 @@ public sealed class Hex1bTerminal : IDisposable
                     var writtenAt = DateTimeOffset.UtcNow;
                     
                     // Write the grapheme to the current cell
-                    _screenBuffer[_cursorY, _cursorX] = new TerminalCell(
+                    SetCell(_cursorY, _cursorX, new TerminalCell(
                         grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt);
+                        sequence, writtenAt));
                     
                     // For wide characters (width > 1), fill subsequent cells with continuation markers
                     // Use the same sequence and timestamp so they're part of the same logical write
                     for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                     {
                         // Use empty string as continuation marker (the previous cell "owns" this space)
-                        _screenBuffer[_cursorY, _cursorX + w] = new TerminalCell(
+                        SetCell(_cursorY, _cursorX + w, new TerminalCell(
                             "", _currentForeground, _currentBackground, _currentAttributes,
-                            sequence, writtenAt);
+                            sequence, writtenAt));
                     }
                     
                     _cursorX += graphemeWidth;
@@ -679,11 +832,7 @@ public sealed class Hex1bTerminal : IDisposable
                     {
                         _cursorX = 0;
                         _cursorY++;
-                        if (_cursorY >= _height)
-                        {
-                            ScrollUp();
-                            _cursorY = _height - 1;
-                        }
+                        // Don't scroll yet - we'll scroll when we try to write the next character
                     }
                 }
                 i += grapheme.Length;
@@ -948,13 +1097,13 @@ public sealed class Hex1bTerminal : IDisposable
     {
         for (int x = _cursorX; x < _width; x++)
         {
-            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            SetCell(_cursorY, x, TerminalCell.Empty);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                _screenBuffer[y, x] = TerminalCell.Empty;
+                SetCell(y, x, TerminalCell.Empty);
             }
         }
     }
@@ -965,17 +1114,24 @@ public sealed class Hex1bTerminal : IDisposable
         {
             for (int x = 0; x < _width; x++)
             {
-                _screenBuffer[y, x] = TerminalCell.Empty;
+                SetCell(y, x, TerminalCell.Empty);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
-            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            SetCell(_cursorY, x, TerminalCell.Empty);
         }
     }
 
     private void ScrollUp()
     {
+        // First, release Sixel data from the top row (being scrolled off)
+        for (int x = 0; x < _width; x++)
+        {
+            _screenBuffer[0, x].TrackedSixel?.Release();
+        }
+        
+        // Shift all rows up (tracked object refs move with them, no AddRef/Release needed)
         for (int y = 0; y < _height - 1; y++)
         {
             for (int x = 0; x < _width; x++)
@@ -983,10 +1139,174 @@ public sealed class Hex1bTerminal : IDisposable
                 _screenBuffer[y, x] = _screenBuffer[y + 1, x];
             }
         }
+        
+        // Clear the bottom row (no tracked objects to release - they moved up)
         for (int x = 0; x < _width; x++)
         {
             _screenBuffer[_height - 1, x] = TerminalCell.Empty;
         }
+    }
+
+    // === Sixel Parsing ===
+
+    /// <summary>
+    /// Tries to parse a Sixel DCS sequence starting at the given position.
+    /// Sixel format: ESC P q [sixel data] ESC \ (or ESC P q [sixel data] 0x9C)
+    /// </summary>
+    private static bool TryParseSixelSequence(string text, int start, out int consumed, out string payload)
+    {
+        consumed = 0;
+        payload = "";
+
+        // Check for DCS start: ESC P (0x1b 0x50) or 0x90
+        bool isDcsStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == 'P')
+        {
+            isDcsStart = true;
+            dataStart = start + 2;
+        }
+        else if (text[start] == '\x90')
+        {
+            isDcsStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isDcsStart)
+            return false;
+
+        // Check if this is a Sixel sequence (starts with 'q' after optional params)
+        // Skip optional parameters and look for 'q'
+        int i = dataStart;
+        while (i < text.Length && (char.IsDigit(text[i]) || text[i] == ';'))
+        {
+            i++;
+        }
+
+        if (i >= text.Length || text[i] != 'q')
+            return false;
+
+        i++; // Skip 'q'
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c) or 0x9C
+        int dataEnd = -1;
+        for (int j = i; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                consumed = j + 2 - start; // Include ESC \
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                consumed = j + 1 - start; // Include 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        // Extract the full Sixel sequence (including DCS header and ST)
+        payload = text.Substring(start, consumed);
+        return true;
+    }
+
+    /// <summary>
+    /// Processes Sixel data by creating a tracked object and marking cells.
+    /// </summary>
+    private void ProcessSixelData(string sixelPayload)
+    {
+        // Estimate the size in cells based on Sixel data
+        // This is approximate - Sixel images can specify dimensions in the data
+        var (widthInCells, heightInCells) = EstimateSixelDimensions(sixelPayload);
+
+        // Create or reuse a tracked Sixel object
+        var sixelData = _trackedObjects.GetOrCreateSixel(sixelPayload, widthInCells, heightInCells);
+
+        // Mark cells covered by this Sixel image
+        // The first cell gets the tracked object, others just get the Sixel flag
+        var sequence = ++_writeSequence;
+        var writtenAt = DateTimeOffset.UtcNow;
+
+        for (int dy = 0; dy < heightInCells && _cursorY + dy < _height; dy++)
+        {
+            for (int dx = 0; dx < widthInCells && _cursorX + dx < _width; dx++)
+            {
+                var y = _cursorY + dy;
+                var x = _cursorX + dx;
+
+                // First cell (origin) holds the tracked object
+                // Other cells just have the Sixel flag set
+                if (dx == 0 && dy == 0)
+                {
+                    SetCell(y, x, new TerminalCell(
+                        " ", _currentForeground, _currentBackground,
+                        _currentAttributes | CellAttributes.Sixel,
+                        sequence, writtenAt, sixelData));
+                }
+                else
+                {
+                    // Continuation cells - just mark as Sixel, no tracked object
+                    // (The origin cell owns the reference)
+                    SetCell(y, x, new TerminalCell(
+                        "", _currentForeground, _currentBackground,
+                        _currentAttributes | CellAttributes.Sixel,
+                        sequence, writtenAt));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Estimates Sixel image dimensions in terminal cells.
+    /// </summary>
+    private static (int Width, int Height) EstimateSixelDimensions(string sixelPayload)
+    {
+        // Default dimensions if we can't parse
+        int width = 1;
+        int height = 1;
+
+        // Try to find "width;height in the sixel raster attributes
+        // Format: "Pan;Pad;Ph;Pv where Ph = pixel height, Pv = pixel width
+        // This appears after the 'q' and before the first color definition '#'
+        var qIndex = sixelPayload.IndexOf('q');
+        var hashIndex = sixelPayload.IndexOf('#');
+
+        if (qIndex >= 0)
+        {
+            var rasterEnd = hashIndex > qIndex ? hashIndex : sixelPayload.Length;
+            var rasterSection = sixelPayload.Substring(qIndex + 1, Math.Min(50, rasterEnd - qIndex - 1));
+
+            // Look for raster attributes: "Pan;Pad;Ph;Pv
+            var quoteIndex = rasterSection.IndexOf('"');
+            if (quoteIndex >= 0 && quoteIndex + 1 < rasterSection.Length)
+            {
+                var attrStr = rasterSection.Substring(quoteIndex + 1);
+                var semiIndex = attrStr.IndexOfAny([';', '#', '!', '-', '$']);
+                if (semiIndex < 0) semiIndex = attrStr.Length;
+                attrStr = attrStr.Substring(0, Math.Min(20, semiIndex));
+
+                var parts = attrStr.Split(';');
+                if (parts.Length >= 4)
+                {
+                    // Ph = pixel height, Pv = pixel width
+                    if (int.TryParse(parts[2], out var ph) && int.TryParse(parts[3], out var pv))
+                    {
+                        // Convert pixels to cells (assume ~10 pixels per cell width, 20 per cell height)
+                        // These are rough estimates - actual values depend on terminal font
+                        width = Math.Max(1, (pv + 9) / 10);
+                        height = Math.Max(1, (ph + 19) / 20);
+                    }
+                }
+            }
+        }
+
+        // Clamp to reasonable bounds
+        return (Math.Clamp(width, 1, 200), Math.Clamp(height, 1, 100));
     }
 
     // === Static Input Parsing Helpers ===
@@ -1242,6 +1562,11 @@ public sealed class Hex1bTerminal : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // Notify filters of session end (fire-and-forget from sync Dispose)
+        var elapsed = DateTimeOffset.UtcNow - _sessionStart;
+        _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
+        _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
+
         // Exit TUI mode before disposing
         if (_presentation != null)
         {
@@ -1260,6 +1585,11 @@ public sealed class Hex1bTerminal : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // Notify filters of session end
+        var elapsed = DateTimeOffset.UtcNow - _sessionStart;
+        await NotifyWorkloadFiltersSessionEndAsync(elapsed);
+        await NotifyPresentationFiltersSessionEndAsync(elapsed);
+
         if (_presentation != null)
         {
             // Exit TUI mode before disposing
@@ -1272,5 +1602,111 @@ public sealed class Hex1bTerminal : IDisposable
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();
+    }
+
+    // === Filter Notification Helpers ===
+
+    private TimeSpan GetElapsed() => DateTimeOffset.UtcNow - _sessionStart;
+
+    private async ValueTask NotifyWorkloadFiltersSessionStartAsync()
+    {
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersSessionEndAsync(TimeSpan elapsed)
+    {
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnSessionEndAsync(elapsed);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersOutputAsync(ReadOnlyMemory<byte> data)
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnOutputAsync(data, elapsed);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersFrameCompleteAsync()
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnFrameCompleteAsync(elapsed);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data)
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnInputAsync(data, elapsed);
+        }
+    }
+
+    private async ValueTask NotifyWorkloadFiltersResizeAsync(int width, int height)
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _workloadFilters)
+        {
+            await filter.OnResizeAsync(width, height, elapsed);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersSessionStartAsync()
+    {
+        foreach (var filter in _presentationFilters)
+        {
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersSessionEndAsync(TimeSpan elapsed)
+    {
+        foreach (var filter in _presentationFilters)
+        {
+            await filter.OnSessionEndAsync(elapsed);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersOutputAsync(ReadOnlyMemory<byte> data)
+    {
+        if (_presentationFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _presentationFilters)
+        {
+            await filter.OnOutputAsync(data, elapsed);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data)
+    {
+        if (_presentationFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _presentationFilters)
+        {
+            await filter.OnInputAsync(data, elapsed);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersResizeAsync(int width, int height)
+    {
+        if (_presentationFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _presentationFilters)
+        {
+            await filter.OnResizeAsync(width, height, elapsed);
+        }
     }
 }

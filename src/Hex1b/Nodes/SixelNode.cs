@@ -27,6 +27,9 @@ public sealed class SixelNode : Hex1bNode
             if (_imageData != value)
             {
                 _imageData = value;
+                // Mark parent dirty to force full re-render of the container
+                // This is a sledgehammer fix for Sixel ghost pixels when switching images
+                Parent?.MarkDirty();
                 MarkDirty();
             }
         }
@@ -284,10 +287,8 @@ public sealed class SixelNode : Hex1bNode
         }
         else
         {
-            // Wrap in Sixel sequence
-            context.Write(SixelStart);
-            context.Write(ImageData);
-            context.Write(SixelEnd);
+            // Wrap in Sixel sequence - write as a single string so parser can detect it
+            context.Write($"{SixelStart}{ImageData}{SixelEnd}");
         }
     }
 

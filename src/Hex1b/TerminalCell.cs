@@ -1,3 +1,4 @@
+using Hex1b.Terminal;
 using Hex1b.Theming;
 
 namespace Hex1b;
@@ -11,13 +12,15 @@ namespace Hex1b;
 /// <param name="Attributes">Text styling attributes (bold, italic, etc.).</param>
 /// <param name="Sequence">The write order of this cell. Higher values were written later. Used for z-ordering during rendering.</param>
 /// <param name="WrittenAt">The timestamp when this cell was written. Useful for debugging and future animation features.</param>
+/// <param name="TrackedSixel">Optional tracked reference to Sixel graphics data associated with this cell.</param>
 public readonly record struct TerminalCell(
     string Character,
     Hex1bColor? Foreground,
     Hex1bColor? Background,
     CellAttributes Attributes = CellAttributes.None,
     long Sequence = 0,
-    DateTimeOffset WrittenAt = default)
+    DateTimeOffset WrittenAt = default,
+    TrackedObject<SixelData>? TrackedSixel = null)
 {
     /// <summary>An empty cell with default attributes.</summary>
     public static readonly TerminalCell Empty = new(" ", null, null, CellAttributes.None, 0, default);
@@ -48,4 +51,13 @@ public readonly record struct TerminalCell(
 
     /// <summary>Gets whether this cell has overlined text.</summary>
     public bool IsOverline => (Attributes & CellAttributes.Overline) != 0;
+
+    /// <summary>Gets whether this cell contains Sixel graphics.</summary>
+    public bool IsSixel => (Attributes & CellAttributes.Sixel) != 0;
+
+    /// <summary>Gets the Sixel data if this cell has any, otherwise null.</summary>
+    public SixelData? SixelData => TrackedSixel?.Data;
+
+    /// <summary>Gets whether this cell has associated Sixel data.</summary>
+    public bool HasSixelData => TrackedSixel is not null;
 }

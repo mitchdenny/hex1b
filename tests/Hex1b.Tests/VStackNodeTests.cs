@@ -463,7 +463,7 @@ public class VStackNodeTests
 
         // Tab forward then shift-tab back - wait for any render to complete
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.RawOutput.Length > 0, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Tab()
             .Shift().Tab()
             .Type("A")

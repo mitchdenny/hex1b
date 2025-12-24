@@ -1,3 +1,4 @@
+using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Terminal.Testing;
@@ -185,11 +186,12 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // When focused, the cursor character should be highlighted with ANSI codes
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text content should still be visible
-        Assert.Contains("a", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Contains("b", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Contains("c", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("a", snapshot.GetLineTrimmed(0));
+        Assert.Contains("b", snapshot.GetLineTrimmed(0));
+        Assert.Contains("c", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -209,8 +211,9 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should have ANSI codes for cursor highlighting
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.Contains("hello", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -230,7 +233,8 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // When cursor is at end, a space is shown as cursor placeholder
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
@@ -250,9 +254,10 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should still have the brackets and ANSI codes for cursor
-        Assert.Contains("[", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Contains("]", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Contains("[", snapshot.GetLineTrimmed(0));
+        Assert.Contains("]", snapshot.GetLineTrimmed(0));
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     #endregion
@@ -273,10 +278,11 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should have ANSI codes for selection highlighting
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text should still be present
-        Assert.Contains("hello", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Contains("world", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("hello", snapshot.GetLineTrimmed(0));
+        Assert.Contains("world", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -293,9 +299,10 @@ public class TextBoxNodeTests
         node.Render(context);
 
         // Should contain the full text
-        Assert.Contains("abcdefgh", terminal.CreateSnapshot().GetLineTrimmed(0));
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Contains("abcdefgh", snapshot.GetLineTrimmed(0));
         // Should have selection ANSI codes
-        Assert.Contains("\x1b[", terminal.CreateSnapshot().RawOutput);
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     #endregion

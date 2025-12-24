@@ -117,8 +117,8 @@ public class PanelNodeTests
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
 
-        // Should contain background color ANSI escape code
-        Assert.Contains("\x1b[48;2;", terminal.CreateSnapshot().RawOutput);
+        // Should contain background color
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class PanelNodeTests
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
 
-        // Should contain foreground color ANSI escape code
-        Assert.Contains("\x1b[38;2;", terminal.CreateSnapshot().RawOutput);
+        // Should contain foreground color
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor());
     }
 
     [Fact]
@@ -311,7 +311,7 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Panel Content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Panel Content"));
     }
 
     [Fact]
@@ -341,9 +341,9 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Line 1", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 2", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Line 3", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 1"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 2"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Line 3"));
     }
 
     [Fact]
@@ -426,8 +426,8 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Panel Inside Border", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("┌", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Panel Inside Border"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
     [Fact]
@@ -455,8 +455,8 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Should contain background color ANSI code
-        Assert.Contains("\x1b[48;2;50;50;100m", terminal.CreateSnapshot().RawOutput);
+        // Should contain background color
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(50, 50, 100)));
     }
 
     [Fact]
@@ -482,7 +482,7 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Deep Nested", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Deep Nested"));
     }
 
     [Fact]
@@ -512,9 +512,9 @@ public class PanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Header", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Panel Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Footer", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Panel Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
     }
 
     [Fact]
@@ -543,7 +543,7 @@ public class PanelNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.Contains("> Item 2", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
     }
 
     #endregion

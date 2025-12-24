@@ -152,9 +152,9 @@ public class InfoBarNodeTests
 
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
-        // So we should see white background ANSI code
-        Assert.Contains("\x1b[48;2;255;255;255m", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("\x1b[38;2;0;0;0m", terminal.CreateSnapshot().RawOutput);
+        // So we should see white background and black foreground
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 0, 0)));
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public class InfoBarNodeTests
         node.Render(context);
 
         // Should use the specified colors directly
-        Assert.Contains("\x1b[38;2;0;255;0m", terminal.CreateSnapshot().RawOutput); // Green foreground
-        Assert.Contains("\x1b[48;2;0;0;255m", terminal.CreateSnapshot().RawOutput); // Blue background
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0))); // Green foreground
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255))); // Blue background
     }
 
     [Fact]
@@ -205,8 +205,8 @@ public class InfoBarNodeTests
         node.Render(context);
 
         // Error section should have its own colors
-        Assert.Contains("\x1b[38;2;255;0;0m", terminal.CreateSnapshot().RawOutput); // Red foreground
-        Assert.Contains("\x1b[48;2;255;255;0m", terminal.CreateSnapshot().RawOutput); // Yellow background
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0))); // Red foreground
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 0))); // Yellow background
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Ready", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Ready"));
     }
 
     [Fact]
@@ -325,9 +325,9 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Mode: Insert", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("UTF-8", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Ln 42, Col 7", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Mode: Insert"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("UTF-8"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Ln 42, Col 7"));
     }
 
     [Fact]
@@ -356,8 +356,8 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Main Content", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("Status Bar", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Main Content"));
+        Assert.True(terminal.CreateSnapshot().ContainsText("Status Bar"));
     }
 
     [Fact]
@@ -386,9 +386,9 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("Themed", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("\x1b[38;2;0;255;255m", terminal.CreateSnapshot().RawOutput); // Cyan
-        Assert.Contains("\x1b[48;2;64;64;64m", terminal.CreateSnapshot().RawOutput); // DarkGray
+        Assert.True(terminal.CreateSnapshot().ContainsText("Themed"));
+        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255))); // Cyan
+        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(64, 64, 64))); // DarkGray
     }
 
     #endregion

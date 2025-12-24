@@ -4,6 +4,8 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Terminal;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 
@@ -82,7 +84,7 @@ public class SixelNodeTests : IDisposable
         node.Render(context);
         
         // With no image data, should show "[No image data]"
-        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("[No image data]"));
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public class SixelNodeTests : IDisposable
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        Assert.Contains("Fallback content", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Fallback content"));
     }
 
     [Fact]
@@ -122,8 +124,8 @@ public class SixelNodeTests : IDisposable
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        // Should send DA1 query
-        Assert.Contains("\x1b[c", terminal.CreateSnapshot().RawOutput);
+        // After reset, should show loading message (querying again)
+        Assert.True(terminal.CreateSnapshot().ContainsText("Checking Sixel support"));
     }
 
     [Fact]
@@ -141,11 +143,10 @@ public class SixelNodeTests : IDisposable
         
         // First render sends query
         node.Render(context);
-        terminal.ClearRawOutput();
         
         // Second render while waiting shows loading
         node.Render(context);
-        Assert.Contains("Checking Sixel support", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Checking Sixel support"));
     }
 
     [Fact]
@@ -166,11 +167,10 @@ public class SixelNodeTests : IDisposable
         // Simulate terminal response with Sixel support (;4; indicates graphics)
         SixelNode.HandleDA1Response("\x1b[?62;4;6;22c");
         
-        terminal.ClearRawOutput();
         node.Render(context);
         
         // Should now render Sixel (or no image data message)
-        Assert.Contains("[No image data]", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("[No image data]"));
     }
 
     [Fact]
@@ -195,10 +195,9 @@ public class SixelNodeTests : IDisposable
         // Simulate terminal response without Sixel support
         SixelNode.HandleDA1Response("\x1b[?62;6;22c");
         
-        terminal.ClearRawOutput();
         node.Render(context);
         
-        Assert.Contains("No Sixel", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("No Sixel"));
     }
 
     [Fact]
@@ -270,38 +269,47 @@ public class SixelNodeTests : IDisposable
         
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        // Should wrap in Sixel DCS sequence: ESC P q ... ESC \
-        Assert.Contains("\x1bPq", terminal.CreateSnapshot().RawOutput);
-        Assert.Contains("\x1b\\", terminal.CreateSnapshot().RawOutput);
+        // Sixel data should be tracked in the terminal
+        Assert.True(terminal.ContainsSixelData());
+        
+        // The origin cell should have the Sixel data
+        var sixelData = terminal.GetSixelDataAt(0, 0);
+        Assert.NotNull(sixelData);
+        Assert.Contains("#0;2;100;0;0#0~~~~~~", sixelData.Payload);
     }
 
     [Fact]
     public void Render_WithPreformattedSixelData_OutputsAsIs()
     {
         // Data already has DCS header
-        var sixelData = "\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\";
+        var sixelPayload = "\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\";
         var node = new SixelNode
         {
-            ImageData = sixelData
+            ImageData = sixelPayload
         };
         node.SetSixelSupport(true);
         
         using var workload = new Hex1bAppWorkloadAdapter();
-
-        
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         
-        // Should output as-is without double-wrapping
-        Assert.Equal(1, CountOccurrences(terminal.CreateSnapshot().RawOutput, "\x1bPq"));
+        // Flush pending output before checking
+        terminal.FlushOutput();
+        
+        // Should be tracked as a single Sixel object
+        Assert.Equal(1, terminal.TrackedSixelCount);
+        
+        // The tracked data should contain the original payload
+        var trackedSixel = terminal.GetSixelDataAt(0, 0);
+        Assert.NotNull(trackedSixel);
+        Assert.Contains("#0;2;100;0;0#0~~~~~~", trackedSixel.Payload);
     }
 
     private static int CountOccurrences(string text, string pattern)

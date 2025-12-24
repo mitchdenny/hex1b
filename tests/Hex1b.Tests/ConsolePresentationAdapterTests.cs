@@ -1,4 +1,5 @@
 using Hex1b.Terminal;
+using Hex1b.Terminal.Testing;
 
 namespace Hex1b.Tests;
 
@@ -110,7 +111,7 @@ public class Hex1bTerminalTests_Workload
         
         workload.Write("Hello");
         
-        Assert.Contains("Hello", terminal.CreateSnapshot().RawOutput);
+        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
     }
     
     [Fact]

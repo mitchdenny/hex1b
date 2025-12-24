@@ -37,4 +37,7 @@ public enum CellAttributes : ushort
 
     /// <summary>Overline (SGR 53).</summary>
     Overline = 1 << 8,
+
+    /// <summary>Cell contains Sixel graphics data.</summary>
+    Sixel = 1 << 9,
 }
