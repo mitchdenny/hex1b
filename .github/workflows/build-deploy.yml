@@ -81,6 +81,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build and pack (PR version for GH Packages)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
         run: |
           dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
 
@@ -110,6 +112,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build and pack (release version for NuGet.org)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
 
@@ -370,6 +374,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate version
+        id: version
+        uses: ./.github/actions/version
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -398,6 +406,7 @@ jobs:
           AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE__LOCATION: 'westus3'
           AZURE__RESOURCEGROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
+          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
         run: |
           set -e
           aspire deploy
@@ -529,6 +538,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate version
+        id: version
+        uses: ./.github/actions/version
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -559,6 +572,7 @@ jobs:
           AZURE__RESOURCEGROUP: 'hex1b-production'
           Parameters__customDomain: ${{ vars.CUSTOM_DOMAIN }}
           Parameters__certificateName: ${{ secrets.CERTIFICATE_NAME }}
+          HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           set -e
           aspire deploy
