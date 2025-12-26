@@ -150,7 +150,16 @@ scrollState.ScrollToEnd();   // Jump to end
 ```
 
 ::: tip State Persistence
-Create a `ScrollState` instance and pass it to the scroll widget to track position across re-renders. Without an explicit state, a new state is created each time.
+Create a `ScrollState` instance and pass it to the scroll widget to track position across re-renders. Without an explicit state, a new state is created each time, causing the scroll position to reset to the top whenever the widget rebuilds.
+
+```csharp
+// ✅ Position preserved across re-renders
+var scrollState = new ScrollState();
+ctx.VScroll(v => [...], scrollState)
+
+// ❌ Position resets to top on each re-render
+ctx.VScroll(v => [...])  // New state created each time
+```
 :::
 
 ## Scrollbar Visibility
@@ -231,7 +240,7 @@ ctx.VScroll(v => [...])
 ```
 
 ::: warning Content Size
-The scroll widget measures its child content without constraints to determine the full content size. For vertical scrolling, this means content can be arbitrarily tall; for horizontal, arbitrarily wide.
+The scroll widget measures its child content without constraints to determine the full content size. For vertical scrolling, this means content can be arbitrarily tall; for horizontal, arbitrarily wide. Be mindful when scrolling very large datasets (e.g., thousands of items) as all content must be measured and rendered, which may impact performance. For large lists, consider virtualization patterns or pagination.
 :::
 
 ## Theming
