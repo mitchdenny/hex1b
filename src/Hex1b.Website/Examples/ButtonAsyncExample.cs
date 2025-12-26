@@ -121,7 +121,7 @@ public class ButtonAsyncExample(ILogger<ButtonAsyncExample> logger) : ReactiveEx
                 v.Text("Async Background Work Demo"),
                 v.Text(""),
                 v.Text($"Status: {state.Status}"),
-                v.Text($"Progress: {BuildProgressBar(state.Progress)}"),
+                v.Progress(state.Progress),
                 v.Text(""),
                 state.Result != null 
                     ? v.Text($"Result: {state.Result}") 
@@ -131,12 +131,5 @@ public class ButtonAsyncExample(ILogger<ButtonAsyncExample> logger) : ReactiveEx
                     .OnClick(_ => state.StartLoading())
             ])
         ], title: "Background Work");
-    }
-
-    private static string BuildProgressBar(int percent)
-    {
-        var filled = percent / 5; // 20 chars total
-        var empty = 20 - filled;
-        return $"[{new string('█', filled)}{new string('░', empty)}] {percent}%";
     }
 }

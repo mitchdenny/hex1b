@@ -72,7 +72,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text("Async Background Work Demo"),
             v.Text(""),
             v.Text($"Status: {state.Status}"),
-            v.Text($"Progress: {BuildProgressBar(state.Progress)}"),
+            v.Progress(state.Progress),
             v.Text(""),
             state.Result != null 
                 ? v.Text($"Result: {state.Result}") 
@@ -85,13 +85,6 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
 ));
 
 await app.RunAsync();
-
-static string BuildProgressBar(int percent)
-{
-    var filled = percent / 5;
-    var empty = 20 - filled;
-    return $"[{new string('█', filled)}{new string('░', empty)}] {percent}%";
-}
 
 class LoaderState
 {
