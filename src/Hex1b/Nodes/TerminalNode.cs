@@ -5,7 +5,7 @@ using Hex1b.Widgets;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// A node that renders the output of an embedded Hex1bTerminal.
+/// A node that renders the output of an embedded terminal via a presentation adapter.
 /// </summary>
 /// <remarks>
 /// This node displays the screen buffer of an embedded terminal,
@@ -14,20 +14,41 @@ namespace Hex1b.Nodes;
 public sealed class TerminalNode : Hex1bNode
 {
     /// <summary>
-    /// The embedded terminal to display.
+    /// The presentation adapter for the embedded terminal.
     /// </summary>
-    private Hex1bTerminal? _terminal;
-    public Hex1bTerminal? Terminal 
+    private Hex1bAppPresentationAdapter? _presentationAdapter;
+    public Hex1bAppPresentationAdapter? PresentationAdapter 
     { 
-        get => _terminal; 
+        get => _presentationAdapter; 
         set
         {
-            if (_terminal != value)
+            if (_presentationAdapter != value)
             {
-                _terminal = value;
+                // Unsubscribe from old adapter
+                if (_presentationAdapter != null)
+                {
+                    _presentationAdapter.OutputReceived -= OnOutputReceived;
+                }
+                
+                _presentationAdapter = value;
+                
+                // Subscribe to new adapter
+                if (_presentationAdapter != null)
+                {
+                    _presentationAdapter.OutputReceived += OnOutputReceived;
+                }
+                
                 MarkDirty();
             }
         }
+    }
+    
+    /// <summary>
+    /// Handler for terminal output - marks this node as dirty.
+    /// </summary>
+    private void OnOutputReceived()
+    {
+        MarkDirty();
     }
 
     /// <summary>
@@ -42,15 +63,15 @@ public sealed class TerminalNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        if (Terminal == null)
+        if (PresentationAdapter == null)
         {
             return constraints.Constrain(Size.Zero);
         }
 
         // The terminal has a fixed size based on its width/height
         // We'll constrain it to fit within the available space
-        var termWidth = Terminal.Width;
-        var termHeight = Terminal.Height;
+        var termWidth = PresentationAdapter.Width;
+        var termHeight = PresentationAdapter.Height;
         
         var size = new Size(termWidth, termHeight);
         _lastMeasuredSize = constraints.Constrain(size);
@@ -63,22 +84,22 @@ public sealed class TerminalNode : Hex1bNode
         base.Arrange(bounds);
         
         // Resize the terminal if needed to fit the allocated bounds
-        if (Terminal != null && (bounds.Width != Terminal.Width || bounds.Height != Terminal.Height))
+        if (PresentationAdapter != null && (bounds.Width != PresentationAdapter.Width || bounds.Height != PresentationAdapter.Height))
         {
-            Terminal.Resize(bounds.Width, bounds.Height);
+            PresentationAdapter.Resize(bounds.Width, bounds.Height);
             MarkDirty();
         }
     }
 
     public override void Render(Hex1bRenderContext context)
     {
-        if (Terminal == null)
+        if (PresentationAdapter == null)
         {
             return;
         }
 
-        // Get the terminal's rendered output
-        var lines = Terminal.GetScreenText().Split('\n');
+        // Get the terminal's rendered output via the presentation adapter
+        var lines = PresentationAdapter.GetRenderedLines();
         _cachedLines = lines;
 
         // Render each line within bounds, respecting clipping

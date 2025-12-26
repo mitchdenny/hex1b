@@ -61,6 +61,12 @@ public sealed class Hex1bAppPresentationAdapter : IHex1bTerminalPresentationAdap
 
     /// <inheritdoc />
     public event Action? Disconnected;
+    
+    /// <summary>
+    /// Event fired when output is written to the terminal.
+    /// Used by TerminalNode to know when to repaint.
+    /// </summary>
+    public event Action? OutputReceived;
 
     /// <summary>
     /// Write output TO the embedded terminal (render ANSI sequences).
@@ -72,6 +78,10 @@ public sealed class Hex1bAppPresentationAdapter : IHex1bTerminalPresentationAdap
         // Convert bytes to string and process through the terminal
         var text = Encoding.UTF8.GetString(data.Span);
         _terminal.ProcessOutput(text);
+        
+        // Notify listeners that output was received (for TerminalNode dirty tracking)
+        OutputReceived?.Invoke();
+        
         return ValueTask.CompletedTask;
     }
 

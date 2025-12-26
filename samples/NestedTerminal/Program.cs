@@ -14,7 +14,7 @@ Console.ReadKey(true);
 try
 {
     // Create the main presentation adapter for the outer console
-    var outerPresentation = new ConsolePresentationAdapter(enableMouse: false);
+    var outerPresentation = new ConsolePresentationAdapter(enableMouse: true);
     
     // Create the outer app's workload adapter
     var outerWorkload = new Hex1bAppWorkloadAdapter(outerPresentation.Capabilities);
@@ -27,30 +27,56 @@ try
     // Create the workload adapter for the nested app
     var nestedWorkload = new Hex1bAppWorkloadAdapter();
     
-    // Create a headless terminal (no presentation adapter - we'll render it ourselves)
-    var nestedTerminal = new Hex1bTerminal(nestedWorkload, width: 60, height: 15);
+    // Create a dummy workload for the screen buffer (nothing writes to this)
+    // The screen buffer only receives content via the presentation adapter's WriteOutputAsync
+    var screenBufferWorkload = new Hex1bAppWorkloadAdapter();
+    
+    // Create a headless terminal to capture the nested app's screen buffer
+    // This terminal will receive output via WriteOutputAsync and store it in a screen buffer
+    var nestedScreenBuffer = new Hex1bTerminal(screenBufferWorkload, width: 60, height: 20);
+    
+    // Create the presentation adapter that wraps the screen buffer terminal
+    // The TerminalWidget will use this to display content and get notified when it changes
+    var nestedPresentation = new Hex1bAppPresentationAdapter(nestedScreenBuffer);
+    
+    // Create the bridge terminal that connects the workload to the presentation adapter
+    // This terminal reads from nestedWorkload and writes to nestedPresentation
+    var nestedTerminal = new Hex1bTerminal(nestedPresentation, nestedWorkload);
+    
+    // Shared counter for the nested app to show ongoing activity
+    var nestedCounter = 0;
+    var spinnerFrames = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+    var startTime = DateTime.Now;
     
     // Create the nested app that will run inside the nested terminal
     var nestedApp = new Hex1bApp(
-        ctx => ctx.VStack(v => [
-            v.Border(
-                v.VStack(inner => [
-                    inner.Text("╔═══════════════════════════════════════════════╗"),
-                    inner.Text("║   NESTED TERMINAL - This is a Hex1bApp        ║"),
-                    inner.Text("║   running inside another Hex1bApp!            ║"),
-                    inner.Text("╚═══════════════════════════════════════════════╝"),
-                    inner.Text(""),
-                    inner.Text("This nested app has its own:"),
-                    inner.Text("  • Render loop"),
-                    inner.Text("  • Virtual terminal emulator"),
-                    inner.Text("  • Screen buffer"),
-                    inner.Text(""),
-                    inner.Text("The outer app displays this nested terminal"),
-                    inner.Text("using a TerminalWidget!"),
-                ]),
-                title: "Nested App"
-            ).Fill(),
-        ]),
+        ctx => 
+        {
+            var elapsed = DateTime.Now - startTime;
+            var spinnerFrame = spinnerFrames[nestedCounter % spinnerFrames.Length];
+            
+            return ctx.VStack(v => [
+                v.Border(
+                    v.VStack(inner => [
+                        inner.Text("╔═══════════════════════════════════════════════╗"),
+                        inner.Text("║   NESTED TERMINAL - Live Updates!             ║"),
+                        inner.Text("╚═══════════════════════════════════════════════╝"),
+                        inner.Text(""),
+                        inner.Text("This nested app has its own:"),
+                        inner.Text("  • Render loop"),
+                        inner.Text("  • Virtual terminal emulator"),
+                        inner.Text("  • Screen buffer"),
+                        inner.Text(""),
+                        inner.Text($"  {spinnerFrame} Activity counter: {nestedCounter}"),
+                        inner.Text($"  ⏱ Uptime: {elapsed:mm\\:ss\\.ff}"),
+                        inner.Text(""),
+                        inner.Text("The outer app displays this nested terminal"),
+                        inner.Text("using a TerminalWidget on the right side!"),
+                    ]),
+                    title: "Nested App (Live)"
+                ).Fill(),
+            ]);
+        },
         new Hex1bAppOptions
         {
             WorkloadAdapter = nestedWorkload,
@@ -70,44 +96,67 @@ try
             Console.WriteLine($"Nested app error: {ex.Message}");
         }
     });
+    
+    // Start a background task to increment the nested counter for ongoing activity
+    var activityCts = new CancellationTokenSource();
+    var activityTask = Task.Run(async () =>
+    {
+        while (!activityCts.Token.IsCancellationRequested)
+        {
+            nestedCounter++;
+            nestedApp.Invalidate();
+            await Task.Delay(100, activityCts.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+    });
 
     // Give the nested app a moment to render
     await Task.Delay(500);
 
     // ===== Create the outer app that displays the nested terminal =====
     
-    var counter = 0;
+    var outerCounter = 0;
     
     await using var outerApp = new Hex1bApp(
         ctx => ctx.VStack(root => [
-            root.Border(
-                root.VStack(outer => [
-                    outer.Text("╔══════════════════════════════════════════════════════════════════╗"),
-                    outer.Text("║   OUTER APP - Hosting a nested terminal                          ║"),
-                    outer.Text("╚══════════════════════════════════════════════════════════════════╝"),
-                    outer.Text(""),
-                    outer.Text("This outer app uses TerminalWidget to display another Hex1bApp:"),
-                    outer.Text(""),
-                    
-                    // Display the nested terminal using TerminalWidget
-                    outer.Border(
-                        outer.Terminal(nestedTerminal),
-                        title: "Embedded Terminal"
-                    ),
-                    
-                    outer.Text(""),
-                    outer.Text("The embedded terminal above is a real Hex1bTerminal with its"),
-                    outer.Text("own screen buffer, ANSI parsing, and render loop!"),
-                    outer.Text(""),
-                    outer.HStack(h => [
-                        h.Button("Increment Counter").OnClick(_ => counter++),
-                        h.Text($"  Counter: {counter}"),
+            root.Splitter(
+                // Left side: Outer app controls
+                root.Border(
+                    root.VStack(outer => [
+                        outer.Text("╔════════════════════════════════════╗"),
+                        outer.Text("║   OUTER APP                        ║"),
+                        outer.Text("║   Hosting a nested terminal        ║"),
+                        outer.Text("╚════════════════════════════════════╝"),
+                        outer.Text(""),
+                        outer.Text("This is the outer Hex1bApp."),
+                        outer.Text(""),
+                        outer.Text("The panel on the RIGHT contains"),
+                        outer.Text("a fully independent Hex1bApp"),
+                        outer.Text("running with its own render loop."),
+                        outer.Text(""),
+                        outer.Text("Notice the spinner and counter"),
+                        outer.Text("updating in the nested terminal!"),
+                        outer.Text(""),
+                        outer.Text("─────────────────────────────────────"),
+                        outer.Text(""),
+                        outer.HStack(h => [
+                            h.Button("Increment").OnClick(_ => outerCounter++),
+                            h.Text($"  Outer counter: {outerCounter}"),
+                        ]),
+                        outer.Text(""),
+                        outer.Text("Use Tab to navigate, Enter to click."),
                     ]),
-                ]),
-                title: "Outer App"
+                    title: "Outer App Controls"
+                ).Fill(),
+                
+                // Right side: Nested terminal
+                root.Border(
+                    root.Terminal(nestedPresentation),
+                    title: "Embedded Terminal →"
+                ).Fill()
             ).Fill(),
             
             root.InfoBar([
+                "Drag Splitter", "Resize",
                 "Tab", "Navigate", 
                 "Enter", "Activate Button", 
                 "Ctrl+C", "Exit"
@@ -116,15 +165,22 @@ try
         new Hex1bAppOptions
         {
             WorkloadAdapter = outerWorkload,
-            EnableMouse = false
+            EnableMouse = true
         }
     );
+    
+    // Subscribe to nested terminal output to invalidate the outer app
+    // This wakes up the outer app's render loop when the nested terminal has new content
+    nestedPresentation.OutputReceived += () => outerApp.Invalidate();
 
     await outerApp.RunAsync();
     
-    // Clean up nested app
+    // Clean up
+    activityCts.Cancel();
+    await activityTask;
     await nestedApp.DisposeAsync();
     nestedTerminal.Dispose();
+    await nestedPresentation.DisposeAsync();
 }
 catch (Exception ex)
 {

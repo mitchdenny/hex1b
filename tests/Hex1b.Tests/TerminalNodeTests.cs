@@ -12,9 +12,9 @@ namespace Hex1b.Tests;
 public class TerminalNodeTests
 {
     [Fact]
-    public void Measure_WithNullTerminal_ReturnsZeroSize()
+    public void Measure_WithNullPresentationAdapter_ReturnsZeroSize()
     {
-        var node = new TerminalNode { Terminal = null };
+        var node = new TerminalNode { PresentationAdapter = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -23,11 +23,12 @@ public class TerminalNodeTests
     }
 
     [Fact]
-    public void Measure_WithTerminal_ReturnsTerminalSize()
+    public void Measure_WithPresentationAdapter_ReturnsTerminalSize()
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 80, height: 24);
-        var node = new TerminalNode { Terminal = terminal };
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -40,7 +41,8 @@ public class TerminalNodeTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 80, height: 24);
-        var node = new TerminalNode { Terminal = terminal };
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
 
         var size = node.Measure(new Constraints(0, 40, 0, 12));
 
@@ -53,7 +55,8 @@ public class TerminalNodeTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 40, height: 12);
-        var node = new TerminalNode { Terminal = terminal };
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
 
         var size = node.Measure(new Constraints(60, 100, 20, 30));
 
@@ -66,18 +69,19 @@ public class TerminalNodeTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 80, height: 24);
-        var node = new TerminalNode { Terminal = terminal };
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
 
         node.Arrange(new Rect(0, 0, 40, 12));
 
-        Assert.Equal(40, terminal.Width);
-        Assert.Equal(12, terminal.Height);
+        Assert.Equal(40, presentationAdapter.Width);
+        Assert.Equal(12, presentationAdapter.Height);
     }
 
     [Fact]
-    public void Render_WithNullTerminal_DoesNotThrow()
+    public void Render_WithNullPresentationAdapter_DoesNotThrow()
     {
-        var node = new TerminalNode { Terminal = null };
+        var node = new TerminalNode { PresentationAdapter = null };
         var adapter = new Hex1bAppWorkloadAdapter();
         var context = new Hex1bRenderContext(adapter);
         
@@ -93,11 +97,12 @@ public class TerminalNodeTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 20, height: 5);
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
         
         // Write some output to the terminal
         terminal.ProcessOutput("Hello World");
         
-        var node = new TerminalNode { Terminal = terminal };
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
         var adapter = new Hex1bAppWorkloadAdapter();
         var context = new Hex1bRenderContext(adapter);
         
@@ -105,9 +110,9 @@ public class TerminalNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
 
-        // Verify the terminal's content was rendered
-        var screenText = terminal.GetScreenText();
-        Assert.Contains("Hello World", screenText);
+        // Verify the terminal's content was rendered via the presentation adapter
+        var lines = presentationAdapter.GetRenderedLines();
+        Assert.Contains("Hello World", string.Join("\n", lines));
     }
 
     [Fact]
@@ -115,14 +120,15 @@ public class TerminalNodeTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal = new Hex1bTerminal(workload, width: 80, height: 24);
-        var widget = new TerminalWidget(terminal);
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        var widget = new TerminalWidget(presentationAdapter);
 
         var context = ReconcileContext.CreateRoot(new FocusRing());
         var node = widget.Reconcile(null, context);
 
         Assert.IsType<TerminalNode>(node);
         var terminalNode = (TerminalNode)node;
-        Assert.Same(terminal, terminalNode.Terminal);
+        Assert.Same(presentationAdapter, terminalNode.PresentationAdapter);
     }
 
     [Fact]
@@ -131,27 +137,31 @@ public class TerminalNodeTests
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal1 = new Hex1bTerminal(workload, width: 80, height: 24);
         var terminal2 = new Hex1bTerminal(workload, width: 80, height: 24);
+        var presentationAdapter1 = new Hex1bAppPresentationAdapter(terminal1);
+        var presentationAdapter2 = new Hex1bAppPresentationAdapter(terminal2);
         
-        var widget1 = new TerminalWidget(terminal1);
-        var widget2 = new TerminalWidget(terminal2);
+        var widget1 = new TerminalWidget(presentationAdapter1);
+        var widget2 = new TerminalWidget(presentationAdapter2);
 
         var context = ReconcileContext.CreateRoot(new FocusRing());
         var node1 = widget1.Reconcile(null, context);
         var node2 = widget2.Reconcile(node1, context);
 
         Assert.Same(node1, node2);
-        Assert.Same(terminal2, ((TerminalNode)node2).Terminal);
+        Assert.Same(presentationAdapter2, ((TerminalNode)node2).PresentationAdapter);
     }
 
     [Fact]
-    public void TerminalWidget_MarksDirtyWhenTerminalChanges()
+    public void TerminalWidget_MarksDirtyWhenPresentationAdapterChanges()
     {
         var workload = new Hex1bAppWorkloadAdapter();
         var terminal1 = new Hex1bTerminal(workload, width: 80, height: 24);
         var terminal2 = new Hex1bTerminal(workload, width: 80, height: 24);
+        var presentationAdapter1 = new Hex1bAppPresentationAdapter(terminal1);
+        var presentationAdapter2 = new Hex1bAppPresentationAdapter(terminal2);
         
-        var widget1 = new TerminalWidget(terminal1);
-        var widget2 = new TerminalWidget(terminal2);
+        var widget1 = new TerminalWidget(presentationAdapter1);
+        var widget2 = new TerminalWidget(presentationAdapter2);
 
         var context = ReconcileContext.CreateRoot(new FocusRing());
         var node = (TerminalNode)widget1.Reconcile(null, context);
@@ -160,9 +170,29 @@ public class TerminalNodeTests
         node.ClearDirty();
         Assert.False(node.IsDirty);
 
-        // Reconcile with different terminal
+        // Reconcile with different presentation adapter
         widget2.Reconcile(node, context);
 
+        Assert.True(node.IsDirty);
+    }
+    
+    [Fact]
+    public void TerminalNode_MarksDirtyWhenOutputReceived()
+    {
+        var workload = new Hex1bAppWorkloadAdapter();
+        var terminal = new Hex1bTerminal(workload, width: 80, height: 24);
+        var presentationAdapter = new Hex1bAppPresentationAdapter(terminal);
+        
+        var node = new TerminalNode { PresentationAdapter = presentationAdapter };
+        
+        // Clear dirty flag after initial setup
+        node.ClearDirty();
+        Assert.False(node.IsDirty);
+        
+        // Write output via the presentation adapter
+        presentationAdapter.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes("Test output"));
+        
+        // Node should be marked dirty
         Assert.True(node.IsDirty);
     }
 }
