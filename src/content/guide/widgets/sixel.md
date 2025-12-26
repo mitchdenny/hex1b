@@ -261,6 +261,9 @@ v.Sixel(state.CachedSixelData, fallback, width: requestedWidth, height: requeste
 Display a collection of images with navigation:
 
 ```csharp
+using System;
+using System.IO;
+
 var images = new[] { "photo1.jpg", "photo2.png", "photo3.svg" };
 var state = new GalleryState { SelectedIndex = 0 };
 
