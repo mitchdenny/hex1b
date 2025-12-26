@@ -68,6 +68,11 @@ builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxFormExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxUnicodeExample>();
 
+// Register InfoBar widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, InfoBarBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, InfoBarSectionsExample>();
+builder.Services.AddSingleton<IGalleryExample, InfoBarColorsExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
