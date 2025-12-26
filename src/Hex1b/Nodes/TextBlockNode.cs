@@ -4,9 +4,32 @@ using Hex1b.Widgets;
 
 namespace Hex1b;
 
+/// <summary>
+/// Render node for displaying text content. Created by reconciling a <see cref="TextBlockWidget"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// TextBlockNode handles measuring, arranging, and rendering text with support for
+/// different overflow behaviors: overflow (clipped by parent), wrapping, and ellipsis truncation.
+/// </para>
+/// <para>
+/// This node is not focusable and does not handle input. For editable text, see <see cref="TextBoxNode"/>.
+/// </para>
+/// </remarks>
+/// <seealso cref="TextBlockWidget"/>
+/// <seealso cref="TextOverflow"/>
 public sealed class TextBlockNode : Hex1bNode
 {
     private string _text = "";
+    
+    /// <summary>
+    /// Gets or sets the text content to display.
+    /// </summary>
+    /// <remarks>
+    /// When this property changes, the node is marked dirty to trigger re-layout and re-render.
+    /// The text can contain Unicode characters including wide characters (CJK) and emoji,
+    /// which are correctly measured using display width calculations.
+    /// </remarks>
     public string Text 
     { 
         get => _text; 
@@ -21,6 +44,23 @@ public sealed class TextBlockNode : Hex1bNode
     }
     
     private TextOverflow _overflow = TextOverflow.Overflow;
+    
+    /// <summary>
+    /// Gets or sets how text handles horizontal overflow.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When this property changes, the node is marked dirty to trigger re-layout and re-render.
+    /// </para>
+    /// <para>
+    /// The behavior depends on the <see cref="TextOverflow"/> value:
+    /// <list type="bullet">
+    /// <item><description><see cref="TextOverflow.Overflow"/>: Text extends beyond bounds; parent LayoutNode clips if needed.</description></item>
+    /// <item><description><see cref="TextOverflow.Wrap"/>: Text wraps at word boundaries, increasing measured height.</description></item>
+    /// <item><description><see cref="TextOverflow.Ellipsis"/>: Text is truncated with "..." to fit available width.</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
     public TextOverflow Overflow 
     { 
         get => _overflow; 
@@ -44,6 +84,24 @@ public sealed class TextBlockNode : Hex1bNode
     /// </summary>
     private int _lastWrapWidth = -1;
 
+    /// <summary>
+    /// Measures the size required to display the text within the given constraints.
+    /// </summary>
+    /// <param name="constraints">The size constraints for layout.</param>
+    /// <returns>
+    /// The measured size. For <see cref="TextOverflow.Wrap"/> mode, height may be greater than 1
+    /// if text wraps to multiple lines.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The measurement behavior depends on the <see cref="Overflow"/> setting:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><see cref="TextOverflow.Overflow"/>: Returns the full text width (constrained to max width) and height of 1.</description></item>
+    /// <item><description><see cref="TextOverflow.Wrap"/>: Calculates wrapped lines and returns the width of the widest line and total line count as height.</description></item>
+    /// <item><description><see cref="TextOverflow.Ellipsis"/>: Returns the minimum of text width and max width, with height of 1.</description></item>
+    /// </list>
+    /// </remarks>
     public override Size Measure(Constraints constraints)
     {
         switch (Overflow)
@@ -167,6 +225,15 @@ public sealed class TextBlockNode : Hex1bNode
         return (result.text, result.columns);
     }
 
+    /// <summary>
+    /// Renders the text to the terminal using the current render context.
+    /// </summary>
+    /// <param name="context">The render context providing terminal access and inherited styling.</param>
+    /// <remarks>
+    /// The rendering behavior depends on the <see cref="Overflow"/> setting and whether
+    /// a parent <see cref="Nodes.LayoutNode"/> provides clipping. Inherited colors from
+    /// parent nodes are applied automatically.
+    /// </remarks>
     public override void Render(Hex1bRenderContext context)
     {
         var colorCodes = context.GetInheritedColorCodes();

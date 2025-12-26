@@ -44,6 +44,11 @@ builder.Services.AddSingleton<IGalleryExample, GettingStartedStep3Example>();
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep4Example>();
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep5Example>();
 
+// Register Text widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, TextBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, TextOverflowExample>();
+builder.Services.AddSingleton<IGalleryExample, TextCompleteExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

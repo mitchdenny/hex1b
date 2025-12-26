@@ -407,6 +407,172 @@ Before finalizing documentation:
 - Check that links aren't broken
 - Verify VitePress components render correctly
 
+#### Widget Documentation Template
+
+When documenting widgets in `guide/widgets/`, follow this consistent structure to ensure users can quickly find what they need:
+
+##### Required Sections
+
+1. **Title** - Widget name as heading
+2. **Basic Usage** - Complete, runnable example with `Hex1bApp` setup and live demo
+3. **Features/Behavior** - Widget-specific capabilities with live demos where applicable
+4. **Complete Example** - More comprehensive usage demonstration with live demo
+5. **API Reference** - Parameters, enums, extension methods, size hints
+6. **Related Widgets** - Links to related documentation
+
+##### Live Terminal Demos for Widget Docs
+
+Widget documentation **must** include live terminal demos using the `<CodeBlock>` component. This requires:
+
+1. **Create WebSocket example files** in `src/Hex1b.Website/Examples/` for each demo
+2. **Use the `<CodeBlock>` component** with the `example` attribute linking to the example Id
+3. **Define code in `<script setup>`** at the top of the markdown file
+
+**Example structure for widget docs:**
+
+```markdown
+<script setup>
+const basicCode = \`using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.WidgetMethod("example")
+    ])
+));
+
+await app.RunAsync();\`
+</script>
+
+# WidgetName
+
+Brief description.
+
+## Basic Usage
+
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="widget-basic" exampleTitle="Widget - Basic Usage" />
+```
+
+**Creating the WebSocket example file** (`src/Hex1b.Website/Examples/WidgetBasicExample.cs`):
+
+```csharp
+using Hex1b;
+using Hex1b.Widgets;
+using Microsoft.Extensions.Logging;
+
+namespace Hex1b.Website.Examples;
+
+public class WidgetBasicExample(ILogger<WidgetBasicExample> logger) : Hex1bExample
+{
+    private readonly ILogger<WidgetBasicExample> _logger = logger;
+
+    public override string Id => "widget-basic";  // Must match example attribute in CodeBlock
+    public override string Title => "Widget - Basic Usage";
+    public override string Description => "Demonstrates basic widget usage";
+
+    public override Func<Hex1bWidget> CreateWidgetBuilder()
+    {
+        _logger.LogInformation("Creating widget basic example");
+
+        return () =>
+        {
+            var ctx = new RootContext();
+            return ctx.VStack(v => [
+                v.WidgetMethod("example")
+            ]);
+        };
+    }
+}
+```
+
+##### Key Principles
+
+**Always use the fluent API**:
+- ✅ `ctx.Text("Hello")` or `v.Text("Hello")`
+- ❌ `new TextBlockWidget("Hello")` - Do not show direct widget construction
+
+**Basic Usage must include Hex1bApp**:
+```csharp
+using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.Text("Hello, World!")
+));
+
+await app.RunAsync();
+```
+
+**Show widgets in context** - Demonstrate usage within layout containers:
+```csharp
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Title"),
+        v.Text("Description")
+    ])
+));
+```
+
+##### Template Structure
+
+```markdown
+<script setup>
+const basicCode = \`using Hex1b;
+using Hex1b.Widgets;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.WidgetMethod("example")
+));
+
+await app.RunAsync();\`
+
+const completeCode = \`// Full example with multiple features...\`
+</script>
+
+# WidgetName
+
+Brief description of what the widget does.
+
+## Basic Usage
+
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="widget-basic" exampleTitle="Widget - Basic Usage" />
+
+## [Feature Section(s)]
+
+Document widget-specific features with focused examples. Include live demos for key features.
+
+## Complete Example
+
+<CodeBlock lang="csharp" :code="completeCode" command="dotnet run" example="widget-complete" exampleTitle="Widget - Complete Example" />
+
+## API Reference
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| ... | ... | ... |
+
+### Extension Methods
+
+| Method | Description |
+|--------|-------------|
+| ... | ... |
+
+### Size Hint Methods
+
+All size hint methods are available:
+
+| Method | Description |
+|--------|-------------|
+| `.FillWidth()` | Expand to fill available width |
+| ... | ... |
+
+## Related Widgets
+
+- [RelatedWidget](/guide/widgets/related) - Brief description
+```
+
 ## Documentation Workflow
 
 ### For New Features
