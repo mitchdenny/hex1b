@@ -1,59 +1,36 @@
-# Stack Widgets (HStack/VStack)
+# Stack Widgets
 
-Arrange children horizontally or vertically.
+This page has been split into individual widget documentation pages for better organization.
 
-## VStack (Vertical)
+## VStackWidget
 
-Stack children top to bottom:
+VStackWidget arranges child widgets vertically from top to bottom with flexible height distribution.
 
-```csharp
-new VStackWidget([
-    new TextBlockWidget("Header"),
-    new ButtonWidget("Button 1", () => {}),
-    new ButtonWidget("Button 2", () => {})
-])
-```
+**[View full VStackWidget documentation →](/guide/widgets/vstack)**
 
-## HStack (Horizontal)
+Key features:
+- Vertical layout container
+- Content, fill, and fixed height sizing
+- Weighted fill distribution
+- Focus management
+- Tab/Shift+Tab navigation
 
-Stack children left to right:
+## HStackWidget
 
-```csharp
-new HStackWidget([
-    new TextBlockWidget("Label:"),
-    new TextBoxWidget(value, onChange).Fill(),
-    new ButtonWidget("OK", () => {})
-])
-```
+HStackWidget arranges child widgets horizontally from left to right with flexible width distribution.
 
-## Sizing Children
+**[View full HStackWidget documentation →](/guide/widgets/hstack)**
 
-### Fill
+Key features:
+- Horizontal layout container
+- Content, fill, and fixed width sizing
+- Weighted fill distribution
+- Focus management
+- Tab/Shift+Tab navigation
 
-```csharp
-new VStackWidget([
-    new TextBlockWidget("Header"),        // Content height
-    new ListWidget(items, onSelect).Fill(), // Fill remaining
-    new TextBlockWidget("Footer")          // Content height
-])
-```
+## See Also
 
-### Fixed Size
-
-```csharp
-new HStackWidget([
-    new PanelWidget(sidebar).Width(30),
-    new PanelWidget(main).Fill()
-])
-```
-
-## Spacing
-
-```csharp
-new VStackWidget([...]).Spacing(1)  // 1 row gap between children
-new HStackWidget([...]).Spacing(2)  // 2 column gap between children
-```
-
-## Live Demo
-
-<TerminalDemo example="layout" title="Stack Layout Demo" />
+- [VStackWidget](/guide/widgets/vstack) - Detailed vertical stack documentation
+- [HStackWidget](/guide/widgets/hstack) - Detailed horizontal stack documentation
+- [BorderWidget](/guide/widgets/border) - For adding borders to stack children
+- [PanelWidget](/guide/widgets/panel) - For adding backgrounds to stack children

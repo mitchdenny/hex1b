@@ -1,50 +1,34 @@
-# Container Widgets (Border/Panel)
+# Container Widgets
 
-Wrap content with visual decoration and padding.
+This page has been split into individual widget documentation pages for better organization.
 
 ## BorderWidget
 
-Draw a border around content:
+BorderWidget draws a decorative box border around content with optional title support.
 
-```csharp
-new BorderWidget(
-    new TextBlockWidget("Content here")
-)
-```
+**[View full BorderWidget documentation →](/guide/widgets/border)**
 
-### With Title
-
-```csharp
-new BorderWidget(content).Title("Settings")
-```
-
-### Border Styles
-
-```csharp
-new BorderWidget(content, BorderStyle.Single)   // ┌─┐│└─┘
-new BorderWidget(content, BorderStyle.Double)   // ╔═╗║╚═╝
-new BorderWidget(content, BorderStyle.Rounded)  // ╭─╮│╰─╯
-new BorderWidget(content, BorderStyle.Heavy)    // ┏━┓┃┗━┛
-```
+Key features:
+- Box drawing characters for visual borders
+- Optional title in the top border
+- Customizable via theming
+- Clipping support for child content
 
 ## PanelWidget
 
-A border with built-in padding:
+PanelWidget provides a styled background for content without adding decorative borders.
 
-```csharp
-new PanelWidget(content)   // 1 cell padding
-new PanelWidget(content, padding: 2)
-```
+**[View full PanelWidget documentation →](/guide/widgets/panel)**
 
-## Styling
+Key features:
+- Background fill color
+- Foreground color inheritance
+- No size overhead
+- Combine with borders for layered styling
 
-```csharp
-new BorderWidget(content)
-    .BorderColor(Hex1bColor.Cyan)
-    .TitleColor(Hex1bColor.White)
-    .Background(Hex1bColor.Black)
-```
+## See Also
 
-## Live Demo
-
-<TerminalDemo example="layout" title="Container Demo" />
+- [BorderWidget](/guide/widgets/border) - Detailed border documentation
+- [PanelWidget](/guide/widgets/panel) - Detailed panel documentation
+- [HStackWidget](/guide/widgets/hstack) - Horizontal layout container
+- [VStackWidget](/guide/widgets/vstack) - Vertical layout container
