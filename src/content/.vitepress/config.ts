@@ -10,6 +10,10 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]
   ],
 
+  markdown: {
+    lineNumbers: true
+  },
+
   themeConfig: {
     logo: '/logo.svg',
     

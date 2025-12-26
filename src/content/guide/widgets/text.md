@@ -5,6 +5,11 @@
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
+import truncateSnippet from './snippets/text-truncate.cs?raw'
+import wrapSnippet from './snippets/text-wrap.cs?raw'
+import ellipsisSnippet from './snippets/text-ellipsis.cs?raw'
+import unicodeSnippet from './snippets/text-unicode.cs?raw'
+
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
@@ -72,33 +77,13 @@ TextWidget provides three modes for handling text that exceeds the available wid
 
 Text is clipped when it extends beyond its bounds. No visual indicator is shown:
 
-<StaticTerminalPreview htmlPath="/svg/text-overflow-truncate.html">
-
-```csharp
-v.Text(
-    "This text extends beyond the terminal width " +
-    "without wrapping or truncation"
-).Truncate()
-```
-
-</StaticTerminalPreview>
+<StaticTerminalPreview svgPath="/svg/text-overflow-truncate.svg" :code="truncateSnippet" />
 
 ### Wrap
 
 Text wraps to multiple lines at word boundaries:
 
-<StaticTerminalPreview htmlPath="/svg/text-overflow-wrap.html">
-
-```csharp
-v.Text(
-    "This demonstrates text wrapping behavior. " +
-    "When content exceeds the available width, " +
-    "it automatically breaks at word boundaries " +
-    "to create multiple lines."
-).Wrap()
-```
-
-</StaticTerminalPreview>
+<StaticTerminalPreview svgPath="/svg/text-overflow-wrap.svg" :code="wrapSnippet" />
 
 When wrapping:
 - Words break at spaces when possible
@@ -109,16 +94,7 @@ When wrapping:
 
 Text is truncated with "..." when it exceeds the width:
 
-<StaticTerminalPreview htmlPath="/svg/text-overflow-ellipsis.html">
-
-```csharp
-v.Text(
-    "This demonstrates ellipsis truncation for " +
-    "text that exceeds the available width"
-).Ellipsis()
-```
-
-</StaticTerminalPreview>
+<StaticTerminalPreview svgPath="/svg/text-overflow-ellipsis.svg" :code="ellipsisSnippet" />
 
 ## Unicode Support
 
@@ -129,13 +105,7 @@ TextWidget correctly handles Unicode text including:
 - **Combining characters**: é, ñ
 - **Box-drawing characters**: ┌─┐│└─┘
 
-<StaticTerminalPreview htmlPath="/svg/text-unicode.html">
-
-```csharp
-v.Text("日本語テスト 🎉")
-```
-
-</StaticTerminalPreview>
+<StaticTerminalPreview svgPath="/svg/text-unicode.svg" :code="unicodeSnippet" />
 
 ## Related Widgets
 

@@ -3,9 +3,9 @@
 // =============================================================================
 // This is a TEMPLATE file. DO NOT modify this file directly.
 //
-// This generator creates both SVG and HTML files for static terminal previews.
-// The HTML files include an interactive cell inspector that shows character,
-// color, and attribute information when hovering over cells.
+// This generator creates SVG files for static terminal previews.
+// The StaticTerminalPreview Vue component parses cell data directly from the
+// SVG DOM structure for hover tooltips - no separate HTML file needed.
 //
 // Agent Workflow:
 //   1. Copy this entire directory to a temporary location:
@@ -21,19 +21,26 @@
 //      cd .tmp-static-gen && dotnet run -- output
 //
 //   5. Copy outputs to static site:
-//      cp output/*.svg output/*.html ../src/content/public/svg/
+//      cp output/*.svg ../src/content/public/svg/
 //
 //   6. Clean up:
 //      cd .. && rm -rf .tmp-static-gen
 //
 //   7. Use in markdown:
-//      <StaticTerminalPreview htmlPath="/svg/your-file.html">
+//      <StaticTerminalPreview svgPath="/svg/your-file.svg">
 //
 //      ```csharp
 //      v.YourCodeHere()
 //      ```
 //
 //      </StaticTerminalPreview>
+//
+// NOTE: This template generates SVG WITHOUT cursor visibility by default.
+//       The cursor is hidden because documentation screenshots should show clean
+//       output without a random cursor block confusing readers. If you need to
+//       show cursor position (e.g., for TextBox focus documentation), change
+//       the ToSvg call to use the snapshot directly instead of casting to
+//       IHex1bTerminalRegion.
 //
 // See .github/skills/doc-writer/SKILL.md for detailed instructions.
 // =============================================================================
@@ -50,14 +57,14 @@ class Program
         var outputDir = args.Length > 0 ? args[0] : "output";
         Directory.CreateDirectory(outputDir);
 
-        Console.WriteLine($"StaticGenerator - Generating SVG and HTML snapshots to: {outputDir}");
+        Console.WriteLine($"StaticGenerator - Generating SVG snapshots to: {outputDir}");
         Console.WriteLine();
 
         await GenerateSnapshots(outputDir);
 
         Console.WriteLine();
         Console.WriteLine("Done! Generated files:");
-        foreach (var file in Directory.GetFiles(outputDir, "*.svg").Concat(Directory.GetFiles(outputDir, "*.html")))
+        foreach (var file in Directory.GetFiles(outputDir, "*.svg"))
         {
             Console.WriteLine($"  {Path.GetFileName(file)}");
         }
@@ -75,7 +82,7 @@ class Program
             ctx => ctx.VStack(v => [
                 v.Text("═══ Example Widget ═══"),
                 v.Text(""),
-                v.Text("This is a static SVG/HTML screenshot."),
+                v.Text("This is a static SVG screenshot."),
                 v.Text("Modify GenerateSnapshots() to render your own content.")
             ]));
 
@@ -123,15 +130,15 @@ class Program
             CellHeight = 18
         };
         
-        // Generate SVG
-        var svg = snapshot.ToSvg(svgOptions);
+        // Generate SVG WITHOUT cursor visibility
+        // Cast to IHex1bTerminalRegion to use overload that doesn't include cursor position.
+        // This keeps documentation screenshots clean without random cursor blocks.
+        // If you need to show cursor (e.g., TextBox focus), use snapshot.ToSvg() directly.
+        var region = (IHex1bTerminalRegion)snapshot;
+        
+        var svg = region.ToSvg(svgOptions);
         var svgPath = Path.Combine(outputDir, $"{name}.svg");
         await File.WriteAllTextAsync(svgPath, svg);
-        
-        // Generate HTML (interactive inspector)
-        var html = snapshot.ToHtml(svgOptions);
-        var htmlPath = Path.Combine(outputDir, $"{name}.html");
-        await File.WriteAllTextAsync(htmlPath, html);
 
         // Cancel the app
         cts.Cancel();

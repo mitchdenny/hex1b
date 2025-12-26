@@ -409,7 +409,13 @@ Before finalizing documentation:
 
 #### Widget Documentation Template
 
-When documenting widgets in `guide/widgets/`, follow this consistent structure to ensure users can quickly find what they need:
+When documenting widgets in `guide/widgets/`, follow this consistent structure to ensure users can quickly find what they need.
+
+**📖 Canonical Example:** See [guide/widgets/text.md](/src/content/guide/widgets/text.md) for a fully-realized example demonstrating all the patterns described below, including:
+- External `.cs` snippet files with `?raw` imports
+- Live demos with `<CodeBlock>` for full examples
+- Static previews with `<StaticTerminalPreview>` for visual variations
+- Proper section structure and related widgets links
 
 ##### Required Sections
 
@@ -567,15 +573,15 @@ Brief description of what the widget does.
 
 Document widget-specific features with focused examples.
 
-Use `<StaticTerminalPreview>` for visual variations:
+Store code snippets as external `.cs` files and import them with `?raw`:
 
-<StaticTerminalPreview htmlPath="/svg/widget-feature.html">
+```markdown
+<script setup>
+import featureSnippet from './snippets/widget-feature.cs?raw'
+</script>
 
-\`\`\`csharp
-ctx.WidgetMethod("variation")
-\`\`\`
-
-</StaticTerminalPreview>
+<StaticTerminalPreview svgPath="/svg/widget-feature.svg" :code="featureSnippet" />
+```
 
 ## Related Widgets
 
@@ -667,13 +673,13 @@ dotnet run -- output
 Check that the files were created:
 ```bash
 ls -la output/
-# Should contain: text-wrap-demo.svg, text-wrap-demo.html
+# Should contain: text-wrap-demo.svg
 ```
 
 **Step 6: Copy to public assets**
 
 ```bash
-cp output/*.svg output/*.html ../src/content/public/svg/
+cp output/*.svg ../src/content/public/svg/
 ```
 
 **Step 7: Clean up**
@@ -685,16 +691,23 @@ rm -rf .tmp-static-gen
 
 **Step 8: Use in documentation**
 
-Use the `<StaticTerminalPreview>` component in your markdown file:
+Create a snippets folder alongside your markdown and add the code as a `.cs` file:
 
-```markdown
-<StaticTerminalPreview htmlPath="/svg/text-wrap-demo.html">
-
-```csharp
-v.Text("Long wrapping text...").Wrap()
+```
+guide/widgets/
+├── your-widget.md
+└── snippets/
+    └── text-wrap-demo.cs
 ```
 
-</StaticTerminalPreview>
+Then import and use it in your markdown:
+
+```markdown
+<script setup>
+import wrapSnippet from './snippets/text-wrap-demo.cs?raw'
+</script>
+
+<StaticTerminalPreview svgPath="/svg/text-wrap-demo.svg" :code="wrapSnippet" />
 ```
 
 ##### GenerateSnapshot Function Signature
@@ -702,7 +715,7 @@ v.Text("Long wrapping text...").Wrap()
 ```csharp
 await GenerateSnapshot(
     outputDir,      // Always use "output"
-    "filename",     // Name without extension (creates .svg and .html)
+    "filename",     // Name without extension (creates .svg)
     "Description",  // For console output only
     width,          // Terminal columns
     height,         // Terminal rows
@@ -712,43 +725,56 @@ await GenerateSnapshot(
 
 ##### StaticTerminalPreview Component
 
-The `<StaticTerminalPreview>` component displays code with a "View Output" button. Clicking the button opens a floating overlay with the interactive HTML preview.
+The `<StaticTerminalPreview>` component displays code with an expandable "View output" panel. Clicking the chevron icon slides open a panel showing the rendered terminal output.
 
-**Usage:**
+This component uses Shiki for syntax highlighting with line numbers, matching the styling of the main `<CodeBlock>` component.
+
+**Usage (recommended - external .cs files with `?raw` import):**
+
+Store code snippets as external `.cs` files in a `snippets/` folder alongside your markdown, then import them using Vite's `?raw` suffix:
+
+```
+guide/widgets/
+├── text.md
+└── snippets/
+    ├── text-truncate.cs
+    ├── text-wrap.cs
+    └── text-ellipsis.cs
+```
+
 ```markdown
-<StaticTerminalPreview htmlPath="/svg/your-file.html">
+<script setup>
+import truncateSnippet from './snippets/text-truncate.cs?raw'
+import wrapSnippet from './snippets/text-wrap.cs?raw'
+import ellipsisSnippet from './snippets/text-ellipsis.cs?raw'
+</script>
 
-```csharp
-v.YourCodeHere()
+<StaticTerminalPreview svgPath="/svg/text-truncate.svg" :code="truncateSnippet" />
 ```
 
-</StaticTerminalPreview>
-```
+Benefits of external files:
+- Real `.cs` files with proper syntax highlighting in your editor
+- Easier to maintain and edit
+- Avoids VitePress markdown processing issues
+- Cleaner markdown files
 
 **Props:**
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `htmlPath` | string | required | Path to .html file relative to public folder |
-| `code` | string | (from slot) | Code to display (alternative to slot content) |
+| `svgPath` | string | required | Path to .svg file relative to public folder |
+| `code` | string | (from slot) | Code to display (use with `?raw` imports) |
 | `language` | string | "csharp" | Language for syntax highlighting |
 
 **Features:**
-- Code block with syntax highlighting
-- "View Output" button in header
-- Floating overlay with backdrop blur
-- Interactive HTML with cell inspector
-- Press Escape or click backdrop to close
+- Shiki syntax highlighting with line numbers (matching CodeBlock.vue)
+- Chevron icon in header to expand/collapse output
+- Inline slide-out panel (no overlay or iframe)
+- SVG scales to fill available width
+- Cell hover tooltips showing character info, colors, and attributes (parsed from SVG DOM)
+- Consistent styling with main documentation code blocks
 
-##### HTML Minimal Mode
-
-The generated HTML files support a `?minimal=true` query parameter that:
-- Hides the header, theme controls, and info bar
-- Shows only the SVG with hover tooltips
-- Adds a subtle glow effect around the terminal boundary
-- Perfect for iframe embedding
-
-The `<StaticTerminalPreview>` component automatically uses minimal mode.
+**Note:** The component parses cell data directly from the SVG's DOM structure (using `data-x`, `data-y` attributes and element properties). No separate HTML file is needed.
 
 ##### TerminalSvgOptions
 
@@ -762,6 +788,21 @@ The `<StaticTerminalPreview>` component automatically uses minimal mode.
 | `FontSize` | `14` | Font size in pixels |
 | `CellWidth` | `9` | Cell width in pixels |
 | `CellHeight` | `18` | Cell height in pixels |
+
+##### Avoiding Cursor in SVG Output
+
+**IMPORTANT**: Unless your code sample specifically demonstrates cursor/mouse behavior, disable the cursor in generated SVGs. A random cursor block appearing in documentation screenshots confuses readers.
+
+The `Hex1bTerminalSnapshot.ToSvg()` method includes cursor position by default. To hide the cursor, cast to `IHex1bTerminalRegion`:
+
+```csharp
+// Cast to IHex1bTerminalRegion to use the overload without cursor
+var svg = ((IHex1bTerminalRegion)snapshot).ToSvg(svgOptions);
+```
+
+The template's `GenerateSnapshot` function already uses this approach by default.
+
+Only include the cursor when documenting cursor-related features (e.g., TextBox focus states, cursor shapes).
 
 ##### Common Widget Patterns
 
