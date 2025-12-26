@@ -1,3 +1,8 @@
+---
+name: doc-writer
+description: Guidelines for producing accurate and maintainable documentation for the Hex1b TUI library. Use when writing XML API documentation comments, creating end-user guides, or updating existing documentation.
+---
+
 # Documentation Writer Skill
 
 This skill provides guidelines for AI coding agents to help maintainers produce accurate and easy-to-maintain documentation for the Hex1b project. The repository contains two primary types of documentation, each serving different audiences and following different conventions.
@@ -91,7 +96,7 @@ public Size ArrangeVertical(Constraints constraints, Hex1bWidget[] children)
 
 ##### 4. Include Usage Examples for Complex APIs
 
-Use `<example>` and `<code>` tags for non-obvious usage:
+Use `<example>` and `<code>` tags for key APIs within the Hex1b framework. Examples should be consise yet contain sufficient context to help developers understand how they are used. For examples that use Hex1bApp to create sample applications favor the use of the fluent API since that is the intended usage pattern.
 
 ```csharp
 /// <summary>
@@ -175,6 +180,8 @@ Review existing XML documentation in the codebase to match:
 **Build System**: VitePress (static site generator)
 
 #### Documentation Structure
+
+This is the curernt documentation structure. As the documentation structure evolves, this should be updated to assist future agent development efforts.
 
 ```
 src/content/
@@ -267,6 +274,60 @@ xmldocmd src/Hex1b/bin/Release/net10.0/Hex1b.dll docs/api
 ```
 :::
 ```
+
+##### 4. Live Terminal Demos
+
+The documentation site includes a WebSocket-based terminal that can run live code examples. This gives developers an interactive preview of how their code will behave when run locally.
+
+**Location**: `src/Hex1b.Website/Examples/`  
+**Component**: `<TerminalDemo example="..." title="..." />`
+
+###### How It Works
+
+1. The Hex1b.Website project hosts WebSocket endpoints that run actual Hex1b applications
+2. Each example in `src/Hex1b.Website/Examples/` implements `IGalleryExample`
+3. The VitePress documentation uses the `<TerminalDemo>` component to connect to these endpoints
+4. Users can interact with the live terminal directly in their browser
+
+###### Code Duplication
+
+Example code in the documentation may be **duplicated** from the main code samples with minor modifications:
+
+- **Why**: The WebSocket terminal environment has slightly different requirements than running locally (e.g., terminal size handling, connection lifecycle)
+- **What changes**: Usually minor adjustments to initialization, cleanup, or terminal configuration
+- **Goal**: Give developers an accurate preview of runtime behavior, even if the hosted code differs slightly from the documented snippet
+
+**Example structure**:
+```
+src/Hex1b.Website/Examples/
+├── CounterExample.cs      # Live demo version
+├── TodoExample.cs         # Live demo version
+└── ...
+```
+
+The documentation code block shows the "clean" version a developer would write locally, while the `Examples/` folder contains the WebSocket-compatible version.
+
+###### When to Create Live Demos
+
+✅ **Good candidates for live demos**:
+- Interactive widgets (buttons, text boxes, lists)
+- Layout examples showing responsive behavior
+- Input handling demonstrations
+- Theming examples
+
+❌ **Not suitable for live demos**:
+- Examples using `Hex1bTerminal` for testing (headless/mock terminals)
+- Examples that require local file system access
+- Performance benchmarks or stress tests
+- Examples with external dependencies
+
+###### Keeping Examples in Sync
+
+When updating documentation examples that have live demos:
+1. Update the documentation code block first
+2. Apply equivalent changes to the `Examples/` implementation
+3. Test the live demo to ensure it still works
+4. Note any intentional differences in comments within the `Examples/` file
 
 ##### 4. Explain Concepts, Not Just APIs
 
