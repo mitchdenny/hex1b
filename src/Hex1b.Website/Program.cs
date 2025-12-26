@@ -62,6 +62,12 @@ builder.Services.AddSingleton<IGalleryExample, ButtonBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ButtonCounterExample>();
 builder.Services.AddSingleton<IGalleryExample, ButtonAsyncExample>();
 
+// Register TextBox widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, TextBoxBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();
+builder.Services.AddSingleton<IGalleryExample, TextBoxFormExample>();
+builder.Services.AddSingleton<IGalleryExample, TextBoxUnicodeExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
