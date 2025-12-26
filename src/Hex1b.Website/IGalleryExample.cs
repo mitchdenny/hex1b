@@ -58,6 +58,12 @@ public abstract class Hex1bExample : IGalleryExample
     public abstract string Id { get; }
     public abstract string Title { get; }
     public abstract string Description { get; }
+    
+    /// <summary>
+    /// Whether this example requires mouse support. Defaults to true.
+    /// Override and return false for examples that need terminal-native link handling.
+    /// </summary>
+    public virtual bool EnableMouse => true;
 
     public abstract Func<Hex1bWidget> CreateWidgetBuilder();
 

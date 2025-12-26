@@ -48,6 +48,7 @@ export default defineConfig({
           items: [
             { text: 'Text', link: '/guide/widgets/text' },
             { text: 'Button', link: '/guide/widgets/button' },
+            { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },
             { text: 'List', link: '/guide/widgets/list' },
             { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
@@ -93,10 +94,10 @@ export default defineConfig({
 
   vite: {
     optimizeDeps: {
-      include: ['@xterm/xterm', '@xterm/addon-unicode11', '@xterm/addon-image']
+      include: ['@xterm/xterm', '@xterm/addon-unicode11', '@xterm/addon-image', '@xterm/addon-web-links']
     },
     ssr: {
-      noExternal: ['@xterm/xterm', '@xterm/addon-unicode11', '@xterm/addon-image']
+      noExternal: ['@xterm/xterm', '@xterm/addon-unicode11', '@xterm/addon-image', '@xterm/addon-web-links']
     },
     server: {
       proxy: {

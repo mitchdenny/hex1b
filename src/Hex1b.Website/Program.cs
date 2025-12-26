@@ -49,6 +49,11 @@ builder.Services.AddSingleton<IGalleryExample, TextBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TextOverflowExample>();
 builder.Services.AddSingleton<IGalleryExample, TextCompleteExample>();
 
+// Register Hyperlink widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, HyperlinkBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, HyperlinkOverflowExample>();
+builder.Services.AddSingleton<IGalleryExample, HyperlinkClickExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

@@ -56,6 +56,7 @@ async function initTerminal() {
     const xtermModule = await import('@xterm/xterm')
     const unicode11Module = await import('@xterm/addon-unicode11')
     const imageModule = await import('@xterm/addon-image')
+    const webLinksModule = await import('@xterm/addon-web-links')
     
     console.log('xterm modules loaded, importing CSS...')
     // Import CSS
@@ -64,6 +65,7 @@ async function initTerminal() {
     const Terminal = xtermModule.Terminal
     const Unicode11Addon = unicode11Module.Unicode11Addon
     const ImageAddon = imageModule.ImageAddon
+    const WebLinksAddon = webLinksModule.WebLinksAddon
     
     console.log('Creating terminal...')
     terminal = new Terminal({
@@ -87,6 +89,21 @@ async function initTerminal() {
     
     const imageAddon = new ImageAddon()
     terminal.loadAddon(imageAddon)
+    
+    // Enable OSC 8 hyperlink support
+    // The WebLinksAddon handles Ctrl/Cmd+Click on links - opens them in new tab
+    const webLinksAddon = new WebLinksAddon()
+    terminal.loadAddon(webLinksAddon)
+    
+    // Intercept Ctrl/Cmd+Click to prevent it from being sent to the backend
+    // This matches real terminal behavior where modifier+click bypasses mouse tracking
+    terminalEl.value?.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        // Don't propagate to xterm.js - let the WebLinksAddon handle it for OSC 8 links
+        // This mimics how real terminals reserve Ctrl/Cmd+Click for their own use
+        e.stopPropagation()
+      }
+    }, true) // Use capture phase to intercept before xterm.js
     
     // Connect WebSocket
     connectWebSocket()

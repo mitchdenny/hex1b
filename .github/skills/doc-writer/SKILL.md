@@ -428,7 +428,6 @@ When documenting widgets in `guide/widgets/`, follow this consistent structure t
 
 Include these when they add clear value:
 
-- **Complete Example** - Only when the widget has complex interactions worth demonstrating together (e.g., form widgets with validation, list widgets with selection). Skip when basic usage already covers the widget adequately.
 - **API Reference** - Include when there are non-obvious parameters, enums, or extension methods to document. For simple widgets with self-explanatory APIs, the XML documentation is sufficient.
 
 ##### Live Terminal Demos for Widget Docs
