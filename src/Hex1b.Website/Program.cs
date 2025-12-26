@@ -30,6 +30,10 @@ builder.Services.AddSingleton<IGalleryExample, ThemingExample>();
 builder.Services.AddSingleton<IGalleryExample, NavigatorExample>();
 builder.Services.AddSingleton<IGalleryExample, SixelExample>();
 builder.Services.AddSingleton<IGalleryExample, ResponsiveTodoExample>();
+
+// Register Responsive widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ResponsiveBasicExample>();
+
 builder.Services.AddSingleton<IGalleryExample, LayoutExample>();
 builder.Services.AddSingleton<IGalleryExample, SplittersExample>();
 builder.Services.AddSingleton<IGalleryExample, ScrollExample>();
