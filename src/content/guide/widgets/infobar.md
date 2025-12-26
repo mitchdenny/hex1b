@@ -56,7 +56,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         v.InfoBar([
             new InfoBarSection("Mode: Normal"),
             new InfoBarSection(" | "),
-            new InfoBarSection("WARNING", Hex1bColor.Black, Hex1bColor.Yellow),
+            new InfoBarSection("ERROR", Hex1bColor.Red, Hex1bColor.Yellow),
             new InfoBarSection(" | "),
             new InfoBarSection("Ln 42, Col 7")
         ])
