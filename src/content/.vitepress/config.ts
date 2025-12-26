@@ -49,6 +49,7 @@ export default defineConfig({
             { text: 'Text', link: '/guide/widgets/text' },
             { text: 'Button', link: '/guide/widgets/button' },
             { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
+            { text: 'Progress', link: '/guide/widgets/progress' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },
             { text: 'List', link: '/guide/widgets/list' },
             { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },

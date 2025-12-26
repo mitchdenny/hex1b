@@ -165,6 +165,19 @@ Use `WithParameters` for arbitrary OSC 8 parameters:
 In practice, only the `id` parameter is routinely used. For link grouping, prefer the `WithId` method shown above—it's more readable and type-safe.
 :::
 
+## Default Bindings
+
+HyperlinkWidget registers these input bindings when a click handler is set:
+
+| Input | Action |
+|-------|--------|
+| Enter | Open link |
+| Left mouse click | Open link |
+
+::: tip Custom Bindings
+You can add additional keyboard shortcuts or custom bindings to any widget. See the [Input Handling](/guide/input) guide for details on working with input bindings.
+:::
+
 ## Related Widgets
 
 - [TextWidget](/guide/widgets/text) - For non-interactive text display

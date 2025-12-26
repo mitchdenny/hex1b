@@ -57,6 +57,10 @@ builder.Services.AddSingleton<IGalleryExample, HyperlinkClickExample>();
 // Register Progress widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, ProgressBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ProgressIndeterminateExample>();
+// Register Button widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ButtonBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ButtonCounterExample>();
+builder.Services.AddSingleton<IGalleryExample, ButtonAsyncExample>();
 
 var app = builder.Build();
 

@@ -321,13 +321,27 @@ The documentation code block shows the "clean" version a developer would write l
 - Performance benchmarks or stress tests
 - Examples with external dependencies
 
+###### Registering Examples in Program.cs
+
+**IMPORTANT**: After creating WebSocket example files, you must register them in `src/Hex1b.Website/Program.cs`. Examples will not be available in the live demos until registered.
+
+Add a line for each example in the appropriate section:
+
+```csharp
+// Register [Widget name] widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, YourNewExample>();
+```
+
+Look for existing example registrations grouped by feature area and add your new examples in the corresponding section. If documenting a new widget, create a new comment section for clarity.
+
 ###### Keeping Examples in Sync
 
 When updating documentation examples that have live demos:
 1. Update the documentation code block first
 2. Apply equivalent changes to the `Examples/` implementation
-3. Test the live demo to ensure it still works
-4. Note any intentional differences in comments within the `Examples/` file
+3. **Register the example in Program.cs** (if new)
+4. Test the live demo to ensure it still works
+5. Note any intentional differences in comments within the `Examples/` file
 
 ##### 4. Explain Concepts, Not Just APIs
 
