@@ -54,6 +54,10 @@ builder.Services.AddSingleton<IGalleryExample, HyperlinkBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, HyperlinkOverflowExample>();
 builder.Services.AddSingleton<IGalleryExample, HyperlinkClickExample>();
 
+// Register Progress widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ProgressBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ProgressIndeterminateExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
