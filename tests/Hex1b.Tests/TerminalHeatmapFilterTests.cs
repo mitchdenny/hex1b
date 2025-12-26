@@ -78,8 +78,8 @@ public class TerminalHeatmapFilterTests
         
         filter.Enable();
         
-        // Allow the Enable() async method to complete
-        await Task.Delay(100);
+        // Wait for Enable() to complete its async render
+        await innerAdapter.WaitForOutputAsync();
         innerAdapter.WrittenOutputs.Clear(); // Clear the heatmap render from Enable()
         
         var data = new byte[] { 0x1b, 0x5b, 0x48 }; // ESC[H
@@ -166,6 +166,7 @@ public class TerminalHeatmapFilterTests
     private class TestPresentationAdapter : IHex1bTerminalPresentationAdapter
     {
         private readonly Queue<ReadOnlyMemory<byte>> _inputQueue = new();
+        private readonly TaskCompletionSource _outputReceived = new();
         private int _width;
         private int _height;
 
@@ -188,7 +189,14 @@ public class TerminalHeatmapFilterTests
         public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
         {
             WrittenOutputs.Add(data);
+            _outputReceived.TrySetResult();
             return ValueTask.CompletedTask;
+        }
+
+        public async Task WaitForOutputAsync()
+        {
+            // Wait for at least one output to be written
+            await _outputReceived.Task.ConfigureAwait(false);
         }
 
         public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)

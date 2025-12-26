@@ -124,7 +124,7 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
     /// <summary>
     /// Enables the heatmap display, replacing normal terminal output with the heatmap visualization.
     /// </summary>
-    public async void Enable()
+    public void Enable()
     {
         lock (_lock)
         {
@@ -132,14 +132,14 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
             _enabled = true;
         }
         
-        // Re-render the screen with heatmap
-        await RenderHeatmapAsync();
+        // Re-render the screen with heatmap (fire-and-forget)
+        _ = RenderHeatmapAsync();
     }
 
     /// <summary>
     /// Disables the heatmap display, restoring normal terminal output.
     /// </summary>
-    public async void Disable()
+    public void Disable()
     {
         lock (_lock)
         {
@@ -147,8 +147,8 @@ public sealed class TerminalHeatmapFilter : IHex1bTerminalPresentationAdapter
             _enabled = false;
         }
         
-        // Re-render the screen with actual content
-        await RenderActualContentAsync();
+        // Re-render the screen with actual content (fire-and-forget)
+        _ = RenderActualContentAsync();
     }
 
     // IHex1bTerminalPresentationAdapter implementation
