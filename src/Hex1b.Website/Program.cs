@@ -62,6 +62,11 @@ builder.Services.AddSingleton<IGalleryExample, ButtonBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ButtonCounterExample>();
 builder.Services.AddSingleton<IGalleryExample, ButtonAsyncExample>();
 
+// Register List widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ListBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ListSelectionExample>();
+builder.Services.AddSingleton<IGalleryExample, ListActivateExample>();
+
 // Register TextBox widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TextBoxBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();
