@@ -316,10 +316,17 @@ public sealed class Hex1bTerminal : IDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
-                    // Notify presentation filters of output TO presentation
-                    await NotifyPresentationFiltersOutputAsync(data);
+                    // Allow transform filters to modify the output based on screen buffer state
+                    var transformedData = await TransformOutputAsync(data);
                     
-                    await _presentation.WriteOutputAsync(data);
+                    // Notify presentation filters of output TO presentation
+                    await NotifyPresentationFiltersOutputAsync(transformedData);
+                    
+                    // Only write if there's data to send (filters may suppress output)
+                    if (!transformedData.IsEmpty)
+                    {
+                        await _presentation.WriteOutputAsync(transformedData);
+                    }
                 }
             }
         }
@@ -1728,5 +1735,29 @@ public sealed class Hex1bTerminal : IDisposable
         {
             await filter.OnResizeAsync(width, height, elapsed);
         }
+    }
+
+    private async ValueTask<ReadOnlyMemory<byte>> TransformOutputAsync(ReadOnlyMemory<byte> data)
+    {
+        if (_presentationFilters.Count == 0) return data;
+        
+        var elapsed = GetElapsed();
+        var currentData = data;
+        
+        // Apply transform filters in sequence
+        foreach (var filter in _presentationFilters)
+        {
+            if (filter is IHex1bTerminalPresentationTransformFilter transformFilter)
+            {
+                currentData = await transformFilter.TransformOutputAsync(
+                    currentData,
+                    _screenBuffer,
+                    _width,
+                    _height,
+                    elapsed);
+            }
+        }
+        
+        return currentData;
     }
 }
