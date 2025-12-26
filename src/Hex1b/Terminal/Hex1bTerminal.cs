@@ -57,6 +57,7 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
+    private readonly object _bufferLock = new();
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -645,47 +646,50 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
-        var newBuffer = new TerminalCell[newHeight, newWidth];
-        
-        // Initialize with empty cells
-        for (int y = 0; y < newHeight; y++)
+        lock (_bufferLock)
         {
-            for (int x = 0; x < newWidth; x++)
+            var newBuffer = new TerminalCell[newHeight, newWidth];
+            
+            // Initialize with empty cells
+            for (int y = 0; y < newHeight; y++)
             {
-                newBuffer[y, x] = TerminalCell.Empty;
+                for (int x = 0; x < newWidth; x++)
+                {
+                    newBuffer[y, x] = TerminalCell.Empty;
+                }
             }
-        }
 
-        // Copy existing content that fits in the new size
-        var copyHeight = Math.Min(_height, newHeight);
-        var copyWidth = Math.Min(_width, newWidth);
-        for (int y = 0; y < copyHeight; y++)
-        {
-            for (int x = 0; x < copyWidth; x++)
+            // Copy existing content that fits in the new size
+            var copyHeight = Math.Min(_height, newHeight);
+            var copyWidth = Math.Min(_width, newWidth);
+            for (int y = 0; y < copyHeight; y++)
             {
-                newBuffer[y, x] = _screenBuffer[y, x];
+                for (int x = 0; x < copyWidth; x++)
+                {
+                    newBuffer[y, x] = _screenBuffer[y, x];
+                }
             }
-        }
-        
-        // Release tracked objects from cells that are being removed
-        // (cells outside the new bounds)
-        for (int y = 0; y < _height; y++)
-        {
-            for (int x = 0; x < _width; x++)
+            
+            // Release tracked objects from cells that are being removed
+            // (cells outside the new bounds)
+            for (int y = 0; y < _height; y++)
             {
-                // Skip cells that were copied to the new buffer
-                if (y < copyHeight && x < copyWidth)
-                    continue;
-                    
-                _screenBuffer[y, x].TrackedSixel?.Release();
+                for (int x = 0; x < _width; x++)
+                {
+                    // Skip cells that were copied to the new buffer
+                    if (y < copyHeight && x < copyWidth)
+                        continue;
+                        
+                    _screenBuffer[y, x].TrackedSixel?.Release();
+                }
             }
-        }
 
-        _screenBuffer = newBuffer;
-        _width = newWidth;
-        _height = newHeight;
-        _cursorX = Math.Min(_cursorX, newWidth - 1);
-        _cursorY = Math.Min(_cursorY, newHeight - 1);
+            _screenBuffer = newBuffer;
+            _width = newWidth;
+            _height = newHeight;
+            _cursorX = Math.Min(_cursorX, newWidth - 1);
+            _cursorY = Math.Min(_cursorY, newHeight - 1);
+        }
     }
 
     // === Screen Buffer Parsing ===
@@ -784,79 +788,82 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="text">Text containing ANSI escape sequences.</param>
     internal void ProcessOutput(string text)
     {
-        int i = 0;
-        while (i < text.Length)
+        lock (_bufferLock)
         {
-            // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
+            int i = 0;
+            while (i < text.Length)
             {
-                ProcessSixelData(sixelPayload);
-                i += sixelConsumed;
-            }
-            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
-            {
-                i = ProcessAnsiSequence(text, i);
-            }
-            else if (text[i] == '\n')
-            {
-                _cursorY++;
-                _cursorX = 0;
-                if (_cursorY >= _height)
+                // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
+                if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
                 {
-                    ScrollUp();
-                    _cursorY = _height - 1;
+                    ProcessSixelData(sixelPayload);
+                    i += sixelConsumed;
                 }
-                i++;
-            }
-            else if (text[i] == '\r')
-            {
-                _cursorX = 0;
-                i++;
-            }
-            else
-            {
-                // Extract the grapheme cluster starting at position i
-                var grapheme = GetGraphemeAt(text, i);
-                var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
-                
-                // Scroll if cursor is past the bottom of the screen BEFORE writing
-                // This implements "delayed line wrap" behavior
-                if (_cursorY >= _height)
+                else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
                 {
-                    ScrollUp();
-                    _cursorY = _height - 1;
+                    i = ProcessAnsiSequence(text, i);
                 }
-                
-                if (_cursorX < _width && _cursorY < _height)
+                else if (text[i] == '\n')
                 {
-                    // Assign sequence number and timestamp for this write operation
-                    var sequence = ++_writeSequence;
-                    var writtenAt = _timeProvider.GetUtcNow();
-                    
-                    // Write the grapheme to the current cell
-                    SetCell(_cursorY, _cursorX, new TerminalCell(
-                        grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt));
-                    
-                    // For wide characters (width > 1), fill subsequent cells with continuation markers
-                    // Use the same sequence and timestamp so they're part of the same logical write
-                    for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                    _cursorY++;
+                    _cursorX = 0;
+                    if (_cursorY >= _height)
                     {
-                        // Use empty string as continuation marker (the previous cell "owns" this space)
-                        SetCell(_cursorY, _cursorX + w, new TerminalCell(
-                            "", _currentForeground, _currentBackground, _currentAttributes,
+                        ScrollUp();
+                        _cursorY = _height - 1;
+                    }
+                    i++;
+                }
+                else if (text[i] == '\r')
+                {
+                    _cursorX = 0;
+                    i++;
+                }
+                else
+                {
+                    // Extract the grapheme cluster starting at position i
+                    var grapheme = GetGraphemeAt(text, i);
+                    var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+                    
+                    // Scroll if cursor is past the bottom of the screen BEFORE writing
+                    // This implements "delayed line wrap" behavior
+                    if (_cursorY >= _height)
+                    {
+                        ScrollUp();
+                        _cursorY = _height - 1;
+                    }
+                    
+                    if (_cursorX < _width && _cursorY < _height)
+                    {
+                        // Assign sequence number and timestamp for this write operation
+                        var sequence = ++_writeSequence;
+                        var writtenAt = _timeProvider.GetUtcNow();
+                        
+                        // Write the grapheme to the current cell
+                        SetCell(_cursorY, _cursorX, new TerminalCell(
+                            grapheme, _currentForeground, _currentBackground, _currentAttributes,
                             sequence, writtenAt));
+                        
+                        // For wide characters (width > 1), fill subsequent cells with continuation markers
+                        // Use the same sequence and timestamp so they're part of the same logical write
+                        for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                        {
+                            // Use empty string as continuation marker (the previous cell "owns" this space)
+                            SetCell(_cursorY, _cursorX + w, new TerminalCell(
+                                "", _currentForeground, _currentBackground, _currentAttributes,
+                                sequence, writtenAt));
+                        }
+                        
+                        _cursorX += graphemeWidth;
+                        if (_cursorX >= _width)
+                        {
+                            _cursorX = 0;
+                            _cursorY++;
+                            // Don't scroll yet - we'll scroll when we try to write the next character
+                        }
                     }
-                    
-                    _cursorX += graphemeWidth;
-                    if (_cursorX >= _width)
-                    {
-                        _cursorX = 0;
-                        _cursorY++;
-                        // Don't scroll yet - we'll scroll when we try to write the next character
-                    }
+                    i += grapheme.Length;
                 }
-                i += grapheme.Length;
             }
         }
     }
@@ -1744,6 +1751,16 @@ public sealed class Hex1bTerminal : IDisposable
         var elapsed = GetElapsed();
         var currentData = data;
         
+        // Capture a consistent snapshot of buffer state under lock
+        TerminalCell[,] bufferSnapshot;
+        int width, height;
+        lock (_bufferLock)
+        {
+            bufferSnapshot = _screenBuffer;
+            width = _width;
+            height = _height;
+        }
+        
         // Apply transform filters in sequence
         foreach (var filter in _presentationFilters)
         {
@@ -1751,9 +1768,9 @@ public sealed class Hex1bTerminal : IDisposable
             {
                 currentData = await transformFilter.TransformOutputAsync(
                     currentData,
-                    _screenBuffer,
-                    _width,
-                    _height,
+                    bufferSnapshot,
+                    width,
+                    height,
                     elapsed);
             }
         }
