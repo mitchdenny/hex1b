@@ -5,13 +5,15 @@ import fillSnippet from './snippets/vstack-fill.cs?raw'
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
+var state = new AppState();
+
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VStack(v => [
         v.Text("Welcome to My App"),
         v.Text(""),
         v.Button("Start").OnClick(_ => state.Start()),
         v.Button("Settings").OnClick(_ => state.ShowSettings()),
-        v.Button("Quit").OnClick(_ => ctx.RequestStop())
+        v.Button("Quit").OnClick(args => args.Context.RequestStop())
     ])
 ));
 
@@ -164,7 +166,7 @@ ctx.Border(b => [
         v.Button("Open File").OnClick(_ => OpenFile()),
         v.Button("Save File").OnClick(_ => SaveFile()),
         v.Text(""),
-        v.Button("Exit").OnClick(_ => ctx.RequestStop())
+        v.Button("Exit").OnClick(args => args.Context.RequestStop())
     ])
 ], title: "File")
 ```
@@ -178,10 +180,10 @@ ctx.VStack(v => [
     v.Text("User Registration"),
     v.Text(""),
     v.Text("Name:"),
-    v.TextBox(state.Name, val => state.Name = val),
+    v.TextBox(state.Name).OnTextChanged(args => state.Name = args.NewText),
     v.Text(""),
     v.Text("Email:"),
-    v.TextBox(state.Email, val => state.Email = val),
+    v.TextBox(state.Email).OnTextChanged(args => state.Email = args.NewText),
     v.Text(""),
     v.HStack(h => [
         h.Button("Submit").OnClick(_ => state.Submit()),

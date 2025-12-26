@@ -5,11 +5,15 @@ import fillSnippet from './snippets/hstack-fill.cs?raw'
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
+var state = new FormState();
+
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.HStack(h => [
         h.Text("Name:"),
         h.Text("  "),
-        h.TextBox(state.Name, newVal => state.Name = newVal).Fill(),
+        h.TextBox(state.Name)
+            .OnTextChanged(args => state.Name = args.NewText)
+            .Fill(),
         h.Text("  "),
         h.Button("Save").OnClick(_ => state.Save())
     ])
@@ -140,11 +144,15 @@ Create label-value pairs:
 ctx.VStack(v => [
     v.HStack(h => [
         h.Text("Name:").FixedWidth(15),
-        h.TextBox(state.Name, val => state.Name = val).Fill()
+        h.TextBox(state.Name)
+            .OnTextChanged(args => state.Name = args.NewText)
+            .Fill()
     ]),
     v.HStack(h => [
         h.Text("Email:").FixedWidth(15),
-        h.TextBox(state.Email, val => state.Email = val).Fill()
+        h.TextBox(state.Email)
+            .OnTextChanged(args => state.Email = args.NewText)
+            .Fill()
     ])
 ])
 ```
