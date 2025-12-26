@@ -55,7 +55,28 @@ public static class TerminalRegionSvgExtensions
         // SVG header
         sb.AppendLine($"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">""");
 
-        // Style definitions including blink animation
+        // Pre-scan cells to identify unique cell groups (e.g., hyperlinks with same ID/URI)
+        // This allows related cells to be highlighted together
+        var hyperlinkGroups = new Dictionary<object, string>(); // TrackedObject reference -> group class name
+        var groupId = 0;
+        
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                if (cell.TrackedHyperlink is { } trackedLink && !hyperlinkGroups.ContainsKey(trackedLink))
+                {
+                    // Generate a stable class name based on the hyperlink content
+                    // Use both URI and parameters to create the group (cells with same id= should group together)
+                    var linkData = trackedLink.Data;
+                    var groupKey = $"link-{groupId++}";
+                    hyperlinkGroups[trackedLink] = groupKey;
+                }
+            }
+        }
+
+        // Style definitions including blink animation and cell group highlighting
         sb.AppendLine("  <defs>");
         sb.AppendLine("    <style>");
         sb.AppendLine($"      .terminal-text {{ font-family: {options.FontFamily}; font-size: {options.FontSize}px; }}");
@@ -64,6 +85,10 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("      .blink { animation: blink 1s infinite; }");
         sb.AppendLine($"      .cell-grid {{ stroke: {options.CellGridColor}; stroke-width: 0.5; vector-effect: non-scaling-stroke; }}");
         sb.AppendLine($"      .pixel-grid {{ stroke: {options.PixelGridColor}; stroke-width: 0.25; vector-effect: non-scaling-stroke; }}");
+        sb.AppendLine("      /* Cell group highlighting for related cells (hyperlinks, etc.) */");
+        sb.AppendLine("      .cell { pointer-events: bounding-box; }");
+        sb.AppendLine("      .cell.highlight > rect.cell-bg { stroke: #ff6b6b; stroke-width: 2; }");
+        sb.AppendLine("      .cell.highlight > text { fill: #ff6b6b !important; }");
         sb.AppendLine("    </style>");
 
         // Pre-generate clip paths for wide character truncation
@@ -142,6 +167,7 @@ public static class TerminalRegionSvgExtensions
 
         // Render all cells in sequence order (backgrounds first, then text)
         // This allows newer content to naturally overlap/obscure older wide characters
+        // Each cell is wrapped in a <g> element with data attributes for JavaScript interaction
         foreach (var (x, y, cell) in cells)
         {
             var attrs = cell.Attributes;
@@ -152,6 +178,16 @@ public static class TerminalRegionSvgExtensions
             // These cells are visually "owned" by the wide character in the previous cell
             // and should not render their own background
             var isContinuationCell = ch == "";
+            
+            // Determine cell group class (e.g., for hyperlink grouping)
+            var groupClass = "";
+            if (cell.TrackedHyperlink is { } trackedLink && hyperlinkGroups.TryGetValue(trackedLink, out var linkGroup))
+            {
+                groupClass = $" {linkGroup}";
+            }
+            
+            // Open cell group element with data attributes
+            sb.AppendLine($"""    <g class="cell{groupClass}" data-x="{x}" data-y="{y}">""");
             
             if (!isContinuationCell)
             {
@@ -197,114 +233,126 @@ public static class TerminalRegionSvgExtensions
                     bgWidth = ownedCells * cellWidth;
                 }
                 
-                sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
+                sb.AppendLine($"""      <rect class="cell-bg" x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
                 
                 // Blink indicator: subtle border/glow around blinking cells
                 if ((attrs & CellAttributes.Blink) != 0)
                 {
-                    sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
+                    sb.AppendLine($"""      <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
                 }
             }
 
-            // Skip empty continuation cells (used for wide characters)
-            if (string.IsNullOrEmpty(ch))
-                continue;
-
-            // Normalize null character to space
-            if (ch == "\0")
-                ch = " ";
-
-            // Hidden attribute: don't render the character at all
-            if ((attrs & CellAttributes.Hidden) != 0)
-                continue;
-
-            // Skip spaces unless they have a foreground color or special attributes
-            if (ch == " " && !cell.Foreground.HasValue && attrs == CellAttributes.None)
-                continue;
-
-            var textX = x * cellWidth;
-            var textY = y * cellHeight + (cellHeight * 0.75); // Baseline adjustment
-
-            // Determine foreground color
-            string fgColor;
-            if (isReverse)
+            // Render text content (skip for empty/continuation cells)
+            if (!string.IsNullOrEmpty(ch))
             {
-                // Reverse: use background as foreground (or default background)
-                fgColor = cell.Background.HasValue 
-                    ? $"rgb({cell.Background.Value.R},{cell.Background.Value.G},{cell.Background.Value.B})"
-                    : options.DefaultBackground;
-            }
-            else if (cell.Foreground.HasValue)
-            {
-                var fg = cell.Foreground.Value;
-                fgColor = $"rgb({fg.R},{fg.G},{fg.B})";
-            }
-            else
-            {
-                fgColor = options.DefaultForeground;
-            }
-
-            // Build style attributes based on CellAttributes
-            var styleBuilder = new StringBuilder();
-            
-            // Bold
-            if ((attrs & CellAttributes.Bold) != 0)
-                styleBuilder.Append("font-weight:bold;");
-            
-            // Dim (reduced opacity)
-            if ((attrs & CellAttributes.Dim) != 0)
-                styleBuilder.Append("opacity:0.5;");
-            
-            // Italic
-            if ((attrs & CellAttributes.Italic) != 0)
-                styleBuilder.Append("font-style:italic;");
-            
-            // Text decorations (can be combined)
-            var decorations = new List<string>();
-            if ((attrs & CellAttributes.Underline) != 0)
-                decorations.Add("underline");
-            if ((attrs & CellAttributes.Strikethrough) != 0)
-                decorations.Add("line-through");
-            if ((attrs & CellAttributes.Overline) != 0)
-                decorations.Add("overline");
-            
-            if (decorations.Count > 0)
-                styleBuilder.Append($"text-decoration:{string.Join(" ", decorations)};");
-
-            var style = styleBuilder.Length > 0 ? $""" style="{styleBuilder}" """ : "";
-            var blinkClass = (attrs & CellAttributes.Blink) != 0 ? " class=\"blink\"" : "";
-
-            var escapedChar = HttpUtility.HtmlEncode(ch);
-            
-            // Check if this is a wide character that needs clipping
-            var charWidth = DisplayWidth.GetGraphemeWidth(ch);
-            string clipAttr = "";
-            
-            if (charWidth > 1)
-            {
-                // Count owned continuation cells (matching sequence)
-                var ownedCells = 1;
-                for (int i = 1; i < charWidth && (x + i) < region.Width; i++)
-                {
-                    var contCell = region.GetCell(x + i, y);
-                    if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
-                        ownedCells++;
-                    else
-                        break;
-                }
+                var displayCh = ch;
                 
-                // If truncated (owned < expected), apply clip path
-                if (ownedCells < charWidth)
+                // Normalize null character to space
+                if (displayCh == "\0")
+                    displayCh = " ";
+
+                // Hidden attribute: don't render the character at all
+                var shouldRenderText = (attrs & CellAttributes.Hidden) == 0;
+                
+                // Skip spaces unless they have a foreground color or special attributes
+                if (displayCh == " " && !cell.Foreground.HasValue && attrs == CellAttributes.None)
+                    shouldRenderText = false;
+
+                if (shouldRenderText)
                 {
-                    var clipKey = (x, y, ownedCells);
-                    if (clipPaths.TryGetValue(clipKey, out var clipPathId))
+                    var textX = x * cellWidth;
+                    var textY = y * cellHeight + (cellHeight * 0.75); // Baseline adjustment
+
+                    // Determine foreground color
+                    string fgColor;
+                    if (isReverse)
                     {
-                        clipAttr = $""" clip-path="url(#{clipPathId})" """;
+                        // Reverse: use background as foreground (or default background)
+                        fgColor = cell.Background.HasValue 
+                            ? $"rgb({cell.Background.Value.R},{cell.Background.Value.G},{cell.Background.Value.B})"
+                            : options.DefaultBackground;
                     }
+                    else if (cell.Foreground.HasValue)
+                    {
+                        var fg = cell.Foreground.Value;
+                        fgColor = $"rgb({fg.R},{fg.G},{fg.B})";
+                    }
+                    else
+                    {
+                        fgColor = options.DefaultForeground;
+                    }
+
+                    // Build style attributes based on CellAttributes
+                    var styleBuilder = new StringBuilder();
+                    
+                    // Bold
+                    if ((attrs & CellAttributes.Bold) != 0)
+                        styleBuilder.Append("font-weight:bold;");
+                    
+                    // Dim (reduced opacity)
+                    if ((attrs & CellAttributes.Dim) != 0)
+                        styleBuilder.Append("opacity:0.5;");
+                    
+                    // Italic
+                    if ((attrs & CellAttributes.Italic) != 0)
+                        styleBuilder.Append("font-style:italic;");
+                    
+                    // Text decorations (can be combined)
+                    var decorations = new List<string>();
+                    if ((attrs & CellAttributes.Underline) != 0)
+                        decorations.Add("underline");
+                    if ((attrs & CellAttributes.Strikethrough) != 0)
+                        decorations.Add("line-through");
+                    if ((attrs & CellAttributes.Overline) != 0)
+                        decorations.Add("overline");
+                    
+                    if (decorations.Count > 0)
+                        styleBuilder.Append($"text-decoration:{string.Join(" ", decorations)};");
+
+                    var style = styleBuilder.Length > 0 ? $""" style="{styleBuilder}" """ : "";
+                    var blinkClass = (attrs & CellAttributes.Blink) != 0 ? " blink" : "";
+
+                    // Use non-breaking space for spaces with text decorations (underline, strikethrough, overline)
+                    // Regular spaces don't receive text-decoration in SVG/HTML, but &nbsp; does
+                    var escapedChar = (displayCh == " " && decorations.Count > 0) 
+                        ? "&#160;" 
+                        : HttpUtility.HtmlEncode(displayCh);
+                    
+                    // Check if this is a wide character that needs clipping
+                    var charWidth = DisplayWidth.GetGraphemeWidth(displayCh);
+                    string clipAttr = "";
+                    
+                    if (charWidth > 1)
+                    {
+                        // Count owned continuation cells (matching sequence)
+                        var ownedCells = 1;
+                        for (int i = 1; i < charWidth && (x + i) < region.Width; i++)
+                        {
+                            var contCell = region.GetCell(x + i, y);
+                            if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
+                                ownedCells++;
+                            else
+                                break;
+                        }
+                        
+                        // If truncated (owned < expected), apply clip path
+                        if (ownedCells < charWidth)
+                        {
+                            var clipKey = (x, y, ownedCells);
+                            if (clipPaths.TryGetValue(clipKey, out var clipPathId))
+                            {
+                                clipAttr = $""" clip-path="url(#{clipPathId})" """;
+                            }
+                        }
+                    }
+                    
+                    var textClass = string.IsNullOrEmpty(blinkClass) ? "" : $""" class="{blinkClass.Trim()}" """;
+                    sb.AppendLine($"""      <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{textClass}{clipAttr}>{escapedChar}</text>""");
                 }
             }
             
-            sb.AppendLine($"""    <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{blinkClass}{clipAttr}>{escapedChar}</text>""");
+            // Close cell group
+            sb.AppendLine("    </g>");
         }
 
         sb.AppendLine("  </g>");

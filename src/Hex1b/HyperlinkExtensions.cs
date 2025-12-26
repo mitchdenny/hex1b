@@ -15,9 +15,10 @@ public static class HyperlinkExtensions
     public static HyperlinkWidget Hyperlink<TParent>(
         this WidgetContext<TParent> ctx,
         string text,
-        string uri)
+        string uri,
+        TextOverflow overflow = TextOverflow.Overflow)
         where TParent : Hex1bWidget
-        => new(text, uri);
+        => new(text, uri, overflow);
 
     /// <summary>
     /// Creates a HyperlinkWidget with the specified text, URI, and click handler.

@@ -10,7 +10,8 @@ namespace Hex1b.Widgets;
 /// </summary>
 /// <param name="Text">The visible text to display.</param>
 /// <param name="Uri">The URI to link to when clicked (or hovered in terminal).</param>
-public sealed record HyperlinkWidget(string Text, string Uri) : Hex1bWidget
+/// <param name="Overflow">How to handle text that exceeds the available width.</param>
+public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overflow = TextOverflow.Overflow) : Hex1bWidget
 {
     /// <summary>
     /// Optional parameters for the hyperlink (e.g., "id=unique-id").
@@ -55,7 +56,7 @@ public sealed record HyperlinkWidget(string Text, string Uri) : Hex1bWidget
         var node = existingNode as HyperlinkNode ?? new HyperlinkNode();
         
         // Mark dirty if properties changed
-        if (node.Text != Text || node.Uri != Uri || node.Parameters != Parameters)
+        if (node.Text != Text || node.Uri != Uri || node.Parameters != Parameters || node.Overflow != Overflow)
         {
             node.MarkDirty();
         }
@@ -63,6 +64,7 @@ public sealed record HyperlinkWidget(string Text, string Uri) : Hex1bWidget
         node.Text = Text;
         node.Uri = Uri;
         node.Parameters = Parameters;
+        node.Overflow = Overflow;
         node.SourceWidget = this;
         
         // Convert the typed event handler to the internal InputBindingActionContext handler

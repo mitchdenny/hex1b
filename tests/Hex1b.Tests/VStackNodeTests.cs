@@ -334,28 +334,32 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Render_InNarrowTerminal_TextWrapsAtEdge()
+    public async Task Render_InNarrowTerminal_TextClipsAtEdge()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-
         using var terminal = new Hex1bTerminal(workload, 10, 10);
-        var context = new Hex1bRenderContext(workload);
 
-        var node = new VStackNode
-        {
-            Children = new List<Hex1bNode>
-            {
-                new TextBlockNode { Text = "LongTextHere" }
-            }
-        };
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("LongTextHere")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
 
-        node.Measure(Constraints.Tight(10, 10));
-        node.Arrange(new Rect(0, 0, 10, 10));
-        node.Render(context);
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
 
-        // Text wraps at terminal edge
-        Assert.Equal("LongTextHe", terminal.CreateSnapshot().GetLine(0));
-        Assert.Equal("re", terminal.CreateSnapshot().GetLineTrimmed(1));
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Text clips at terminal edge (not wraps)
+        Assert.Equal("LongTextHe", snapshot.GetLineTrimmed(0));
+        // Second line should be empty (no wrapping)
+        Assert.Equal("", snapshot.GetLineTrimmed(1));
     }
 
     #endregion

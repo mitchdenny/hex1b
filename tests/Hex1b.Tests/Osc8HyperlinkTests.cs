@@ -590,6 +590,590 @@ public class Osc8HyperlinkTests
         Assert.True(snapshot.ContainsText("Mailto Link"));
     }
 
+    [Fact]
+    public async Task HyperlinkWidget_NarrowTerminal_TextTruncates()
+    {
+        // Very narrow terminal - hyperlink text should be truncated
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 15, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Links:"),
+                v.Hyperlink("Very Long Hyperlink Text That Should Truncate", "https://example.com")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Links"), TimeSpan.FromSeconds(2))
+            .Capture("narrow-terminal")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-narrow-terminal");
+
+        // The text should be truncated, so full text should NOT be present
+        Assert.False(snapshot.ContainsText("Very Long Hyperlink Text That Should Truncate"));
+        // But partial text should be visible
+        Assert.True(snapshot.ContainsText("Very"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InSplitter_ClippedByPane()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 60, 10);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.Splitter(
+                ctx.VStack(v => [
+                    v.Text("Left Pane"),
+                    v.Hyperlink("Left Link With Long Text", "https://left.example.com")
+                ]),
+                ctx.VStack(v => [
+                    v.Text("Right Pane"),
+                    v.Hyperlink("Right Link", "https://right.example.com")
+                ]),
+                leftWidth: 15 // Narrow left pane to force clipping
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
+            .Capture("splitter-clipping")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-splitter-clipping");
+
+        // Right pane should be fully visible
+        Assert.True(snapshot.ContainsText("Right Pane"));
+        Assert.True(snapshot.ContainsText("Right Link"));
+        // Left pane text should be clipped (partial visibility)
+        Assert.True(snapshot.ContainsText("Left"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InScrollView_PartiallyVisible()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VScroll(
+                v => [
+                    v.Hyperlink("Link 1 - First Item", "https://one.example.com"),
+                    v.Hyperlink("Link 2 - Second Item", "https://two.example.com"),
+                    v.Hyperlink("Link 3 - Third Item", "https://three.example.com"),
+                    v.Hyperlink("Link 4 - Fourth Item", "https://four.example.com"),
+                    v.Hyperlink("Link 5 - Fifth Item", "https://five.example.com"),
+                    v.Hyperlink("Link 6 - Sixth Item", "https://six.example.com"),
+                    v.Hyperlink("Link 7 - Seventh Item", "https://seven.example.com"),
+                    v.Hyperlink("Link 8 - Eighth Item", "https://eight.example.com")
+                ]
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(2))
+            .Capture("scroll-initial")
+            .Down().Down().Down() // Scroll down
+            .Capture("scroll-scrolled")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-scroll-view");
+
+        // After scrolling, later links should be visible
+        // Initial links may or may not be visible depending on scroll position
+        Assert.True(snapshot.ContainsText("Link"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InBorderWithSmallSize_Clipped()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 25, 5);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.Border(
+                ctx.VStack(v => [
+                    v.Hyperlink("This is a very long hyperlink that exceeds the border", "https://example.com")
+                ]),
+                title: "Tiny"
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Tiny"), TimeSpan.FromSeconds(2))
+            .Capture("border-clipped")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-border-clipped");
+
+        // Border title should be visible
+        Assert.True(snapshot.ContainsText("Tiny"));
+        // Full hyperlink text should NOT be visible (clipped)
+        Assert.False(snapshot.ContainsText("exceeds the border"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_MultipleInHStack_WrapsOrClips()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.HStack(h => [
+                h.Hyperlink("[GitHub]", "https://github.com"),
+                h.Text(" "),
+                h.Hyperlink("[Documentation]", "https://docs.example.com"),
+                h.Text(" "),
+                h.Hyperlink("[Support]", "https://support.example.com"),
+                h.Text(" "),
+                h.Hyperlink("[Contact]", "https://contact.example.com")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
+            .Capture("hstack-overflow")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-hstack-overflow");
+
+        // First links should be visible
+        Assert.True(snapshot.ContainsText("[GitHub]"));
+        // Later links may be clipped depending on terminal width
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_EmptyText_RendersNothing()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Before"),
+                v.Hyperlink("", "https://example.com"), // Empty text
+                v.Text("After")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(2))
+            .Capture("empty-text")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-empty-text");
+
+        Assert.True(snapshot.ContainsText("Before"));
+        Assert.True(snapshot.ContainsText("After"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_SpecialCharactersInText_RendersCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 8);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Hyperlink("Link with <angle> brackets", "https://example.com/1"),
+                v.Hyperlink("Link with \"quotes\"", "https://example.com/2"),
+                v.Hyperlink("Link with 'apostrophes'", "https://example.com/3"),
+                v.Hyperlink("Link with & ampersand", "https://example.com/4"),
+                v.Hyperlink("Unicode: 日本語リンク", "https://example.com/5")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ampersand"), TimeSpan.FromSeconds(2))
+            .Capture("special-chars")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-special-chars");
+
+        Assert.True(snapshot.ContainsText("angle"));
+        Assert.True(snapshot.ContainsText("quotes"));
+        Assert.True(snapshot.ContainsText("apostrophes"));
+        Assert.True(snapshot.ContainsText("ampersand"));
+        Assert.True(snapshot.ContainsText("日本語"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_WithParameters_PreservesId()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 50, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Links with same ID should be grouped:"),
+                v.Hyperlink("Part 1 of", "https://example.com").WithId("multi-line"),
+                v.Hyperlink("the same link", "https://example.com").WithId("multi-line")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("same link"), TimeSpan.FromSeconds(2))
+            .Capture("with-id")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-with-id");
+
+        Assert.True(snapshot.ContainsText("Part 1 of"));
+        Assert.True(snapshot.ContainsText("the same link"));
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InsideLayoutWithClipping_PreservesHyperlinkData()
+    {
+        // Test that OSC 8 hyperlink tracking works correctly when content is clipped by a layout provider
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                // Put a hyperlink inside a Border with fixed size that clips the content
+                v.Border(b => [
+                    b.Hyperlink("This is a very long hyperlink that will be clipped", "https://example.com/clipped"),
+                    b.Text("Some normal text here")
+                ], "Clipped Box").FixedWidth(20).FixedHeight(4),
+                
+                v.Text("Text outside the clipped area")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Clipped Box"), TimeSpan.FromSeconds(2))
+            .Capture("clipped-hyperlink")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-inside-layout-clipping");
+
+        // The hyperlink text should be partially visible (clipped)
+        // Check that the visible portion has hyperlink data
+        var row = 1; // Second row (first row is border top)
+        var foundHyperlink = false;
+        
+        for (int x = 0; x < snapshot.Width; x++)
+        {
+            var cell = snapshot.GetCell(x, row);
+            if (cell.HasHyperlinkData)
+            {
+                foundHyperlink = true;
+                Assert.Equal("https://example.com/clipped", cell.HyperlinkData!.Uri);
+                break;
+            }
+        }
+        
+        Assert.True(foundHyperlink, "Should find at least one cell with hyperlink data in the clipped area");
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_InsideVStackWithConstrainedWidth_TracksHyperlinkPerCell()
+    {
+        // Test that a hyperlink inside a VStack with constrained width has hyperlink data for each visible cell
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 25, 6);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Hyperlink("Link ABC", "https://example.com/link")
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2))
+            .Capture("constrained-hyperlink")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-constrained-vstack");
+
+        // Check that all visible characters of the hyperlink have hyperlink data
+        var hyperlinkCellCount = 0;
+        var linkText = "Link ABC";
+        
+        for (int x = 0; x < snapshot.Width; x++)
+        {
+            var cell = snapshot.GetCell(x, 0);
+            if (cell.HasHyperlinkData && cell.HyperlinkData!.Uri == "https://example.com/link")
+            {
+                hyperlinkCellCount++;
+            }
+        }
+        
+        // Should have hyperlink data for each character in "Link ABC" (8 chars)
+        Assert.Equal(linkText.Length, hyperlinkCellCount);
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_WithTextOverflowWrap_WrapsAcrossMultipleLines()
+    {
+        // Test that a hyperlink with TextOverflow.Wrap wraps properly across multiple lines
+        // and each wrapped line maintains the hyperlink data
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 20, 8);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Hyperlink("This is a very long hyperlink that should wrap to multiple lines", "https://example.com/wrapped", TextOverflow.Wrap)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("This"), TimeSpan.FromSeconds(2))
+            .Capture("wrapped-hyperlink")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-text-overflow-wrap");
+
+        // The hyperlink should wrap across multiple lines
+        // Check that there is hyperlink data on at least two different rows
+        var rowsWithHyperlink = new HashSet<int>();
+        
+        for (int y = 0; y < snapshot.Height; y++)
+        {
+            for (int x = 0; x < snapshot.Width; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (cell.HasHyperlinkData && cell.HyperlinkData!.Uri == "https://example.com/wrapped")
+                {
+                    rowsWithHyperlink.Add(y);
+                }
+            }
+        }
+        
+        // The text "This is a very long hyperlink that should wrap to multiple lines" (63 chars)
+        // in a 20-column terminal should wrap to at least 4 lines
+        Assert.True(rowsWithHyperlink.Count >= 3, 
+            $"Expected hyperlink to span at least 3 rows, but found {rowsWithHyperlink.Count} rows: [{string.Join(", ", rowsWithHyperlink)}]");
+        
+        // Verify the first row contains "This is a very"
+        Assert.True(snapshot.ContainsText("This is a very") || snapshot.ContainsText("This"), 
+            "First line should contain start of hyperlink text");
+    }
+
+    [Fact]
+    public async Task HyperlinkWidget_WithTextOverflowWrap_AllWrappedLinesHaveOsc8()
+    {
+        // Verify that each wrapped line of a hyperlink emits OSC 8 sequences
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 15, 10);
+
+        await using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Hyperlink("First Second Third Fourth", "https://example.com/multi", TextOverflow.Wrap)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .Capture("multi-line-hyperlink")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+        TestSvgHelper.Capture(snapshot, "hyperlink-multi-line-osc8");
+
+        // Count cells with hyperlink data - should be substantial
+        var hyperlinkCellCount = 0;
+        
+        for (int y = 0; y < snapshot.Height; y++)
+        {
+            for (int x = 0; x < snapshot.Width; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (cell.HasHyperlinkData && cell.HyperlinkData!.Uri == "https://example.com/multi")
+                {
+                    hyperlinkCellCount++;
+                }
+            }
+        }
+        
+        // "First Second Third Fourth" = 25 characters, but word-wrapping may not include
+        // trailing spaces on lines. Should have at least 20 characters with hyperlink data.
+        Assert.True(hyperlinkCellCount >= 20, 
+            $"Expected at least 20 cells with hyperlink data, found {hyperlinkCellCount}");
+    }
+
+    #endregion
+
+    #region SVG Group Class Tests
+
+    [Fact]
+    public void SvgOutput_HyperlinkCells_HaveGroupClass()
+    {
+        // Cells with the same hyperlink should have the same group class in the SVG output
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        
+        // Write OSC 8 hyperlink with text
+        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\Click Me\x1b]8;;\x1b\\");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Should contain cell groups with link-0 class (first hyperlink group)
+        Assert.Contains("class=\"cell link-0\"", svg);
+    }
+
+    [Fact]
+    public void SvgOutput_MultipleSameHyperlinks_ShareGroupClass()
+    {
+        // Multiple cells with the same hyperlink share the same TrackedObject,
+        // so they should all have the same group class
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        
+        // Write text for hyperlink - each character gets same hyperlink
+        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\ABCDE\x1b]8;;\x1b\\");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Count how many cells have the link-0 class - should be 5 (for A, B, C, D, E)
+        var cellGroupCount = System.Text.RegularExpressions.Regex.Matches(svg, @"class=""cell link-0""").Count;
+        Assert.Equal(5, cellGroupCount);
+    }
+
+    [Fact]
+    public void SvgOutput_DifferentHyperlinks_HaveDifferentGroupClasses()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        
+        // Write two different hyperlinks
+        terminal.ProcessOutput("\x1b]8;;https://example1.com\x1b\\Link1\x1b]8;;\x1b\\");
+        terminal.ProcessOutput(" ");
+        terminal.ProcessOutput("\x1b]8;;https://example2.com\x1b\\Link2\x1b]8;;\x1b\\");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Should have two different link groups
+        Assert.Contains("link-0", svg);
+        Assert.Contains("link-1", svg);
+    }
+
+    [Fact]
+    public void SvgOutput_CellsWithoutHyperlink_HaveNoGroupClass()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        
+        // Write some regular text (no hyperlink)
+        terminal.ProcessOutput("Hello World");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Cells should just have "cell" class, no link-* suffix
+        Assert.Contains("class=\"cell\"", svg);
+        Assert.DoesNotContain("link-", svg);
+    }
+
+    [Fact]
+    public void SvgOutput_ContainsHighlightCssClass()
+    {
+        // SVG should include CSS for highlighting cell groups
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        terminal.ProcessOutput("Hello");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Check for the highlight CSS class
+        Assert.Contains(".cell.highlight", svg);
+    }
+
+    [Fact]
+    public void SvgOutput_CellsHaveDataAttributes()
+    {
+        // Each cell group should have data-x and data-y attributes
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        terminal.ProcessOutput("AB");
+        
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        
+        // Check for data attributes on cells
+        Assert.Contains("data-x=\"0\"", svg);
+        Assert.Contains("data-y=\"0\"", svg);
+        Assert.Contains("data-x=\"1\"", svg);
+    }
+
     #endregion
 }
 

@@ -30,7 +30,6 @@ const terminalSize = ref({ cols: props.cols || 80, rows: props.rows || 24 })
 const isResizing = ref(false)
 const isAnimating = ref(false)
 const resizeDirection = ref('')
-const resizeOffset = ref({ top: 0, left: 0, right: 0, bottom: 0 })
 let recentlyInteracted = false
 const resizeState = ref<{
   startX: number
@@ -64,42 +63,6 @@ const terminalTheme = {
   brightCyan: '#89f0ff',
   brightWhite: '#ffffff'
 }
-
-// Compute dynamic terminal sizes based on available window space
-// Only 3 sizes: smallest, medium, and largest
-const availableSizes = computed(() => {
-  const { maxCols, maxRows } = getMaxTerminalSizeStatic()
-  
-  // Define fixed smallest and medium sizes
-  const smallest = { cols: 80, rows: 24, name: 'Small' }
-  const medium = { cols: 120, rows: 36, name: 'Medium' }
-  
-  // Largest is the max available (capped at 200×60)
-  const effectiveMaxCols = Math.min(maxCols, 200)
-  const effectiveMaxRows = Math.min(maxRows, 60)
-  const largest = { cols: effectiveMaxCols, rows: effectiveMaxRows, name: 'Large' }
-  
-  const sizes: { name: string; cols: number; rows: number }[] = []
-  
-  // Always include smallest
-  sizes.push(smallest)
-  
-  // Include medium if it fits and is distinct from smallest and largest
-  if (medium.cols <= maxCols && medium.rows <= maxRows) {
-    // Only add if it's different from largest
-    if (medium.cols < largest.cols || medium.rows < largest.rows) {
-      sizes.push(medium)
-    }
-  }
-  
-  // Include largest if it's bigger than smallest (and bigger than medium if medium was added)
-  const lastSize = sizes[sizes.length - 1]
-  if (largest.cols > lastSize.cols || largest.rows > lastSize.rows) {
-    sizes.push(largest)
-  }
-  
-  return sizes
-})
 
 // Static version for use before terminal is initialized
 function getMaxTerminalSizeStatic(): { maxCols: number; maxRows: number } {
@@ -358,45 +321,32 @@ function onResize(e: MouseEvent) {
     newRows = Math.max(10, Math.min(maxRows, startRows - Math.round(deltaY / cellHeight)))
   }
   
-  // Calculate pixel offsets for overlay preview
-  const colDelta = newCols - startCols
-  const rowDelta = newRows - startRows
-  const pixelDeltaX = colDelta * cellWidth
-  const pixelDeltaY = rowDelta * cellHeight
-  
-  // Update overlay edges based on resize direction
-  resizeOffset.value = {
-    top: direction.includes('n') ? -pixelDeltaY : 0,
-    left: direction.includes('w') ? -pixelDeltaX : 0,
-    right: direction.includes('e') ? -pixelDeltaX : 0,
-    bottom: direction.includes('s') ? -pixelDeltaY : 0
-  }
+  // Check if size actually changed
+  const sizeChanged = newCols !== terminalSize.value.cols || newRows !== terminalSize.value.rows
   
   terminalSize.value = { cols: newCols, rows: newRows }
+  
+  // Live resize: Apply the new size and send to server during drag
+  if (sizeChanged && terminal) {
+    terminal.resize(newCols, newRows)
+    
+    // Send resize to server immediately
+    if (websocket?.readyState === WebSocket.OPEN) {
+      websocket.send(JSON.stringify({
+        type: 'resize',
+        cols: newCols,
+        rows: newRows
+      }))
+    }
+  }
 }
 
 function stopResize() {
   if (!isResizing.value) return
   
-  const { cols, rows } = terminalSize.value
-  
-  // Apply the new size to the terminal
-  if (terminal) {
-    terminal.resize(cols, rows)
-    
-    // Send resize to server
-    if (websocket?.readyState === WebSocket.OPEN) {
-      websocket.send(JSON.stringify({
-        type: 'resize',
-        cols,
-        rows
-      }))
-    }
-  }
-  
+  // Resize already applied during drag, just clean up state
   isResizing.value = false
   resizeState.value = null
-  resizeOffset.value = { top: 0, left: 0, right: 0, bottom: 0 }
   recentlyInteracted = true
   document.body.classList.remove('resizing')
   document.removeEventListener('mousemove', onResize)
@@ -547,40 +497,18 @@ watch(() => props.example, () => {
           <div class="resize-handle resize-handle-sw" @mousedown="startResize($event, 'sw')"></div>
           <div class="resize-handle resize-handle-se" @mousedown="startResize($event, 'se')"></div>
           
-          <!-- Resize overlay -->
+          <!-- Resize overlay - shows size indicator during resize -->
           <div 
             class="resize-overlay" 
             :class="{ active: isResizing }"
-            :style="{
-              top: resizeOffset.top + 'px',
-              left: resizeOffset.left + 'px',
-              right: resizeOffset.right + 'px',
-              bottom: resizeOffset.bottom + 'px'
-            }"
           >
             <div class="resize-overlay-info">{{ displaySize }}</div>
           </div>
           
           <!-- Header -->
           <div class="terminal-header">
-            <div class="terminal-dots">
-              <span class="terminal-dot red" @click.stop="closeTerminal"></span>
-              <span class="terminal-dot yellow"></span>
-              <span class="terminal-dot green"></span>
-            </div>
             <span class="terminal-title">{{ title || example }}</span>
             <div class="terminal-controls">
-              <div class="size-buttons">
-                <button 
-                  v-for="size in availableSizes" 
-                  :key="size.name"
-                  class="size-btn"
-                  :class="{ active: terminalSize.cols === size.cols && terminalSize.rows === size.rows }"
-                  @click.stop="selectSize(size)"
-                >
-                  {{ size.name }}
-                </button>
-              </div>
               <button class="terminal-refresh" @click.stop="refresh" title="Refresh">↻</button>
               <button class="terminal-close" @click.stop="closeTerminal" title="Close">×</button>
             </div>
@@ -693,15 +621,15 @@ watch(() => props.example, () => {
 
 .floating-terminal {
   position: absolute;
-  background: #0f0f1a;
+  background: linear-gradient(135deg, #1a3a38 0%, #0d2625 100%);
   border-radius: 12px;
   box-shadow: 
-    0 0 60px 20px rgba(255, 255, 255, 0.4),
+    0 0 60px 20px rgba(78, 205, 196, 0.15),
     0 4px 6px rgba(0, 0, 0, 0.3),
     0 10px 40px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(78, 205, 196, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+    0 0 0 1px rgba(78, 205, 196, 0.4),
+    inset 0 1px 0 rgba(78, 205, 196, 0.1);
+  border: 1px solid rgba(78, 205, 196, 0.25);
   overflow: visible;
 }
 
@@ -848,90 +776,50 @@ watch(() => props.example, () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #4ecdc4 0%, #3db8b0 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 11px 11px 0 0;
   user-select: none;
+  min-width: 0;
 }
-
-.terminal-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.terminal-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.terminal-dot:hover {
-  transform: scale(1.2);
-}
-
-.terminal-dot.red { background: #ff5f56; }
-.terminal-dot.yellow { background: #ffbd2e; }
-.terminal-dot.green { background: #27c93f; }
 
 .terminal-title {
-  color: #4ecdc4;
+  color: #0a1f1e;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .terminal-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.size-buttons {
-  display: flex;
-  gap: 4px;
-}
-
-.size-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
-}
-
-.size-btn:hover {
-  background: rgba(78, 205, 196, 0.1);
-  border-color: rgba(78, 205, 196, 0.3);
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.size-btn.active {
-  background: rgba(78, 205, 196, 0.2);
-  border-color: rgba(78, 205, 196, 0.5);
-  color: #4ecdc4;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .terminal-refresh,
 .terminal-close {
-  background: none;
+  background: rgba(0, 0, 0, 0.15);
   border: none;
-  color: rgba(255, 255, 255, 0.3);
+  color: #0a1f1e;
   font-size: 18px;
+  font-weight: bold;
   cursor: pointer;
   padding: 4px 8px;
-  transition: color 0.2s, transform 0.2s;
+  transition: color 0.2s, transform 0.2s, background 0.2s;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .terminal-refresh:hover,
 .terminal-close:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.05);
+  color: #0a1f1e;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .terminal-refresh:active {
@@ -944,7 +832,11 @@ watch(() => props.example, () => {
 
 /* Terminal body */
 .terminal-body {
-  padding: 16px;
+  padding: 8px;
+  margin: 8px;
+  background: #0f0f1a;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 .terminal-viewport {

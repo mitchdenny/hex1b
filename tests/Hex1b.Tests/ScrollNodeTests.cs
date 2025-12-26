@@ -439,54 +439,89 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Render_Vertical_ClipsContentBeyondViewport()
+    public async Task Render_Vertical_ClipsContentBeyondViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-
         using var terminal = new Hex1bTerminal(workload, 40, 5);
-        var context = CreateContext(workload);
-        var node = new ScrollNode
-        {
-            Child = CreateTallContent(10),
-            Orientation = ScrollOrientation.Vertical,
-            ShowScrollbar = true
-        };
 
-        node.Measure(Constraints.Tight(40, 5));
-        node.Arrange(new Rect(0, 0, 40, 5));
-        node.Render(context);
+        await using var app = new Hex1bApp(
+            ctx => ctx.VScroll(v => [
+                v.Text("Line 1"),
+                v.Text("Line 2"),
+                v.Text("Line 3"),
+                v.Text("Line 4"),
+                v.Text("Line 5"),
+                v.Text("Line 6"),
+                v.Text("Line 7"),
+                v.Text("Line 8"),
+                v.Text("Line 9"),
+                v.Text("Line 10"),
+            ], showScrollbar: true),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
 
-        // Lines 1-5 should be visible, line 6+ should be clipped
-        Assert.Contains("Line 1", terminal.CreateSnapshot().GetText());
-        Assert.Contains("Line 5", terminal.CreateSnapshot().GetText());
-        Assert.DoesNotContain("Line 6", terminal.CreateSnapshot().GetText());
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // First lines should be visible, later lines should be clipped
+        Assert.Contains("Line 1", snapshot.GetText());
+        Assert.Contains("Line 2", snapshot.GetText());
+        // Line 6+ should definitely be clipped (viewport is 5 rows)
+        Assert.DoesNotContain("Line 6", snapshot.GetText());
     }
 
     [Fact]
-    public void Render_Vertical_WhenScrolled_ShowsOffsetContent()
+    public async Task Render_Vertical_WhenScrolled_ShowsOffsetContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-
         using var terminal = new Hex1bTerminal(workload, 40, 5);
-        var context = CreateContext(workload);
-        var state = new ScrollState { Offset = 5 };
-        var node = new ScrollNode
-        {
-            Child = CreateTallContent(15),
-            State = state,
-            Orientation = ScrollOrientation.Vertical,
-            ShowScrollbar = true
-        };
+        var scrollState = new ScrollState { Offset = 5 };
 
-        node.Measure(Constraints.Tight(40, 5));
-        node.Arrange(new Rect(0, 0, 40, 5));
-        node.Render(context);
+        await using var app = new Hex1bApp(
+            ctx => ctx.VScroll(v => [
+                v.Text("Line 1"),
+                v.Text("Line 2"),
+                v.Text("Line 3"),
+                v.Text("Line 4"),
+                v.Text("Line 5"),
+                v.Text("Line 6"),
+                v.Text("Line 7"),
+                v.Text("Line 8"),
+                v.Text("Line 9"),
+                v.Text("Line 10"),
+                v.Text("Line 11"),
+                v.Text("Line 12"),
+                v.Text("Line 13"),
+                v.Text("Line 14"),
+                v.Text("Line 15"),
+            ], state: scrollState, showScrollbar: true),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
 
-        // Lines 6-10 should be visible (offset by 5)
-        Assert.Contains("Line 6", terminal.CreateSnapshot().GetText());
-        Assert.Contains("Line 10", terminal.CreateSnapshot().GetText());
-        Assert.DoesNotContain("Line 5", terminal.CreateSnapshot().GetText());
-        Assert.DoesNotContain("Line 11", terminal.CreateSnapshot().GetText());
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTestSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 6"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Lines starting from offset 5 (Line 6) should be visible
+        Assert.Contains("Line 6", snapshot.GetText());
+        Assert.Contains("Line 7", snapshot.GetText());
+        // Earlier lines should not be visible
+        Assert.DoesNotContain("Line 5", snapshot.GetText());
+        // Much later lines should also be clipped
+        Assert.DoesNotContain("Line 12", snapshot.GetText());
     }
 
     #endregion

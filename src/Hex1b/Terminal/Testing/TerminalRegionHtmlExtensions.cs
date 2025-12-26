@@ -40,8 +40,26 @@ public static class TerminalRegionHtmlExtensions
         var svgWidth = region.Width * cellWidth;
         var svgHeight = region.Height * cellHeight;
 
-        // Build cell data as JSON for JavaScript
-        var cellData = BuildCellDataJson(region);
+        // Pre-scan cells to identify unique cell groups (e.g., hyperlinks with same ID/URI)
+        // This allows related cells to be highlighted together in the HTML viewer
+        var hyperlinkGroups = new Dictionary<object, string>();
+        var groupId = 0;
+        
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                if (cell.TrackedHyperlink is { } trackedLink && !hyperlinkGroups.ContainsKey(trackedLink))
+                {
+                    var groupKey = $"link-{groupId++}";
+                    hyperlinkGroups[trackedLink] = groupKey;
+                }
+            }
+        }
+
+        // Build cell data as JSON for JavaScript (includes group IDs for related cells)
+        var cellData = BuildCellDataJson(region, hyperlinkGroups);
 
         // For HTML, create options with grids enabled (we'll hide them via CSS initially)
         var htmlSvgOptions = new TerminalSvgOptions
@@ -154,6 +172,46 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("    }");
         sb.AppendLine("    .tooltip.visible {");
         sb.AppendLine("      opacity: 1;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .tooltip.pinned {");
+        sb.AppendLine("      pointer-events: auto;");
+        sb.AppendLine("      border-color: #00d4ff;");
+        sb.AppendLine("      box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 2px rgba(0, 212, 255, 0.3);");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .tooltip-pin-indicator {");
+        sb.AppendLine("      position: absolute;");
+        sb.AppendLine("      top: 8px;");
+        sb.AppendLine("      right: 8px;");
+        sb.AppendLine("      font-size: 12px;");
+        sb.AppendLine("      color: #00d4ff;");
+        sb.AppendLine("      cursor: pointer;");
+        sb.AppendLine("      padding: 4px;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .tooltip-pin-indicator:hover {");
+        sb.AppendLine("      color: #ff6b6b;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .highlight-toggle {");
+        sb.AppendLine("      display: inline-flex;");
+        sb.AppendLine("      align-items: center;");
+        sb.AppendLine("      gap: 4px;");
+        sb.AppendLine("      padding: 4px 8px;");
+        sb.AppendLine("      margin-left: 8px;");
+        sb.AppendLine("      background: #3d3d5c;");
+        sb.AppendLine("      border: 1px solid #555;");
+        sb.AppendLine("      border-radius: 4px;");
+        sb.AppendLine("      cursor: pointer;");
+        sb.AppendLine("      font-size: 11px;");
+        sb.AppendLine("      color: #888;");
+        sb.AppendLine("      transition: all 0.2s;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .highlight-toggle:hover {");
+        sb.AppendLine("      background: #4d4d6c;");
+        sb.AppendLine("      color: #fff;");
+        sb.AppendLine("    }");
+        sb.AppendLine("    .highlight-toggle.active {");
+        sb.AppendLine("      background: #ff6b6b;");
+        sb.AppendLine("      border-color: #ff6b6b;");
+        sb.AppendLine("      color: #fff;");
         sb.AppendLine("    }");
         sb.AppendLine("    .tooltip-header {");
         sb.AppendLine("      display: flex;");
@@ -346,6 +404,14 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("    let currentCellX = -1;");
         sb.AppendLine("    let currentCellY = -1;");
         sb.AppendLine();
+        sb.AppendLine("    // Track pinned state for tooltip");
+        sb.AppendLine("    let isPinned = false;");
+        sb.AppendLine("    let pinnedCellX = -1;");
+        sb.AppendLine("    let pinnedCellY = -1;");
+        sb.AppendLine();
+        sb.AppendLine("    // Track highlighted cell groups");
+        sb.AppendLine("    let highlightedGroups = new Set();");
+        sb.AppendLine();
         sb.AppendLine("    // Scale SVG to fill container while maintaining aspect ratio");
         sb.AppendLine("    function updateSvgScale() {");
         sb.AppendLine("      const containerRect = container.getBoundingClientRect();");
@@ -462,12 +528,60 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("          <div class=\"tooltip-value\">");
         sb.AppendLine("            <a href=\"${cell.link.uri}\" target=\"_blank\" style=\"color:#00d4ff;text-decoration:underline;word-break:break-all\">${cell.link.uri}</a>");
         sb.AppendLine("            ${cell.link.params ? `<br><span style=\"color:#888;font-size:11px\">Params: ${cell.link.params}</span>` : ''}");
+        sb.AppendLine("            ${cell.link.group ? `<br><button class=\"highlight-toggle ${highlightedGroups.has(cell.link.group) ? 'active' : ''}\" onclick=\"toggleGroupHighlight('${cell.link.group}')\">👁 ${highlightedGroups.has(cell.link.group) ? 'Hide' : 'Show'} related cells</button>` : ''}");
         sb.AppendLine("          </div>");
         sb.AppendLine("        </div>` : ''}");
+        sb.AppendLine("        ${isPinned ? `<span class=\"tooltip-pin-indicator\" onclick=\"unpinTooltip()\" title=\"Click to unpin\">📌</span>` : ''}");
         sb.AppendLine("      `;");
         sb.AppendLine("    }");
         sb.AppendLine();
+        sb.AppendLine("    // Toggle highlight for a cell group (e.g., all cells with same hyperlink)");
+        sb.AppendLine("    function toggleGroupHighlight(groupName) {");
+        sb.AppendLine("      if (highlightedGroups.has(groupName)) {");
+        sb.AppendLine("        highlightedGroups.delete(groupName);");
+        sb.AppendLine("        // Remove highlight class from all cells in this group");
+        sb.AppendLine("        svg.querySelectorAll(`g.cell.${groupName}`).forEach(g => g.classList.remove('highlight'));");
+        sb.AppendLine("      } else {");
+        sb.AppendLine("        highlightedGroups.add(groupName);");
+        sb.AppendLine("        // Add highlight class to all cells in this group");
+        sb.AppendLine("        svg.querySelectorAll(`g.cell.${groupName}`).forEach(g => g.classList.add('highlight'));");
+        sb.AppendLine("      }");
+        sb.AppendLine("      // Re-render tooltip to update button state");
+        sb.AppendLine("      if (isPinned) {");
+        sb.AppendLine("        const cell = cellData[pinnedCellY][pinnedCellX];");
+        sb.AppendLine("        tooltip.innerHTML = renderTooltip(cell, pinnedCellX, pinnedCellY);");
+        sb.AppendLine("      }");
+        sb.AppendLine("    }");
+        sb.AppendLine("    // Make function available globally for onclick");
+        sb.AppendLine("    window.toggleGroupHighlight = toggleGroupHighlight;");
+        sb.AppendLine();
+        sb.AppendLine("    // Pin the tooltip in place");
+        sb.AppendLine("    function pinTooltip(x, y) {");
+        sb.AppendLine("      isPinned = true;");
+        sb.AppendLine("      pinnedCellX = x;");
+        sb.AppendLine("      pinnedCellY = y;");
+        sb.AppendLine("      tooltip.classList.add('pinned');");
+        sb.AppendLine("      // Re-render to show pin indicator");
+        sb.AppendLine("      const cell = cellData[y][x];");
+        sb.AppendLine("      tooltip.innerHTML = renderTooltip(cell, x, y);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    // Unpin the tooltip");
+        sb.AppendLine("    function unpinTooltip() {");
+        sb.AppendLine("      isPinned = false;");
+        sb.AppendLine("      pinnedCellX = -1;");
+        sb.AppendLine("      pinnedCellY = -1;");
+        sb.AppendLine("      tooltip.classList.remove('pinned');");
+        sb.AppendLine("      tooltip.classList.remove('visible');");
+        sb.AppendLine("      highlight.classList.remove('visible');");
+        sb.AppendLine("    }");
+        sb.AppendLine("    // Make function available globally for onclick");
+        sb.AppendLine("    window.unpinTooltip = unpinTooltip;");
+        sb.AppendLine();
         sb.AppendLine("    container.addEventListener('mousemove', (e) => {");
+        sb.AppendLine("      // If tooltip is pinned, don't update on hover");
+        sb.AppendLine("      if (isPinned) return;");
+        sb.AppendLine();
         sb.AppendLine("      const svgRect = svg.getBoundingClientRect();");
         sb.AppendLine("      const scaleX = svgRect.width / SVG_WIDTH;");
         sb.AppendLine("      const scaleY = svgRect.height / SVG_HEIGHT;");
@@ -523,9 +637,33 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      }");
         sb.AppendLine("    });");
         sb.AppendLine();
+        sb.AppendLine("    // Click to pin tooltip");
+        sb.AppendLine("    container.addEventListener('click', (e) => {");
+        sb.AppendLine("      const svgRect = svg.getBoundingClientRect();");
+        sb.AppendLine("      const scaleX = svgRect.width / SVG_WIDTH;");
+        sb.AppendLine("      const scaleY = svgRect.height / SVG_HEIGHT;");
+        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX;");
+        sb.AppendLine("      const cellHeight = BASE_CELL_HEIGHT * scaleY;");
+        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
+        sb.AppendLine("      const y = Math.floor((e.clientY - svgRect.top) / cellHeight);");
+        sb.AppendLine();
+        sb.AppendLine("      if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {");
+        sb.AppendLine("        if (isPinned && pinnedCellX === x && pinnedCellY === y) {");
+        sb.AppendLine("          // Clicking pinned cell again unpins");
+        sb.AppendLine("          unpinTooltip();");
+        sb.AppendLine("        } else {");
+        sb.AppendLine("          // Pin to this cell");
+        sb.AppendLine("          pinTooltip(x, y);");
+        sb.AppendLine("        }");
+        sb.AppendLine("      }");
+        sb.AppendLine("    });");
+        sb.AppendLine();
         sb.AppendLine("    container.addEventListener('mouseleave', () => {");
-        sb.AppendLine("      highlight.classList.remove('visible');");
-        sb.AppendLine("      tooltip.classList.remove('visible');");
+        sb.AppendLine("      // Only hide if not pinned");
+        sb.AppendLine("      if (!isPinned) {");
+        sb.AppendLine("        highlight.classList.remove('visible');");
+        sb.AppendLine("        tooltip.classList.remove('visible');");
+        sb.AppendLine("      }");
         sb.AppendLine("    });");
         sb.AppendLine();
         sb.AppendLine("    // Theme controls");
@@ -653,7 +791,7 @@ public static class TerminalRegionHtmlExtensions
         return sb.ToString();
     }
 
-    private static string BuildCellDataJson(IHex1bTerminalRegion region)
+    private static string BuildCellDataJson(IHex1bTerminalRegion region, Dictionary<object, string> hyperlinkGroups)
     {
         var rows = new List<string>();
 
@@ -687,10 +825,17 @@ public static class TerminalRegionHtmlExtensions
                     ? $"{{\"origin\":{(cell.IsSixel ? "true" : "false")},\"w\":{cell.SixelData.WidthInCells},\"h\":{cell.SixelData.HeightInCells}}}"
                     : "null";
 
-                // Include hyperlink data if present
-                var hyperlink = cell.HyperlinkData != null
-                    ? $"{{\"uri\":\"{EscapeJsonString(cell.HyperlinkData.Uri)}\",\"params\":\"{EscapeJsonString(cell.HyperlinkData.Parameters)}\"}}"
-                    : "null";
+                // Include hyperlink data if present (with group ID for highlighting related cells)
+                string hyperlink;
+                if (cell.TrackedHyperlink is { } trackedLink && cell.HyperlinkData != null)
+                {
+                    var groupName = hyperlinkGroups.TryGetValue(trackedLink, out var g) ? g : "";
+                    hyperlink = $"{{\"uri\":\"{EscapeJsonString(cell.HyperlinkData.Uri)}\",\"params\":\"{EscapeJsonString(cell.HyperlinkData.Parameters)}\",\"group\":\"{groupName}\"}}";
+                }
+                else
+                {
+                    hyperlink = "null";
+                }
 
                 cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
             }

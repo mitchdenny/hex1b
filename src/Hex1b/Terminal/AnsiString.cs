@@ -17,7 +17,7 @@ internal static class AnsiString
     }
 
     /// <summary>
-    /// Strips all ANSI escape codes from the text.
+    /// Strips all ANSI escape codes (CSI and OSC) from the text.
     /// </summary>
     private static string StripAnsiCodes(string text)
     {
@@ -28,6 +28,11 @@ internal static class AnsiString
         for (var i = 0; i < text.Length;)
         {
             if (TryReadCsi(text, i, out var nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
+            if (TryReadOsc(text, i, out nextIndex))
             {
                 i = nextIndex;
                 continue;
@@ -60,8 +65,20 @@ internal static class AnsiString
         var i = 0;
         while (i < text.Length)
         {
-            // Check for ANSI escape sequences first
+            // Check for ANSI escape sequences first (CSI and OSC)
             if (TryReadCsi(text, i, out var nextIndex))
+            {
+                var seq = text.Substring(i, nextIndex - i);
+                if (!started)
+                    prefix.Append(seq);
+                else
+                    output.Append(seq);
+
+                i = nextIndex;
+                continue;
+            }
+            
+            if (TryReadOsc(text, i, out nextIndex))
             {
                 var seq = text.Substring(i, nextIndex - i);
                 if (!started)
@@ -129,6 +146,12 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
+            if (TryReadOsc(text, i, out nextIndex))
+            {
+                output.Append(text.Substring(i, nextIndex - i));
+                i = nextIndex;
+                continue;
+            }
             break;
         }
 
@@ -188,8 +211,13 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
+            if (TryReadOsc(text, i, out nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
 
-            // Treat any non-CSI as printable for our purposes.
+            // Treat any non-escape as printable for our purposes.
             lastPrintableEnd = i + 1;
             i++;
         }
@@ -197,13 +225,20 @@ internal static class AnsiString
         if (lastPrintableEnd >= text.Length)
             return "";
 
-        // Ensure suffix contains only full CSI sequences.
+        // Ensure suffix contains only full escape sequences (CSI or OSC).
         for (var i = lastPrintableEnd; i < text.Length;)
         {
-            if (!TryReadCsi(text, i, out var nextIndex))
-                return "";
-
-            i = nextIndex;
+            if (TryReadCsi(text, i, out var nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
+            if (TryReadOsc(text, i, out nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
+            return "";
         }
 
         return text.Substring(lastPrintableEnd);
@@ -232,6 +267,44 @@ internal static class AnsiString
         }
 
         // Incomplete CSI sequence.
+        return false;
+    }
+    
+    /// <summary>
+    /// Tries to read an OSC (Operating System Command) sequence.
+    /// OSC sequences start with ESC ] and end with ST (String Terminator).
+    /// ST can be ESC \ or BEL (\x07).
+    /// </summary>
+    private static bool TryReadOsc(string text, int index, out int nextIndex)
+    {
+        nextIndex = index;
+        if (index < 0 || index >= text.Length)
+            return false;
+
+        if (text[index] != Escape)
+            return false;
+        if (index + 1 >= text.Length || text[index + 1] != ']')
+            return false;
+
+        // OSC sequence: ESC ] ... ST
+        // ST can be ESC \ or BEL (\x07)
+        for (var i = index + 2; i < text.Length; i++)
+        {
+            // Check for ST = ESC \ (two characters)
+            if (text[i] == Escape && i + 1 < text.Length && text[i + 1] == '\\')
+            {
+                nextIndex = i + 2;
+                return true;
+            }
+            // Check for ST = BEL (\x07)
+            if (text[i] == '\x07')
+            {
+                nextIndex = i + 1;
+                return true;
+            }
+        }
+
+        // Incomplete OSC sequence.
         return false;
     }
 }

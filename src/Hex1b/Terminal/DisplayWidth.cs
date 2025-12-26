@@ -199,7 +199,7 @@ public static class DisplayWidth
         int i = 0;
         while (i < text.Length)
         {
-            // Check for ANSI escape sequence (ESC [ ... final byte)
+            // Check for ANSI escape sequence (ESC [ ... final byte) - CSI sequences
             if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
             {
                 // Find the end of the CSI sequence
@@ -211,6 +211,38 @@ public static class DisplayWidth
                     if (c >= '@' && c <= '~')
                     {
                         i++; // Include final byte
+                        break;
+                    }
+                    i++;
+                }
+                var seq = text.Substring(seqStart, i - seqStart);
+                
+                // Add to prefix or result depending on whether we've started
+                if (!started)
+                    prefix.Append(seq);
+                else
+                    result.Append(seq);
+                continue;
+            }
+            
+            // Check for OSC escape sequence (ESC ] ... ST) - OSC sequences like OSC 8 hyperlinks
+            // ST (String Terminator) can be ESC \ or BEL (\x07)
+            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == ']')
+            {
+                var seqStart = i;
+                i += 2; // Skip ESC ]
+                while (i < text.Length)
+                {
+                    // Check for ST = ESC \ (two characters)
+                    if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
+                    {
+                        i += 2; // Include ESC \
+                        break;
+                    }
+                    // Check for ST = BEL (single character \x07)
+                    if (text[i] == '\x07')
+                    {
+                        i++; // Include BEL
                         break;
                     }
                     i++;
@@ -271,9 +303,10 @@ public static class DisplayWidth
             i += graphemeLength;
         }
 
-        // Collect any trailing ANSI sequences
+        // Collect any trailing ANSI sequences (CSI and OSC)
         while (i < text.Length)
         {
+            // CSI sequences
             if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
             {
                 var seqStart = i;
@@ -282,6 +315,28 @@ public static class DisplayWidth
                 {
                     var c = text[i];
                     if (c >= '@' && c <= '~')
+                    {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                result.Append(text.Substring(seqStart, i - seqStart));
+                continue;
+            }
+            // OSC sequences
+            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == ']')
+            {
+                var seqStart = i;
+                i += 2;
+                while (i < text.Length)
+                {
+                    if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
+                    {
+                        i += 2;
+                        break;
+                    }
+                    if (text[i] == '\x07')
                     {
                         i++;
                         break;
