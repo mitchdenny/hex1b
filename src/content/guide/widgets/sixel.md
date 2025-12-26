@@ -261,14 +261,14 @@ v.Sixel(state.CachedSixelData, fallback, width: requestedWidth, height: requeste
 Display a collection of images with navigation:
 
 ```csharp
-var images = new[] { "photo1.sixel", "photo2.sixel", "photo3.sixel" };
+var images = new[] { "photo1.jpg", "photo2.png", "photo3.svg" };
 var state = new GalleryState { SelectedIndex = 0 };
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VStack(v => [
         v.Text($"Image {state.SelectedIndex + 1} of {images.Length}"),
         v.Sixel(
-            LoadSixelData(images[state.SelectedIndex]),
+            EncodeImageToSixel(images[state.SelectedIndex], 60, 30),
             $"[{Path.GetFileName(images[state.SelectedIndex])}]",
             width: 60,
             height: 30
@@ -284,6 +284,15 @@ class GalleryState
 {
     public int SelectedIndex { get; set; }
 }
+
+// Helper function to encode images to Sixel format
+// You'll need an encoder like ImageSharp + a Sixel library
+static string EncodeImageToSixel(string imagePath, int widthCells, int heightCells)
+{
+    // Example implementation using SixelEncoder
+    // (See SixelEncoder.cs in Hex1b.Website for a complete implementation)
+    return SixelEncoder.EncodeFromFile(imagePath, widthCells, heightCells);
+}
 ```
 
 ### Data Visualization
@@ -292,7 +301,8 @@ Render charts and graphs inline:
 
 ```csharp
 // Generate chart as image, encode to Sixel
-var chartSixelData = GenerateChartAsSixel(dataPoints);
+// You can use a charting library like ScottPlot or OxyPlot to create the chart image
+var chartSixelData = GenerateChartAsSixel(dataPoints, 70, 25);
 
 ctx.Border(b => [
     b.Text("Sales Report - Q4 2024"),
@@ -304,6 +314,19 @@ ctx.Border(b => [
         height: 25
     )
 ], title: "Dashboard")
+
+// Example helper for chart generation
+static string GenerateChartAsSixel(int[] dataPoints, int widthCells, int heightCells)
+{
+    // 1. Create chart image using a charting library (e.g., ScottPlot)
+    // 2. Save to memory stream as PNG/JPEG
+    // 3. Encode to Sixel using an encoder library
+    // 4. Return Sixel string
+    
+    // Simplified example:
+    using var image = CreateChartImage(dataPoints);
+    return SixelEncoder.EncodeFromImage(image, widthCells, heightCells);
+}
 ```
 
 ### Logo or Branding
