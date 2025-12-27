@@ -23,7 +23,7 @@ public class SplitterBasicExample(ILogger<SplitterBasicExample> logger) : Hex1bE
         {
             var ctx = new RootContext();
             return ctx.HSplitter(
-                ctx.Panel(left => [
+                ctx.ThemingPanel(theme => theme, left => [
                     left.VStack(v => [
                         v.Text("Left Pane"),
                         v.Text(""),
@@ -34,7 +34,7 @@ public class SplitterBasicExample(ILogger<SplitterBasicExample> logger) : Hex1bE
                         v.Text("then use ← → to resize.").Wrap()
                     ])
                 ]),
-                ctx.Panel(right => [
+                ctx.ThemingPanel(theme => theme, right => [
                     right.VStack(v => [
                         v.Text("Right Pane"),
                         v.Text(""),

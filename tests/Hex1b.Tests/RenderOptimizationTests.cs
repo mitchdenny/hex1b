@@ -495,10 +495,10 @@ public class RenderOptimizationTests
         // Use a theme with a visible panel background color
         var panelBgColor = Hex1bTheming.Hex1bColor.FromRgb(30, 30, 60); // Dark blue
         var theme = new Hex1bTheming.Hex1bTheme("Test")
-            .Set(Hex1bTheming.PanelTheme.BackgroundColor, panelBgColor);
+            .Set(Hex1bTheming.ThemingPanelTheme.BackgroundColor, panelBgColor);
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
+            ctx => ctx.ThemingPanel(theme => theme, p => [
                 p.VStack(v => [
                     v.Text("Label before button"),
                     v.Button("Click Me"),

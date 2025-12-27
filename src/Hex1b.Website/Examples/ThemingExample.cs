@@ -82,7 +82,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             
             var widget = ctx.VStack(root => [
                 root.HSplitter(
-                    root.Panel(leftPanel => [
+                    root.ThemingPanel(theme => theme, leftPanel => [
                         leftPanel.VStack(left => [
                             left.Text("═══ Themes ═══"),
                             left.Text(""),
@@ -90,7 +90,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                         ])
                     ]),
                     root.Layout(
-                        root.Panel(rightPanel => [
+                        root.ThemingPanel(theme => theme, rightPanel => [
                             rightPanel.VStack(right => [
                                 right.Text("═══ Widget Preview ═══"),
                                 right.Text(""),
@@ -99,7 +99,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                                     b.Text("  with multiple lines")
                                 ], title: "Border"),
                                 right.Text(""),
-                                right.Panel(p => [
+                                right.ThemingPanel(theme => theme, p => [
                                     p.Text("  Panel with styled background"),
                                     p.Text("  (theme-dependent colors)")
                                 ]),
@@ -149,7 +149,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
         
         // Clone the base theme and set our panel background
         return baseTheme.Clone($"{baseTheme.Name} (Enhanced)")
-            .Set(PanelTheme.BackgroundColor, panelBg);
+            .Set(ThemingPanelTheme.BackgroundColor, panelBg);
     }
 
     /// <summary>
@@ -199,8 +199,8 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(34, 139, 34))
             .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(144, 238, 144))
             // Panel
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 50, 0))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 50, 0))
+            .Set(ThemingPanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
             // ToggleSwitch
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(34, 139, 34))
@@ -243,8 +243,8 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║")
             // Panel
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
+            .Set(ThemingPanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
             // ToggleSwitch
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))

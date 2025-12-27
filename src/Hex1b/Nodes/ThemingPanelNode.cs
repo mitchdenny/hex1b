@@ -4,16 +4,21 @@ using Hex1b.Theming;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// A node that provides a styled background for its child content.
-/// Panel is not focusable - focus passes through to the child.
+/// A node that scopes theme changes to its child content.
+/// ThemingPanel applies a theme builder callback to create a scoped theme for children.
 /// </summary>
-public sealed class PanelNode : Hex1bNode
+public sealed class ThemingPanelNode : Hex1bNode
 {
     public Hex1bNode? Child { get; set; }
+    
+    /// <summary>
+    /// The callback that transforms the current theme into a scoped theme for children.
+    /// </summary>
+    public Func<Hex1bTheme, Hex1bTheme>? ThemeBuilder { get; set; }
 
     public override Size Measure(Constraints constraints)
     {
-        // Panel doesn't add any size - child takes all available space
+        // ThemingPanel doesn't add any size - child takes all available space
         return Child?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
     }
 
@@ -38,9 +43,19 @@ public sealed class PanelNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
+        // Save the previous theme
+        var previousTheme = context.Theme;
+        
+        // Apply theme builder to create scoped theme
+        if (ThemeBuilder != null)
+        {
+            var clonedTheme = previousTheme.Clone();
+            context.Theme = ThemeBuilder(clonedTheme);
+        }
+        
         var theme = context.Theme;
-        var backgroundColor = theme.Get(PanelTheme.BackgroundColor);
-        var foregroundColor = theme.Get(PanelTheme.ForegroundColor);
+        var backgroundColor = theme.Get(ThemingPanelTheme.BackgroundColor);
+        var foregroundColor = theme.Get(ThemingPanelTheme.ForegroundColor);
 
         // Fill background for the panel area
         if (!backgroundColor.IsDefault)
@@ -80,6 +95,9 @@ public sealed class PanelNode : Hex1bNode
         // Restore previous inherited colors
         context.InheritedForeground = previousForeground;
         context.InheritedBackground = previousBackground;
+        
+        // Restore previous theme
+        context.Theme = previousTheme;
     }
 
     /// <summary>
@@ -89,4 +107,10 @@ public sealed class PanelNode : Hex1bNode
     {
         if (Child != null) yield return Child;
     }
+    
+    /// <summary>
+    /// ThemingPanel must be rendered when any child needs rendering,
+    /// because it sets up the scoped theme context before rendering children.
+    /// </summary>
+    public override bool RequiresRenderForChildContext => true;
 }

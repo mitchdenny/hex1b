@@ -48,7 +48,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
 
             var widget = ctx.HSplitter(
                 ctx.Layout(
-                    ctx.Panel(leftPanel => [
+                    ctx.ThemingPanel(theme => theme, leftPanel => [
                         leftPanel.VStack(left => [
                             left.Text("Layout Examples"),
                             left.Text("───────────────────"),
@@ -88,7 +88,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
         var loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
         var explanation = "TextOverflow.Wrap automatically breaks text at word boundaries when it exceeds the available width.";
 
-        return ctx.Panel(panel => [
+        return ctx.ThemingPanel(theme => theme, panel => [
             panel.VStack(v => [
                 v.Text("═══ Text Wrapping Demo ═══"),
                 v.Text(""),
@@ -125,7 +125,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
         var contentLine4 = MakeContent("  Notes: This line is intentionally padded to force right-edge clipping in the demo.");
         var bottomLine = MakeTopBottom('╚', '═', '╝');
 
-        return ctx.Panel(panel => [
+        return ctx.ThemingPanel(theme => theme, panel => [
             panel.VStack(v => [
                 v.Text("═══ Text Clipping Demo ═══"),
                 v.Text(""),
@@ -153,7 +153,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
         var longTitle = "This is an extremely long title that should be truncated with ellipsis";
         var longDescription = "A very detailed description that goes on and on explaining every little detail about this item";
 
-        return ctx.Panel(panel => [
+        return ctx.ThemingPanel(theme => theme, panel => [
             panel.VStack(v => [
                 v.Text("═══ Text Ellipsis Demo ═══"),
                 v.Text(""),
@@ -181,7 +181,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
     {
         var innerText = "This text is inside a nested layout region with its own clipping boundary.";
 
-        return ctx.Panel(panel => [
+        return ctx.ThemingPanel(theme => theme, panel => [
             panel.VStack(v => [
                 v.Text("═══ Nested Layouts Demo ═══"),
                 v.Text(""),
@@ -208,7 +208,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
     {
         var wideContent = "This line of text is intentionally very wide to demonstrate how borders handle overflow content when there isn't enough horizontal space.";
 
-        return ctx.Panel(panel => [
+        return ctx.ThemingPanel(theme => theme, panel => [
             panel.VStack(v => [
                 v.Text("═══ Border Clipping Demo ═══"),
                 v.Text(""),

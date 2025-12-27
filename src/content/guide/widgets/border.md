@@ -1,3 +1,9 @@
+<!--
+  MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
+  - basicCode → src/Hex1b.Website/Examples/BorderBasicExample.cs
+  - (title example) → src/Hex1b.Website/Examples/BorderTitleExample.cs
+  When updating code here, update the corresponding Example file and vice versa.
+-->
 <script setup>
 import basicSnippet from './snippets/border-basic.cs?raw'
 import titleSnippet from './snippets/border-title.cs?raw'
@@ -15,6 +21,25 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
 ));
 
 await app.RunAsync();`
+
+const titleCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var clickCount = 0;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.Border(b => [
+        b.VStack(v => [
+            v.Text($"Button clicked {clickCount} times"),
+            v.Text(""),
+            v.Button("Click me!").OnClick(_ => clickCount++),
+            v.Text(""),
+            v.Text("Use Tab to focus, Enter to activate")
+        ])
+    ], title: "Interactive Demo")
+));
+
+await app.RunAsync();`
 </script>
 
 # BorderWidget
@@ -27,7 +52,7 @@ BorderWidget wraps a single child widget with a visual border made from box-draw
 
 Create a border around content using the fluent API:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="border-basic" exampleTitle="Border Widget - Basic Usage" />
 
 ::: tip Focus Behavior
 BorderWidget is not focusable—focus passes through to the child widget inside. This allows interactive widgets like buttons and text boxes to work normally within borders.
@@ -41,9 +66,9 @@ The simplest border wraps content without a title:
 
 ## Border with Title
 
-Add a title to label the bordered section:
+Add a title to label the bordered section. This interactive example shows a border with a clickable button inside:
 
-<StaticTerminalPreview svgPath="/svg/border-title.svg" :code="titleSnippet" />
+<CodeBlock lang="csharp" :code="titleCode" command="dotnet run" example="border-title" exampleTitle="Border Widget - With Title" />
 
 The title is automatically centered in the top border. If the title is too long for the available width, it will be truncated.
 
@@ -137,6 +162,6 @@ ctx.VStack(v => [
 
 ## Related Widgets
 
-- [PanelWidget](/guide/widgets/panel) - Provides a styled background without a border
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - Scope theme changes without a border
 - [VStackWidget](/guide/widgets/vstack) - For vertically arranging multiple widgets
 - [HStackWidget](/guide/widgets/hstack) - For horizontally arranging multiple widgets

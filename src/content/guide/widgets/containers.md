@@ -14,21 +14,21 @@ Key features:
 - Customizable via theming
 - Clipping support for child content
 
-## PanelWidget
+## ThemingPanelWidget
 
-PanelWidget provides a styled background for content without adding decorative borders.
+ThemingPanelWidget scopes theme changes to a subtree of widgets via a theme callback.
 
-**[View full PanelWidget documentation →](/guide/widgets/panel)**
+**[View full ThemingPanelWidget documentation →](/guide/widgets/theming-panel)**
 
 Key features:
-- Background fill color
-- Foreground color inheritance
+- Theme scoping via callback
+- Background and foreground color customization
 - No size overhead
 - Combine with borders for layered styling
 
 ## See Also
 
 - [BorderWidget](/guide/widgets/border) - Detailed border documentation
-- [PanelWidget](/guide/widgets/panel) - Detailed panel documentation
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - Detailed theming panel documentation
 - [HStackWidget](/guide/widgets/hstack) - Horizontal layout container
 - [VStackWidget](/guide/widgets/vstack) - Vertical layout container

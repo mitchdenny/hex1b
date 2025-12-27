@@ -19,12 +19,12 @@ public class TerminalSvgRenderingTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 30, 60))
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 30, 60))
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(0, 100, 200))
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.FromRgb(255, 255, 255));
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
+            ctx => ctx.ThemingPanel(theme => theme, p => [
                 p.VStack(v => [
                     v.Text("Terminal SVG Rendering Demo"),
                     v.Text(""),
@@ -68,10 +68,10 @@ public class TerminalSvgRenderingTests
         using var terminal = new Hex1bTerminal(workload, 60, 15);
 
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(20, 40, 60));
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(20, 40, 60));
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
+            ctx => ctx.ThemingPanel(theme => theme, p => [
                 p.VStack(v => [
                     v.Text("Line 1: Header"),
                     v.Text("Line 2: Content A"),
@@ -122,12 +122,12 @@ public class TerminalSvgRenderingTests
         using var terminal = new Hex1bTerminal(workload, 50, 12);
 
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(25, 25, 35))
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(25, 25, 35))
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(70, 130, 180))
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.FromRgb(255, 255, 255));
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
+            ctx => ctx.ThemingPanel(theme => theme, p => [
                 p.VStack(v => [
                     v.Text("Button Demo"),
                     v.Text(""),

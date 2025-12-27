@@ -1718,7 +1718,7 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
                     // Left: Panel > VStack > List (deep nesting like ThemingExhibit)
-                    ctx.Panel(p => [
+                    ctx.ThemingPanel(theme => theme, p => [
                         p.VStack(v => [
                             v.Text("═══ Themes ═══"),
                             v.Text(""),
@@ -1726,7 +1726,7 @@ public class SplitterNodeTests
                         ])
                     ]),
                     // Right: Panel > VStack > Button
-                    ctx.Panel(p => [
+                    ctx.ThemingPanel(theme => theme, p => [
                         p.VStack(v => [
                             v.Text("═══ Preview ═══"),
                             v.Button("Click Me").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })
@@ -2176,7 +2176,7 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter with content that's taller than topHeight
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
+                        ctx.ThemingPanel(theme => theme, tl => [
                             tl.VStack(v => [
                                 v.Text("Top-Left"),
                                 v.Text("Line 2"),
@@ -2187,7 +2187,7 @@ public class SplitterNodeTests
                                 v.Text("OVERFLOW-TL")  // This should NOT appear in bottom pane
                             ])
                         ]),
-                        ctx.Panel(tr => [
+                        ctx.ThemingPanel(theme => theme, tr => [
                             tr.VStack(v => [
                                 v.Text("Top-Right"),
                                 v.Text("Line 2"),
@@ -2201,7 +2201,7 @@ public class SplitterNodeTests
                         leftWidth: 20
                     ),
                     // Bottom: single panel
-                    ctx.Panel(bottom => [
+                    ctx.ThemingPanel(theme => theme, bottom => [
                         bottom.VStack(v => [
                             v.Text("Bottom Pane"),
                             v.Text("This should be the only content here")
@@ -2252,14 +2252,14 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
                     // Left pane: narrow (10 chars) with long text
-                    ctx.Panel(left => [
+                    ctx.ThemingPanel(theme => theme, left => [
                         left.VStack(v => [
                             v.Text("Left"),
                             v.Text("LONG_TEXT_THAT_OVERFLOWS_LEFT_PANE")  // 34 chars, way longer than 10
                         ])
                     ]),
                     // Right pane
-                    ctx.Panel(right => [
+                    ctx.ThemingPanel(theme => theme, right => [
                         right.VStack(v => [
                             v.Text("Right Pane"),
                             v.Text("Should not see overflow here")
@@ -2404,7 +2404,7 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter with content
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
+                        ctx.ThemingPanel(theme => theme, tl => [
                             tl.VStack(v => [
                                 v.Text("Top-Left"),
                                 v.Text(""),
@@ -2412,7 +2412,7 @@ public class SplitterNodeTests
                                 v.Text("in top pane").Wrap()
                             ])
                         ]),
-                        ctx.Panel(tr => [
+                        ctx.ThemingPanel(theme => theme, tr => [
                             tr.VStack(v => [
                                 v.Text("Top-Right"),
                                 v.Text(""),
@@ -2423,7 +2423,7 @@ public class SplitterNodeTests
                         leftWidth: 20
                     ),
                     // Bottom: single panel with distinct content
-                    ctx.Panel(bottom => [
+                    ctx.ThemingPanel(theme => theme, bottom => [
                         bottom.VStack(v => [
                             v.Text("BOTTOM_PANE_MARKER"),
                             v.Text(""),
@@ -2491,7 +2491,7 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
+                        ctx.ThemingPanel(theme => theme, tl => [
                             tl.VStack(v => [
                                 v.Text("Top-Left"),
                                 v.Text(""),
@@ -2499,7 +2499,7 @@ public class SplitterNodeTests
                                 v.Text("in top pane").Wrap()
                             ])
                         ]),
-                        ctx.Panel(tr => [
+                        ctx.ThemingPanel(theme => theme, tr => [
                             tr.VStack(v => [
                                 v.Text("Top-Right"),
                                 v.Text(""),
@@ -2510,7 +2510,7 @@ public class SplitterNodeTests
                         leftWidth: 20
                     ),
                     // Bottom: single panel
-                    ctx.Panel(bottom => [
+                    ctx.ThemingPanel(theme => theme, bottom => [
                         bottom.VStack(v => [
                             v.Text("Bottom Pane"),
                             v.Text(""),

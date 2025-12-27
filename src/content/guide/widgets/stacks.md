@@ -33,4 +33,4 @@ Key features:
 - [VStackWidget](/guide/widgets/vstack) - Detailed vertical stack documentation
 - [HStackWidget](/guide/widgets/hstack) - Detailed horizontal stack documentation
 - [BorderWidget](/guide/widgets/border) - For adding borders to stack children
-- [PanelWidget](/guide/widgets/panel) - For adding backgrounds to stack children
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - For scoping theme changes to stack children

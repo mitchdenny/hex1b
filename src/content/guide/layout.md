@@ -163,9 +163,9 @@ new HStackWidget([
 
 ```csharp
 new VStackWidget([
-    new PanelWidget(header).Height(3),
-    new PanelWidget(content).Fill(),
-    new PanelWidget(footer).Height(1)
+    new ThemingPanelWidget(theme => theme, header).Height(3),
+    new ThemingPanelWidget(theme => theme, content).Fill(),
+    new ThemingPanelWidget(theme => theme, footer).Height(1)
 ])
 ```
 

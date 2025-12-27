@@ -11,7 +11,7 @@ using Hex1b.Widgets;
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.HSplitter(
-        ctx.Panel(left => [
+        ctx.ThemingPanel(theme => theme, left => [
             left.VStack(v => [
                 v.Text("Left Pane"),
                 v.Text(""),
@@ -22,7 +22,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                 v.Text("then use ← → to resize.").Wrap()
             ])
         ]),
-        ctx.Panel(right => [
+        ctx.ThemingPanel(theme => theme, right => [
             right.VStack(v => [
                 v.Text("Right Pane"),
                 v.Text(""),
@@ -44,14 +44,14 @@ using Hex1b.Widgets;
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VSplitter(
-        ctx.Panel(top => [
+        ctx.ThemingPanel(theme => theme, top => [
             top.VStack(v => [
                 v.Text("Top Pane"),
                 v.Text(""),
                 v.Text("This is the top section of a vertical split.").Wrap()
             ])
         ]),
-        ctx.Panel(bottom => [
+        ctx.ThemingPanel(theme => theme, bottom => [
             bottom.VStack(v => [
                 v.Text("Bottom Pane"),
                 v.Text(""),
@@ -74,7 +74,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VSplitter(
         // Top: horizontal splitter
         ctx.HSplitter(
-            ctx.Panel(tl => [
+            ctx.ThemingPanel(theme => theme, tl => [
                 tl.VStack(v => [
                     v.Text("Top-Left"),
                     v.Text(""),
@@ -82,7 +82,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                     v.Text("in top pane").Wrap()
                 ])
             ]),
-            ctx.Panel(tr => [
+            ctx.ThemingPanel(theme => theme, tr => [
                 tr.VStack(v => [
                     v.Text("Top-Right"),
                     v.Text(""),
@@ -93,7 +93,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             leftWidth: 20
         ),
         // Bottom: single panel
-        ctx.Panel(bottom => [
+        ctx.ThemingPanel(theme => theme, bottom => [
             bottom.VStack(v => [
                 v.Text("Bottom Pane"),
                 v.Text(""),
@@ -281,13 +281,13 @@ Arrow hints are displayed at the center of the divider when the splitter is tall
 
 ```csharp
 ctx.HSplitter(
-    ctx.Panel(left => [
+    ctx.ThemingPanel(theme => theme, left => [
         left.VStack(v => [
             v.Text("Files"),
             v.List(fileList).Fill()
         ])
     ]),
-    ctx.Panel(right => [
+    ctx.ThemingPanel(theme => theme, right => [
         right.VStack(v => [
             v.Text("Editor"),
             v.TextBox(editorState).Fill()
@@ -301,10 +301,10 @@ ctx.HSplitter(
 
 ```csharp
 ctx.VSplitter(
-    ctx.Panel(top => [
+    ctx.ThemingPanel(theme => theme, top => [
         top.Text("Main Content").Fill()
     ]),
-    ctx.Panel(bottom => [
+    ctx.ThemingPanel(theme => theme, bottom => [
         bottom.VStack(v => [
             v.Text("Output"),
             v.Scroll(s => [
@@ -331,4 +331,4 @@ ctx.VSplitter(
 - [VStackWidget](/guide/widgets/stacks) - Vertical layout without resizing
 - [HStackWidget](/guide/widgets/stacks) - Horizontal layout without resizing
 - [BorderWidget](/guide/widgets/containers) - Add borders around splitter panes
-- [PanelWidget](/guide/widgets/containers) - Add padding to splitter content
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - Scope theme changes to splitter content

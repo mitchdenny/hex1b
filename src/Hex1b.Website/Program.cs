@@ -83,6 +83,28 @@ builder.Services.AddSingleton<IGalleryExample, SplitterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterVerticalExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterNestedExample>();
 
+// Register Border widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, BorderBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, BorderTitleExample>();
+
+// Register Panel widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, PanelBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelInteractiveExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelButtonStylingExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelBorderStylingExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelListStylingExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelBackgroundExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelNestedExample>();
+builder.Services.AddSingleton<IGalleryExample, PanelSemanticExample>();
+
+// Register HStack widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, HStackBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, HStackFillExample>();
+
+// Register VStack widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, VStackBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, VStackFillExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

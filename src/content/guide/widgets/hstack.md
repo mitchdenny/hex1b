@@ -1,3 +1,9 @@
+<!--
+  MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
+  - basicCode → src/Hex1b.Website/Examples/HStackBasicExample.cs
+  - fillCode  → src/Hex1b.Website/Examples/HStackFillExample.cs
+  When updating code here, update the corresponding Example file and vice versa.
+-->
 <script setup>
 import basicSnippet from './snippets/hstack-basic.cs?raw'
 import fillSnippet from './snippets/hstack-fill.cs?raw'
@@ -5,27 +11,59 @@ import fillSnippet from './snippets/hstack-fill.cs?raw'
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var state = new FormState();
+var name = "";
+var saved = false;
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.HStack(h => [
-        h.Text("Name:"),
-        h.Text("  "),
-        h.TextBox(state.Name)
-            .OnTextChanged(args => state.Name = args.NewText)
-            .Fill(),
-        h.Text("  "),
-        h.Button("Save").OnClick(_ => state.Save())
+    ctx.VStack(v => [
+        v.HStack(h => [
+            h.Text("Name:"),
+            h.Text("  "),
+            h.TextBox(name)
+                .OnTextChanged(args => { name = args.NewText; saved = false; })
+                .Fill(),
+            h.Text("  "),
+            h.Button("Save").OnClick(_ => saved = true)
+        ]),
+        v.Text(""),
+        v.Text(saved ? $"Saved: {name}" : "Enter a name and click Save"),
+        v.Text(""),
+        v.Text("Use Tab to navigate between fields")
     ])
 ));
 
-await app.RunAsync();
+await app.RunAsync();`
 
-class FormState
-{
-    public string Name { get; set; } = "";
-    public void Save() { /* ... */ }
-}`
+const fillCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var leftClicks = 0;
+var rightClicks = 0;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Two buttons sharing available width equally:"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Border(b => [
+                b.VStack(v2 => [
+                    v2.Text($"Left: {leftClicks}"),
+                    v2.Button("Click").OnClick(_ => leftClicks++)
+                ])
+            ]).Fill(),
+            h.Border(b => [
+                b.VStack(v2 => [
+                    v2.Text($"Right: {rightClicks}"),
+                    v2.Button("Click").OnClick(_ => rightClicks++)
+                ])
+            ]).Fill()
+        ]),
+        v.Text(""),
+        v.Text("Both borders use .Fill() for equal width")
+    ])
+));
+
+await app.RunAsync();`
 </script>
 
 # HStackWidget
@@ -38,7 +76,7 @@ HStackWidget is a layout container that positions its children in a horizontal r
 
 Create a horizontal layout using the fluent API with collection expression syntax:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="hstack-basic" exampleTitle="HStack Widget - Basic Usage" />
 
 ::: tip Focus Management
 HStackWidget manages focus for all its descendant widgets. Use **Tab** to move focus forward and **Shift+Tab** to move backward through focusable children.
@@ -73,7 +111,7 @@ ctx.HStack(h => [
 
 Children with `.Fill()` expand to consume remaining space:
 
-<StaticTerminalPreview svgPath="/svg/hstack-fill.svg" :code="fillSnippet" />
+<CodeBlock lang="csharp" :code="fillCode" command="dotnet run" example="hstack-fill" exampleTitle="HStack Widget - Fill Sizing" />
 
 When multiple children use `.Fill()`, space is distributed evenly:
 
@@ -103,8 +141,8 @@ Use weighted fills to distribute space proportionally:
 
 ```csharp
 ctx.HStack(h => [
-    h.Panel(sidebar).FillWidth(1),      // Gets 1/3 of space
-    h.Panel(main).FillWidth(2)          // Gets 2/3 of space
+    h.ThemingPanel(theme => theme, sidebar).FillWidth(1),      // Gets 1/3 of space
+    h.ThemingPanel(theme => theme, main).FillWidth(2)          // Gets 2/3 of space
 ])
 ```
 
@@ -228,4 +266,4 @@ ctx.VStack(v => [
 
 - [VStackWidget](/guide/widgets/vstack) - For vertical layouts
 - [BorderWidget](/guide/widgets/border) - For adding borders to stack children
-- [PanelWidget](/guide/widgets/panel) - For adding backgrounds to stack children
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - For scoping theme changes to stack children

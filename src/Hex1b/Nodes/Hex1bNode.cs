@@ -215,6 +215,17 @@ public abstract class Hex1bNode
     public virtual Rect HitTestBounds => Bounds;
     
     /// <summary>
+    /// Indicates whether this node must have its Render() method called when any
+    /// of its children need rendering. This is used for nodes that establish
+    /// scoped context (like theme overrides) that children depend on.
+    /// </summary>
+    /// <remarks>
+    /// Default is false. Override and return true in nodes like ThemingPanelNode
+    /// that set context properties (e.g., context.Theme) before rendering children.
+    /// </remarks>
+    public virtual bool RequiresRenderForChildContext => false;
+    
+    /// <summary>
     /// Checks if this node or any of its descendants need rendering.
     /// Used to determine if a subtree can be skipped entirely.
     /// </summary>

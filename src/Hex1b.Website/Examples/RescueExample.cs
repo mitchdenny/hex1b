@@ -139,7 +139,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
             }
 
             var widget = ctx.HSplitter(
-                ctx.Panel(leftPanel => [
+                ctx.ThemingPanel(theme => theme, leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Rescue Examples"),
                         left.Text("─────────────────"),

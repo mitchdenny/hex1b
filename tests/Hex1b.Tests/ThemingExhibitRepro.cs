@@ -37,7 +37,7 @@ public class ThemingExhibitRepro
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
                         // Left: Panel with List
-                        root.Panel(leftPanel => [
+                        root.ThemingPanel(theme => theme, leftPanel => [
                             leftPanel.VStack(left => [
                                 left.Text("═══ Themes ═══"),
                                 left.List(items)
@@ -45,7 +45,7 @@ public class ThemingExhibitRepro
                         ]),
                         // Right: Layout -> Panel -> VStack -> TextBox
                         root.Layout(
-                            root.Panel(rightPanel => [
+                            root.ThemingPanel(theme => theme, rightPanel => [
                                 rightPanel.VStack(right => [
                                     right.Text("═══ Widget Preview ═══"),
                                     right.TextBox("Sample text")
@@ -129,7 +129,7 @@ public class ThemingExhibitRepro
         // layout.Parent is NOT set yet during its child's reconcile!
         
         // 3. Start reconciling Panel as child of Layout
-        var panel = new PanelNode();
+        var panel = new ThemingPanelNode();
         
         // 4. The issue: during VStack reconciliation, walking up the Parent chain
         //    would only see: panel -> null
@@ -240,7 +240,7 @@ public class ThemingExhibitRepro
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
                         // Left pane: Panel containing a VStack with List
-                        root.Panel(leftPanel => [
+                        root.ThemingPanel(theme => theme, leftPanel => [
                             leftPanel.VStack(left => [
                                 left.Text("═══ Themes ═══"),
                                 left.Text(""),
@@ -249,7 +249,7 @@ public class ThemingExhibitRepro
                         ]),
                         // Right pane: Layout -> Panel -> VStack with TextBox and Button
                         root.Layout(
-                            root.Panel(rightPanel => [
+                            root.ThemingPanel(theme => theme, rightPanel => [
                                 rightPanel.VStack(right => [
                                     right.Text("═══ Widget Preview ═══"),
                                     right.Text(""),

@@ -46,17 +46,19 @@ export default defineConfig({
         {
           text: 'Widgets',
           items: [
-            { text: 'Border & Panel', link: '/guide/widgets/containers' },
+            { text: 'Border', link: '/guide/widgets/border' },
             { text: 'Button', link: '/guide/widgets/button' },
+            { text: 'HStack', link: '/guide/widgets/hstack' },
             { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
             { text: 'List', link: '/guide/widgets/list' },
             { text: 'Navigator', link: '/guide/widgets/navigator' },
             { text: 'Progress', link: '/guide/widgets/progress' },
             { text: 'Splitter', link: '/guide/widgets/splitter' },
-            { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
             { text: 'Text', link: '/guide/widgets/text' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },
-            { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' }
+            { text: 'ThemingPanel', link: '/guide/widgets/theming-panel' },
+            { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' },
+            { text: 'VStack', link: '/guide/widgets/vstack' }
           ]
         }
       ],

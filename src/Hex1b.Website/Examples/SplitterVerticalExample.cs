@@ -23,14 +23,14 @@ public class SplitterVerticalExample(ILogger<SplitterVerticalExample> logger) : 
         {
             var ctx = new RootContext();
             return ctx.VSplitter(
-                ctx.Panel(top => [
+                ctx.ThemingPanel(theme => theme, top => [
                     top.VStack(v => [
                         v.Text("Top Pane"),
                         v.Text(""),
                         v.Text("This is the top section of a vertical split.").Wrap()
                     ])
                 ]),
-                ctx.Panel(bottom => [
+                ctx.ThemingPanel(theme => theme, bottom => [
                     bottom.VStack(v => [
                         v.Text("Bottom Pane"),
                         v.Text(""),

@@ -47,7 +47,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             var ctx = new RootContext();
 
             var widget = ctx.HSplitter(
-                ctx.Panel(leftPanel => [
+                ctx.ThemingPanel(theme => theme, leftPanel => [
                     leftPanel.VStack(left => [
                         left.Text("Splitter Examples"),
                         left.Text("─────────────────"),
@@ -83,7 +83,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     {
         return ctx.Border(
             ctx.HSplitter(
-                ctx.Panel(left => [
+                ctx.ThemingPanel(theme => theme, left => [
                     left.VStack(v => [
                         v.Text("═══ Left Pane ═══"),
                         v.Text(""),
@@ -99,7 +99,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                         v.Text("to resize.").Wrap(),
                     ])
                 ]),
-                ctx.Panel(right => [
+                ctx.ThemingPanel(theme => theme, right => [
                     right.VStack(v => [
                         v.Text("═══ Right Pane ═══"),
                         v.Text(""),
@@ -121,7 +121,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     {
         return ctx.Border(
             ctx.VSplitter(
-                ctx.Panel(top => [
+                ctx.ThemingPanel(theme => theme, top => [
                     top.VStack(v => [
                         v.Text("═══ Top Pane ═══"),
                         v.Text(""),
@@ -129,7 +129,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                         v.Text("The splitter uses a horizontal divider (───) between panes.").Wrap(),
                     ])
                 ]),
-                ctx.Panel(bottom => [
+                ctx.ThemingPanel(theme => theme, bottom => [
                     bottom.VStack(v => [
                         v.Text("═══ Bottom Pane ═══"),
                         v.Text(""),
@@ -154,7 +154,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             ctx.VSplitter(
                 // Top: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
+                    ctx.ThemingPanel(theme => theme, tl => [
                         tl.VStack(v => [
                             v.Text("Top-Left"),
                             v.Text(""),
@@ -162,7 +162,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("inside top").Wrap(),
                         ])
                     ]),
-                    ctx.Panel(tr => [
+                    ctx.ThemingPanel(theme => theme, tr => [
                         tr.VStack(v => [
                             v.Text("Top-Right"),
                             v.Text(""),
@@ -173,7 +173,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     leftWidth: 20
                 ),
                 // Bottom: single panel
-                ctx.Panel(bottom => [
+                ctx.ThemingPanel(theme => theme, bottom => [
                     bottom.VStack(v => [
                         v.Text("═══ Bottom Pane ═══"),
                         v.Text(""),
@@ -192,7 +192,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
         return ctx.Border(
             ctx.HSplitter(
                 // Left: single panel
-                ctx.Panel(left => [
+                ctx.ThemingPanel(theme => theme, left => [
                     left.VStack(v => [
                         v.Text("═══ Left ═══"),
                         v.Text(""),
@@ -209,7 +209,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                 ]),
                 // Right: vertical splitter
                 ctx.VSplitter(
-                    ctx.Panel(rt => [
+                    ctx.ThemingPanel(theme => theme, rt => [
                         rt.VStack(v => [
                             v.Text("Right-Top"),
                             v.Text(""),
@@ -217,7 +217,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("inside right pane").Wrap(),
                         ])
                     ]),
-                    ctx.Panel(rb => [
+                    ctx.ThemingPanel(theme => theme, rb => [
                         rb.VStack(v => [
                             v.Text("Right-Bottom"),
                             v.Text(""),
@@ -238,7 +238,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             ctx.VSplitter(
                 // Top row: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
+                    ctx.ThemingPanel(theme => theme, tl => [
                         tl.VStack(v => [
                             v.Text("┌─ Quad 1 ─┐"),
                             v.Text("Top-Left"),
@@ -246,7 +246,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("Navigator").Wrap(),
                         ])
                     ]),
-                    ctx.Panel(tr => [
+                    ctx.ThemingPanel(theme => theme, tr => [
                         tr.VStack(v => [
                             v.Text("┌─ Quad 2 ─┐"),
                             v.Text("Top-Right"),
@@ -258,7 +258,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                 ),
                 // Bottom row: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(bl => [
+                    ctx.ThemingPanel(theme => theme, bl => [
                         bl.VStack(v => [
                             v.Text("┌─ Quad 3 ─┐"),
                             v.Text("Bottom-Left"),
@@ -266,7 +266,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                             v.Text("Terminal").Wrap(),
                         ])
                     ]),
-                    ctx.Panel(br => [
+                    ctx.ThemingPanel(theme => theme, br => [
                         br.VStack(v => [
                             v.Text("┌─ Quad 4 ─┐"),
                             v.Text("Bottom-Right"),

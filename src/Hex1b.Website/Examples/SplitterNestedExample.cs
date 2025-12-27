@@ -25,7 +25,7 @@ public class SplitterNestedExample(ILogger<SplitterNestedExample> logger) : Hex1
             return ctx.VSplitter(
                 // Top: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
+                    ctx.ThemingPanel(theme => theme, tl => [
                         tl.VStack(v => [
                             v.Text("Top-Left"),
                             v.Text(""),
@@ -33,7 +33,7 @@ public class SplitterNestedExample(ILogger<SplitterNestedExample> logger) : Hex1
                             v.Text("in top pane").Wrap()
                         ])
                     ]),
-                    ctx.Panel(tr => [
+                    ctx.ThemingPanel(theme => theme, tr => [
                         tr.VStack(v => [
                             v.Text("Top-Right"),
                             v.Text(""),
@@ -44,7 +44,7 @@ public class SplitterNestedExample(ILogger<SplitterNestedExample> logger) : Hex1
                     leftWidth: 20
                 ),
                 // Bottom: single panel
-                ctx.Panel(bottom => [
+                ctx.ThemingPanel(theme => theme, bottom => [
                     bottom.VStack(v => [
                         v.Text("Bottom Pane"),
                         v.Text(""),

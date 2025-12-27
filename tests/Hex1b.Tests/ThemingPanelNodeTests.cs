@@ -9,9 +9,9 @@ using Hex1b.Terminal;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Tests for PanelNode layout, rendering, and input handling.
+/// Tests for ThemingPanelNode layout, rendering, and input handling.
 /// </summary>
-public class PanelNodeTests
+public class ThemingPanelNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
     {
@@ -22,7 +22,7 @@ public class PanelNodeTests
     public void Measure_ReturnsChildSize()
     {
         var child = new TextBlockNode { Text = "Hello World" };
-        var node = new PanelNode { Child = child };
+        var node = new ThemingPanelNode { Child = child };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -34,7 +34,7 @@ public class PanelNodeTests
     [Fact]
     public void Measure_WithNoChild_ReturnsZero()
     {
-        var node = new PanelNode { Child = null };
+        var node = new ThemingPanelNode { Child = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -46,7 +46,7 @@ public class PanelNodeTests
     public void Measure_RespectsConstraints()
     {
         var child = new TextBlockNode { Text = "This is a long text" };
-        var node = new PanelNode { Child = child };
+        var node = new ThemingPanelNode { Child = child };
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
@@ -58,7 +58,7 @@ public class PanelNodeTests
     public void Arrange_ChildGetsFullBounds()
     {
         var child = new TextBlockNode { Text = "Test" };
-        var node = new PanelNode { Child = child };
+        var node = new ThemingPanelNode { Child = child };
         var bounds = new Rect(5, 3, 20, 10);
 
         node.Measure(Constraints.Tight(20, 10));
@@ -71,7 +71,7 @@ public class PanelNodeTests
     [Fact]
     public void Arrange_SetsBounds()
     {
-        var node = new PanelNode { Child = new TextBlockNode { Text = "Test" } };
+        var node = new ThemingPanelNode { Child = new TextBlockNode { Text = "Test" } };
         var bounds = new Rect(0, 0, 20, 5);
 
         node.Arrange(bounds);
@@ -86,7 +86,7 @@ public class PanelNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         var context = CreateContext(workload);
-        var node = new PanelNode
+        var node = new ThemingPanelNode
         {
             Child = new TextBlockNode { Text = "Panel Content" }
         };
@@ -105,10 +105,10 @@ public class PanelNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.Blue);
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.Blue);
         var context = new Hex1bRenderContext(workload, theme);
 
-        var node = new PanelNode
+        var node = new ThemingPanelNode
         {
             Child = new TextBlockNode { Text = "Hi" }
         };
@@ -128,10 +128,10 @@ public class PanelNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.Green);
+            .Set(ThemingPanelTheme.ForegroundColor, Hex1bColor.Green);
         var context = new Hex1bRenderContext(workload, theme);
 
-        var node = new PanelNode
+        var node = new ThemingPanelNode
         {
             Child = new TextBlockNode { Text = "Hi" }
         };
@@ -152,7 +152,7 @@ public class PanelNodeTests
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         var context = CreateContext(workload);  // Uses default theme
 
-        var node = new PanelNode
+        var node = new ThemingPanelNode
         {
             Child = new TextBlockNode { Text = "Content" }
         };
@@ -168,7 +168,7 @@ public class PanelNodeTests
     public void GetFocusableNodes_ReturnsFocusableChildren()
     {
         var button = new ButtonNode { Label = "Click" };
-        var node = new PanelNode { Child = button };
+        var node = new ThemingPanelNode { Child = button };
 
         var focusables = node.GetFocusableNodes().ToList();
 
@@ -180,7 +180,7 @@ public class PanelNodeTests
     public void GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
     {
         var textBlock = new TextBlockNode { Text = "Not focusable" };
-        var node = new PanelNode { Child = textBlock };
+        var node = new ThemingPanelNode { Child = textBlock };
 
         var focusables = node.GetFocusableNodes().ToList();
 
@@ -190,7 +190,7 @@ public class PanelNodeTests
     [Fact]
     public void GetFocusableNodes_WithNoChild_ReturnsEmpty()
     {
-        var node = new PanelNode { Child = null };
+        var node = new ThemingPanelNode { Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
@@ -207,7 +207,7 @@ public class PanelNodeTests
             IsFocused = true,
             ClickAction = _ => { clicked = true; return Task.CompletedTask; }
         };
-        var node = new PanelNode { Child = button };
+        var node = new ThemingPanelNode { Child = button };
 
         var focusRing = new FocusRing();
         focusRing.Rebuild(node);
@@ -224,7 +224,7 @@ public class PanelNodeTests
     [Fact]
     public void HandleInput_WithNoChild_ReturnsFalse()
     {
-        var node = new PanelNode { Child = null };
+        var node = new ThemingPanelNode { Child = null };
 
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
@@ -234,7 +234,7 @@ public class PanelNodeTests
     [Fact]
     public void IsFocusable_ReturnsFalse()
     {
-        var node = new PanelNode();
+        var node = new ThemingPanelNode();
 
         Assert.False(node.IsFocusable);
     }
@@ -248,7 +248,7 @@ public class PanelNodeTests
         {
             Children = new List<Hex1bNode> { textBox, button }
         };
-        var node = new PanelNode { Child = vstack };
+        var node = new ThemingPanelNode { Child = vstack };
 
         var focusables = node.GetFocusableNodes().ToList();
 
@@ -264,12 +264,12 @@ public class PanelNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 30, 10);
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.DarkGray);
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.DarkGray);
         var context = new Hex1bRenderContext(workload, theme);
 
         var node = new BorderNode
         {
-            Child = new PanelNode
+            Child = new ThemingPanelNode
             {
                 Child = new TextBlockNode { Text = "Nested" }
             },
@@ -297,7 +297,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Text("Panel Content"))
+                ctx.ThemingPanel(theme => theme, ctx.Text("Panel Content"))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -323,7 +323,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(v => [
+                ctx.ThemingPanel(theme => theme, v => [
                     v.Text("Line 1"),
                     v.Text("Line 2"),
                     v.Text("Line 3")
@@ -356,7 +356,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
+                ctx.ThemingPanel(theme => theme, ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -384,7 +384,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.TextBox(text).OnTextChanged(args => text = args.NewText))
+                ctx.ThemingPanel(theme => theme, ctx.TextBox(text).OnTextChanged(args => text = args.NewText))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -412,7 +412,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Panel(ctx.Text("Panel Inside Border")), "Container")
+                ctx.Border(ctx.ThemingPanel(theme => theme, ctx.Text("Panel Inside Border")), "Container")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -437,11 +437,11 @@ public class PanelNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 30, 10);
         var theme = Hex1bThemes.Default.Clone()
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
+            .Set(ThemingPanelTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Text("Themed"))
+                ctx.ThemingPanel(theme => theme, ctx.Text("Themed"))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme }
         );
@@ -468,7 +468,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.Panel(ctx.Text("Deep Nested")))
+                ctx.ThemingPanel(theme => theme, ctx.ThemingPanel(theme => theme, ctx.Text("Deep Nested")))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -496,7 +496,7 @@ public class PanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Header"),
-                    v.Panel(ctx.Text("Panel Content")),
+                    v.ThemingPanel(theme => theme, ctx.Text("Panel Content")),
                     v.Text("Footer")
                 ])
             ),
@@ -527,7 +527,7 @@ public class PanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Panel(ctx.List(items))
+                ctx.ThemingPanel(theme => theme, ctx.List(items))
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

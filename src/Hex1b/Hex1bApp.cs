@@ -389,6 +389,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// - If a node is dirty, render it (which includes its children)
     /// - If a node is clean but has dirty descendants, traverse children
     /// - If a subtree is entirely clean, skip it
+    /// - If a node requires render for child context (e.g., ThemingPanel), render it
     /// </remarks>
     private void RenderTree(Hex1bNode node)
     {
@@ -398,8 +399,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             return;
         }
         
-        // If this specific node is dirty, render it (and its children)
-        if (node.IsDirty)
+        // If this specific node is dirty, or if it requires render to set up
+        // child context (like ThemingPanel setting context.Theme), render it
+        if (node.IsDirty || node.RequiresRenderForChildContext)
         {
             _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
             node.Render(_context);
@@ -417,7 +419,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Recursively clears dirty regions in the node tree.
     /// For each dirty node, clears the union of its previous and current bounds,
     /// intersected with any active clip rect from ancestor layout providers.
-    /// Tracks inherited background color from PanelNodes to ensure proper clearing.
+    /// Tracks inherited background color from ThemingPanelNodes to ensure proper clearing.
     /// </summary>
     private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Hex1bColor? inheritedBackground = null)
     {
@@ -430,11 +432,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 : layoutProvider.ClipRect;
         }
         
-        // Track inherited background from PanelNode
+        // Track inherited background from ThemingPanelNode
         var effectiveBackground = inheritedBackground;
-        if (node is PanelNode)
+        if (node is ThemingPanelNode themingPanel)
         {
-            var panelBg = _context.Theme.Get(PanelTheme.BackgroundColor);
+            var panelBg = _context.Theme.Get(ThemingPanelTheme.BackgroundColor);
             if (!panelBg.IsDefault)
             {
                 effectiveBackground = panelBg;

@@ -1,3 +1,9 @@
+<!--
+  MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
+  - basicCode → src/Hex1b.Website/Examples/VStackBasicExample.cs
+  - fillCode  → src/Hex1b.Website/Examples/VStackFillExample.cs
+  When updating code here, update the corresponding Example file and vice versa.
+-->
 <script setup>
 import basicSnippet from './snippets/vstack-basic.cs?raw'
 import fillSnippet from './snippets/vstack-fill.cs?raw'
@@ -5,25 +11,50 @@ import fillSnippet from './snippets/vstack-fill.cs?raw'
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var state = new AppState();
+var lastAction = "None";
 
 var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VStack(v => [
         v.Text("Welcome to My App"),
         v.Text(""),
-        v.Button("Start").OnClick(_ => state.Start()),
-        v.Button("Settings").OnClick(_ => state.ShowSettings()),
-        v.Button("Quit").OnClick(args => args.Context.RequestStop())
+        v.Button("Start").OnClick(_ => lastAction = "Started!"),
+        v.Button("Settings").OnClick(_ => lastAction = "Settings opened"),
+        v.Button("Quit").OnClick(args => args.Context.RequestStop()),
+        v.Text(""),
+        v.Text($"Last action: {lastAction}")
     ])
 ));
 
-await app.RunAsync();
+await app.RunAsync();`
 
-class AppState
-{
-    public void Start() { /* ... */ }
-    public void ShowSettings() { /* ... */ }
-}`
+const fillCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var topClicks = 0;
+var bottomClicks = 0;
+
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Header (fixed height)"),
+        v.Text(""),
+        v.Border(b => [
+            b.VStack(v2 => [
+                v2.Text($"Top panel: {topClicks} clicks"),
+                v2.Button("Click Top").OnClick(_ => topClicks++)
+            ])
+        ]).Fill(),
+        v.Border(b => [
+            b.VStack(v2 => [
+                v2.Text($"Bottom panel: {bottomClicks} clicks"),
+                v2.Button("Click Bottom").OnClick(_ => bottomClicks++)
+            ])
+        ]).Fill(),
+        v.Text(""),
+        v.Text("Footer (fixed height)")
+    ])
+));
+
+await app.RunAsync();`
 </script>
 
 # VStackWidget
@@ -36,7 +67,7 @@ VStackWidget is a layout container that positions its children in a vertical col
 
 Create a vertical layout using the fluent API with collection expression syntax:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="vstack-basic" exampleTitle="VStack Widget - Basic Usage" />
 
 ::: tip Focus Management
 VStackWidget manages focus for all its descendant widgets. Use **Tab** to move focus forward and **Shift+Tab** to move backward through focusable children.
@@ -71,7 +102,7 @@ ctx.VStack(v => [
 
 Children with `.Fill()` expand to consume remaining space:
 
-<StaticTerminalPreview svgPath="/svg/vstack-fill.svg" :code="fillSnippet" />
+<CodeBlock lang="csharp" :code="fillCode" command="dotnet run" example="vstack-fill" exampleTitle="VStack Widget - Fill Sizing" />
 
 This is commonly used for scrollable content areas that should take all remaining vertical space.
 
@@ -104,8 +135,8 @@ Use weighted fills to distribute space proportionally:
 
 ```csharp
 ctx.VStack(v => [
-    v.Panel(header).FillHeight(1),      // Gets 1/4 of space
-    v.Panel(main).FillHeight(3)         // Gets 3/4 of space
+    v.ThemingPanel(theme => theme, header).FillHeight(1),      // Gets 1/4 of space
+    v.ThemingPanel(theme => theme, main).FillHeight(3)         // Gets 3/4 of space
 ])
 ```
 
@@ -259,4 +290,4 @@ ctx.VStack(v => [
 
 - [HStackWidget](/guide/widgets/hstack) - For horizontal layouts
 - [BorderWidget](/guide/widgets/border) - For adding borders to stack children
-- [PanelWidget](/guide/widgets/panel) - For adding backgrounds to stack children
+- [ThemingPanelWidget](/guide/widgets/theming-panel) - For scoping theme changes to stack children

@@ -1,15 +1,18 @@
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A widget that provides a styled background for its child content.
+/// A widget that scopes theme changes to its child content.
+/// The theme builder callback receives a clone of the current theme and returns the modified theme.
 /// </summary>
-public sealed record PanelWidget(Hex1bWidget Child) : Hex1bWidget
+public sealed record ThemingPanelWidget(Func<Hex1bTheme, Hex1bTheme> ThemeBuilder, Hex1bWidget Child) : Hex1bWidget
 {
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
-        var node = existingNode as PanelNode ?? new PanelNode();
+        var node = existingNode as ThemingPanelNode ?? new ThemingPanelNode();
+        node.ThemeBuilder = ThemeBuilder;
         node.Child = context.ReconcileChild(node.Child, Child, node);
         
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
@@ -25,5 +28,5 @@ public sealed record PanelWidget(Hex1bWidget Child) : Hex1bWidget
         return node;
     }
 
-    internal override Type GetExpectedNodeType() => typeof(PanelNode);
+    internal override Type GetExpectedNodeType() => typeof(ThemingPanelNode);
 }
