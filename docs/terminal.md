@@ -332,6 +332,106 @@ Raw mode is essential for:
 
 The presentation adapter enters raw mode when `Start()` is called on the terminal, and exits when disposed.
 
+## Filters
+
+Hex1b supports two types of filters that can observe or modify data flowing through the terminal:
+
+### Workload Filters
+
+Workload filters (`IHex1bTerminalWorkloadFilter`) observe data between the terminal and workload:
+- Output FROM the workload (ANSI sequences heading to display)
+- Input TO the workload (keystrokes, mouse events)
+- Frame completion signals (when workload finishes a batch of output)
+
+**Use cases:**
+- Recording terminal sessions (e.g., Asciinema)
+- Logging/debugging
+- Performance analysis
+- Testing instrumentation
+
+**Example - Asciinema Recorder:**
+```csharp
+var options = new Hex1bTerminalOptions
+{
+    Width = 80,
+    Height = 24,
+    WorkloadAdapter = workload,
+    PresentationAdapter = presentation
+};
+
+var recorder = new AsciinemaRecorder("session.cast");
+options.WorkloadFilters.Add(recorder);
+
+using var terminal = new Hex1bTerminal(options);
+// Session is automatically recorded
+```
+
+### Presentation Filters
+
+Presentation filters (`IHex1bTerminalPresentationFilter`) observe data between the terminal and presentation layer:
+- Output TO the presentation layer (after terminal processing)
+- Input FROM the presentation layer (raw user input)
+
+**Use cases:**
+- Render optimization (jitter elimination, batching)
+- Output transformation (e.g., delta encoding)
+- Input preprocessing
+- Network protocol adaptation
+
+**Note:** The base filter interface is observation-only. To mutate presentation data, use a presentation adapter decorator.
+
+### Presentation Adapter Decorators
+
+For effects that need to modify the presentation output (not just observe it), you can create a decorator that wraps an existing presentation adapter:
+
+**Example - Fog of War Effect:**
+```csharp
+// Create base presentation adapter
+var basePresentation = new ConsolePresentationAdapter(enableMouse: true);
+
+// Wrap with fog of war decorator
+var fogPresentation = new FogOfWarPresentationAdapter(
+    basePresentation, 
+    maxDistance: 15.0
+);
+
+// Use the decorated adapter
+using var terminal = new Hex1bTerminal(fogPresentation, workload);
+```
+
+The `FogOfWarPresentationAdapter` demonstrates how to create a presentation filter that:
+1. Tracks mouse position by parsing input sequences
+2. Intercepts ANSI output and modifies color codes
+3. Applies a distance-based darkening effect
+4. Re-encodes the modified sequences
+
+This pattern can be used for other effects like:
+- Color filters (grayscale, sepia, etc.)
+- Compression/optimization layers
+- Protocol adapters (SSH, serial, etc.)
+- Recording/replay systems
+
+## Platform Support
+
+### Console Drivers
+
+The `ConsolePresentationAdapter` uses platform-specific drivers:
+
+| Platform | Driver | Features |
+|----------|--------|----------|
+| Linux/macOS | `UnixConsoleDriver` | termios raw mode, poll() for async input, SIGWINCH |
+| Windows | `WindowsConsoleDriver` | ConPTY VT mode, ReadConsoleInput |
+
+### Raw Mode
+
+Raw mode is essential for:
+- Capturing individual keystrokes (not line-buffered)
+- Receiving escape sequences (arrows, function keys)
+- Mouse event tracking
+- Proper Ctrl+C handling
+
+The presentation adapter enters raw mode when `Start()` is called on the terminal, and exits when disposed.
+
 ## Component Reference
 
 ### Files
