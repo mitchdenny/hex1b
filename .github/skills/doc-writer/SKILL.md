@@ -438,6 +438,17 @@ When documenting widgets in `guide/widgets/`, follow this consistent structure t
 3. **Features/Behavior** - Widget-specific capabilities with demos where applicable
 4. **Related Widgets** - Links to related documentation
 
+##### CRITICAL: Update Navigation Sidebar
+
+**IMPORTANT**: After creating a new widget documentation file, you **MUST** add it to the navigation sidebar in `src/content/.vitepress/config.ts`.
+
+1. Open `src/content/.vitepress/config.ts`
+2. Find the `'Widgets'` section under `sidebar: { '/guide/': [...] }`
+3. Add a new entry for your widget: `{ text: 'WidgetName', link: '/guide/widgets/widget-name' }`
+4. **Keep the list alphabetically sorted** by the `text` property
+
+Failure to update the navigation means users cannot discover the new documentation through the sidebar!
+
 ##### Optional Sections
 
 Include these when they add clear value:

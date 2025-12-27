@@ -68,6 +68,11 @@ builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxFormExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxUnicodeExample>();
 
+// Register ToggleSwitch widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ToggleSwitchBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ToggleSwitchMultiOptionExample>();
+builder.Services.AddSingleton<IGalleryExample, ToggleSwitchEventExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

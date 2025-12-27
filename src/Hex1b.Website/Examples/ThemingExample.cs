@@ -28,10 +28,6 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
         public IReadOnlyList<string> ThemeItems { get; set; } = [];
         public string SampleTextBox { get; set; } = "Sample text";
         public bool ButtonClicked { get; set; }
-        public ToggleSwitchState ModeSwitch { get; } = new()
-        {
-            Options = ["Manual", "Auto", "Delayed"]
-        };
         
         // Cached enhanced theme to avoid creating new instances on every render
         private int _cachedThemeIndex = -1;
@@ -117,7 +113,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                                     .OnClick(_ => state.ButtonClicked = !state.ButtonClicked),
                                 right.Text(""),
                                 right.Text("Toggle Switch (←/→ to change):"),
-                                right.ToggleSwitch(state.ModeSwitch),
+                                right.ToggleSwitch(["Manual", "Auto", "Delayed"]),
                                 right.Text(""),
                                 right.Text("InfoBar (shown at bottom):"),
                                 right.Text("  Displays theme name & hints")

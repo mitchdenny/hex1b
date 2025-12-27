@@ -8,6 +8,7 @@ namespace Hex1b;
 /// <summary>
 /// A horizontal toggle switch node that renders options side-by-side
 /// and allows selection via left/right arrow keys.
+/// Selection state is owned by this node and preserved across reconciliation.
 /// </summary>
 public sealed class ToggleSwitchNode : Hex1bNode
 {
@@ -16,7 +17,22 @@ public sealed class ToggleSwitchNode : Hex1bNode
     /// </summary>
     public ToggleSwitchWidget? SourceWidget { get; set; }
 
-    public ToggleSwitchState State { get; set; } = new();
+    /// <summary>
+    /// The available options for the toggle switch.
+    /// </summary>
+    public IReadOnlyList<string> Options { get; set; } = [];
+
+    /// <summary>
+    /// The currently selected option index.
+    /// </summary>
+    public int SelectedIndex { get; set; }
+
+    /// <summary>
+    /// Gets the currently selected option, or null if no options exist.
+    /// </summary>
+    public string? SelectedOption => SelectedIndex >= 0 && SelectedIndex < Options.Count 
+        ? Options[SelectedIndex] 
+        : null;
 
     /// <summary>
     /// Internal action invoked when selection changes.
@@ -53,15 +69,67 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     public override bool IsFocusable => true;
 
+    /// <summary>
+    /// Moves the selection to the previous option (wraps around).
+    /// </summary>
+    private void MovePrevious()
+    {
+        if (Options.Count == 0) return;
+        SelectedIndex = SelectedIndex <= 0 ? Options.Count - 1 : SelectedIndex - 1;
+    }
+
+    /// <summary>
+    /// Moves the selection to the next option (wraps around).
+    /// </summary>
+    private void MoveNext()
+    {
+        if (Options.Count == 0) return;
+        SelectedIndex = (SelectedIndex + 1) % Options.Count;
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         bindings.Key(Hex1bKey.LeftArrow).Action(MovePreviousWithEvent, "Previous option");
         bindings.Key(Hex1bKey.RightArrow).Action(MoveNextWithEvent, "Next option");
+        bindings.Mouse(MouseButton.Left).Action(MouseSelectWithEvent, "Select option");
+    }
+
+    private async Task MouseSelectWithEvent(InputBindingActionContext ctx)
+    {
+        if (Options.Count == 0) return;
+
+        // Calculate which option was clicked based on the X position
+        // Format: "[ Option1 | Option2 | Option3 ]"
+        var localX = ctx.MouseX - Bounds.X;
+        var currentX = 2; // Start after "[ "
+        
+        for (int i = 0; i < Options.Count; i++)
+        {
+            var optionWidth = Options[i].Length;
+            var endX = currentX + optionWidth;
+            
+            if (localX >= currentX && localX < endX)
+            {
+                var previousIndex = SelectedIndex;
+                SelectedIndex = i;
+                MarkDirty();
+                
+                // Fire selection changed if the selection actually changed
+                if (previousIndex != SelectedIndex && SelectionChangedAction != null)
+                {
+                    await SelectionChangedAction(ctx);
+                }
+                return;
+            }
+            
+            // Move past this option and the separator " | " (3 chars)
+            currentX = endX + 3;
+        }
     }
 
     private async Task MovePreviousWithEvent(InputBindingActionContext ctx)
     {
-        State.MovePrevious();
+        MovePrevious();
         MarkDirty();
         if (SelectionChangedAction != null)
         {
@@ -71,7 +139,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     private async Task MoveNextWithEvent(InputBindingActionContext ctx)
     {
-        State.MoveNext();
+        MoveNext();
         MarkDirty();
         if (SelectionChangedAction != null)
         {
@@ -84,22 +152,21 @@ public sealed class ToggleSwitchNode : Hex1bNode
     /// </summary>
     public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
     {
-        var options = State.Options;
-        if (options.Count == 0) return InputResult.NotHandled;
+        if (Options.Count == 0) return InputResult.NotHandled;
 
         // Calculate which option was clicked based on the X position
         // Format: "[ Option1 | Option2 | Option3 ]"
         // Left bracket takes 2 chars: "[ "
         var currentX = 2; // Start after "[ "
         
-        for (int i = 0; i < options.Count; i++)
+        for (int i = 0; i < Options.Count; i++)
         {
-            var optionWidth = options[i].Length;
+            var optionWidth = Options[i].Length;
             var endX = currentX + optionWidth;
             
             if (localX >= currentX && localX < endX)
             {
-                State.SelectedIndex = i;
+                SelectedIndex = i;
                 MarkDirty();
                 return InputResult.Handled;
             }
@@ -113,8 +180,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        var options = State.Options;
-        if (options.Count == 0)
+        if (Options.Count == 0)
         {
             return constraints.Constrain(new Size(0, 1));
         }
@@ -124,10 +190,10 @@ public sealed class ToggleSwitchNode : Hex1bNode
         // Each option has padding around it, separators between options
         // Left bracket (2) + options with padding + separators + right bracket (2)
         var totalWidth = 2; // left bracket + space
-        for (int i = 0; i < options.Count; i++)
+        for (int i = 0; i < Options.Count; i++)
         {
-            totalWidth += options[i].Length;
-            if (i < options.Count - 1)
+            totalWidth += Options[i].Length;
+            if (i < Options.Count - 1)
             {
                 totalWidth += 3; // " | " separator
             }
@@ -140,9 +206,8 @@ public sealed class ToggleSwitchNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var options = State.Options;
         
-        if (options.Count == 0)
+        if (Options.Count == 0)
         {
             return;
         }
@@ -183,10 +248,10 @@ public sealed class ToggleSwitchNode : Hex1bNode
         }
 
         // Render each option
-        for (int i = 0; i < options.Count; i++)
+        for (int i = 0; i < Options.Count; i++)
         {
-            var isSelected = i == State.SelectedIndex;
-            var option = options[i];
+            var isSelected = i == SelectedIndex;
+            var option = Options[i];
 
             if (isSelected && IsFocused)
             {
@@ -211,7 +276,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
             }
 
             // Add separator between options
-            if (i < options.Count - 1)
+            if (i < Options.Count - 1)
             {
                 output.Append($"{inheritedColors}{separator}{resetToInherited}");
             }

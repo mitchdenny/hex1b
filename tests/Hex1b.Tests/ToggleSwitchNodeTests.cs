@@ -20,10 +20,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["Manual", "Auto", "Delayed"]
-            }
+            Options = ["Manual", "Auto", "Delayed"]
         };
 
         var size = node.Measure(Constraints.Unbounded);
@@ -39,7 +36,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = [] }
+            Options = []
         };
 
         var size = node.Measure(Constraints.Unbounded);
@@ -53,7 +50,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["Only"] }
+            Options = ["Only"]
         };
 
         var size = node.Measure(Constraints.Unbounded);
@@ -68,7 +65,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["On", "Off"] }
+            Options = ["On", "Off"]
         };
 
         var size = node.Measure(Constraints.Unbounded);
@@ -83,10 +80,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["VeryLongOption1", "VeryLongOption2"]
-            }
+            Options = ["VeryLongOption1", "VeryLongOption2"]
         };
 
         var size = node.Measure(new Constraints(0, 20, 0, 5));
@@ -107,11 +101,8 @@ public class ToggleSwitchNodeTests
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B", "C"],
-                SelectedIndex = 1
-            },
+            Options = ["A", "B", "C"],
+            SelectedIndex = 1,
             IsFocused = false
         };
         node.Arrange(new Rect(0, 0, 40, 1));
@@ -133,11 +124,8 @@ public class ToggleSwitchNodeTests
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["On", "Off"],
-                SelectedIndex = 0
-            },
+            Options = ["On", "Off"],
+            SelectedIndex = 0,
             IsFocused = true
         };
         node.Arrange(new Rect(0, 0, 40, 1));
@@ -163,12 +151,12 @@ public class ToggleSwitchNodeTests
 
         var focusedNode = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["A", "B"] },
+            Options = ["A", "B"],
             IsFocused = true
         };
         var unfocusedNode = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["A", "B"] },
+            Options = ["A", "B"],
             IsFocused = false
         };
         focusedNode.Arrange(new Rect(0, 0, 40, 1));
@@ -195,7 +183,7 @@ public class ToggleSwitchNodeTests
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = [] },
+            Options = [],
             IsFocused = true
         };
         node.Arrange(new Rect(0, 0, 40, 1));
@@ -214,18 +202,15 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B", "C"],
-                SelectedIndex = 0
-            },
+            Options = ["A", "B", "C"],
+            SelectedIndex = 0,
             IsFocused = true
         };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.State.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
@@ -233,18 +218,15 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B", "C"],
-                SelectedIndex = 2
-            },
+            Options = ["A", "B", "C"],
+            SelectedIndex = 2,
             IsFocused = true
         };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.State.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
@@ -252,18 +234,15 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B", "C"],
-                SelectedIndex = 2
-            },
+            Options = ["A", "B", "C"],
+            SelectedIndex = 2,
             IsFocused = true
         };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.State.SelectedIndex);
+        Assert.Equal(0, node.SelectedIndex);
     }
 
     [Fact]
@@ -271,18 +250,15 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B", "C"],
-                SelectedIndex = 0
-            },
+            Options = ["A", "B", "C"],
+            SelectedIndex = 0,
             IsFocused = true
         };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(2, node.State.SelectedIndex);
+        Assert.Equal(2, node.SelectedIndex);
     }
 
     [Fact]
@@ -290,18 +266,15 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B"],
-                SelectedIndex = 0
-            },
+            Options = ["A", "B"],
+            SelectedIndex = 0,
             IsFocused = true
         };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(0, node.State.SelectedIndex);
+        Assert.Equal(0, node.SelectedIndex);
     }
 
     [Fact]
@@ -311,11 +284,8 @@ public class ToggleSwitchNodeTests
         // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["A", "B"],
-                SelectedIndex = 0
-            },
+            Options = ["A", "B"],
+            SelectedIndex = 0,
             IsFocused = false
         };
 
@@ -323,7 +293,7 @@ public class ToggleSwitchNodeTests
 
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.State.SelectedIndex);  // Selection changed
+        Assert.Equal(1, node.SelectedIndex);  // Selection changed
     }
 
     [Fact]
@@ -335,19 +305,16 @@ public class ToggleSwitchNodeTests
         
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState
-            {
-                Options = ["Manual", "Auto", "Delayed"],
-                SelectedIndex = 0
-            },
+            Options = ["Manual", "Auto", "Delayed"],
+            SelectedIndex = 0,
             IsFocused = true
         };
         
         node.SelectionChangedAction = _ =>
         {
             callbackInvoked = true;
-            callbackIndex = node.State.SelectedIndex;
-            callbackValue = node.State.Options.ElementAtOrDefault(node.State.SelectedIndex) ?? "";
+            callbackIndex = node.SelectedIndex;
+            callbackValue = node.Options.ElementAtOrDefault(node.SelectedIndex) ?? "";
             return Task.CompletedTask;
         };
 
@@ -379,7 +346,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["A", "B"] }
+            Options = ["A", "B"]
         };
         var bounds = new Rect(5, 10, 20, 1);
 
@@ -393,66 +360,26 @@ public class ToggleSwitchNodeTests
     #region State Tests
 
     [Fact]
-    public void State_SelectedOption_ReturnsCorrectValue()
+    public void SelectedOption_ReturnsCorrectValue()
     {
-        var state = new ToggleSwitchState
+        var node = new ToggleSwitchNode
         {
             Options = ["Manual", "Auto", "Delayed"],
             SelectedIndex = 1
         };
 
-        Assert.Equal("Auto", state.SelectedOption);
+        Assert.Equal("Auto", node.SelectedOption);
     }
 
     [Fact]
-    public void State_SelectedOption_EmptyOptions_ReturnsNull()
+    public void SelectedOption_EmptyOptions_ReturnsNull()
     {
-        var state = new ToggleSwitchState { Options = [] };
-
-        Assert.Null(state.SelectedOption);
-    }
-
-    [Fact]
-    public void State_SetSelection_UpdatesIndex()
-    {
-        var state = new ToggleSwitchState
+        var node = new ToggleSwitchNode
         {
-            Options = ["A", "B", "C"],
-            SelectedIndex = 0
+            Options = []
         };
 
-        state.SetSelection(2);
-
-        Assert.Equal(2, state.SelectedIndex);
-        Assert.Equal("C", state.SelectedOption);
-    }
-
-    [Fact]
-    public void State_SetSelection_InvalidIndex_DoesNotChange()
-    {
-        var state = new ToggleSwitchState
-        {
-            Options = ["A", "B"],
-            SelectedIndex = 0
-        };
-
-        state.SetSelection(5);
-
-        Assert.Equal(0, state.SelectedIndex);
-    }
-
-    [Fact]
-    public void State_SetSelection_NegativeIndex_DoesNotChange()
-    {
-        var state = new ToggleSwitchState
-        {
-            Options = ["A", "B"],
-            SelectedIndex = 1
-        };
-
-        state.SetSelection(-1);
-
-        Assert.Equal(1, state.SelectedIndex);
+        Assert.Null(node.SelectedOption);
     }
 
     #endregion
@@ -465,15 +392,11 @@ public class ToggleSwitchNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var state = new ToggleSwitchState
-        {
-            Options = ["Manual", "Auto", "Delayed"]
-        };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(state)
+                    v.ToggleSwitch(["Manual", "Auto", "Delayed"])
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -499,15 +422,13 @@ public class ToggleSwitchNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var state = new ToggleSwitchState
-        {
-            Options = ["Off", "On"]
-        };
+        var selectedOption = "Off";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(state)
+                    v.ToggleSwitch(["Off", "On"])
+                        .OnSelectionChanged(args => selectedOption = args.SelectedOption)
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -523,8 +444,7 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, state.SelectedIndex);
-        Assert.Equal("On", state.SelectedOption);
+        Assert.Equal("On", selectedOption);
     }
 
     [Fact]
@@ -533,15 +453,13 @@ public class ToggleSwitchNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var state = new ToggleSwitchState
-        {
-            Options = ["Low", "Medium", "High"]
-        };
+        var selectedOption = "Low";
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(state)
+                    v.ToggleSwitch(["Low", "Medium", "High"])
+                        .OnSelectionChanged(args => selectedOption = args.SelectedOption)
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -557,8 +475,7 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(2, state.SelectedIndex);
-        Assert.Equal("High", state.SelectedOption);
+        Assert.Equal("High", selectedOption);
     }
 
     [Fact]
@@ -567,13 +484,14 @@ public class ToggleSwitchNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var toggleState = new ToggleSwitchState { Options = ["A", "B"] };
+        var selectedOption = "A";
         var buttonClicked = false;
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(toggleState),
+                    v.ToggleSwitch(["A", "B"])
+                        .OnSelectionChanged(args => selectedOption = args.SelectedOption),
                     v.Button("Click").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; })
                 ])
             ),
@@ -591,7 +509,7 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, toggleState.SelectedIndex);
+        Assert.Equal("B", selectedOption);
         Assert.True(buttonClicked);
     }
 
@@ -602,15 +520,11 @@ public class ToggleSwitchNodeTests
 
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         var lastSelectedValue = "";
-        var state = new ToggleSwitchState
-        {
-            Options = ["Mode1", "Mode2"]
-        };
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
-                    v.ToggleSwitch(state)
+                    v.ToggleSwitch(["Mode1", "Mode2"])
                         .OnSelectionChanged(args => lastSelectedValue = args.SelectedOption)
                 ])
             ),
@@ -641,7 +555,7 @@ public class ToggleSwitchNodeTests
         // Positions: 0-1="[ ", 2-7="Manual", 8-10=" | ", 11-14="Auto", 15-17=" | ", 18-24="Delayed", 25-26=" ]"
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["Manual", "Auto", "Delayed"] }
+            Options = ["Manual", "Auto", "Delayed"]
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 27, 1));
@@ -651,7 +565,7 @@ public class ToggleSwitchNodeTests
         var result = node.HandleMouseClick(12, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.State.SelectedIndex);
+        Assert.Equal(1, node.SelectedIndex);
     }
 
     [Fact]
@@ -659,9 +573,9 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["On", "Off"] }
+            Options = ["On", "Off"],
+            SelectedIndex = 1 // Start with second selected
         };
-        node.State.SelectedIndex = 1; // Start with second selected
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 13, 1));
 
@@ -670,7 +584,7 @@ public class ToggleSwitchNodeTests
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.State.SelectedIndex);
+        Assert.Equal(0, node.SelectedIndex);
     }
 
     [Fact]
@@ -678,7 +592,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = ["On", "Off"] }
+            Options = ["On", "Off"]
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 13, 1));
@@ -695,7 +609,7 @@ public class ToggleSwitchNodeTests
     {
         var node = new ToggleSwitchNode
         {
-            State = new ToggleSwitchState { Options = [] }
+            Options = []
         };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 10, 1));

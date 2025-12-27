@@ -406,7 +406,7 @@ public class HoverStateTests
     [Fact]
     public void ToggleSwitchNode_IsHovered_CanBeSet()
     {
-        var toggle = new ToggleSwitchNode { State = new ToggleSwitchState { Options = ["A", "B"] } };
+        var toggle = new ToggleSwitchNode { Options = ["A", "B"] };
         Assert.False(toggle.IsHovered);
         
         toggle.IsHovered = true;

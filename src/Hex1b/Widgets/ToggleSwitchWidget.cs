@@ -6,8 +6,9 @@ namespace Hex1b.Widgets;
 /// <summary>
 /// A horizontal toggle switch widget that allows selecting between multiple options.
 /// Use arrow keys (left/right) to switch between options when focused.
+/// Selection state is owned by the node and preserved across reconciliation.
 /// </summary>
-public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget
+public sealed record ToggleSwitchWidget(IReadOnlyList<string> Options, int SelectedIndex = 0) : Hex1bWidget
 {
     /// <summary>
     /// Internal handler for selection changed events.
@@ -29,17 +30,34 @@ public sealed record ToggleSwitchWidget(ToggleSwitchState State) : Hex1bWidget
     internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ToggleSwitchNode ?? new ToggleSwitchNode();
-        node.State = State;
+        node.Options = Options;
         node.SourceWidget = this;
+        
+        // For a new node, set the initial selection from the widget
+        if (context.IsNew)
+        {
+            node.SelectedIndex = SelectedIndex >= 0 && SelectedIndex < Options.Count ? SelectedIndex : 0;
+        }
+        
+        // Clamp selection if options changed
+        if (node.SelectedIndex >= Options.Count && Options.Count > 0)
+        {
+            node.SelectedIndex = Options.Count - 1;
+        }
+        else if (Options.Count == 0)
+        {
+            node.SelectedIndex = 0;
+        }
         
         // Set up event handlers
         if (SelectionChangedHandler != null)
         {
             node.SelectionChangedAction = ctx =>
             {
-                if (State.SelectedOption != null)
+                var selectedOption = node.SelectedOption;
+                if (selectedOption != null)
                 {
-                    var args = new ToggleSelectionChangedEventArgs(this, node, ctx, State.SelectedIndex, State.SelectedOption);
+                    var args = new ToggleSelectionChangedEventArgs(this, node, ctx, node.SelectedIndex, selectedOption);
                     return SelectionChangedHandler(args);
                 }
                 return Task.CompletedTask;
