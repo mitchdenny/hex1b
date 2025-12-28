@@ -259,4 +259,4 @@ ctx.VStack(v => [
 
 - [HStackWidget](/guide/widgets/hstack) - For horizontal layouts
 - [BorderWidget](/guide/widgets/border) - For adding borders to stack children
-- [PanelWidget](/guide/widgets/panel) - For adding backgrounds to stack children
+- [ThemePanelWidget](/guide/widgets/themepanel) - For scoped theming of child widgets
