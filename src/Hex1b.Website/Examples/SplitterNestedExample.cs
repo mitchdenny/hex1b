@@ -25,33 +25,27 @@ public class SplitterNestedExample(ILogger<SplitterNestedExample> logger) : Hex1
             return ctx.VSplitter(
                 // Top: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
-                        tl.VStack(v => [
-                            v.Text("Top-Left"),
-                            v.Text(""),
-                            v.Text("Horizontal split").Wrap(),
-                            v.Text("in top pane").Wrap()
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Top-Left"),
+                        v.Text(""),
+                        v.Text("Horizontal split").Wrap(),
+                        v.Text("in top pane").Wrap()
                     ]),
-                    ctx.Panel(tr => [
-                        tr.VStack(v => [
-                            v.Text("Top-Right"),
-                            v.Text(""),
-                            v.Text("Both panes share").Wrap(),
-                            v.Text("the same height").Wrap()
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Top-Right"),
+                        v.Text(""),
+                        v.Text("Both panes share").Wrap(),
+                        v.Text("the same height").Wrap()
                     ]),
                     leftWidth: 20
                 ),
                 // Bottom: single panel
-                ctx.Panel(bottom => [
-                    bottom.VStack(v => [
-                        v.Text("Bottom Pane"),
-                        v.Text(""),
-                        v.Text("This demonstrates nesting a horizontal splitter").Wrap(),
-                        v.Text("inside the top pane of a vertical splitter.").Wrap(),
-                        v.Text("Great for IDE-style layouts!").Wrap()
-                    ])
+                ctx.VStack(v => [
+                    v.Text("Bottom Pane"),
+                    v.Text(""),
+                    v.Text("This demonstrates nesting a horizontal splitter").Wrap(),
+                    v.Text("inside the top pane of a vertical splitter.").Wrap(),
+                    v.Text("Great for IDE-style layouts!").Wrap()
                 ]),
                 topHeight: 6
             );

@@ -79,7 +79,7 @@ public sealed class ProgressNode : Hex1bNode
         var indeterminateFg = theme.Get(ProgressTheme.IndeterminateForegroundColor);
         var indeterminateBg = theme.Get(ProgressTheme.IndeterminateBackgroundColor);
         
-        var resetCodes = context.GetResetToInheritedCodes();
+        var resetCodes = theme.GetResetToGlobalCodes();
         
         string output;
         

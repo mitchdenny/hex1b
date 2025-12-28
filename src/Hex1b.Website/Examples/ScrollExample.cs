@@ -48,18 +48,16 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
             var ctx = new RootContext();
 
             var widget = ctx.HSplitter(
-                ctx.Panel(leftPanel => [
-                    leftPanel.VStack(left => [
-                        left.Text("Scroll Examples"),
-                        left.Text("─────────────────"),
-                        left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
-                        left.Text(""),
-                        left.Text("Use ↑↓ to select"),
-                        left.Text("Tab to focus scroll"),
-                        left.Text("↑↓←→ to scroll"),
-                        left.Text("PgUp/PgDn for pages"),
-                        left.Text("Home/End for ends"),
-                    ])
+                ctx.VStack(left => [
+                    left.Text("Scroll Examples"),
+                    left.Text("─────────────────"),
+                    left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
+                    left.Text(""),
+                    left.Text("Use ↑↓ to select"),
+                    left.Text("Tab to focus scroll"),
+                    left.Text("↑↓←→ to scroll"),
+                    left.Text("PgUp/PgDn for pages"),
+                    left.Text("Home/End for ends"),
                 ]),
                 BuildExampleContent(ctx, state, state.SelectedExampleId),
                 leftWidth: 22

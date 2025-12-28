@@ -139,17 +139,15 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
             }
 
             var widget = ctx.HSplitter(
-                ctx.Panel(leftPanel => [
-                    leftPanel.VStack(left => [
-                        left.Text("Rescue Examples"),
-                        left.Text("─────────────────"),
-                        left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
-                        left.Text(""),
-                        left.Text("RescueWidget is an"),
-                        left.Text("error boundary that"),
-                        left.Text("catches exceptions"),
-                        left.Text("and shows fallback."),
-                    ])
+                ctx.VStack(left => [
+                    left.Text("Rescue Examples"),
+                    left.Text("─────────────────"),
+                    left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
+                    left.Text(""),
+                    left.Text("RescueWidget is an"),
+                    left.Text("error boundary that"),
+                    left.Text("catches exceptions"),
+                    left.Text("and shows fallback."),
                 ]),
                 BuildExampleContent(ctx, state),
                 leftWidth: 22

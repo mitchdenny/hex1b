@@ -137,6 +137,6 @@ ctx.VStack(v => [
 
 ## Related Widgets
 
-- [PanelWidget](/guide/widgets/panel) - Provides a styled background without a border
+- [ThemePanelWidget](/guide/widgets/themepanel) - For scoped theming without a border
 - [VStackWidget](/guide/widgets/vstack) - For vertically arranging multiple widgets
 - [HStackWidget](/guide/widgets/hstack) - For horizontally arranging multiple widgets

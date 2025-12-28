@@ -78,23 +78,23 @@ public sealed class ButtonNode : Hex1bNode
         var theme = context.Theme;
         var leftBracket = theme.Get(ButtonTheme.LeftBracket);
         var rightBracket = theme.Get(ButtonTheme.RightBracket);
-        var resetToInherited = context.GetResetToInheritedCodes();
+        var resetToGlobal = theme.GetResetToGlobalCodes();
         
         string output;
         if (IsFocused)
         {
             var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToInherited}";
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
         }
         else
         {
             var fg = theme.Get(ButtonTheme.ForegroundColor);
             var bg = theme.Get(ButtonTheme.BackgroundColor);
-            // Use inherited colors if theme colors are default
-            var fgCode = fg.IsDefault ? context.InheritedForeground.ToForegroundAnsi() : fg.ToForegroundAnsi();
-            var bgCode = bg.IsDefault ? context.InheritedBackground.ToBackgroundAnsi() : bg.ToBackgroundAnsi();
-            output = $"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToInherited}";
+            // Use global colors if theme colors are default
+            var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
+            var bgCode = bg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : bg.ToBackgroundAnsi();
+            output = $"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
         }
         
         // Use clipped rendering when a layout provider is active

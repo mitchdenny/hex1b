@@ -1,5 +1,6 @@
 using Hex1b.Layout;
 using Hex1b.Terminal;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -236,8 +237,8 @@ public sealed class TextBlockNode : Hex1bNode
     /// </remarks>
     public override void Render(Hex1bRenderContext context)
     {
-        var colorCodes = context.GetInheritedColorCodes();
-        var resetCodes = !string.IsNullOrEmpty(colorCodes) ? context.GetResetToInheritedCodes() : "";
+        var colorCodes = context.Theme.GetGlobalColorCodes();
+        var resetCodes = !string.IsNullOrEmpty(colorCodes) ? context.Theme.GetResetToGlobalCodes() : "";
         
         switch (Overflow)
         {

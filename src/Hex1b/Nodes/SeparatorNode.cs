@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
@@ -105,9 +106,10 @@ public sealed class SeparatorNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        var fg = context.InheritedForeground;
+        var theme = context.Theme;
+        var fg = theme.GetGlobalForeground();
         var fgAnsi = fg.IsDefault ? "" : fg.ToForegroundAnsi();
-        var reset = fg.IsDefault ? "" : "\x1b[0m";
+        var reset = fg.IsDefault ? "" : theme.GetResetToGlobalCodes();
         
         if (IsHorizontal)
         {

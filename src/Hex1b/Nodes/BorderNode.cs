@@ -115,10 +115,11 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         var width = Bounds.Width;
         var height = Bounds.Height;
 
-        // Apply border color with inherited background
-        var inheritedBg = context.InheritedBackground.IsDefault ? "" : context.InheritedBackground.ToBackgroundAnsi();
-        var colorCode = $"{inheritedBg}{borderColor.ToForegroundAnsi()}";
-        var resetToInherited = context.GetResetToInheritedCodes();
+        // Apply border color with global background
+        var globalBg = theme.GetGlobalBackground();
+        var globalBgAnsi = globalBg.IsDefault ? "" : globalBg.ToBackgroundAnsi();
+        var colorCode = $"{globalBgAnsi}{borderColor.ToForegroundAnsi()}";
+        var resetToGlobal = theme.GetResetToGlobalCodes();
         
         var innerWidth = Math.Max(0, width - 2);
 
@@ -132,19 +133,19 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
             
             topLine = $"{colorCode}{topLeft}" +
                       new string(horizontal[0], leftPadding) +
-                      $"{inheritedBg}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}" +
+                      $"{globalBgAnsi}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}" +
                       new string(horizontal[0], rightPadding) +
-                      $"{topRight}{resetToInherited}";
+                      $"{topRight}{resetToGlobal}";
         }
         else
         {
-            topLine = $"{colorCode}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToInherited}";
+            topLine = $"{colorCode}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}";
         }
         WriteLineClipped(context, x, y, topLine);
 
         // Draw left and right borders for each row
-        var leftBorder = $"{colorCode}{vertical}{resetToInherited}";
-        var rightBorder = $"{colorCode}{vertical}{resetToInherited}";
+        var leftBorder = $"{colorCode}{vertical}{resetToGlobal}";
+        var rightBorder = $"{colorCode}{vertical}{resetToGlobal}";
         for (int row = 1; row < height - 1; row++)
         {
             WriteLineClipped(context, x, y + row, leftBorder);
@@ -154,7 +155,7 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         // Draw bottom border
         if (height > 1)
         {
-            var bottomLine = $"{colorCode}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToInherited}";
+            var bottomLine = $"{colorCode}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToGlobal}";
             WriteLineClipped(context, x, y + height - 1, bottomLine);
         }
 

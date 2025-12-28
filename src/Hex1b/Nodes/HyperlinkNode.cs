@@ -333,7 +333,7 @@ public sealed class HyperlinkNode : Hex1bNode
     private string BuildStyledOutput(string text, Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var resetToInherited = context.GetResetToInheritedCodes();
+        var resetToGlobal = theme.GetResetToGlobalCodes();
         
         // OSC 8 format: ESC ] 8 ; params ; URI ST text ESC ] 8 ; ; ST
         var osc8Start = FormatOsc8Start(Uri, Parameters);
@@ -345,13 +345,13 @@ public sealed class HyperlinkNode : Hex1bNode
         {
             // Focused: underline + bright color
             var fg = theme.Get(HyperlinkTheme.FocusedForegroundColor);
-            styledText = $"{fg.ToForegroundAnsi()}\x1b[4m{text}\x1b[24m{resetToInherited}";
+            styledText = $"{fg.ToForegroundAnsi()}\x1b[4m{text}\x1b[24m{resetToGlobal}";
         }
         else if (IsHovered)
         {
             // Hovered: underline
             var fg = theme.Get(HyperlinkTheme.HoveredForegroundColor);
-            styledText = $"{fg.ToForegroundAnsi()}\x1b[4m{text}\x1b[24m{resetToInherited}";
+            styledText = $"{fg.ToForegroundAnsi()}\x1b[4m{text}\x1b[24m{resetToGlobal}";
         }
         else
         {
@@ -360,11 +360,11 @@ public sealed class HyperlinkNode : Hex1bNode
             if (fg.IsDefault)
             {
                 // Use blue as default link color
-                styledText = $"\x1b[34m{text}{resetToInherited}";
+                styledText = $"\x1b[34m{text}{resetToGlobal}";
             }
             else
             {
-                styledText = $"{fg.ToForegroundAnsi()}{text}{resetToInherited}";
+                styledText = $"{fg.ToForegroundAnsi()}{text}{resetToGlobal}";
             }
         }
         

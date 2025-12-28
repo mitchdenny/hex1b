@@ -36,20 +36,16 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left: Panel with List
-                        root.Panel(leftPanel => [
-                            leftPanel.VStack(left => [
-                                left.Text("═══ Themes ═══"),
-                                left.List(items)
-                            ])
+                        // Left: VStack with List
+                        root.VStack(left => [
+                            left.Text("═══ Themes ═══"),
+                            left.List(items)
                         ]),
-                        // Right: Layout -> Panel -> VStack -> TextBox
+                        // Right: Layout -> VStack -> TextBox
                         root.Layout(
-                            root.Panel(rightPanel => [
-                                rightPanel.VStack(right => [
-                                    right.Text("═══ Widget Preview ═══"),
-                                    right.TextBox("Sample text")
-                                ])
+                            root.VStack(right => [
+                                right.Text("═══ Widget Preview ═══"),
+                                right.TextBox("Sample text")
                             ]),
                             ClipMode.Clip
                         ),
@@ -128,22 +124,22 @@ public class ThemingExhibitRepro
         var layout = new LayoutNode();
         // layout.Parent is NOT set yet during its child's reconcile!
         
-        // 3. Start reconciling Panel as child of Layout
-        var panel = new PanelNode();
+        // 3. Start reconciling a nested Layout as child of Layout
+        var nestedLayout = new LayoutNode();
         
         // 4. The issue: during VStack reconciliation, walking up the Parent chain
-        //    would only see: panel -> null
-        //    because panel.Parent hasn't been set yet!
+        //    would only see: nestedLayout -> null
+        //    because nestedLayout.Parent hasn't been set yet!
         
         Assert.Null(layout.Parent); // Demonstrates that Parent is not set during child reconcile
-        Assert.Null(panel.Parent);  // Same issue
+        Assert.Null(nestedLayout.Parent);  // Same issue
         
         // After reconcile would complete, parents would be set:
-        panel.Parent = layout;
+        nestedLayout.Parent = layout;
         layout.Parent = splitter;
         
         // Now the tree is correct:
-        Assert.Equal(layout, panel.Parent);
+        Assert.Equal(layout, nestedLayout.Parent);
         Assert.Equal(splitter, layout.Parent);
         
         // The FIX: ReconcileContext now stores the full ancestor chain internally,
@@ -239,28 +235,24 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left pane: Panel containing a VStack with List
-                        root.Panel(leftPanel => [
-                            leftPanel.VStack(left => [
-                                left.Text("═══ Themes ═══"),
-                                left.Text(""),
-                                left.List(items)
-                            ])
+                        // Left pane: VStack with List
+                        root.VStack(left => [
+                            left.Text("═══ Themes ═══"),
+                            left.Text(""),
+                            left.List(items)
                         ]),
-                        // Right pane: Layout -> Panel -> VStack with TextBox and Button
+                        // Right pane: Layout -> VStack with TextBox and Button
                         root.Layout(
-                            root.Panel(rightPanel => [
-                                rightPanel.VStack(right => [
-                                    right.Text("═══ Widget Preview ═══"),
-                                    right.Text(""),
-                                    right.Text("TextBox (Tab to focus):"),
-                                    right.TextBox("Sample text"),
-                                    right.Text(""),
-                                    right.Text("Button:"),
-                                    right.Button(
-                                        buttonClicked ? "Clicked!" : "Click Me")
-                                        .OnClick(_ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
-                                ])
+                            root.VStack(right => [
+                                right.Text("═══ Widget Preview ═══"),
+                                right.Text(""),
+                                right.Text("TextBox (Tab to focus):"),
+                                right.TextBox("Sample text"),
+                                right.Text(""),
+                                right.Text("Button:"),
+                                right.Button(
+                                    buttonClicked ? "Clicked!" : "Click Me")
+                                    .OnClick(_ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
                             ]),
                             ClipMode.Clip
                         ),

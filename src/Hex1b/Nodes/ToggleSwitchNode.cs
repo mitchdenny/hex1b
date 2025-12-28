@@ -227,8 +227,8 @@ public sealed class ToggleSwitchNode : Hex1bNode
         var unfocusedBracketFg = theme.Get(ToggleSwitchTheme.UnfocusedBracketForegroundColor);
         var unfocusedBracketBg = theme.Get(ToggleSwitchTheme.UnfocusedBracketBackgroundColor);
 
-        var resetToInherited = context.GetResetToInheritedCodes();
-        var inheritedColors = context.GetInheritedColorCodes();
+        var resetToGlobal = theme.GetResetToGlobalCodes();
+        var globalColors = theme.GetGlobalColorCodes();
 
         // Build the output string
         var output = new System.Text.StringBuilder();
@@ -238,13 +238,13 @@ public sealed class ToggleSwitchNode : Hex1bNode
         {
             var bracketFgCode = focusedBracketFg.IsDefault ? "" : focusedBracketFg.ToForegroundAnsi();
             var bracketBgCode = focusedBracketBg.IsDefault ? "" : focusedBracketBg.ToBackgroundAnsi();
-            output.Append($"{bracketFgCode}{bracketBgCode}{leftBracket}{resetToInherited}");
+            output.Append($"{bracketFgCode}{bracketBgCode}{leftBracket}{resetToGlobal}");
         }
         else
         {
-            var bracketFgCode = unfocusedBracketFg.IsDefault ? inheritedColors : unfocusedBracketFg.ToForegroundAnsi();
+            var bracketFgCode = unfocusedBracketFg.IsDefault ? globalColors : unfocusedBracketFg.ToForegroundAnsi();
             var bracketBgCode = unfocusedBracketBg.IsDefault ? "" : unfocusedBracketBg.ToBackgroundAnsi();
-            output.Append($"{bracketFgCode}{bracketBgCode}{leftBracket}{resetToInherited}");
+            output.Append($"{bracketFgCode}{bracketBgCode}{leftBracket}{resetToGlobal}");
         }
 
         // Render each option
@@ -258,27 +258,27 @@ public sealed class ToggleSwitchNode : Hex1bNode
                 // Selected option when focused: use focused selected colors (bright highlight)
                 var fgCode = focusedSelectedFg.IsDefault ? "" : focusedSelectedFg.ToForegroundAnsi();
                 var bgCode = focusedSelectedBg.IsDefault ? "" : focusedSelectedBg.ToBackgroundAnsi();
-                output.Append($"{fgCode}{bgCode}{option}{resetToInherited}");
+                output.Append($"{fgCode}{bgCode}{option}{resetToGlobal}");
             }
             else if (isSelected)
             {
                 // Selected option when unfocused: use unfocused selected colors (subtle highlight)
-                var fgCode = unfocusedSelectedFg.IsDefault ? inheritedColors : unfocusedSelectedFg.ToForegroundAnsi();
+                var fgCode = unfocusedSelectedFg.IsDefault ? globalColors : unfocusedSelectedFg.ToForegroundAnsi();
                 var bgCode = unfocusedSelectedBg.IsDefault ? "" : unfocusedSelectedBg.ToBackgroundAnsi();
-                output.Append($"{fgCode}{bgCode}{option}{resetToInherited}");
+                output.Append($"{fgCode}{bgCode}{option}{resetToGlobal}");
             }
             else
             {
-                // Unselected option: use unselected colors or inherited
-                var fgCode = unselectedFg.IsDefault ? inheritedColors : unselectedFg.ToForegroundAnsi();
+                // Unselected option: use unselected colors or global
+                var fgCode = unselectedFg.IsDefault ? globalColors : unselectedFg.ToForegroundAnsi();
                 var bgCode = unselectedBg.IsDefault ? "" : unselectedBg.ToBackgroundAnsi();
-                output.Append($"{fgCode}{bgCode}{option}{resetToInherited}");
+                output.Append($"{fgCode}{bgCode}{option}{resetToGlobal}");
             }
 
             // Add separator between options
             if (i < Options.Count - 1)
             {
-                output.Append($"{inheritedColors}{separator}{resetToInherited}");
+                output.Append($"{globalColors}{separator}{resetToGlobal}");
             }
         }
 
@@ -287,13 +287,13 @@ public sealed class ToggleSwitchNode : Hex1bNode
         {
             var bracketFgCode = focusedBracketFg.IsDefault ? "" : focusedBracketFg.ToForegroundAnsi();
             var bracketBgCode = focusedBracketBg.IsDefault ? "" : focusedBracketBg.ToBackgroundAnsi();
-            output.Append($"{bracketFgCode}{bracketBgCode}{rightBracket}{resetToInherited}");
+            output.Append($"{bracketFgCode}{bracketBgCode}{rightBracket}{resetToGlobal}");
         }
         else
         {
-            var bracketFgCode = unfocusedBracketFg.IsDefault ? inheritedColors : unfocusedBracketFg.ToForegroundAnsi();
+            var bracketFgCode = unfocusedBracketFg.IsDefault ? globalColors : unfocusedBracketFg.ToForegroundAnsi();
             var bracketBgCode = unfocusedBracketBg.IsDefault ? "" : unfocusedBracketBg.ToBackgroundAnsi();
-            output.Append($"{bracketFgCode}{bracketBgCode}{rightBracket}{resetToInherited}");
+            output.Append($"{bracketFgCode}{bracketBgCode}{rightBracket}{resetToGlobal}");
         }
 
         // Write to context

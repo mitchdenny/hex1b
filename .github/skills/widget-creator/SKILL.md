@@ -234,7 +234,7 @@ public sealed class MyNode : Hex1bNode
         var bg = theme.Get(MyTheme.BackgroundColor);
         
         // Build output string with colors
-        var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{PrimaryProperty}{context.GetResetToInheritedCodes()}";
+        var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{PrimaryProperty}{theme.GetResetToGlobalCodes()}";
         
         // Use clipped rendering when a layout provider is active
         if (context.CurrentLayoutProvider != null)

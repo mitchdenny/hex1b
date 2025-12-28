@@ -34,48 +34,6 @@ public class Hex1bRenderContext
     /// proper nested clipping.
     /// </summary>
     public ILayoutProvider? CurrentLayoutProvider { get; set; }
-    
-    /// <summary>
-    /// The inherited foreground color from parent containers (e.g., Panel).
-    /// Nodes should use this when rendering text if they don't have their own color.
-    /// </summary>
-    public Hex1bColor InheritedForeground { get; set; } = Hex1bColor.Default;
-    
-    /// <summary>
-    /// The inherited background color from parent containers (e.g., Panel).
-    /// Nodes should use this when rendering to maintain visual continuity.
-    /// </summary>
-    public Hex1bColor InheritedBackground { get; set; } = Hex1bColor.Default;
-
-    /// <summary>
-    /// Gets the ANSI codes to apply inherited colors, or empty string if default.
-    /// </summary>
-    public string GetInheritedColorCodes()
-    {
-        var result = "";
-        if (!InheritedForeground.IsDefault)
-            result += InheritedForeground.ToForegroundAnsi();
-        if (!InheritedBackground.IsDefault)
-            result += InheritedBackground.ToBackgroundAnsi();
-        return result;
-    }
-    
-    /// <summary>
-    /// Gets the ANSI codes to reset colors back to inherited values (or default if none).
-    /// Use this after applying temporary color changes.
-    /// </summary>
-    public string GetResetToInheritedCodes()
-    {
-        if (InheritedForeground.IsDefault && InheritedBackground.IsDefault)
-            return "\x1b[0m";
-        
-        var result = "\x1b[0m"; // Reset all first
-        if (!InheritedForeground.IsDefault)
-            result += InheritedForeground.ToForegroundAnsi();
-        if (!InheritedBackground.IsDefault)
-            result += InheritedBackground.ToBackgroundAnsi();
-        return result;
-    }
 
     public void EnterAlternateScreen() => _adapter.EnterTuiMode();
     public void ExitAlternateScreen() => _adapter.ExitTuiMode();
@@ -93,7 +51,7 @@ public class Hex1bRenderContext
     /// <summary>
     /// Clears a rectangular region by writing spaces.
     /// Used for dirty region clearing to avoid full-screen flicker.
-    /// Respects InheritedBackground color if set.
+    /// Respects global background color from the theme if set.
     /// </summary>
     /// <param name="rect">The rectangle to clear.</param>
     public void ClearRegion(Rect rect)
@@ -111,10 +69,11 @@ public class Hex1bRenderContext
         var width = endX - startX;
         var spaces = new string(' ', width);
         
-        // Use inherited background color if set, otherwise reset to default
-        if (!InheritedBackground.IsDefault)
+        // Use global background color from theme if set, otherwise reset to default
+        var bg = Theme.GetGlobalBackground();
+        if (!bg.IsDefault)
         {
-            var bgCode = InheritedBackground.ToBackgroundAnsi();
+            var bgCode = bg.ToBackgroundAnsi();
             Write(bgCode);
         }
         else

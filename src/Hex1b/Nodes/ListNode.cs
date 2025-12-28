@@ -303,9 +303,9 @@ public sealed class ListNode : Hex1bNode
         var selectedFg = theme.Get(ListTheme.SelectedForegroundColor);
         var selectedBg = theme.Get(ListTheme.SelectedBackgroundColor);
         
-        // Get inherited colors for non-selected items
-        var inheritedColors = context.GetInheritedColorCodes();
-        var resetToInherited = context.GetResetToInheritedCodes();
+        // Get global colors for non-selected items
+        var globalColors = theme.GetGlobalColorCodes();
+        var resetToGlobal = theme.GetResetToGlobalCodes();
         
         // Calculate which items are visible in the viewport
         var visibleStart = _scrollOffset;
@@ -323,17 +323,17 @@ public sealed class ListNode : Hex1bNode
             if (isSelected && IsFocused)
             {
                 // Focused and selected: use theme colors
-                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item}{resetToInherited}";
+                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item}{resetToGlobal}";
             }
             else if (isSelected)
             {
-                // Selected but not focused: just show indicator with inherited colors
-                text = $"{inheritedColors}{selectedIndicator}{item}{resetToInherited}";
+                // Selected but not focused: just show indicator with global colors
+                text = $"{globalColors}{selectedIndicator}{item}{resetToGlobal}";
             }
             else
             {
-                // Not selected: use inherited colors
-                text = $"{inheritedColors}{unselectedIndicator}{item}{resetToInherited}";
+                // Not selected: use global colors
+                text = $"{globalColors}{unselectedIndicator}{item}{resetToGlobal}";
             }
 
             // Use clipped rendering when a layout provider is active

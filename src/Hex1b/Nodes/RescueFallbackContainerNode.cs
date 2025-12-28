@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
@@ -29,17 +30,17 @@ public sealed class RescueFallbackContainerNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Save previous inherited colors
-        var previousForeground = context.InheritedForeground;
-        var previousBackground = context.InheritedBackground;
+        // Save previous theme
+        var previousTheme = context.Theme;
         
-        // Set hardcoded rescue colors
-        context.InheritedForeground = RescueFallbackWidget.TextColor;
-        context.InheritedBackground = RescueFallbackWidget.BackgroundColor;
+        // Set theme with hardcoded rescue colors
+        context.Theme = previousTheme.Clone("Rescue")
+            .Set(GlobalTheme.ForegroundColor, RescueFallbackWidget.TextColor)
+            .Set(GlobalTheme.BackgroundColor, RescueFallbackWidget.BackgroundColor);
         
         // Fill background
         var bgCode = RescueFallbackWidget.BackgroundColor.ToBackgroundAnsi();
-        var reset = "\x1b[0m";
+        var reset = context.Theme.GetResetToGlobalCodes();
         for (int row = 0; row < Bounds.Height; row++)
         {
             context.SetCursorPosition(Bounds.X, Bounds.Y + row);
@@ -49,9 +50,8 @@ public sealed class RescueFallbackContainerNode : Hex1bNode
         // Render child content
         Child?.Render(context);
         
-        // Restore previous inherited colors
-        context.InheritedForeground = previousForeground;
-        context.InheritedBackground = previousBackground;
+        // Restore previous theme
+        context.Theme = previousTheme;
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()

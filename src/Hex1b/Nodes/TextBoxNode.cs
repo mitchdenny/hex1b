@@ -398,8 +398,8 @@ public sealed class TextBoxNode : Hex1bNode
         
         var text = State.Text;
         var cursor = State.CursorPosition;
-        var inheritedColors = context.GetInheritedColorCodes();
-        var resetToInherited = context.GetResetToInheritedCodes();
+        var globalColors = theme.GetGlobalColorCodes();
+        var resetToGlobal = theme.GetResetToGlobalCodes();
 
         string output;
         if (IsFocused)
@@ -414,8 +414,8 @@ public sealed class TextBoxNode : Hex1bNode
                 var selected = text[selStart..selEnd];
                 var afterSel = text[selEnd..];
                 
-                // Use theme colors for selection, inherit for rest
-                output = $"{inheritedColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToInherited}{afterSel}{rightBracket}";
+                // Use theme colors for selection, global for rest
+                output = $"{globalColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{afterSel}{rightBracket}";
             }
             else
             {
@@ -436,18 +436,18 @@ public sealed class TextBoxNode : Hex1bNode
                     after = "";
                 }
                 
-                output = $"{inheritedColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToInherited}{after}{rightBracket}";
+                output = $"{globalColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{after}{rightBracket}";
             }
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
             // Show a hover cursor preview where clicking would position the cursor
             output = RenderWithHoverCursor(text, leftBracket, rightBracket, 
-                inheritedColors, resetToInherited, hoverCursorFg, hoverCursorBg, context);
+                globalColors, resetToGlobal, hoverCursorFg, hoverCursorBg, context);
         }
         else
         {
-            output = $"{inheritedColors}{leftBracket}{text}{rightBracket}{resetToInherited}";
+            output = $"{globalColors}{leftBracket}{text}{rightBracket}{resetToGlobal}";
         }
         
         // Use clipped rendering when a layout provider is active
@@ -468,8 +468,8 @@ public sealed class TextBoxNode : Hex1bNode
         string text, 
         string leftBracket, 
         string rightBracket,
-        string inheritedColors,
-        string resetToInherited,
+        string globalColors,
+        string resetToGlobal,
         Hex1bColor hoverCursorFg,
         Hex1bColor hoverCursorBg,
         Hex1bRenderContext context)
@@ -513,6 +513,6 @@ public sealed class TextBoxNode : Hex1bNode
         if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
         if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
         
-        return $"{inheritedColors}{leftBracket}{before}{hoverColors}{hoverCluster}{resetToInherited}{after}{rightBracket}";
+        return $"{globalColors}{leftBracket}{before}{hoverColors}{hoverCluster}{resetToGlobal}{after}{rightBracket}";
     }
 }

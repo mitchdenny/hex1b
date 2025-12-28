@@ -23,27 +23,23 @@ public class SplitterBasicExample(ILogger<SplitterBasicExample> logger) : Hex1bE
         {
             var ctx = new RootContext();
             return ctx.HSplitter(
-                ctx.Panel(left => [
-                    left.VStack(v => [
-                        v.Text("Left Pane"),
-                        v.Text(""),
-                        v.Text("This is the left side").Wrap(),
-                        v.Text("of a horizontal split.").Wrap(),
-                        v.Text(""),
-                        v.Text("Tab to focus the splitter,").Wrap(),
-                        v.Text("then use ← → to resize.").Wrap()
-                    ])
+                ctx.VStack(v => [
+                    v.Text("Left Pane"),
+                    v.Text(""),
+                    v.Text("This is the left side").Wrap(),
+                    v.Text("of a horizontal split.").Wrap(),
+                    v.Text(""),
+                    v.Text("Tab to focus the splitter,").Wrap(),
+                    v.Text("then use ← → to resize.").Wrap()
                 ]),
-                ctx.Panel(right => [
-                    right.VStack(v => [
-                        v.Text("Right Pane"),
-                        v.Text(""),
-                        v.Text("This is the right side").Wrap(),
-                        v.Text("of the horizontal split.").Wrap(),
-                        v.Text(""),
-                        v.Text("Both panes share the").Wrap(),
-                        v.Text("full height.").Wrap()
-                    ])
+                ctx.VStack(v => [
+                    v.Text("Right Pane"),
+                    v.Text(""),
+                    v.Text("This is the right side").Wrap(),
+                    v.Text("of the horizontal split.").Wrap(),
+                    v.Text(""),
+                    v.Text("Both panes share the").Wrap(),
+                    v.Text("full height.").Wrap()
                 ]),
                 leftWidth: 25
             );
