@@ -24,14 +24,12 @@ public class TerminalAnsiRenderingTests
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.FromRgb(255, 255, 255));
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
-                p.VStack(v => [
-                    v.Text("Terminal ANSI Rendering Demo"),
-                    v.Text(""),
-                    v.Button("Click Me"),
-                    v.Text(""),
-                    v.Text("Status: Ready")
-                ])
+            ctx => ctx.VStack(v => [
+                v.Text("Terminal ANSI Rendering Demo"),
+                v.Text(""),
+                v.Button("Click Me"),
+                v.Text(""),
+                v.Text("Status: Ready")
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme }
         );
@@ -113,14 +111,12 @@ public class TerminalAnsiRenderingTests
         using var terminal = new Hex1bTerminal(workload, 60, 15);
 
         using var app = new Hex1bApp(
-            ctx => ctx.Panel(p => [
-                p.VStack(v => [
-                    v.Text("Line 1: Header"),
-                    v.Text("Line 2: Content A"),
-                    v.Text("Line 3: Content B"),
-                    v.Text("Line 4: Content C"),
-                    v.Text("Line 5: Footer")
-                ])
+            ctx => ctx.VStack(v => [
+                v.Text("Line 1: Header"),
+                v.Text("Line 2: Content A"),
+                v.Text("Line 3: Content B"),
+                v.Text("Line 4: Content C"),
+                v.Text("Line 5: Footer")
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

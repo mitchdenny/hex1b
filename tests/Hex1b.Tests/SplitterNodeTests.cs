@@ -1717,21 +1717,17 @@ public class SplitterNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
-                    // Left: Panel > VStack > List (deep nesting like ThemingExhibit)
-                    ctx.Panel(p => [
-                        p.VStack(v => [
-                            v.Text("═══ Themes ═══"),
-                            v.Text(""),
-                            v.List(items)
-                        ])
-                    ]),
-                    // Right: Panel > VStack > Button
-                    ctx.Panel(p => [
-                        p.VStack(v => [
-                            v.Text("═══ Preview ═══"),
-                            v.Button("Click Me").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })
-                        ])
-                    ]),
+                    // Left: VStack > List (deep nesting like ThemingExhibit)
+                    v => [
+                        v.Text("═══ Themes ═══"),
+                        v.Text(""),
+                        v.List(items)
+                    ],
+                    // Right: VStack > Button
+                    v => [
+                        v.Text("═══ Preview ═══"),
+                        v.Button("Click Me").OnClick(_ => { rightButtonClicked = true; return Task.CompletedTask; })
+                    ],
                     leftWidth: 25
                 )
             ),
@@ -2176,36 +2172,30 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter with content that's taller than topHeight
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
-                            tl.VStack(v => [
-                                v.Text("Top-Left"),
-                                v.Text("Line 2"),
-                                v.Text("Line 3"),
-                                v.Text("Line 4"),
-                                v.Text("Line 5"),
-                                v.Text("Line 6"),
-                                v.Text("OVERFLOW-TL")  // This should NOT appear in bottom pane
-                            ])
+                        ctx.VStack(tl => [
+                            tl.Text("Top-Left"),
+                            tl.Text("Line 2"),
+                            tl.Text("Line 3"),
+                            tl.Text("Line 4"),
+                            tl.Text("Line 5"),
+                            tl.Text("Line 6"),
+                            tl.Text("OVERFLOW-TL")  // This should NOT appear in bottom pane
                         ]),
-                        ctx.Panel(tr => [
-                            tr.VStack(v => [
-                                v.Text("Top-Right"),
-                                v.Text("Line 2"),
-                                v.Text("Line 3"),
-                                v.Text("Line 4"),
-                                v.Text("Line 5"),
-                                v.Text("Line 6"),
-                                v.Text("OVERFLOW-TR")  // This should NOT appear in bottom pane
-                            ])
+                        ctx.VStack(tr => [
+                            tr.Text("Top-Right"),
+                            tr.Text("Line 2"),
+                            tr.Text("Line 3"),
+                            tr.Text("Line 4"),
+                            tr.Text("Line 5"),
+                            tr.Text("Line 6"),
+                            tr.Text("OVERFLOW-TR")  // This should NOT appear in bottom pane
                         ]),
                         leftWidth: 20
                     ),
-                    // Bottom: single panel
-                    ctx.Panel(bottom => [
-                        bottom.VStack(v => [
-                            v.Text("Bottom Pane"),
-                            v.Text("This should be the only content here")
-                        ])
+                    // Bottom: single VStack
+                    ctx.VStack(bottom => [
+                        bottom.Text("Bottom Pane"),
+                        bottom.Text("This should be the only content here")
                     ]),
                     topHeight: 6
                 )
@@ -2252,19 +2242,15 @@ public class SplitterNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
                     // Left pane: narrow (10 chars) with long text
-                    ctx.Panel(left => [
-                        left.VStack(v => [
-                            v.Text("Left"),
-                            v.Text("LONG_TEXT_THAT_OVERFLOWS_LEFT_PANE")  // 34 chars, way longer than 10
-                        ])
-                    ]),
+                    left => [
+                        left.Text("Left"),
+                        left.Text("LONG_TEXT_THAT_OVERFLOWS_LEFT_PANE")  // 34 chars, way longer than 10
+                    ],
                     // Right pane
-                    ctx.Panel(right => [
-                        right.VStack(v => [
-                            v.Text("Right Pane"),
-                            v.Text("Should not see overflow here")
-                        ])
-                    ]),
+                    right => [
+                        right.Text("Right Pane"),
+                        right.Text("Should not see overflow here")
+                    ],
                     leftWidth: 10
                 )
             ),
@@ -2404,31 +2390,25 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter with content
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
-                            tl.VStack(v => [
-                                v.Text("Top-Left"),
-                                v.Text(""),
-                                v.Text("Horizontal split").Wrap(),
-                                v.Text("in top pane").Wrap()
-                            ])
+                        ctx.VStack(tl => [
+                            tl.Text("Top-Left"),
+                            tl.Text(""),
+                            tl.Text("Horizontal split").Wrap(),
+                            tl.Text("in top pane").Wrap()
                         ]),
-                        ctx.Panel(tr => [
-                            tr.VStack(v => [
-                                v.Text("Top-Right"),
-                                v.Text(""),
-                                v.Text("Both panes share").Wrap(),
-                                v.Text("the same height").Wrap()
-                            ])
+                        ctx.VStack(tr => [
+                            tr.Text("Top-Right"),
+                            tr.Text(""),
+                            tr.Text("Both panes share").Wrap(),
+                            tr.Text("the same height").Wrap()
                         ]),
                         leftWidth: 20
                     ),
-                    // Bottom: single panel with distinct content
-                    ctx.Panel(bottom => [
-                        bottom.VStack(v => [
-                            v.Text("BOTTOM_PANE_MARKER"),
-                            v.Text(""),
-                            v.Text("This is the bottom pane")
-                        ])
+                    // Bottom: single VStack with distinct content
+                    ctx.VStack(bottom => [
+                        bottom.Text("BOTTOM_PANE_MARKER"),
+                        bottom.Text(""),
+                        bottom.Text("This is the bottom pane")
                     ]),
                     topHeight: 6
                 )
@@ -2491,33 +2471,27 @@ public class SplitterNodeTests
                 ctx.VSplitter(
                     // Top: horizontal splitter
                     ctx.HSplitter(
-                        ctx.Panel(tl => [
-                            tl.VStack(v => [
-                                v.Text("Top-Left"),
-                                v.Text(""),
-                                v.Text("Horizontal split").Wrap(),
-                                v.Text("in top pane").Wrap()
-                            ])
+                        ctx.VStack(tl => [
+                            tl.Text("Top-Left"),
+                            tl.Text(""),
+                            tl.Text("Horizontal split").Wrap(),
+                            tl.Text("in top pane").Wrap()
                         ]),
-                        ctx.Panel(tr => [
-                            tr.VStack(v => [
-                                v.Text("Top-Right"),
-                                v.Text(""),
-                                v.Text("Both panes share").Wrap(),
-                                v.Text("the same height").Wrap()
-                            ])
+                        ctx.VStack(tr => [
+                            tr.Text("Top-Right"),
+                            tr.Text(""),
+                            tr.Text("Both panes share").Wrap(),
+                            tr.Text("the same height").Wrap()
                         ]),
                         leftWidth: 20
                     ),
-                    // Bottom: single panel
-                    ctx.Panel(bottom => [
-                        bottom.VStack(v => [
-                            v.Text("Bottom Pane"),
-                            v.Text(""),
-                            v.Text("This demonstrates nesting a horizontal splitter").Wrap(),
-                            v.Text("inside the top pane of a vertical splitter.").Wrap(),
-                            v.Text("Great for IDE-style layouts!").Wrap()
-                        ])
+                    // Bottom: single VStack
+                    ctx.VStack(bottom => [
+                        bottom.Text("Bottom Pane"),
+                        bottom.Text(""),
+                        bottom.Text("This demonstrates nesting a horizontal splitter").Wrap(),
+                        bottom.Text("inside the top pane of a vertical splitter.").Wrap(),
+                        bottom.Text("Great for IDE-style layouts!").Wrap()
                     ]),
                     topHeight: 6
                 )

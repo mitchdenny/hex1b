@@ -26,9 +26,22 @@ Key features:
 - No size overhead
 - Combine with borders for layered styling
 
+## ThemePanelWidget
+
+ThemePanelWidget applies scoped theme mutations to a subtree of widgets.
+
+**[View full ThemePanelWidget documentation →](/guide/widgets/themepanel)**
+
+Key features:
+- Scoped theme mutations with `Func<Hex1bTheme, Hex1bTheme>` API
+- Nested ThemePanels accumulate mutations
+- No visual presence—only affects theming
+- Supports caching and memoization
+
 ## See Also
 
 - [BorderWidget](/guide/widgets/border) - Detailed border documentation
 - [PanelWidget](/guide/widgets/panel) - Detailed panel documentation
+- [ThemePanelWidget](/guide/widgets/themepanel) - Detailed theme panel documentation
 - [HStackWidget](/guide/widgets/hstack) - Horizontal layout container
 - [VStackWidget](/guide/widgets/vstack) - Vertical layout container

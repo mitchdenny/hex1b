@@ -47,16 +47,14 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             var ctx = new RootContext();
 
             var widget = ctx.HSplitter(
-                ctx.Panel(leftPanel => [
-                    leftPanel.VStack(left => [
-                        left.Text("Splitter Examples"),
-                        left.Text("─────────────────"),
-                        left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
-                        left.Text(""),
-                        left.Text("Use ↑↓ to select"),
-                        left.Text("Tab to focus splitter"),
-                        left.Text("←→ or ↑↓ to resize"),
-                    ])
+                ctx.VStack(left => [
+                    left.Text("Splitter Examples"),
+                    left.Text("─────────────────"),
+                    left.List(state.ExampleItems).OnSelectionChanged(e => state.SelectedExampleIndex = e.SelectedIndex),
+                    left.Text(""),
+                    left.Text("Use ↑↓ to select"),
+                    left.Text("Tab to focus splitter"),
+                    left.Text("←→ or ↑↓ to resize"),
                 ]),
                 BuildExampleContent(ctx, state.SelectedExampleId),
                 leftWidth: 22
@@ -83,33 +81,29 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     {
         return ctx.Border(
             ctx.HSplitter(
-                ctx.Panel(left => [
-                    left.VStack(v => [
-                        v.Text("═══ Left Pane ═══"),
-                        v.Text(""),
-                        v.Text("This is the left side").Wrap(),
-                        v.Text("of a horizontal split.").Wrap(),
-                        v.Text(""),
-                        v.Text("The splitter uses a").Wrap(),
-                        v.Text("vertical divider (│)").Wrap(),
-                        v.Text("between panes.").Wrap(),
-                        v.Text(""),
-                        v.Text("Tab to the splitter,").Wrap(),
-                        v.Text("then use ← → arrows").Wrap(),
-                        v.Text("to resize.").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Left Pane ═══"),
+                    v.Text(""),
+                    v.Text("This is the left side").Wrap(),
+                    v.Text("of a horizontal split.").Wrap(),
+                    v.Text(""),
+                    v.Text("The splitter uses a").Wrap(),
+                    v.Text("vertical divider (│)").Wrap(),
+                    v.Text("between panes.").Wrap(),
+                    v.Text(""),
+                    v.Text("Tab to the splitter,").Wrap(),
+                    v.Text("then use ← → arrows").Wrap(),
+                    v.Text("to resize.").Wrap(),
                 ]),
-                ctx.Panel(right => [
-                    right.VStack(v => [
-                        v.Text("═══ Right Pane ═══"),
-                        v.Text(""),
-                        v.Text("This is the right side").Wrap(),
-                        v.Text("of the horizontal split.").Wrap(),
-                        v.Text(""),
-                        v.Text("Both panes share the").Wrap(),
-                        v.Text("full height of the").Wrap(),
-                        v.Text("container.").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Right Pane ═══"),
+                    v.Text(""),
+                    v.Text("This is the right side").Wrap(),
+                    v.Text("of the horizontal split.").Wrap(),
+                    v.Text(""),
+                    v.Text("Both panes share the").Wrap(),
+                    v.Text("full height of the").Wrap(),
+                    v.Text("container.").Wrap(),
                 ]),
                 leftWidth: 28
             ),
@@ -121,26 +115,22 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
     {
         return ctx.Border(
             ctx.VSplitter(
-                ctx.Panel(top => [
-                    top.VStack(v => [
-                        v.Text("═══ Top Pane ═══"),
-                        v.Text(""),
-                        v.Text("This is the top section of a vertical split.").Wrap(),
-                        v.Text("The splitter uses a horizontal divider (───) between panes.").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Top Pane ═══"),
+                    v.Text(""),
+                    v.Text("This is the top section of a vertical split.").Wrap(),
+                    v.Text("The splitter uses a horizontal divider (───) between panes.").Wrap(),
                 ]),
-                ctx.Panel(bottom => [
-                    bottom.VStack(v => [
-                        v.Text("═══ Bottom Pane ═══"),
-                        v.Text(""),
-                        v.Text("This is the bottom section. Tab to the splitter, then").Wrap(),
-                        v.Text("use ↑ ↓ arrows to resize the top/bottom panes.").Wrap(),
-                        v.Text(""),
-                        v.Text("Vertical splits are great for:").Wrap(),
-                        v.Text("• Code editor + terminal").Wrap(),
-                        v.Text("• Main content + status bar").Wrap(),
-                        v.Text("• Preview + properties").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Bottom Pane ═══"),
+                    v.Text(""),
+                    v.Text("This is the bottom section. Tab to the splitter, then").Wrap(),
+                    v.Text("use ↑ ↓ arrows to resize the top/bottom panes.").Wrap(),
+                    v.Text(""),
+                    v.Text("Vertical splits are great for:").Wrap(),
+                    v.Text("• Code editor + terminal").Wrap(),
+                    v.Text("• Main content + status bar").Wrap(),
+                    v.Text("• Preview + properties").Wrap(),
                 ]),
                 topHeight: 6
             ),
@@ -154,32 +144,26 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             ctx.VSplitter(
                 // Top: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
-                        tl.VStack(v => [
-                            v.Text("Top-Left"),
-                            v.Text(""),
-                            v.Text("Horizontal").Wrap(),
-                            v.Text("inside top").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Top-Left"),
+                        v.Text(""),
+                        v.Text("Horizontal").Wrap(),
+                        v.Text("inside top").Wrap(),
                     ]),
-                    ctx.Panel(tr => [
-                        tr.VStack(v => [
-                            v.Text("Top-Right"),
-                            v.Text(""),
-                            v.Text("Both panes").Wrap(),
-                            v.Text("share height").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Top-Right"),
+                        v.Text(""),
+                        v.Text("Both panes").Wrap(),
+                        v.Text("share height").Wrap(),
                     ]),
                     leftWidth: 20
                 ),
                 // Bottom: single panel
-                ctx.Panel(bottom => [
-                    bottom.VStack(v => [
-                        v.Text("═══ Bottom Pane ═══"),
-                        v.Text(""),
-                        v.Text("This demonstrates nesting a horizontal splitter inside the").Wrap(),
-                        v.Text("top pane of a vertical splitter. Great for editor layouts!").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Bottom Pane ═══"),
+                    v.Text(""),
+                    v.Text("This demonstrates nesting a horizontal splitter inside the").Wrap(),
+                    v.Text("top pane of a vertical splitter. Great for editor layouts!").Wrap(),
                 ]),
                 topHeight: 8
             ),
@@ -192,37 +176,31 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
         return ctx.Border(
             ctx.HSplitter(
                 // Left: single panel
-                ctx.Panel(left => [
-                    left.VStack(v => [
-                        v.Text("═══ Left ═══"),
-                        v.Text(""),
-                        v.Text("Sidebar").Wrap(),
-                        v.Text("content").Wrap(),
-                        v.Text("goes here").Wrap(),
-                        v.Text(""),
-                        v.Text("This is the").Wrap(),
-                        v.Text("outer left").Wrap(),
-                        v.Text("pane of a").Wrap(),
-                        v.Text("horizontal").Wrap(),
-                        v.Text("splitter.").Wrap(),
-                    ])
+                ctx.VStack(v => [
+                    v.Text("═══ Left ═══"),
+                    v.Text(""),
+                    v.Text("Sidebar").Wrap(),
+                    v.Text("content").Wrap(),
+                    v.Text("goes here").Wrap(),
+                    v.Text(""),
+                    v.Text("This is the").Wrap(),
+                    v.Text("outer left").Wrap(),
+                    v.Text("pane of a").Wrap(),
+                    v.Text("horizontal").Wrap(),
+                    v.Text("splitter.").Wrap(),
                 ]),
                 // Right: vertical splitter
                 ctx.VSplitter(
-                    ctx.Panel(rt => [
-                        rt.VStack(v => [
-                            v.Text("Right-Top"),
-                            v.Text(""),
-                            v.Text("Vertical splitter").Wrap(),
-                            v.Text("inside right pane").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Right-Top"),
+                        v.Text(""),
+                        v.Text("Vertical splitter").Wrap(),
+                        v.Text("inside right pane").Wrap(),
                     ]),
-                    ctx.Panel(rb => [
-                        rb.VStack(v => [
-                            v.Text("Right-Bottom"),
-                            v.Text(""),
-                            v.Text("Great for file tree + editor + terminal layouts!").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("Right-Bottom"),
+                        v.Text(""),
+                        v.Text("Great for file tree + editor + terminal layouts!").Wrap(),
                     ]),
                     topHeight: 6
                 ),
@@ -238,41 +216,33 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
             ctx.VSplitter(
                 // Top row: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(tl => [
-                        tl.VStack(v => [
-                            v.Text("┌─ Quad 1 ─┐"),
-                            v.Text("Top-Left"),
-                            v.Text(""),
-                            v.Text("Navigator").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("┌─ Quad 1 ─┐"),
+                        v.Text("Top-Left"),
+                        v.Text(""),
+                        v.Text("Navigator").Wrap(),
                     ]),
-                    ctx.Panel(tr => [
-                        tr.VStack(v => [
-                            v.Text("┌─ Quad 2 ─┐"),
-                            v.Text("Top-Right"),
-                            v.Text(""),
-                            v.Text("Editor").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("┌─ Quad 2 ─┐"),
+                        v.Text("Top-Right"),
+                        v.Text(""),
+                        v.Text("Editor").Wrap(),
                     ]),
                     leftWidth: 20
                 ),
                 // Bottom row: horizontal splitter
                 ctx.HSplitter(
-                    ctx.Panel(bl => [
-                        bl.VStack(v => [
-                            v.Text("┌─ Quad 3 ─┐"),
-                            v.Text("Bottom-Left"),
-                            v.Text(""),
-                            v.Text("Terminal").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("┌─ Quad 3 ─┐"),
+                        v.Text("Bottom-Left"),
+                        v.Text(""),
+                        v.Text("Terminal").Wrap(),
                     ]),
-                    ctx.Panel(br => [
-                        br.VStack(v => [
-                            v.Text("┌─ Quad 4 ─┐"),
-                            v.Text("Bottom-Right"),
-                            v.Text(""),
-                            v.Text("Output").Wrap(),
-                        ])
+                    ctx.VStack(v => [
+                        v.Text("┌─ Quad 4 ─┐"),
+                        v.Text("Bottom-Right"),
+                        v.Text(""),
+                        v.Text("Output").Wrap(),
                     ]),
                     leftWidth: 20
                 ),

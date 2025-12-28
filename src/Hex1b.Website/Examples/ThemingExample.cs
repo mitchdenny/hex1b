@@ -82,42 +82,38 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             
             var widget = ctx.VStack(root => [
                 root.HSplitter(
-                    root.Panel(leftPanel => [
-                        leftPanel.VStack(left => [
-                            left.Text("═══ Themes ═══"),
-                            left.Text(""),
-                            left.List(state.ThemeItems).OnSelectionChanged(e => state.SelectedThemeIndex = e.SelectedIndex)
-                        ])
+                    root.VStack(left => [
+                        left.Text("═══ Themes ═══"),
+                        left.Text(""),
+                        left.List(state.ThemeItems).OnSelectionChanged(e => state.SelectedThemeIndex = e.SelectedIndex)
                     ]),
                     root.Layout(
-                        root.Panel(rightPanel => [
-                            rightPanel.VStack(right => [
-                                right.Text("═══ Widget Preview ═══"),
-                                right.Text(""),
-                                right.Border(b => [
-                                    b.Text("  Content inside border"),
-                                    b.Text("  with multiple lines")
-                                ], title: "Border"),
-                                right.Text(""),
-                                right.Panel(p => [
-                                    p.Text("  Panel with styled background"),
-                                    p.Text("  (theme-dependent colors)")
-                                ]),
-                                right.Text(""),
-                                right.Text("TextBox (Tab to focus):"),
-                                right.TextBox(state.SampleTextBox).OnTextChanged(args => state.SampleTextBox = args.NewText),
-                                right.Text(""),
-                                right.Text("Button:"),
-                                right.Button(
-                                    state.ButtonClicked ? "Clicked!" : "Click Me")
-                                    .OnClick(_ => state.ButtonClicked = !state.ButtonClicked),
-                                right.Text(""),
-                                right.Text("Toggle Switch (←/→ to change):"),
-                                right.ToggleSwitch(["Manual", "Auto", "Delayed"]),
-                                right.Text(""),
-                                right.Text("InfoBar (shown at bottom):"),
-                                right.Text("  Displays theme name & hints")
-                            ])
+                        root.VStack(right => [
+                            right.Text("═══ Widget Preview ═══"),
+                            right.Text(""),
+                            right.Border(b => [
+                                b.Text("  Content inside border"),
+                                b.Text("  with multiple lines")
+                            ], title: "Border"),
+                            right.Text(""),
+                            right.Panel(p => [
+                                p.Text("  Panel with styled background"),
+                                p.Text("  (theme-dependent colors)")
+                            ]),
+                            right.Text(""),
+                            right.Text("TextBox (Tab to focus):"),
+                            right.TextBox(state.SampleTextBox).OnTextChanged(args => state.SampleTextBox = args.NewText),
+                            right.Text(""),
+                            right.Text("Button:"),
+                            right.Button(
+                                state.ButtonClicked ? "Clicked!" : "Click Me")
+                                .OnClick(_ => state.ButtonClicked = !state.ButtonClicked),
+                            right.Text(""),
+                            right.Text("Toggle Switch (←/→ to change):"),
+                            right.ToggleSwitch(["Manual", "Auto", "Delayed"]),
+                            right.Text(""),
+                            right.Text("InfoBar (shown at bottom):"),
+                            right.Text("  Displays theme name & hints")
                         ]),
                         ClipMode.Clip
                     ),

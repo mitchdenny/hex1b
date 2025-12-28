@@ -23,22 +23,18 @@ public class SplitterVerticalExample(ILogger<SplitterVerticalExample> logger) : 
         {
             var ctx = new RootContext();
             return ctx.VSplitter(
-                ctx.Panel(top => [
-                    top.VStack(v => [
-                        v.Text("Top Pane"),
-                        v.Text(""),
-                        v.Text("This is the top section of a vertical split.").Wrap()
-                    ])
+                ctx.VStack(v => [
+                    v.Text("Top Pane"),
+                    v.Text(""),
+                    v.Text("This is the top section of a vertical split.").Wrap()
                 ]),
-                ctx.Panel(bottom => [
-                    bottom.VStack(v => [
-                        v.Text("Bottom Pane"),
-                        v.Text(""),
-                        v.Text("This is the bottom section. Tab to the splitter,").Wrap(),
-                        v.Text("then use ↑ ↓ to resize the top/bottom panes.").Wrap(),
-                        v.Text(""),
-                        v.Text("Great for editor + terminal layouts.").Wrap()
-                    ])
+                ctx.VStack(v => [
+                    v.Text("Bottom Pane"),
+                    v.Text(""),
+                    v.Text("This is the bottom section. Tab to the splitter,").Wrap(),
+                    v.Text("then use ↑ ↓ to resize the top/bottom panes.").Wrap(),
+                    v.Text(""),
+                    v.Text("Great for editor + terminal layouts.").Wrap()
                 ]),
                 topHeight: 5
             );

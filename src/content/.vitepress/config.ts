@@ -57,6 +57,7 @@ export default defineConfig({
             { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
             { text: 'Text', link: '/guide/widgets/text' },
             { text: 'TextBox', link: '/guide/widgets/textbox' },
+            { text: 'ThemePanel', link: '/guide/widgets/themepanel' },
             { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' }
           ]
         }

@@ -83,6 +83,9 @@ builder.Services.AddSingleton<IGalleryExample, SplitterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterVerticalExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterNestedExample>();
 
+// Register ThemePanel widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ThemePanelBasicExample>();
+
 // Register Scroll widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, ScrollBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ScrollHorizontalExample>();

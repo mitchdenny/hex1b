@@ -36,20 +36,16 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left: Panel with List
-                        root.Panel(leftPanel => [
-                            leftPanel.VStack(left => [
-                                left.Text("═══ Themes ═══"),
-                                left.List(items)
-                            ])
+                        // Left: VStack with List
+                        root.VStack(left => [
+                            left.Text("═══ Themes ═══"),
+                            left.List(items)
                         ]),
-                        // Right: Layout -> Panel -> VStack -> TextBox
+                        // Right: Layout -> VStack -> TextBox
                         root.Layout(
-                            root.Panel(rightPanel => [
-                                rightPanel.VStack(right => [
-                                    right.Text("═══ Widget Preview ═══"),
-                                    right.TextBox("Sample text")
-                                ])
+                            root.VStack(right => [
+                                right.Text("═══ Widget Preview ═══"),
+                                right.TextBox("Sample text")
                             ]),
                             ClipMode.Clip
                         ),
@@ -239,28 +235,24 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left pane: Panel containing a VStack with List
-                        root.Panel(leftPanel => [
-                            leftPanel.VStack(left => [
-                                left.Text("═══ Themes ═══"),
-                                left.Text(""),
-                                left.List(items)
-                            ])
+                        // Left pane: VStack with List
+                        root.VStack(left => [
+                            left.Text("═══ Themes ═══"),
+                            left.Text(""),
+                            left.List(items)
                         ]),
-                        // Right pane: Layout -> Panel -> VStack with TextBox and Button
+                        // Right pane: Layout -> VStack with TextBox and Button
                         root.Layout(
-                            root.Panel(rightPanel => [
-                                rightPanel.VStack(right => [
-                                    right.Text("═══ Widget Preview ═══"),
-                                    right.Text(""),
-                                    right.Text("TextBox (Tab to focus):"),
-                                    right.TextBox("Sample text"),
-                                    right.Text(""),
-                                    right.Text("Button:"),
-                                    right.Button(
-                                        buttonClicked ? "Clicked!" : "Click Me")
-                                        .OnClick(_ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
-                                ])
+                            root.VStack(right => [
+                                right.Text("═══ Widget Preview ═══"),
+                                right.Text(""),
+                                right.Text("TextBox (Tab to focus):"),
+                                right.TextBox("Sample text"),
+                                right.Text(""),
+                                right.Text("Button:"),
+                                right.Button(
+                                    buttonClicked ? "Clicked!" : "Click Me")
+                                    .OnClick(_ => { buttonClicked = !buttonClicked; return Task.CompletedTask; })
                             ]),
                             ClipMode.Clip
                         ),
