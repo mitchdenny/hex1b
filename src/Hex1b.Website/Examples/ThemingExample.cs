@@ -29,19 +29,9 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
         public string SampleTextBox { get; set; } = "Sample text";
         public bool ButtonClicked { get; set; }
         
-        // Cached enhanced theme to avoid creating new instances on every render
-        private int _cachedThemeIndex = -1;
-        private Hex1bTheme? _cachedEnhancedTheme;
-        
-        public Hex1bTheme GetEnhancedTheme()
+        public Hex1bTheme GetCurrentTheme()
         {
-            // Only create a new enhanced theme when the selection changes
-            if (_cachedThemeIndex != SelectedThemeIndex || _cachedEnhancedTheme is null)
-            {
-                _cachedThemeIndex = SelectedThemeIndex;
-                _cachedEnhancedTheme = CreateThemeWithPanelBackgrounds(Themes[SelectedThemeIndex]);
-            }
-            return _cachedEnhancedTheme;
+            return Themes[SelectedThemeIndex];
         }
     }
 
@@ -96,10 +86,10 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                                 b.Text("  with multiple lines")
                             ], title: "Border"),
                             right.Text(""),
-                            right.Panel(p => [
-                                p.Text("  Panel with styled background"),
-                                p.Text("  (theme-dependent colors)")
-                            ]),
+                            right.Border(b => [
+                                b.Text("  Content in another border"),
+                                b.Text("  (theme-dependent styling)")
+                            ], title: "More"),
                             right.Text(""),
                             right.Text("TextBox (Tab to focus):"),
                             right.TextBox(state.SampleTextBox).OnTextChanged(args => state.SampleTextBox = args.NewText),
@@ -129,49 +119,10 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
     public override Func<Hex1bTheme>? CreateThemeProvider()
     {
         var session = _currentSession!;
-        return () => session.GetEnhancedTheme();
+        return () => session.GetCurrentTheme();
     }
 
-    /// <summary>
-    /// Creates a theme that wraps the selected theme and adds complementary panel background colors.
-    /// </summary>
-    private static Hex1bTheme CreateThemeWithPanelBackgrounds(Hex1bTheme baseTheme)
-    {
-        // Get accent color from the base theme (use selected background as the primary accent)
-        var accentColor = baseTheme.Get(ListTheme.SelectedBackgroundColor);
-        
-        // Create a darker, desaturated version of the accent for the panel background
-        var panelBg = CreateComplementaryBackground(accentColor);
-        
-        // Clone the base theme and set our panel background
-        return baseTheme.Clone($"{baseTheme.Name} (Enhanced)")
-            .Set(PanelTheme.BackgroundColor, panelBg);
-    }
 
-    /// <summary>
-    /// Creates a darker, more subdued background color that complements the given accent color.
-    /// </summary>
-    private static Hex1bColor CreateComplementaryBackground(Hex1bColor accentColor)
-    {
-        if (accentColor.IsDefault)
-        {
-            // For default color, use a subtle dark gray
-            return Hex1bColor.FromRgb(20, 20, 25);
-        }
-
-        // Create a very dark version of the accent color (around 10-15% brightness)
-        // This keeps the hue but makes it suitable as a background
-        var r = (byte)(accentColor.R * 0.12);
-        var g = (byte)(accentColor.G * 0.12);
-        var b = (byte)(accentColor.B * 0.12);
-        
-        // Ensure minimum brightness so it's not pure black
-        r = Math.Max(r, (byte)8);
-        g = Math.Max(g, (byte)8);
-        b = Math.Max(b, (byte)8);
-        
-        return Hex1bColor.FromRgb(r, g, b);
-    }
 
     private static Hex1bTheme CreateForestTheme()
     {
@@ -194,9 +145,6 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             // Border
             .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(34, 139, 34))
             .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(144, 238, 144))
-            // Panel
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 50, 0))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(144, 238, 144))
             // ToggleSwitch
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(34, 139, 34))
@@ -238,9 +186,6 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             .Set(BorderTheme.BottomRightCorner, "╝")
             .Set(BorderTheme.HorizontalLine, "═")
             .Set(BorderTheme.VerticalLine, "║")
-            // Panel
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 0, 30))
-            .Set(PanelTheme.ForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
             // ToggleSwitch
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))

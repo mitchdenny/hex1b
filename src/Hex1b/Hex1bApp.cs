@@ -389,8 +389,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// - If a node is dirty, render it (which includes its children)
     /// - If a node is clean but has dirty descendants, traverse children
     /// - If a subtree is entirely clean, skip it
+    /// Theme mutations from ThemePanelNodes are tracked and applied during traversal.
     /// </remarks>
-    private void RenderTree(Hex1bNode node)
+    private void RenderTree(Hex1bNode node, Theming.Hex1bTheme? currentTheme = null)
     {
         // If this subtree has no dirty nodes, skip it entirely
         if (!node.NeedsRender())
@@ -398,18 +399,32 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             return;
         }
         
+        // Track theme mutations from ThemePanelNode
+        var effectiveTheme = currentTheme ?? _context.Theme;
+        if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
+        {
+            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme);
+        }
+        
         // If this specific node is dirty, render it (and its children)
         if (node.IsDirty)
         {
+            // Apply the effective theme before rendering
+            var originalTheme = _context.Theme;
+            _context.Theme = effectiveTheme;
+            
             _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
             node.Render(_context);
+            
+            // Restore original theme
+            _context.Theme = originalTheme;
             return;
         }
         
-        // Node is clean but has dirty descendants - traverse children
+        // Node is clean but has dirty descendants - traverse children with the current theme
         foreach (var child in node.GetChildren())
         {
-            RenderTree(child);
+            RenderTree(child, effectiveTheme);
         }
     }
     
@@ -417,7 +432,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Recursively clears dirty regions in the node tree.
     /// For each dirty node, clears the union of its previous and current bounds,
     /// intersected with any active clip rect from ancestor layout providers.
-    /// Tracks inherited background color from PanelNodes to ensure proper clearing.
+    /// Tracks inherited background color from ThemePanelNodes to ensure proper clearing.
     /// </summary>
     private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Hex1bColor? inheritedBackground = null)
     {
@@ -430,14 +445,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 : layoutProvider.ClipRect;
         }
         
-        // Track inherited background from PanelNode
+        // Track inherited background from ThemePanelNode
         var effectiveBackground = inheritedBackground;
-        if (node is PanelNode)
+        if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
         {
-            var panelBg = _context.Theme.Get(PanelTheme.BackgroundColor);
-            if (!panelBg.IsDefault)
+            // Apply the theme mutator to see what background it sets
+            var mutatedTheme = themePanelNode.ThemeMutator(_context.Theme);
+            var themeBg = mutatedTheme.Get(Theming.GlobalTheme.BackgroundColor);
+            if (!themeBg.IsDefault)
             {
-                effectiveBackground = panelBg;
+                effectiveBackground = themeBg;
             }
         }
         

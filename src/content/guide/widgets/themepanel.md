@@ -2,6 +2,12 @@
 import basicSnippet from './snippets/themepanel-basic.cs?raw'
 import buttonSnippet from './snippets/themepanel-button.cs?raw'
 import nestedSnippet from './snippets/themepanel-nested.cs?raw'
+import buttonThemedSnippet from './snippets/themepanel-button-themed.cs?raw'
+import nestingSnippet from './snippets/themepanel-nesting.cs?raw'
+import dangerSnippet from './snippets/themepanel-danger.cs?raw'
+import infoSnippet from './snippets/themepanel-info.cs?raw'
+import successSnippet from './snippets/themepanel-success.cs?raw'
+import borderSnippet from './snippets/themepanel-border.cs?raw'
 
 const basicCode = `using Hex1b;
 using Hex1b.Theming;
@@ -32,7 +38,7 @@ ThemePanelWidget allows you to override specific theme values for a child widget
 
 Create a ThemePanel with a theme mutator function using the fluent API:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="themepanel-basic" exampleTitle="ThemePanel Widget - Basic Usage" />
 
 ::: tip Functional API
 ThemePanelWidget uses a `Func<Hex1bTheme, Hex1bTheme>` pattern. Your function receives the current theme and returns a modified copy. Use `.Clone()` to create a new theme instance before applying modifications.
@@ -69,15 +75,7 @@ ThemePanels work with interactive widgets like buttons:
 
 You can customize any theme element within the ThemePanel scope:
 
-```csharp
-ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(0, 100, 0))
-        .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
-        .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Green),
-    ctx.Button("Themed Button", () => { /* action */ })
-)
-```
+<StaticTerminalPreview svgPath="/svg/themepanel-button-themed.svg" :code="buttonThemedSnippet" />
 
 ## Nesting ThemePanels
 
@@ -87,22 +85,7 @@ ThemePanels can be nested to create layered theme overrides:
 
 Each nested ThemePanel starts with the theme from its parent context and applies additional mutations:
 
-```csharp
-ctx.ThemePanel(
-    outer => outer.Clone()
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-    ctx.VStack(v => [
-        v.Text("Outer theme applies here"),
-        v.ThemePanel(
-            inner => inner.Clone()
-                .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(0, 0, 139)),
-            // Inner has Cyan foreground (inherited) + dark blue background
-            v.Text("Both themes combined")
-        ),
-        v.Text("Only outer theme here")
-    ])
-)
-```
+<StaticTerminalPreview svgPath="/svg/themepanel-nesting.svg" :code="nestingSnippet" />
 
 ## VStack Builder Overload
 
@@ -141,78 +124,27 @@ ThemePanelWidget is not focusable:
 
 Create visually distinct danger areas:
 
-```csharp
-ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(139, 0, 0))
-        .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red)
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Red),
-    ctx.VStack(v => [
-        v.Text("⚠ Danger Zone"),
-        v.Button("Delete Everything", async () => { /* ... */ })
-    ])
-)
-```
+<StaticTerminalPreview svgPath="/svg/themepanel-danger.svg" :code="dangerSnippet" />
 
 ### Information Sections
 
 Highlight informational content:
 
-```csharp
-ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan)
-        .Set(BorderTheme.BorderColor, Hex1bColor.Cyan),
-    ctx.Border(b => [
-        b.Text("ℹ Info: This is helpful information.")
-    ], title: "Info")
-)
-```
+<StaticTerminalPreview svgPath="/svg/themepanel-info.svg" :code="infoSnippet" />
 
 ### Success Feedback
 
 Style success states:
 
-```csharp
-ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
-    ctx.VStack(v => [
-        v.Text("✓ Operation completed successfully"),
-        v.Text("All files have been saved.")
-    ])
-)
-```
+<StaticTerminalPreview svgPath="/svg/themepanel-success.svg" :code="successSnippet" />
 
-### Combined with Panel
+### Combined with Border
 
-ThemePanel pairs well with PanelWidget for background colors:
+ThemePanel pairs well with BorderWidget for styled containers:
 
-```csharp
-ctx.ThemePanel(
-    theme => theme.Clone()
-        .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(0, 0, 139))
-        .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
-    ctx.Panel(
-        ctx.VStack(v => [
-            v.Text("Content with themed background")
-        ])
-    )
-)
-```
-
-## Comparison with PanelWidget
-
-| Feature | ThemePanelWidget | PanelWidget |
-|---------|------------------|-------------|
-| Purpose | Theme scoping | Visual background |
-| Draws background | No | Yes |
-| Modifies theme | Yes (any element) | Yes (colors only) |
-| Size overhead | None | None |
-| Nesting effect | Cumulative mutations | Independent backgrounds |
+<StaticTerminalPreview svgPath="/svg/themepanel-border.svg" :code="borderSnippet" />
 
 ## Related Widgets
 
-- [PanelWidget](/guide/widgets/panel) - For visual backgrounds
 - [BorderWidget](/guide/widgets/border) - For decorative borders
 - [Theming Guide](/guide/theming) - Comprehensive theming documentation

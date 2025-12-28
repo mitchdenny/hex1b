@@ -124,22 +124,22 @@ public class ThemingExhibitRepro
         var layout = new LayoutNode();
         // layout.Parent is NOT set yet during its child's reconcile!
         
-        // 3. Start reconciling Panel as child of Layout
-        var panel = new PanelNode();
+        // 3. Start reconciling a nested Layout as child of Layout
+        var nestedLayout = new LayoutNode();
         
         // 4. The issue: during VStack reconciliation, walking up the Parent chain
-        //    would only see: panel -> null
-        //    because panel.Parent hasn't been set yet!
+        //    would only see: nestedLayout -> null
+        //    because nestedLayout.Parent hasn't been set yet!
         
         Assert.Null(layout.Parent); // Demonstrates that Parent is not set during child reconcile
-        Assert.Null(panel.Parent);  // Same issue
+        Assert.Null(nestedLayout.Parent);  // Same issue
         
         // After reconcile would complete, parents would be set:
-        panel.Parent = layout;
+        nestedLayout.Parent = layout;
         layout.Parent = splitter;
         
         // Now the tree is correct:
-        Assert.Equal(layout, panel.Parent);
+        Assert.Equal(layout, nestedLayout.Parent);
         Assert.Equal(splitter, layout.Parent);
         
         // The FIX: ReconcileContext now stores the full ancestor chain internally,

@@ -19,7 +19,6 @@ public class TerminalAnsiRenderingTests
         using var terminal = new Hex1bTerminal(workload, 40, 10);
 
         var theme = new Hex1bTheme("Test")
-            .Set(PanelTheme.BackgroundColor, Hex1bColor.FromRgb(30, 30, 60))
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(0, 100, 200))
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.FromRgb(255, 255, 255));
 

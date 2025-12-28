@@ -46,7 +46,7 @@ export default defineConfig({
         {
           text: 'Widgets',
           items: [
-            { text: 'Border & Panel', link: '/guide/widgets/containers' },
+            { text: 'Border & ThemePanel', link: '/guide/widgets/containers' },
             { text: 'Button', link: '/guide/widgets/button' },
             { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
             { text: 'List', link: '/guide/widgets/list' },

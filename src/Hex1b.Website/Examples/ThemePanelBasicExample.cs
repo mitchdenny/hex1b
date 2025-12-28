@@ -6,66 +6,103 @@ using Microsoft.Extensions.Logging;
 namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// ThemePanel Widget Documentation: Basic Usage
-/// Demonstrates scoped theme mutations with ThemePanelWidget.
+/// ThemePanel Widget Documentation: Dangerous Settings Panel
+/// Demonstrates scoped theme mutations with a realistic settings UI.
 /// </summary>
-/// <remarks>
-/// MIRROR WARNING: This example must stay in sync with the basicCode sample in:
-/// src/content/guide/widgets/themepanel.md
-/// When updating code here, update the corresponding markdown and vice versa.
-/// </remarks>
 public class ThemePanelBasicExample(ILogger<ThemePanelBasicExample> logger) : Hex1bExample
 {
     private readonly ILogger<ThemePanelBasicExample> _logger = logger;
 
     public override string Id => "themepanel-basic";
-    public override string Title => "ThemePanel Widget - Basic Usage";
-    public override string Description => "Demonstrates scoped theme mutations";
+    public override string Title => "ThemePanel - Dangerous Settings";
+    public override string Description => "A settings panel with dangerous options styled using ThemePanel";
 
-    private class ThemePanelState
+    private class SettingsState
     {
-        public int ClickCount { get; set; }
+        public bool TelemetryEnabled { get; set; } = true;
+        public bool AutoUpdates { get; set; } = true;
+        public string DataPath { get; set; } = "/var/data";
+        public bool ConfirmDelete { get; set; }
+        public bool FactoryReset { get; set; }
+        public string StatusMessage { get; set; } = "Ready";
     }
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating themepanel basic example widget builder");
+        _logger.LogInformation("Creating themepanel dangerous settings example");
 
-        var state = new ThemePanelState();
+        var state = new SettingsState();
+
+        // Danger zone theme mutator
+        Func<Hex1bTheme, Hex1bTheme> dangerTheme = theme => theme.Clone()
+            .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(255, 100, 100))
+            .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(180, 0, 0))
+            .Set(BorderTheme.TitleColor, Hex1bColor.Red)
+            .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(100, 0, 0))
+            .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
+            .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red)
+            .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.White)
+            .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Red)
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(100, 0, 0))
+            .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.Red);
 
         return () =>
         {
             var ctx = new RootContext();
             return ctx.VStack(v => [
-                v.Text("ThemePanel Examples"),
+                v.Border(b => [
+                    b.Text("  General Settings"),
+                    b.Text(""),
+                    b.HStack(h => [
+                        h.Text("Telemetry:    "),
+                        h.ToggleSwitch(["Off", "On"], state.TelemetryEnabled ? 1 : 0)
+                            .OnSelectionChanged(e => state.TelemetryEnabled = e.SelectedIndex == 1)
+                    ]),
+                    b.HStack(h => [
+                        h.Text("Auto-updates: "),
+                        h.ToggleSwitch(["Off", "On"], state.AutoUpdates ? 1 : 0)
+                            .OnSelectionChanged(e => state.AutoUpdates = e.SelectedIndex == 1)
+                    ]),
+                    b.Text(""),
+                    b.Text("  Data Path:"),
+                    b.TextBox(state.DataPath).OnTextChanged(e => state.DataPath = e.NewText)
+                ], title: "⚙ Settings"),
+                
                 v.Text(""),
-                v.Text("Default theme text"),
+                
+                v.ThemePanel(dangerTheme, danger => [
+                    danger.Border(db => [
+                        db.Text("  These actions cannot be undone!"),
+                        db.Text(""),
+                        db.HStack(h => [
+                            h.Text("Delete all data: "),
+                            h.ToggleSwitch(["No", "Yes"], state.ConfirmDelete ? 1 : 0)
+                                .OnSelectionChanged(e => {
+                                    state.ConfirmDelete = e.SelectedIndex == 1;
+                                    if (state.ConfirmDelete) state.StatusMessage = "⚠ Delete confirmed!";
+                                })
+                        ]),
+                        db.HStack(h => [
+                            h.Text("Factory reset:   "),
+                            h.ToggleSwitch(["No", "Yes"], state.FactoryReset ? 1 : 0)
+                                .OnSelectionChanged(e => {
+                                    state.FactoryReset = e.SelectedIndex == 1;
+                                    if (state.FactoryReset) state.StatusMessage = "⚠ Reset confirmed!";
+                                })
+                        ]),
+                        db.Text(""),
+                        db.Button("☠ Wipe Everything").OnClick(_ => {
+                            state.StatusMessage = "💥 All data destroyed!";
+                            state.ConfirmDelete = false;
+                            state.FactoryReset = false;
+                        })
+                    ], title: "⚠ DANGER ZONE")
+                ]),
+                
                 v.Text(""),
-                v.ThemePanel(
-                    theme => theme.Clone()
-                        .Set(GlobalTheme.ForegroundColor, Hex1bColor.Yellow)
-                        .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(0, 0, 139)),
-                    v.VStack(inner => [
-                        inner.Text("Themed content"),
-                        inner.Text("Yellow on dark blue")
-                    ])
-                ),
+                v.Text($"Status: {state.StatusMessage}"),
                 v.Text(""),
-                v.Text("Back to default theme"),
-                v.Text(""),
-                v.ThemePanel(
-                    theme => theme.Clone()
-                        .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(139, 0, 0))
-                        .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red)
-                        .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
-                        .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.White),
-                    v.VStack(danger => [
-                        danger.Text("⚠ Danger Zone"),
-                        danger.Button($"Danger Button ({state.ClickCount})").OnClick(_ => state.ClickCount++)
-                    ])
-                ),
-                v.Text(""),
-                v.Text("Press Tab to focus, Enter to click")
+                v.Text("Tab: Navigate  Enter: Activate  ←→: Toggle")
             ]);
         };
     }

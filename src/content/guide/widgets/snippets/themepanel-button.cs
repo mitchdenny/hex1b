@@ -4,6 +4,6 @@ ctx.ThemePanel(
         .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Red),
     ctx.VStack(v => [
         v.Text("Theme mutations applied"),
-        v.Button("Danger Button", () => { })
+        v.Button("Danger Button")
     ])
 )
