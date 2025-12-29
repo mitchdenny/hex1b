@@ -1,0 +1,27 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Hex1b -> C:\Code\hex1b\src\Hex1b\bin\Debug\net10.0\Hex1b.dll
+  Hex1b.Tests -> C:\Code\hex1b\tests\Hex1b.Tests\bin\Debug\net10.0\Hex1b.Tests.dll
+Test run for C:\Code\hex1b\tests\Hex1b.Tests\bin\Debug\net10.0\Hex1b.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+C:\Code\hex1b\tests\Hex1b.Tests\bin\Debug\net10.0\Hex1b.Tests.dll
+[xUnit.net 00:00:00.01] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.1)
+[xUnit.net 00:00:00.35]   Discovering: Hex1b.Tests
+[xUnit.net 00:00:01.36]   Discovered:  Hex1b.Tests
+[xUnit.net 00:00:01.66]   Starting:    Hex1b.Tests
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_ListSelection_OnlyUpdatesChangedRows [294 ms]
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_NodeReplacement_ClearsOldRegion [199 ms]
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_ButtonClick_OnlyUpdatesButtonCell [135 ms]
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_HSplitter_DragDoesNotRepaintEntireScreen [310 ms]
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_HSplitter_MoveLeft_UpdatesOnlyTwoColumns [225 ms]
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_IdenticalFrames_NoOutputAfterFirst [173 ms]
+[xUnit.net 00:00:03.29]   Finished:    Hex1b.Tests (ID = '106d659a0b72fb041c794d5079a7375ee3caf3f62eba8137d578e6039af5f5be')
+  Passed Hex1b.Tests.DeltaEncodingFilterIntegrationTests.DeltaFilter_Counter_OnlyUpdatesNumberDisplay [179 ms]
+
+Test Run Successful.
+Total tests: 7
+     Passed: 7
+ Total time: 4.0463 Seconds

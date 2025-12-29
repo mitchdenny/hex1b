@@ -48,6 +48,22 @@ public class Hex1bRenderContext
     /// </summary>
     public TerminalCapabilities Capabilities => _adapter.Capabilities;
     
+    // Frame boundary tokens (APC format: ESC _ content ESC \)
+    private const string FrameBeginSequence = "\x1b_HEX1B:FRAME:BEGIN\x1b\\";
+    private const string FrameEndSequence = "\x1b_HEX1B:FRAME:END\x1b\\";
+    
+    /// <summary>
+    /// Signals the beginning of a render frame to the presentation filter pipeline.
+    /// When frame buffering is enabled, updates are accumulated until <see cref="EndFrame"/> is called.
+    /// </summary>
+    public void BeginFrame() => _adapter.Write(FrameBeginSequence);
+    
+    /// <summary>
+    /// Signals the end of a render frame. The presentation filter pipeline will emit
+    /// only the net changes between this frame and the previous committed frame.
+    /// </summary>
+    public void EndFrame() => _adapter.Write(FrameEndSequence);
+    
     /// <summary>
     /// Clears a rectangular region by writing spaces.
     /// Used for dirty region clearing to avoid full-screen flicker.

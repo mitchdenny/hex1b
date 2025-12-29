@@ -353,6 +353,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             _context.Write("\x1b[?25l"); // Hide cursor
         }
 
+        // Step 6.6: Begin frame buffering - all changes from here until EndFrame
+        // will be accumulated in the DeltaEncodingFilter and emitted as net changes
+        _context.BeginFrame();
+
         // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
         // On first frame or when root is new, do a full clear
         if (_isFirstFrame)
@@ -373,6 +377,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Step 9: Render mouse cursor overlay if enabled
         RenderMouseCursor();
+        
+        // Step 9.5: End frame buffering - DeltaEncodingFilter will now emit only
+        // the net changes (e.g., clear + re-render same content = no output)
+        _context.EndFrame();
         
         // Step 10: Clear dirty flags on all nodes (they've been rendered)
         if (_rootNode != null)

@@ -6,7 +6,7 @@ namespace Hex1b.Tokens;
 /// <remarks>
 /// <para>
 /// This token is used internally by Hex1bApp to bracket render operations.
-/// When a <see cref="DeltaEncodingFilter"/> (or similar filter) receives this token,
+/// When a <see cref="Terminal.DeltaEncodingFilter"/> (or similar filter) receives this token,
 /// it enters "buffering mode" where updates are accumulated but not emitted until
 /// the corresponding <see cref="FrameEndToken"/> is received.
 /// </para>
