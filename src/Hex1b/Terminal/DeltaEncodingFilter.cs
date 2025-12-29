@@ -41,6 +41,10 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
     private int _width;
     private int _height;
     private bool _forceFullRefresh;
+    
+    // Frame buffering state
+    private bool _isBuffering;
+    private List<AnsiToken>? _bufferedControlTokens;
 
     /// <summary>
     /// Represents a cell in the shadow buffer, containing only the visual properties needed for comparison.
@@ -79,11 +83,13 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         TimeSpan elapsed,
         CancellationToken ct = default)
     {
+        // Handle force full refresh (first frame or after resize)
         if (_pendingBuffer is null || _committedBuffer is null || _forceFullRefresh)
         {
             _forceFullRefresh = false;
             
             // Update both buffers with all impacts, then pass through tokens
+            // (excluding internal frame boundary tokens)
             foreach (var appliedToken in appliedTokens)
             {
                 foreach (var impact in appliedToken.CellImpacts)
@@ -99,80 +105,222 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
             
             // Prepend an SGR reset to ensure clean state after resize
             // This prevents leftover colors/attributes from bleeding into new content
+            // Filter out internal frame tokens - they're not meant for the terminal
             var result = new List<AnsiToken> { new SgrToken("0") };
-            result.AddRange(appliedTokens.Select(at => at.Token));
+            result.AddRange(appliedTokens
+                .Select(at => at.Token)
+                .Where(t => t is not FrameBeginToken and not FrameEndToken));
             return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(result);
         }
 
-        // Collect control tokens that should always pass through
-        var controlTokens = new List<AnsiToken>();
-        var changedCells = new List<ChangedCell>();
+        // Accumulate results for immediate mode processing
+        List<AnsiToken>? immediateResults = null;
 
+        // Process each token
         foreach (var appliedToken in appliedTokens)
         {
             var token = appliedToken.Token;
             
-            // Handle special tokens that affect display but don't have cell impacts
+            // Check for frame boundary tokens first
             switch (token)
             {
-                case ClearScreenToken clearToken:
-                    // Clear screen - update both buffers and pass through
-                    ClearBuffer(_pendingBuffer, clearToken.Mode);
-                    ClearBuffer(_committedBuffer, clearToken.Mode);
-                    controlTokens.Add(token);
+                case FrameBeginToken:
+                    // If already buffering, flush previous frame first (handles unmatched begin)
+                    if (_isBuffering)
+                    {
+                        var flushed = CommitFrame();
+                        if (flushed.Count > 0)
+                        {
+                            immediateResults ??= [];
+                            immediateResults.AddRange(flushed);
+                        }
+                    }
+                    _isBuffering = true;
+                    _bufferedControlTokens = [];
                     continue;
                     
-                case ClearLineToken:
-                case PrivateModeToken:
-                case CursorShapeToken:
-                case SaveCursorToken:
-                case RestoreCursorToken:
-                case ScrollRegionToken:
-                case OscToken:
-                case DcsToken:
-                    // These control tokens should pass through unchanged
-                    controlTokens.Add(token);
-                    continue;
-                    
-                case CursorPositionToken when appliedToken.CellImpacts.Count == 0:
-                    // Standalone cursor positioning (e.g., for mouse cursor tracking)
-                    // should pass through when not associated with cell changes
-                    controlTokens.Add(token);
+                case FrameEndToken:
+                    if (_isBuffering)
+                    {
+                        _isBuffering = false;
+                        var frameOutput = CommitFrame();
+                        _bufferedControlTokens = null;
+                        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(frameOutput);
+                    }
+                    // FrameEnd without FrameBegin - ignore
                     continue;
             }
             
-            // Process cell impacts for content tokens
-            foreach (var impact in appliedToken.CellImpacts)
+            // Handle tokens based on whether we're buffering
+            if (_isBuffering)
             {
-                // Skip out-of-bounds cells
-                if (impact.X < 0 || impact.X >= _width || impact.Y < 0 || impact.Y >= _height)
-                    continue;
-
-                var newShadowCell = ShadowCell.FromTerminalCell(impact.Cell);
-                var currentCommittedCell = _committedBuffer[impact.Y, impact.X];
-
-                // Update pending buffer
-                _pendingBuffer[impact.Y, impact.X] = newShadowCell;
-
-                // Only record if the cell actually changed from committed state
-                if (newShadowCell != currentCommittedCell)
+                ProcessTokenBuffered(appliedToken);
+            }
+            else
+            {
+                // Not buffering - use immediate mode, accumulate all results
+                var immediateResult = ProcessTokenImmediate(appliedToken);
+                if (immediateResult.Count > 0)
                 {
-                    changedCells.Add(new ChangedCell(impact.X, impact.Y, newShadowCell));
-                    // Update committed buffer since we're emitting immediately in Phase 2
-                    _committedBuffer[impact.Y, impact.X] = newShadowCell;
+                    immediateResults ??= [];
+                    immediateResults.AddRange(immediateResult);
                 }
             }
         }
 
-        // Build result: control tokens first, then optimized cell updates
-        var outputTokens = new List<AnsiToken>(controlTokens);
+        // Return accumulated immediate mode results, or empty if buffering/no changes
+        if (immediateResults is { Count: > 0 })
+        {
+            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(immediateResults);
+        }
+        
+        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+    }
+    
+    /// <summary>
+    /// Processes a token in buffered mode - updates pending buffer but doesn't emit.
+    /// </summary>
+    private void ProcessTokenBuffered(AppliedToken appliedToken)
+    {
+        var token = appliedToken.Token;
+        
+        switch (token)
+        {
+            case ClearScreenToken clearToken:
+                // Clear only the pending buffer (committed will be updated on frame end)
+                ClearBuffer(_pendingBuffer, clearToken.Mode);
+                // Don't buffer ClearScreenToken - we'll handle via cell diffs
+                return;
+                
+            case ClearLineToken:
+            case PrivateModeToken:
+            case CursorShapeToken:
+            case SaveCursorToken:
+            case RestoreCursorToken:
+            case ScrollRegionToken:
+            case OscToken:
+            case DcsToken:
+                // Buffer control tokens to emit at frame end
+                _bufferedControlTokens?.Add(token);
+                return;
+                
+            case CursorPositionToken when appliedToken.CellImpacts.Count == 0:
+                // Standalone cursor positioning - buffer it
+                _bufferedControlTokens?.Add(token);
+                return;
+        }
+        
+        // Process cell impacts - update pending buffer only
+        foreach (var impact in appliedToken.CellImpacts)
+        {
+            if (impact.X < 0 || impact.X >= _width || impact.Y < 0 || impact.Y >= _height)
+                continue;
+
+            var newCell = ShadowCell.FromTerminalCell(impact.Cell);
+            _pendingBuffer![impact.Y, impact.X] = newCell;
+        }
+    }
+    
+    /// <summary>
+    /// Processes a token in immediate mode - updates both buffers and returns tokens to emit.
+    /// </summary>
+    private IReadOnlyList<AnsiToken> ProcessTokenImmediate(AppliedToken appliedToken)
+    {
+        var token = appliedToken.Token;
+        var changedCells = new List<ChangedCell>();
+        
+        switch (token)
+        {
+            case ClearScreenToken clearToken:
+                // Clear both buffers and pass through
+                ClearBuffer(_pendingBuffer, clearToken.Mode);
+                ClearBuffer(_committedBuffer, clearToken.Mode);
+                return [token];
+                
+            case ClearLineToken:
+            case PrivateModeToken:
+            case CursorShapeToken:
+            case SaveCursorToken:
+            case RestoreCursorToken:
+            case ScrollRegionToken:
+            case OscToken:
+            case DcsToken:
+                // Pass through control tokens
+                return [token];
+                
+            case CursorPositionToken when appliedToken.CellImpacts.Count == 0:
+                // Standalone cursor positioning passes through
+                return [token];
+        }
+        
+        // Process cell impacts
+        foreach (var impact in appliedToken.CellImpacts)
+        {
+            if (impact.X < 0 || impact.X >= _width || impact.Y < 0 || impact.Y >= _height)
+                continue;
+
+            var newCell = ShadowCell.FromTerminalCell(impact.Cell);
+            var currentCommitted = _committedBuffer![impact.Y, impact.X];
+
+            _pendingBuffer![impact.Y, impact.X] = newCell;
+
+            if (newCell != currentCommitted)
+            {
+                changedCells.Add(new ChangedCell(impact.X, impact.Y, newCell));
+                _committedBuffer[impact.Y, impact.X] = newCell;
+            }
+        }
         
         if (changedCells.Count > 0)
         {
-            outputTokens.AddRange(GenerateTokens(changedCells));
+            return GenerateTokens(changedCells);
         }
-
-        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(outputTokens);
+        
+        return [];
+    }
+    
+    /// <summary>
+    /// Commits the current frame by comparing pending vs committed buffers.
+    /// Returns the tokens needed to update the terminal to the pending state.
+    /// </summary>
+    private IReadOnlyList<AnsiToken> CommitFrame()
+    {
+        if (_pendingBuffer is null || _committedBuffer is null)
+            return [];
+            
+        var changedCells = new List<ChangedCell>();
+        
+        // Compare pending vs committed to find all changed cells
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                var pending = _pendingBuffer[y, x];
+                var committed = _committedBuffer[y, x];
+                
+                if (pending != committed)
+                {
+                    changedCells.Add(new ChangedCell(x, y, pending));
+                    // Update committed buffer
+                    _committedBuffer[y, x] = pending;
+                }
+            }
+        }
+        
+        // Build output: buffered control tokens first, then cell changes
+        var output = new List<AnsiToken>();
+        
+        if (_bufferedControlTokens is { Count: > 0 })
+        {
+            output.AddRange(_bufferedControlTokens);
+        }
+        
+        if (changedCells.Count > 0)
+        {
+            output.AddRange(GenerateTokens(changedCells));
+        }
+        
+        return output;
     }
 
     /// <inheritdoc />
@@ -199,6 +347,8 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
         _width = 0;
         _height = 0;
         _forceFullRefresh = false;
+        _isBuffering = false;
+        _bufferedControlTokens = null;
         return ValueTask.CompletedTask;
     }
 

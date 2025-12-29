@@ -360,4 +360,218 @@ public class DeltaEncodingFilterTests
         // Then the cell update adds its own cursor position
         Assert.True(result.Count >= 1, $"Expected at least 1 token but got {result.Count}");
     }
+
+    [Fact]
+    public async Task FrameBuffering_NoOutputUntilFrameEnd()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        
+        // Consume the first frame (force refresh) with empty content
+        await filter.OnOutputAsync([], TimeSpan.Zero);
+        
+        // Act - send FrameBegin and some content (but no FrameEnd)
+        var frameTokens = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(frameTokens, TimeSpan.Zero);
+        
+        // Assert - no output should be emitted while buffering
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_OutputOnFrameEnd()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
+        
+        // Act - send a complete frame
+        var beginFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(beginFrame, TimeSpan.Zero);
+        
+        var endFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(endFrame, TimeSpan.Zero);
+        
+        // Assert - output should be emitted on frame end
+        Assert.NotEmpty(result);
+        Assert.Contains(result, t => t is TextToken tt && tt.Text == "A");
+    }
+
+    [Fact]
+    public async Task FrameBuffering_ClearThenRender_OnlyEmitsNetChanges()
+    {
+        // Arrange - This is the key flicker fix test!
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        
+        // First, render some content and commit it
+        var initialFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("Hello"), [
+                new CellImpact(0, 0, new TerminalCell { Character = "H" }),
+                new CellImpact(1, 0, new TerminalCell { Character = "e" }),
+                new CellImpact(2, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(3, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(4, 0, new TerminalCell { Character = "o" }),
+            ], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(initialFrame, TimeSpan.Zero);
+        
+        // Act - simulate the flicker scenario: clear then re-render same content
+        var flickerFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            // Clear screen (what ClearDirtyRegions does)
+            new AppliedToken(new ClearScreenToken(ClearMode.All), [], 0, 0, 0, 0),
+            // Re-render same content
+            new AppliedToken(new TextToken("Hello"), [
+                new CellImpact(0, 0, new TerminalCell { Character = "H" }),
+                new CellImpact(1, 0, new TerminalCell { Character = "e" }),
+                new CellImpact(2, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(3, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(4, 0, new TerminalCell { Character = "o" }),
+            ], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(flickerFrame, TimeSpan.Zero);
+        
+        // Assert - since the net result is the same as before, no output needed!
+        // This is the key: clear + re-render same content = no visible change
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_ClearThenRenderDifferent_EmitsOnlyDifference()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        
+        // First, render "Hello"
+        var initialFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("Hello"), [
+                new CellImpact(0, 0, new TerminalCell { Character = "H" }),
+                new CellImpact(1, 0, new TerminalCell { Character = "e" }),
+                new CellImpact(2, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(3, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(4, 0, new TerminalCell { Character = "o" }),
+            ], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(initialFrame, TimeSpan.Zero);
+        
+        // Act - clear and render "Hella" (one character different)
+        var changeFrame = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new ClearScreenToken(ClearMode.All), [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("Hella"), [
+                new CellImpact(0, 0, new TerminalCell { Character = "H" }),
+                new CellImpact(1, 0, new TerminalCell { Character = "e" }),
+                new CellImpact(2, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(3, 0, new TerminalCell { Character = "l" }),
+                new CellImpact(4, 0, new TerminalCell { Character = "a" }),
+            ], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(changeFrame, TimeSpan.Zero);
+        
+        // Assert - should only emit the one changed character
+        var textTokens = result.OfType<TextToken>().ToList();
+        Assert.Single(textTokens);
+        Assert.Equal("a", textTokens[0].Text);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_ControlTokensPreserved()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
+        
+        // Act - send a frame with control tokens
+        var frameTokens = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new PrivateModeToken(25, false), [], 0, 0, 0, 0), // Hide cursor
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0),
+            new AppliedToken(new PrivateModeToken(25, true), [], 0, 0, 0, 0), // Show cursor
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(frameTokens, TimeSpan.Zero);
+        
+        // Assert - control tokens should be in output
+        var privateModeTokens = result.OfType<PrivateModeToken>().ToList();
+        Assert.Equal(2, privateModeTokens.Count);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_FrameEndWithoutBegin_IsIgnored()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        
+        // Consume the first frame (force refresh) with empty content
+        await filter.OnOutputAsync([], TimeSpan.Zero);
+        
+        // Act - send a FrameEnd without FrameBegin
+        var tokens = new List<AppliedToken>
+        {
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0)
+        };
+        var result = await filter.OnOutputAsync(tokens, TimeSpan.Zero);
+        
+        // Assert - should just be ignored, empty output
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_NestedFrameBegin_FlushesFirst()
+    {
+        // Arrange
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
+        await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
+        
+        // Act - send FrameBegin, some content, then another FrameBegin (should flush first frame)
+        var firstBegin = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0)
+        };
+        var result1 = await filter.OnOutputAsync(firstBegin, TimeSpan.Zero);
+        
+        // No output yet (still buffering)
+        Assert.Empty(result1);
+        
+        // Second FrameBegin should flush the first
+        var secondBegin = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("B"), [new CellImpact(1, 0, new TerminalCell { Character = "B" })], 0, 0, 0, 0)
+        };
+        var result2 = await filter.OnOutputAsync(secondBegin, TimeSpan.Zero);
+        
+        // Assert - first frame content should have been flushed
+        Assert.Contains(result2, t => t is TextToken tt && tt.Text == "A");
+    }
 }
