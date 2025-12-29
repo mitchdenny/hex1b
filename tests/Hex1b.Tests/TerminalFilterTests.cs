@@ -149,7 +149,7 @@ public class TerminalFilterTests
         Assert.Null(options.PresentationAdapter);
         Assert.Empty(options.WorkloadFilters);
         Assert.Empty(options.PresentationFilters);
-        Assert.False(options.UseTokenBasedFilters);
+        Assert.True(options.UseTokenBasedFilters);
     }
 
     [Fact]

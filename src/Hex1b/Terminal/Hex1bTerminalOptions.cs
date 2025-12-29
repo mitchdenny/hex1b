@@ -74,7 +74,7 @@ public sealed class Hex1bTerminalOptions
     /// When true, uses token-based ANSI processing for filters.
     /// This enables semantic-level filtering where filters receive parsed ANSI tokens
     /// instead of raw bytes, allowing for more sophisticated transformations.
-    /// Default is false for backward compatibility.
+    /// Default is true.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -84,7 +84,7 @@ public sealed class Hex1bTerminalOptions
     /// colors, suppressing specific sequences) rather than at the byte level.
     /// </para>
     /// </remarks>
-    public bool UseTokenBasedFilters { get; set; }
+    public bool UseTokenBasedFilters { get; set; } = true;
 
     /// <summary>
     /// Validates the options and throws if invalid.

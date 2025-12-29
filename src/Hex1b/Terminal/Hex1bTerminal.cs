@@ -254,7 +254,8 @@ public sealed class Hex1bTerminal : IDisposable
             _ = NotifyWorkloadFiltersOutputAsync(data);
 
             var text = Encoding.UTF8.GetString(data.Span);
-            ProcessOutput(text);
+            var tokens = AnsiTokenizer.Tokenize(text);
+            ApplyTokens(tokens);
         }
 
         // Channel drained - notify frame complete (fire-and-forget in sync context)
@@ -342,15 +343,15 @@ public sealed class Hex1bTerminal : IDisposable
                 }
                 else
                 {
-                    // Legacy byte-based processing
-                    await NotifyWorkloadFiltersOutputAsync(data);
-                    ProcessOutput(text);
+                    // Legacy byte-based processing (deprecated path - should not be reached when UseTokenBasedFilters=true)
+                    var tokens = AnsiTokenizer.Tokenize(text);
+                    await NotifyWorkloadFiltersOutputAsync(tokens);
+                    ApplyTokens(tokens);
                     
                     // Forward to presentation if present
                     if (_presentation != null)
                     {
-                        // Tokenize, pass through presentation filters, serialize and send
-                        var tokens = AnsiTokenizer.Tokenize(text);
+                        // Pass through presentation filters, serialize and send
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(tokens);
                         var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
                         var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
@@ -485,7 +486,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     internal void EnterAlternateScreen()
     {
-        ProcessOutput("\x1b[?1049h");
+        ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
     }
 
     /// <summary>
@@ -494,7 +495,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     internal void ExitAlternateScreen()
     {
-        ProcessOutput("\x1b[?1049l");
+        ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
     }
 
     /// <summary>
@@ -864,96 +865,12 @@ public sealed class Hex1bTerminal : IDisposable
     /// Process ANSI output text into the screen buffer.
     /// </summary>
     /// <param name="text">Text containing ANSI escape sequences.</param>
+    [Obsolete("Use ApplyTokens instead. This method will be removed in a future version.")]
     internal void ProcessOutput(string text)
     {
-        int i = 0;
-        while (i < text.Length)
-        {
-            // Check for OSC sequence (ESC ] or 0x9D) - OSC 8 is for hyperlinks
-            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload))
-            {
-                ProcessOscSequence(oscCommand, oscParams, oscPayload);
-                i += oscConsumed;
-            }
-            // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            else if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
-            {
-                ProcessSixelData(sixelPayload);
-                i += sixelConsumed;
-            }
-            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
-            {
-                i = ProcessAnsiSequence(text, i);
-            }
-            else if (text[i] == '\n')
-            {
-                _cursorY++;
-                _cursorX = 0;
-                if (_cursorY >= _height)
-                {
-                    ScrollUp();
-                    _cursorY = _height - 1;
-                }
-                i++;
-            }
-            else if (text[i] == '\r')
-            {
-                _cursorX = 0;
-                i++;
-            }
-            else
-            {
-                // Extract the grapheme cluster starting at position i
-                var grapheme = GetGraphemeAt(text, i);
-                var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
-                
-                // Scroll if cursor is past the bottom of the screen BEFORE writing
-                // This implements "delayed line wrap" behavior
-                if (_cursorY >= _height)
-                {
-                    ScrollUp();
-                    _cursorY = _height - 1;
-                }
-                
-                if (_cursorX < _width && _cursorY < _height)
-                {
-                    // Assign sequence number and timestamp for this write operation
-                    var sequence = ++_writeSequence;
-                    var writtenAt = _timeProvider.GetUtcNow();
-                    
-                    // Add reference to current hyperlink for this character (if any)
-                    // Each character that uses a hyperlink needs its own reference
-                    _currentHyperlink?.AddRef();
-                    
-                    // Write the grapheme to the current cell with current hyperlink if any
-                    SetCell(_cursorY, _cursorX, new TerminalCell(
-                        grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
-                    
-                    // For wide characters (width > 1), fill subsequent cells with continuation markers
-                    // Use the same sequence and timestamp so they're part of the same logical write
-                    for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
-                    {
-                        // Add reference for each continuation cell too
-                        _currentHyperlink?.AddRef();
-                        
-                        // Use empty string as continuation marker (the previous cell "owns" this space)
-                        SetCell(_cursorY, _cursorX + w, new TerminalCell(
-                            "", _currentForeground, _currentBackground, _currentAttributes,
-                            sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
-                    }
-                    
-                    _cursorX += graphemeWidth;
-                    if (_cursorX >= _width)
-                    {
-                        _cursorX = 0;
-                        _cursorY++;
-                        // Don't scroll yet - we'll scroll when we try to write the next character
-                    }
-                }
-                i += grapheme.Length;
-            }
-        }
+        // Route through the token-based path
+        var tokens = AnsiTokenizer.Tokenize(text);
+        ApplyTokens(tokens);
     }
 
     /// <summary>
