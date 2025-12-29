@@ -178,7 +178,13 @@ public sealed class DeltaEncodingFilter : IHex1bTerminalPresentationFilter
                         _isBuffering = false;
                         var frameOutput = CommitFrame();
                         _bufferedControlTokens = null;
-                        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(frameOutput);
+                        // Add frame output to results and continue processing remaining tokens
+                        // (e.g., the ?2026l token that follows FrameEndToken)
+                        if (frameOutput.Count > 0)
+                        {
+                            immediateResults ??= [];
+                            immediateResults.AddRange(frameOutput);
+                        }
                     }
                     // FrameEnd without FrameBegin - ignore
                     continue;

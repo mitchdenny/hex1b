@@ -231,10 +231,18 @@ public sealed class Hex1bTerminal : IDisposable
     /// <remarks>
     /// This is called automatically by screen buffer read operations (GetScreenText, 
     /// ContainsText, etc.) so callers don't need to call it directly.
+    /// When PumpWorkloadOutputAsync is running (presentation mode), this method
+    /// does nothing since the pump already updates the buffer and forwards to
+    /// presentation filters.
     /// </remarks>
     internal void FlushOutput()
     {
         if (_workload is not Hex1bAppWorkloadAdapter appWorkload)
+            return;
+
+        // When the output pump is running, it's already updating the buffer
+        // and forwarding to presentation filters. Don't compete for channel data.
+        if (_outputProcessingTask != null)
             return;
 
         // Drain all available output synchronously using non-blocking reads

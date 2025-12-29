@@ -4,6 +4,10 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
+// Suppress xUnit1051 - these unit tests don't benefit from CancellationToken propagation
+// since they're testing synchronous filter logic with simple async wrappers
+#pragma warning disable xUnit1051
+
 public class DeltaEncodingFilterTests
 {
     [Fact]
@@ -19,11 +23,12 @@ public class DeltaEncodingFilterTests
         // Act - no session start, so no shadow buffer
         var result = await filter.OnOutputAsync(appliedTokens, TimeSpan.Zero);
 
-        // Assert - passes through with SGR reset prepended (no shadow buffer triggers force refresh path)
-        Assert.Equal(2, result.Count);
+        // Assert - passes through with SGR reset and clear screen prepended (no shadow buffer triggers force refresh path)
+        Assert.Equal(3, result.Count);
         Assert.IsType<SgrToken>(result[0]); // SGR reset
-        Assert.IsType<TextToken>(result[1]);
-        Assert.Equal("Hello", ((TextToken)result[1]).Text);
+        Assert.IsType<ClearScreenToken>(result[1]); // Clear screen
+        Assert.IsType<TextToken>(result[2]);
+        Assert.Equal("Hello", ((TextToken)result[2]).Text);
     }
 
     [Fact]
@@ -323,7 +328,8 @@ public class DeltaEncodingFilterTests
         // and the orphaned FrameEndToken did NOT consume it
         Assert.NotEmpty(result);
         Assert.IsType<SgrToken>(result[0]); // SGR reset prepended
-        Assert.IsType<TextToken>(result[1]); // Original text token passes through
+        Assert.IsType<ClearScreenToken>(result[1]); // Clear screen
+        Assert.IsType<TextToken>(result[2]); // Original text token passes through
     }
 
     [Fact]
@@ -381,10 +387,11 @@ public class DeltaEncodingFilterTests
         };
         var result = await filter.OnOutputAsync(appliedTokens, TimeSpan.Zero);
 
-        // Assert - should pass through with SGR reset prepended (no shadow buffer triggers force refresh path)
-        Assert.Equal(2, result.Count);
+        // Assert - should pass through with SGR reset and clear screen prepended (no shadow buffer triggers force refresh path)
+        Assert.Equal(3, result.Count);
         Assert.IsType<SgrToken>(result[0]); // SGR reset
-        Assert.IsType<TextToken>(result[1]);
+        Assert.IsType<ClearScreenToken>(result[1]); // Clear screen
+        Assert.IsType<TextToken>(result[2]);
     }
 
     [Fact]
@@ -663,7 +670,7 @@ public class DeltaEncodingFilterTests
             new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
             new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0)
         };
-        var result1 = await filter.OnOutputAsync(firstBegin, TimeSpan.Zero);
+        var result1 = await filter.OnOutputAsync(firstBegin, TimeSpan.Zero, TestContext.Current.CancellationToken);
         
         // No output yet (still buffering)
         Assert.Empty(result1);
@@ -674,9 +681,77 @@ public class DeltaEncodingFilterTests
             new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
             new AppliedToken(new TextToken("B"), [new CellImpact(1, 0, new TerminalCell { Character = "B" })], 0, 0, 0, 0)
         };
-        var result2 = await filter.OnOutputAsync(secondBegin, TimeSpan.Zero);
+        var result2 = await filter.OnOutputAsync(secondBegin, TimeSpan.Zero, TestContext.Current.CancellationToken);
         
         // Assert - first frame content should have been flushed
         Assert.Contains(result2, t => t is TextToken tt && tt.Text == "A");
+    }
+
+    [Fact]
+    public async Task FrameBuffering_TokensAfterFrameEnd_AreProcessed()
+    {
+        // Arrange - tests that tokens like ?2026l that follow FrameEnd in the same batch are not lost
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now, TestContext.Current.CancellationToken);
+        
+        // Consume force refresh with actual content
+        var consumeForceRefresh = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("X"), [new CellImpact(9, 4, new TerminalCell { Character = "X" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(consumeForceRefresh, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        
+        // Act - send a complete frame with FrameEnd followed by ?2026l in the same batch
+        var frameTokens = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new PrivateModeToken(2026, false), [], 0, 0, 0, 0), // ?2026l - end sync update
+        };
+        var result = await filter.OnOutputAsync(frameTokens, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        
+        // Assert - the ?2026l token should be in the output
+        var syncEndTokens = result.OfType<PrivateModeToken>()
+            .Where(pm => pm.Mode == 2026 && !pm.Enable)
+            .ToList();
+        Assert.Single(syncEndTokens);
+    }
+
+    [Fact]
+    public async Task FrameBuffering_SeparateBatchAfterFrameEnd_TokensPassThrough()
+    {
+        // Arrange - tests that tokens like ?2026l that come in a separate batch after FrameEnd pass through
+        var filter = new DeltaEncodingFilter();
+        await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now, TestContext.Current.CancellationToken);
+        
+        // Consume force refresh with actual content
+        var consumeForceRefresh = new List<AppliedToken>
+        {
+            new AppliedToken(new TextToken("X"), [new CellImpact(9, 4, new TerminalCell { Character = "X" })], 0, 0, 0, 0)
+        };
+        await filter.OnOutputAsync(consumeForceRefresh, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        
+        // Act - send frame tokens without the ?2026l
+        var frameTokens = new List<AppliedToken>
+        {
+            new AppliedToken(FrameBeginToken.Instance, [], 0, 0, 0, 0),
+            new AppliedToken(new TextToken("A"), [new CellImpact(0, 0, new TerminalCell { Character = "A" })], 0, 0, 0, 0),
+            new AppliedToken(FrameEndToken.Instance, [], 0, 0, 0, 0),
+        };
+        await filter.OnOutputAsync(frameTokens, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        
+        // Now send the ?2026l in a separate batch (as happens in real scenario)
+        var syncEndTokens = new List<AppliedToken>
+        {
+            new AppliedToken(new PrivateModeToken(2026, false), [], 0, 0, 0, 0), // ?2026l - end sync update
+        };
+        var result = await filter.OnOutputAsync(syncEndTokens, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        
+        // Assert - the ?2026l token should be in the output (passes through in immediate mode)
+        var syncEnd = result.OfType<PrivateModeToken>()
+            .Where(pm => pm.Mode == 2026 && !pm.Enable)
+            .ToList();
+        Assert.Single(syncEnd);
     }
 }

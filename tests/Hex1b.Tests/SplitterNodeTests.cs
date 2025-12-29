@@ -227,12 +227,12 @@ public class SplitterNodeTests
         node.Render(context);
 
         // Count occurrences of divider chars in screen text - should be 5 (one per row)
-        // 3 regular dividers + 2 arrow characters (◀ and ▶) at midpoint
+        // 3 regular dividers + 2 arrow characters (← and →) at midpoint
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
         var dividerCount = screenText.Split("│").Length - 1;
-        var leftArrowCount = screenText.Split("◀").Length - 1;
-        var rightArrowCount = screenText.Split("▶").Length - 1;
+        var leftArrowCount = screenText.Split("←").Length - 1;
+        var rightArrowCount = screenText.Split("→").Length - 1;
         Assert.Equal(5, dividerCount + leftArrowCount + rightArrowCount);
     }
 
