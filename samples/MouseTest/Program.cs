@@ -152,9 +152,17 @@ try
     // Create the workload adapter that Hex1bApp will use
     var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
+    // Create terminal options with delta encoding filter for optimized rendering
+    var terminalOptions = new Hex1bTerminalOptions
+    {
+        PresentationAdapter = presentation,
+        WorkloadAdapter = workload
+    };
+    terminalOptions.PresentationFilters.Add(new DeltaEncodingFilter());
+    
     // Create the terminal that bridges presentation ↔ workload
     // The terminal auto-starts I/O pumps when a presentation adapter is provided
-    using var terminal = new Hex1bTerminal(presentation, workload);
+    using var terminal = new Hex1bTerminal(terminalOptions);
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [
