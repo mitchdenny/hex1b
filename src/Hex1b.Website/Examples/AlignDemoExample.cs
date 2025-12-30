@@ -21,6 +21,7 @@ public class AlignDemoExample(ILogger<AlignDemoExample> logger) : Hex1bExample
         public Alignment CurrentAlignment { get; set; } = Alignment.TopLeft;
         public int SelectedIndex { get; set; } = 0;
         public bool UseFill { get; set; } = true;
+        public int ClickCount { get; set; } = 0;
     }
 
     private static readonly (string Label, Alignment Value)[] AlignmentOptions =
@@ -59,32 +60,44 @@ public class AlignDemoExample(ILogger<AlignDemoExample> logger) : Hex1bExample
                             })
                     ])
                 ], title: "Alignments"),
-                // Right panel: preview with toggle
+                // Right panel: preview with toggle and explanation
                 ctx.VStack(v => [
                     v.HStack(h => [
                         h.Text("Fill(): "),
                         h.ToggleSwitch(["Off", "On"], state.UseFill ? 1 : 0)
                             .OnSelectionChanged(e => state.UseFill = e.SelectedIndex == 1)
                     ]),
-                    v.Border(b => 
-                        state.UseFill
-                            ? [b.Align(state.CurrentAlignment,
-                                b.Border(inner => [
-                                    inner.VStack(vs => [
-                                        vs.Text("Aligned"),
-                                        vs.Text("Content")
+                    v.VSplitter(
+                        // Top: alignment preview
+                        v.Border(b => 
+                            state.UseFill
+                                ? [b.Align(state.CurrentAlignment,
+                                    b.Border(inner => [
+                                        inner.VStack(vs => [
+                                            vs.Text($"Clicks: {state.ClickCount}"),
+                                            vs.Button("Click Me!")
+                                                .OnClick(_ => state.ClickCount++)
+                                        ])
                                     ])
-                                ])
-                              ).Fill()]
-                            : [b.Align(state.CurrentAlignment,
-                                b.Border(inner => [
-                                    inner.VStack(vs => [
-                                        vs.Text("Aligned"),
-                                        vs.Text("Content")
+                                  ).Fill()]
+                                : [b.Align(state.CurrentAlignment,
+                                    b.Border(inner => [
+                                        inner.VStack(vs => [
+                                            vs.Text($"Clicks: {state.ClickCount}"),
+                                            vs.Button("Click Me!")
+                                                .OnClick(_ => state.ClickCount++)
+                                        ])
                                     ])
-                                ])
-                              )]
-                    , title: $"Preview: {AlignmentOptions[state.SelectedIndex].Label}").Fill()
+                                  )]
+                        , title: $"Preview: {AlignmentOptions[state.SelectedIndex].Label}"),
+                        // Bottom: explanation
+                        v.Border(b => [
+                            b.Text(state.UseFill
+                                ? "With Fill() enabled, the Align widget expands to fill all available space. This allows vertical alignments (VCenter, Bottom) to position content anywhere within the container."
+                                : "Without Fill(), the Align widget only takes as much space as its content needs. Vertical alignment has no effect since there's no extra space. Only horizontal alignment works within the available width."
+                            ).Wrap()
+                        ], title: "Explanation")
+                    , topHeight: 10).Fill()
                 ]),
                 leftWidth: 22
             );

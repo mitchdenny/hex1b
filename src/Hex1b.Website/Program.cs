@@ -243,9 +243,17 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     // Create the workload adapter that Hex1bApp will use
     var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
+    // Create terminal options with render optimization filter for delta encoding
+    var terminalOptions = new Hex1bTerminalOptions
+    {
+        PresentationAdapter = presentation,
+        WorkloadAdapter = workload
+    };
+    terminalOptions.AddHex1bAppRenderOptimization();
+    
     // Create the terminal that bridges presentation ↔ workload
     // Terminal auto-starts I/O pumps when presentation is provided
-    using var terminal = new Hex1bTerminal(presentation, workload);
+    using var terminal = new Hex1bTerminal(terminalOptions);
     
     // Check if the example manages its own app lifecycle
     var runTask = example.RunAsync(workload, cts.Token);
