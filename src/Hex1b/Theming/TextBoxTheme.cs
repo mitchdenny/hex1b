@@ -24,7 +24,7 @@ public static class TextBoxTheme
         new($"{nameof(TextBoxTheme)}.{nameof(SelectionForegroundColor)}", () => Hex1bColor.Black);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectionBackgroundColor = 
-        new($"{nameof(TextBoxTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.Cyan);
+        new($"{nameof(TextBoxTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<Hex1bColor> HoverCursorForegroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(HoverCursorForegroundColor)}", () => Hex1bColor.Default);

@@ -36,11 +36,16 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left: VStack with List
-                        root.VStack(left => [
-                            left.Text("═══ Themes ═══"),
-                            left.List(items)
-                        ]),
+                        // Left: VStack with List (themed with gray selection to distinguish from TextBox cursor)
+                        root.ThemePanel(
+                            theme => theme
+                                .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                                .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                            ctx.VStack(left => [
+                                left.Text("═══ Themes ═══"),
+                                left.List(items)
+                            ])
+                        ),
                         // Right: Layout -> VStack -> TextBox
                         root.Layout(
                             root.VStack(right => [
@@ -177,7 +182,13 @@ public class ThemingExhibitRepro
         var items = new List<string> { "Item 1", "Item 2" };
         using var app = new Hex1bApp(
             ctx => ctx.VStack(root => [
-                root.List(items),         // List gets focus first
+                // Use gray selection for List to distinguish from TextBox cursor (white bg)
+                root.ThemePanel(
+                    theme => theme
+                        .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                        .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                    ctx.List(items)       // List gets focus first
+                ),
                 root.TextBox("test text") // TextBox does NOT have focus initially
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -256,12 +267,17 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left pane: VStack with List
-                        root.VStack(left => [
-                            left.Text("═══ Themes ═══"),
-                            left.Text(""),
-                            left.List(items)
-                        ]),
+                        // Left pane: VStack with List (themed with gray selection to distinguish from TextBox cursor)
+                        root.ThemePanel(
+                            theme => theme
+                                .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                                .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                            ctx.VStack(left => [
+                                left.Text("═══ Themes ═══"),
+                                left.Text(""),
+                                left.List(items)
+                            ])
+                        ),
                         // Right pane: Layout -> VStack with TextBox and Button
                         root.Layout(
                             root.VStack(right => [
