@@ -32,6 +32,11 @@ namespace Hex1b.Terminal;
 /// </remarks>
 public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentationFilter
 {
+    // Lock to protect all mutable state from concurrent access
+    // This filter is accessed concurrently by the output pump thread (OnOutputAsync)
+    // and the input/resize thread (OnResizeAsync)
+    private readonly object _lock = new();
+    
     // Pending buffer: accumulates changes during the current frame
     private ShadowCell[,]? _pendingBuffer;
     
@@ -72,8 +77,11 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
     /// <inheritdoc />
     public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
     {
-        InitializeBuffers(width, height);
-        _forceFullRefresh = true; // First frame should pass through
+        lock (_lock)
+        {
+            InitializeBuffers(width, height);
+            _forceFullRefresh = true; // First frame should pass through
+        }
         return ValueTask.CompletedTask;
     }
 
@@ -83,137 +91,140 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
         TimeSpan elapsed,
         CancellationToken ct = default)
     {
-        // Handle force full refresh (first frame or after resize)
-        if (_pendingBuffer is null || _committedBuffer is null || _forceFullRefresh)
+        lock (_lock)
         {
-            // Check if there are any content tokens (not just frame boundary tokens)
-            // We don't want orphaned frame tokens after a resize to consume the force refresh flag
-            var contentTokens = appliedTokens
-                .Where(at => at.Token is not FrameBeginToken and not FrameEndToken)
-                .ToList();
-            
-            if (contentTokens.Count == 0)
+            // Handle force full refresh (first frame or after resize)
+            if (_pendingBuffer is null || _committedBuffer is null || _forceFullRefresh)
             {
-                // Only frame boundary tokens - handle them but don't consume force refresh
+                // Check if there are any content tokens (not just frame boundary tokens)
+                // We don't want orphaned frame tokens after a resize to consume the force refresh flag
+                var contentTokens = appliedTokens
+                    .Where(at => at.Token is not FrameBeginToken and not FrameEndToken)
+                    .ToList();
+            
+                if (contentTokens.Count == 0)
+                {
+                    // Only frame boundary tokens - handle them but don't consume force refresh
+                    foreach (var appliedToken in appliedTokens)
+                    {
+                        switch (appliedToken.Token)
+                        {
+                            case FrameBeginToken:
+                                _isBuffering = true;
+                                _bufferedControlTokens = [];
+                                break;
+                            case FrameEndToken:
+                                // Ignore orphaned FrameEnd - the frame was cancelled by resize
+                                _isBuffering = false;
+                                _bufferedControlTokens = null;
+                                break;
+                        }
+                    }
+                    return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+                }
+            
+                // We have real content - consume the force refresh flag
+                _forceFullRefresh = false;
+            
+                // Update both buffers with all impacts, then pass through tokens
+                // (excluding internal frame boundary tokens)
                 foreach (var appliedToken in appliedTokens)
                 {
-                    switch (appliedToken.Token)
+                    foreach (var impact in appliedToken.CellImpacts)
                     {
-                        case FrameBeginToken:
-                            _isBuffering = true;
-                            _bufferedControlTokens = [];
-                            break;
-                        case FrameEndToken:
-                            // Ignore orphaned FrameEnd - the frame was cancelled by resize
-                            _isBuffering = false;
-                            _bufferedControlTokens = null;
-                            break;
+                        if (impact.X >= 0 && impact.X < _width && impact.Y >= 0 && impact.Y < _height)
+                        {
+                            var cell = ShadowCell.FromTerminalCell(impact.Cell);
+                            _pendingBuffer![impact.Y, impact.X] = cell;
+                            _committedBuffer![impact.Y, impact.X] = cell;
+                        }
                     }
                 }
-                return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+            
+                // On force refresh (after resize), we must clear the entire screen first.
+                // The terminal's buffer may have old content in newly expanded areas that our
+                // shadow buffers don't know about. 
+                // IMPORTANT: Reset SGR BEFORE clearing, so the clear uses default colors.
+                var result = new List<AnsiToken> 
+                { 
+                    new SgrToken("0"),                     // Reset attributes first!
+                    new ClearScreenToken(ClearMode.All),   // Clear entire terminal buffer (uses current bg)
+                };
+                result.AddRange(appliedTokens
+                    .Select(at => at.Token)
+                    .Where(t => t is not FrameBeginToken and not FrameEndToken));
+                return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(result);
             }
-            
-            // We have real content - consume the force refresh flag
-            _forceFullRefresh = false;
-            
-            // Update both buffers with all impacts, then pass through tokens
-            // (excluding internal frame boundary tokens)
+
+            // Accumulate results for immediate mode processing
+            List<AnsiToken>? immediateResults = null;
+
+            // Process each token
             foreach (var appliedToken in appliedTokens)
             {
-                foreach (var impact in appliedToken.CellImpacts)
+                var token = appliedToken.Token;
+            
+                // Check for frame boundary tokens first
+                switch (token)
                 {
-                    if (impact.X >= 0 && impact.X < _width && impact.Y >= 0 && impact.Y < _height)
-                    {
-                        var cell = ShadowCell.FromTerminalCell(impact.Cell);
-                        _pendingBuffer![impact.Y, impact.X] = cell;
-                        _committedBuffer![impact.Y, impact.X] = cell;
-                    }
-                }
-            }
-            
-            // On force refresh (after resize), we must clear the entire screen first.
-            // The terminal's buffer may have old content in newly expanded areas that our
-            // shadow buffers don't know about. 
-            // IMPORTANT: Reset SGR BEFORE clearing, so the clear uses default colors.
-            var result = new List<AnsiToken> 
-            { 
-                new SgrToken("0"),                     // Reset attributes first!
-                new ClearScreenToken(ClearMode.All),   // Clear entire terminal buffer (uses current bg)
-            };
-            result.AddRange(appliedTokens
-                .Select(at => at.Token)
-                .Where(t => t is not FrameBeginToken and not FrameEndToken));
-            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(result);
-        }
-
-        // Accumulate results for immediate mode processing
-        List<AnsiToken>? immediateResults = null;
-
-        // Process each token
-        foreach (var appliedToken in appliedTokens)
-        {
-            var token = appliedToken.Token;
-            
-            // Check for frame boundary tokens first
-            switch (token)
-            {
-                case FrameBeginToken:
-                    // If already buffering, flush previous frame first (handles unmatched begin)
-                    if (_isBuffering)
-                    {
-                        var flushed = CommitFrame();
-                        if (flushed.Count > 0)
+                    case FrameBeginToken:
+                        // If already buffering, flush previous frame first (handles unmatched begin)
+                        if (_isBuffering)
                         {
-                            immediateResults ??= [];
-                            immediateResults.AddRange(flushed);
+                            var flushed = CommitFrame();
+                            if (flushed.Count > 0)
+                            {
+                                immediateResults ??= [];
+                                immediateResults.AddRange(flushed);
+                            }
                         }
-                    }
-                    _isBuffering = true;
-                    _bufferedControlTokens = [];
-                    continue;
+                        _isBuffering = true;
+                        _bufferedControlTokens = [];
+                        continue;
                     
-                case FrameEndToken:
-                    if (_isBuffering)
-                    {
-                        _isBuffering = false;
-                        var frameOutput = CommitFrame();
-                        _bufferedControlTokens = null;
-                        // Add frame output to results and continue processing remaining tokens
-                        // (e.g., the ?2026l token that follows FrameEndToken)
-                        if (frameOutput.Count > 0)
+                    case FrameEndToken:
+                        if (_isBuffering)
                         {
-                            immediateResults ??= [];
-                            immediateResults.AddRange(frameOutput);
+                            _isBuffering = false;
+                            var frameOutput = CommitFrame();
+                            _bufferedControlTokens = null;
+                            // Add frame output to results and continue processing remaining tokens
+                            // (e.g., the ?2026l token that follows FrameEndToken)
+                            if (frameOutput.Count > 0)
+                            {
+                                immediateResults ??= [];
+                                immediateResults.AddRange(frameOutput);
+                            }
                         }
-                    }
-                    // FrameEnd without FrameBegin - ignore
-                    continue;
-            }
+                        // FrameEnd without FrameBegin - ignore
+                        continue;
+                }
             
-            // Handle tokens based on whether we're buffering
-            if (_isBuffering)
-            {
-                ProcessTokenBuffered(appliedToken);
-            }
-            else
-            {
-                // Not buffering - use immediate mode, accumulate all results
-                var immediateResult = ProcessTokenImmediate(appliedToken);
-                if (immediateResult.Count > 0)
+                // Handle tokens based on whether we're buffering
+                if (_isBuffering)
                 {
-                    immediateResults ??= [];
-                    immediateResults.AddRange(immediateResult);
+                    ProcessTokenBuffered(appliedToken);
+                }
+                else
+                {
+                    // Not buffering - use immediate mode, accumulate all results
+                    var immediateResult = ProcessTokenImmediate(appliedToken);
+                    if (immediateResult.Count > 0)
+                    {
+                        immediateResults ??= [];
+                        immediateResults.AddRange(immediateResult);
+                    }
                 }
             }
-        }
 
-        // Return accumulated immediate mode results, or empty if buffering/no changes
-        if (immediateResults is { Count: > 0 })
-        {
-            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(immediateResults);
-        }
+            // Return accumulated immediate mode results, or empty if buffering/no changes
+            if (immediateResults is { Count: > 0 })
+            {
+                return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(immediateResults);
+            }
         
-        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>([]);
+        }
     }
     
     /// <summary>
@@ -372,17 +383,20 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
     /// <inheritdoc />
     public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
     {
-        // Reinitialize both buffers on resize and force a full refresh
-        InitializeBuffers(width, height);
-        _forceFullRefresh = true;
+        lock (_lock)
+        {
+            // Reinitialize both buffers on resize and force a full refresh
+            InitializeBuffers(width, height);
+            _forceFullRefresh = true;
         
-        // If we were buffering when the resize happened, cancel the current frame.
-        // The buffered content is now invalid because:
-        // 1. The buffers have been reinitialized to the new size
-        // 2. The pending content was for the old terminal dimensions
-        // The next frame will be a full refresh due to _forceFullRefresh = true
-        _isBuffering = false;
-        _bufferedControlTokens = null;
+            // If we were buffering when the resize happened, cancel the current frame.
+            // The buffered content is now invalid because:
+            // 1. The buffers have been reinitialized to the new size
+            // 2. The pending content was for the old terminal dimensions
+            // The next frame will be a full refresh due to _forceFullRefresh = true
+            _isBuffering = false;
+            _bufferedControlTokens = null;
+        }
         
         return ValueTask.CompletedTask;
     }
@@ -390,13 +404,16 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
     /// <inheritdoc />
     public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
-        _pendingBuffer = null;
-        _committedBuffer = null;
-        _width = 0;
-        _height = 0;
-        _forceFullRefresh = false;
-        _isBuffering = false;
-        _bufferedControlTokens = null;
+        lock (_lock)
+        {
+            _pendingBuffer = null;
+            _committedBuffer = null;
+            _width = 0;
+            _height = 0;
+            _forceFullRefresh = false;
+            _isBuffering = false;
+            _bufferedControlTokens = null;
+        }
         return ValueTask.CompletedTask;
     }
 
