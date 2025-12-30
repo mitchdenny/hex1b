@@ -11,6 +11,16 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         // Create child context with horizontal layout axis
         var childContext = context.WithLayoutAxis(LayoutAxis.Horizontal);
         
+        // Track children that will be removed (their bounds need clearing)
+        for (int i = Children.Count; i < node.Children.Count; i++)
+        {
+            var removedChild = node.Children[i];
+            if (removedChild.Bounds.Width > 0 && removedChild.Bounds.Height > 0)
+            {
+                node.AddOrphanedChildBounds(removedChild.Bounds);
+            }
+        }
+        
         // Reconcile children
         var newChildren = new List<Hex1bNode>();
         for (int i = 0; i < Children.Count; i++)

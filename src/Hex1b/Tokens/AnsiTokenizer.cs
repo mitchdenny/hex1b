@@ -1,0 +1,538 @@
+using System.Globalization;
+
+namespace Hex1b.Tokens;
+
+/// <summary>
+/// Parses ANSI text into a list of tokens.
+/// </summary>
+public static class AnsiTokenizer
+{
+    /// <summary>
+    /// Tokenizes the given text into a list of ANSI tokens.
+    /// </summary>
+    /// <param name="text">The text to tokenize, which may contain ANSI escape sequences.</param>
+    /// <returns>A read-only list of tokens representing the parsed text.</returns>
+    public static IReadOnlyList<AnsiToken> Tokenize(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return [];
+
+        var tokens = new List<AnsiToken>();
+        int i = 0;
+        int textStart = -1;
+
+        while (i < text.Length)
+        {
+            // Check for OSC sequence (ESC ] or 0x9D)
+            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload))
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new OscToken(oscCommand, oscParams, oscPayload));
+                i += oscConsumed;
+            }
+            // Check for APC sequence (ESC _ or 0x9F) - used for frame boundaries
+            else if (TryParseApcSequence(text, i, out var apcConsumed, out var apcContent))
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                var apcToken = apcContent switch
+                {
+                    "HEX1BAPP:FRAME:BEGIN" => (AnsiToken)FrameBeginToken.Instance,
+                    "HEX1BAPP:FRAME:END" => FrameEndToken.Instance,
+                    _ => new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\")
+                };
+                tokens.Add(apcToken);
+                i += apcConsumed;
+            }
+            // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
+            else if (TryParseDcsSequence(text, i, out var dcsConsumed, out var dcsPayload))
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new DcsToken(dcsPayload));
+                i += dcsConsumed;
+            }
+            // Check for CSI sequence (ESC [)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                i = ParseCsiSequence(text, i, tokens);
+            }
+            // Check for DEC save cursor (ESC 7)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '7')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(SaveCursorToken.Dec);
+                i += 2;
+            }
+            // Check for DEC restore cursor (ESC 8)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '8')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(RestoreCursorToken.Dec);
+                i += 2;
+            }
+            // Check for control characters
+            else if (text[i] == '\n')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ControlCharacterToken.LineFeed);
+                i++;
+            }
+            else if (text[i] == '\r')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ControlCharacterToken.CarriageReturn);
+                i++;
+            }
+            else if (text[i] == '\t')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ControlCharacterToken.Tab);
+                i++;
+            }
+            else if (text[i] == '\x1b')
+            {
+                // Unrecognized escape sequence - capture the ESC and following character if any
+                FlushTextToken(text, ref textStart, i, tokens);
+                if (i + 1 < text.Length)
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text.Substring(i, 2)));
+                    i += 2;
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken("\x1b"));
+                    i++;
+                }
+            }
+            else
+            {
+                // Regular text - track start position for batching
+                if (textStart < 0)
+                    textStart = i;
+
+                // Advance by grapheme cluster
+                var grapheme = GetGraphemeAt(text, i);
+                i += grapheme.Length;
+            }
+        }
+
+        // Flush any remaining text
+        FlushTextToken(text, ref textStart, i, tokens);
+
+        return tokens;
+    }
+
+    private static void FlushTextToken(string text, ref int textStart, int currentPos, List<AnsiToken> tokens)
+    {
+        if (textStart >= 0)
+        {
+            tokens.Add(new TextToken(text[textStart..currentPos]));
+            textStart = -1;
+        }
+    }
+
+    private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens)
+    {
+        // Find the command character (first letter after ESC [)
+        int end = start + 2;
+        
+        // Check for private mode indicator (?)
+        bool isPrivateMode = end < text.Length && text[end] == '?';
+        if (isPrivateMode)
+            end++;
+
+        // Read parameters until we hit a letter
+        while (end < text.Length && !char.IsLetter(text[end]))
+        {
+            end++;
+        }
+
+        if (end >= text.Length)
+        {
+            // Incomplete sequence
+            tokens.Add(new UnrecognizedSequenceToken(text[start..]));
+            return text.Length;
+        }
+
+        var command = text[end];
+        var paramStart = start + 2 + (isPrivateMode ? 1 : 0);
+        var parameters = text[paramStart..end];
+
+        switch (command)
+        {
+            case 'm':
+                // SGR - Select Graphic Rendition
+                tokens.Add(new SgrToken(parameters));
+                break;
+
+            case 'H':
+            case 'f':
+                // Cursor position
+                ParseCursorPosition(parameters, tokens);
+                break;
+
+            case 'J':
+                // Clear screen
+                ParseClearScreen(parameters, tokens);
+                break;
+
+            case 'K':
+                // Clear line
+                ParseClearLine(parameters, tokens);
+                break;
+
+            case 'h':
+            case 'l':
+                // Set/reset mode
+                if (isPrivateMode && int.TryParse(parameters, out var modeValue))
+                {
+                    tokens.Add(new PrivateModeToken(modeValue, command == 'h'));
+                }
+                else
+                {
+                    // Standard mode or invalid - treat as unrecognized
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 'q':
+                // Cursor shape (DECSCUSR)
+                if (isPrivateMode || parameters.Contains(' '))
+                {
+                    // ESC [ n SP q format
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                else
+                {
+                    ParseCursorShape(parameters, tokens, text, start, end);
+                }
+                break;
+
+            case 'r':
+                // Scroll region (DECSTBM)
+                ParseScrollRegion(parameters, tokens);
+                break;
+
+            case 's':
+                // ANSI save cursor
+                tokens.Add(SaveCursorToken.Ansi);
+                break;
+
+            case 'u':
+                // ANSI restore cursor
+                tokens.Add(RestoreCursorToken.Ansi);
+                break;
+
+            default:
+                // Unrecognized CSI sequence
+                tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                break;
+        }
+
+        return end + 1;
+    }
+
+    private static void ParseCursorPosition(string parameters, List<AnsiToken> tokens)
+    {
+        if (string.IsNullOrEmpty(parameters))
+        {
+            tokens.Add(new CursorPositionToken(1, 1));
+            return;
+        }
+
+        var parts = parameters.Split(';');
+        int row = 1, col = 1;
+
+        if (parts.Length >= 1 && int.TryParse(parts[0], out var r))
+            row = r;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var c))
+            col = c;
+
+        tokens.Add(new CursorPositionToken(row, col));
+    }
+
+    private static void ParseClearScreen(string parameters, List<AnsiToken> tokens)
+    {
+        var mode = string.IsNullOrEmpty(parameters) ? 0 :
+                   int.TryParse(parameters, out var m) ? m : 0;
+
+        var clearMode = mode switch
+        {
+            0 => ClearMode.ToEnd,
+            1 => ClearMode.ToStart,
+            2 => ClearMode.All,
+            3 => ClearMode.AllAndScrollback,
+            _ => ClearMode.ToEnd
+        };
+
+        tokens.Add(new ClearScreenToken(clearMode));
+    }
+
+    private static void ParseClearLine(string parameters, List<AnsiToken> tokens)
+    {
+        var mode = string.IsNullOrEmpty(parameters) ? 0 :
+                   int.TryParse(parameters, out var m) ? m : 0;
+
+        var clearMode = mode switch
+        {
+            0 => ClearMode.ToEnd,
+            1 => ClearMode.ToStart,
+            2 => ClearMode.All,
+            _ => ClearMode.ToEnd
+        };
+
+        tokens.Add(new ClearLineToken(clearMode));
+    }
+
+    private static void ParseCursorShape(string parameters, List<AnsiToken> tokens, string text, int start, int end)
+    {
+        if (string.IsNullOrEmpty(parameters))
+        {
+            tokens.Add(CursorShapeToken.Default);
+            return;
+        }
+
+        if (!int.TryParse(parameters, out var shape))
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+            return;
+        }
+
+        var token = shape switch
+        {
+            0 => CursorShapeToken.Default,
+            1 => CursorShapeToken.BlinkingBlock,
+            2 => CursorShapeToken.SteadyBlock,
+            3 => CursorShapeToken.BlinkingUnderline,
+            4 => CursorShapeToken.SteadyUnderline,
+            5 => CursorShapeToken.BlinkingBar,
+            6 => CursorShapeToken.SteadyBar,
+            _ => null
+        };
+
+        if (token is not null)
+            tokens.Add(token);
+        else
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+    }
+
+    private static void ParseScrollRegion(string parameters, List<AnsiToken> tokens)
+    {
+        if (string.IsNullOrEmpty(parameters))
+        {
+            // Reset scroll region
+            tokens.Add(ScrollRegionToken.Reset);
+            return;
+        }
+
+        var parts = parameters.Split(';');
+        if (parts.Length >= 2 &&
+            int.TryParse(parts[0], out var top) &&
+            int.TryParse(parts[1], out var bottom))
+        {
+            tokens.Add(new ScrollRegionToken(top, bottom));
+        }
+        else
+        {
+            // Invalid - reset
+            tokens.Add(ScrollRegionToken.Reset);
+        }
+    }
+
+    private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload)
+    {
+        consumed = 0;
+        command = "";
+        parameters = "";
+        payload = "";
+
+        // Check for OSC start: ESC ] (0x1b 0x5d) or 0x9D
+        bool isOscStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == ']')
+        {
+            isOscStart = true;
+            dataStart = start + 2;
+        }
+        else if (start < text.Length && text[start] == '\x9d')
+        {
+            isOscStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isOscStart)
+            return false;
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c), BEL (\x07), or 0x9C
+        int dataEnd = -1;
+        int stLength = 0;
+        for (int j = dataStart; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                stLength = 2; // ESC \
+                break;
+            }
+            else if (text[j] == '\x07')
+            {
+                dataEnd = j;
+                stLength = 1; // BEL
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                stLength = 1; // 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        consumed = dataEnd + stLength - start;
+
+        // Extract the OSC data (between ESC ] and ST)
+        var oscData = text.Substring(dataStart, dataEnd - dataStart);
+
+        // Parse OSC data: command ; params ; payload
+        var firstSemicolon = oscData.IndexOf(';');
+        if (firstSemicolon < 0)
+        {
+            // No semicolons - entire thing is command
+            command = oscData;
+            return true;
+        }
+
+        command = oscData[..firstSemicolon];
+
+        var secondSemicolon = oscData.IndexOf(';', firstSemicolon + 1);
+        if (secondSemicolon < 0)
+        {
+            // Only one semicolon - rest is payload
+            payload = oscData[(firstSemicolon + 1)..];
+            return true;
+        }
+
+        parameters = oscData[(firstSemicolon + 1)..secondSemicolon];
+        payload = oscData[(secondSemicolon + 1)..];
+
+        return true;
+    }
+
+    private static bool TryParseDcsSequence(string text, int start, out int consumed, out string payload)
+    {
+        consumed = 0;
+        payload = "";
+
+        // Check for DCS start: ESC P (0x1b 0x50) or 0x90
+        bool isDcsStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == 'P')
+        {
+            isDcsStart = true;
+            dataStart = start + 2;
+        }
+        else if (start < text.Length && text[start] == '\x90')
+        {
+            isDcsStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isDcsStart)
+            return false;
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c) or 0x9C
+        int dataEnd = -1;
+        for (int j = dataStart; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                consumed = j + 2 - start; // Include ESC \
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                consumed = j + 1 - start; // Include 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        // Extract the full DCS payload (between DCS header and ST)
+        payload = text.Substring(dataStart, dataEnd - dataStart);
+        return true;
+    }
+
+    private static bool TryParseApcSequence(string text, int start, out int consumed, out string content)
+    {
+        consumed = 0;
+        content = "";
+
+        // Check for APC start: ESC _ (0x1b 0x5f) or 0x9F
+        bool isApcStart = false;
+        int dataStart = start;
+
+        if (start + 1 < text.Length && text[start] == '\x1b' && text[start + 1] == '_')
+        {
+            isApcStart = true;
+            dataStart = start + 2;
+        }
+        else if (start < text.Length && text[start] == '\x9f')
+        {
+            isApcStart = true;
+            dataStart = start + 1;
+        }
+
+        if (!isApcStart)
+            return false;
+
+        // Find the ST (String Terminator): ESC \ (0x1b 0x5c) or 0x9C
+        int dataEnd = -1;
+        for (int j = dataStart; j < text.Length; j++)
+        {
+            if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
+            {
+                dataEnd = j;
+                consumed = j + 2 - start; // Include ESC \
+                break;
+            }
+            else if (text[j] == '\x9c')
+            {
+                dataEnd = j;
+                consumed = j + 1 - start; // Include 0x9C
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false; // No terminator found
+
+        // Extract the APC content (between APC header and ST)
+        content = text.Substring(dataStart, dataEnd - dataStart);
+        return true;
+    }
+
+    /// <summary>
+    /// Gets the grapheme cluster starting at the given position in the text.
+    /// </summary>
+    private static string GetGraphemeAt(string text, int index)
+    {
+        if (index >= text.Length)
+            return "";
+
+        var enumerator = StringInfo.GetTextElementEnumerator(text, index);
+        if (enumerator.MoveNext())
+        {
+            return (string)enumerator.Current;
+        }
+        return text[index].ToString();
+    }
+}

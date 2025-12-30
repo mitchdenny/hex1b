@@ -21,12 +21,27 @@ public sealed class ListNode : Hex1bNode
         get => _items; 
         set 
         {
-            if (!ReferenceEquals(_items, value))
+            if (!ItemsEqual(_items, value))
             {
                 _items = value;
                 MarkDirty();
             }
         }
+    }
+    
+    /// <summary>
+    /// Compares two item lists for content equality.
+    /// This prevents unnecessary dirty marking when the same items are passed as a new list.
+    /// </summary>
+    private static bool ItemsEqual(IReadOnlyList<string> a, IReadOnlyList<string> b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
     }
 
     /// <summary>

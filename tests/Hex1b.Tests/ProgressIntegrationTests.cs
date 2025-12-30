@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -49,7 +49,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Download Progress"), TimeSpan.FromSeconds(2))
             .Capture("progress-determinate-50")
             .Ctrl().Key(Hex1bKey.C)
@@ -79,7 +79,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Progress: 0%"), TimeSpan.FromSeconds(2))
             .Capture("progress-zero-percent")
             .Ctrl().Key(Hex1bKey.C)
@@ -105,7 +105,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Progress: 100%"), TimeSpan.FromSeconds(2))
             .Capture("progress-hundred-percent")
             .Ctrl().Key(Hex1bKey.C)
@@ -131,7 +131,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Bytes:"), TimeSpan.FromSeconds(2))
             .Capture("progress-custom-range")
             .Ctrl().Key(Hex1bKey.C)
@@ -157,7 +157,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Temperature:"), TimeSpan.FromSeconds(2))
             .Capture("progress-negative-range")
             .Ctrl().Key(Hex1bKey.C)
@@ -183,7 +183,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Loading..."), TimeSpan.FromSeconds(2))
             .Capture("progress-indeterminate")
             .Ctrl().Key(Hex1bKey.C)
@@ -213,7 +213,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Full width"), TimeSpan.FromSeconds(2))
             .Capture("progress-full-width")
             .Ctrl().Key(Hex1bKey.C)
@@ -239,7 +239,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Fixed width"), TimeSpan.FromSeconds(2))
             .Capture("progress-fixed-width")
             .Ctrl().Key(Hex1bKey.C)
@@ -268,7 +268,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Loading:"), TimeSpan.FromSeconds(2))
             .Capture("progress-hstack-fill")
             .Ctrl().Key(Hex1bKey.C)
@@ -302,7 +302,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Disk I/O:"), TimeSpan.FromSeconds(2))
             .Capture("progress-multiple-bars")
             .Ctrl().Key(Hex1bKey.C)
@@ -331,7 +331,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File Transfer"), TimeSpan.FromSeconds(2))
             .Capture("progress-in-border")
             .Ctrl().Key(Hex1bKey.C)
@@ -361,7 +361,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText($"width: {width}"), TimeSpan.FromSeconds(2))
             .Capture($"progress-width-{width}")
             .Ctrl().Key(Hex1bKey.C)
@@ -394,7 +394,7 @@ public class ProgressIntegrationTests : IDisposable
         var runTask = app.RunAsync(cts.Token);
 
         // Wait for initial render
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Progress: 0%"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -446,7 +446,7 @@ public class ProgressIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Custom themed"), TimeSpan.FromSeconds(2))
             .Capture("progress-custom-theme")
             .Ctrl().Key(Hex1bKey.C)
@@ -553,7 +553,7 @@ public class ProgressIntegrationTests : IDisposable
         recorder.AddMarker("Download Start");
 
         // Wait for initial render
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Downloading:"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -632,7 +632,7 @@ public class ProgressIntegrationTests : IDisposable
         recorder.AddMarker("Build Start");
 
         // Wait for initial render
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Build Pipeline"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -700,7 +700,7 @@ public class ProgressIntegrationTests : IDisposable
 
         recorder.AddMarker("Initial Size (100 cols)");
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Resize"), TimeSpan.FromSeconds(2))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Capture("wide")
@@ -709,7 +709,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize to medium
         recorder.AddMarker("Resize to 60 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(1));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         terminal.Resize(60, 10);
         await workload.ResizeAsync(60, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
@@ -719,7 +719,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize to narrow
         recorder.AddMarker("Resize to 40 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(2));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         terminal.Resize(40, 10);
         await workload.ResizeAsync(40, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
@@ -729,7 +729,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize back to wide
         recorder.AddMarker("Resize to 120 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(120, 10, TimeSpan.FromSeconds(3));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(120, 10, TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
         terminal.Resize(120, 10);
         await workload.ResizeAsync(120, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);

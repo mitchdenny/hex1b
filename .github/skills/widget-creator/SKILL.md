@@ -516,7 +516,7 @@ Integration tests spin up a real `Hex1bApp` and test the widget in various layou
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 
 public class MyWidgetIntegrationTests : IDisposable
@@ -559,7 +559,7 @@ public async Task MyWidget_RendersCorrectly()
 
     var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(2))
         .Capture("mywidget-basic")  // Exports SVG, HTML, ANSI
         .Ctrl().Key(Hex1bKey.C)
@@ -591,7 +591,7 @@ public async Task MyWidget_InBorder()
 
     var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Panel"), TimeSpan.FromSeconds(2))
         .Capture("mywidget-in-border")
         .Ctrl().Key(Hex1bKey.C)
@@ -617,7 +617,7 @@ public async Task MyWidget_InHStackWithFill()
 
     var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(2))
         .Capture("mywidget-hstack-fill")
         .Ctrl().Key(Hex1bKey.C)
@@ -644,7 +644,7 @@ public async Task MyWidget_RespondsToTerminalWidth(int width)
 
     var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Responsive"), TimeSpan.FromSeconds(2))
         .Capture($"mywidget-width-{width}")
         .Ctrl().Key(Hex1bKey.C)
@@ -742,7 +742,7 @@ public async Task MyWidget_RecordsResizeScenario()
 
     recorder.AddMarker("Initial Size (100 cols)");
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Resize"), TimeSpan.FromSeconds(2))
         .Wait(TimeSpan.FromMilliseconds(500))
         .Build()
@@ -799,7 +799,7 @@ public async Task MyWidget_RespectsCustomTheme()
 
     var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(2))
         .Capture("mywidget-custom-theme")
         .Ctrl().Key(Hex1bKey.C)

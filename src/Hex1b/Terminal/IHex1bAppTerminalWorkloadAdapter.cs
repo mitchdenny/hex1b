@@ -79,4 +79,12 @@ public interface IHex1bAppTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
     /// Set the cursor position.
     /// </summary>
     void SetCursorPosition(int left, int top);
+    
+    // === Back Pressure ===
+    
+    /// <summary>
+    /// Gets the number of output items waiting to be consumed by the terminal.
+    /// Can be used to detect back pressure and adjust input processing accordingly.
+    /// </summary>
+    int OutputQueueDepth { get; }
 }

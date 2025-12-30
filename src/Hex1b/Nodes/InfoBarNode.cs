@@ -18,12 +18,27 @@ public sealed class InfoBarNode : Hex1bNode
         get => _sections; 
         set 
         {
-            if (!ReferenceEquals(_sections, value))
+            if (!SectionsEqual(_sections, value))
             {
                 _sections = value;
                 MarkDirty();
             }
         }
+    }
+    
+    /// <summary>
+    /// Compares two section lists for content equality.
+    /// This prevents unnecessary dirty marking when the same sections are passed as a new list.
+    /// </summary>
+    private static bool SectionsEqual(IReadOnlyList<InfoBarSection> a, IReadOnlyList<InfoBarSection> b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
     }
 
     private bool _invertColors = true;

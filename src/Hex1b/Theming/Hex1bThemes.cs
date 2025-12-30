@@ -27,7 +27,7 @@ public static class Hex1bThemes
 
     private static Hex1bTheme CreateDefaultTheme()
     {
-        return new Hex1bTheme("Default");
+        return new Hex1bTheme("Default").Lock();
         // Uses all default values from theme elements
     }
 
@@ -52,7 +52,8 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 50, 90))
-            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(100, 200, 255));
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
+            .Lock();
     }
 
     private static Hex1bTheme CreateHighContrastTheme()
@@ -81,7 +82,8 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(128, 128, 0))
             .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.Yellow)
             .Set(ToggleSwitchTheme.LeftBracket, "◄ ")
-            .Set(ToggleSwitchTheme.RightBracket, " ►");
+            .Set(ToggleSwitchTheme.RightBracket, " ►")
+            .Lock();
     }
 
     private static Hex1bTheme CreateSunsetTheme()
@@ -105,6 +107,7 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(255, 180, 100))
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(100, 40, 20))
-            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(255, 180, 100));
+            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(255, 180, 100))
+            .Lock();
     }
 }

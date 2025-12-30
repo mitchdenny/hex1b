@@ -3,7 +3,7 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -72,7 +72,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Back to Default"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-button-scoping")
             .Ctrl().Key(Hex1bKey.C)
@@ -110,7 +110,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Focus Me"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-focused-button")
             .Ctrl().Key(Hex1bKey.C)
@@ -155,7 +155,7 @@ public class ThemePanelIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // The themed TextBox is first and gets initial focus
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Default TextBox"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-textbox-scoping")
             .Ctrl().Key(Hex1bKey.C)
@@ -203,7 +203,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Cherry"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-list-scoping")
             .Ctrl().Key(Hex1bKey.C)
@@ -248,7 +248,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Still Default"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-border-scoping")
             .Ctrl().Key(Hex1bKey.C)
@@ -297,7 +297,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed Progress"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-progress-scoping")
             .Ctrl().Key(Hex1bKey.C)
@@ -349,7 +349,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Blue Again"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-nested")
             .Ctrl().Key(Hex1bKey.C)
@@ -396,7 +396,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Back to outer"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-nested-doc-example")
             .Ctrl().Key(Hex1bKey.C)
@@ -472,7 +472,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Only outer theme here"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-nesting-doc-example")
             .Ctrl().Key(Hex1bKey.C)
@@ -551,7 +551,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Default Button"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-in-vstack")
             .Ctrl().Key(Hex1bKey.C)
@@ -591,7 +591,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Green Middle"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-in-hstack")
             .Ctrl().Key(Hex1bKey.C)
@@ -631,7 +631,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Orange Button"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-in-border")
             .Ctrl().Key(Hex1bKey.C)
@@ -673,7 +673,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Cyan Button"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-in-vscroll")
             .Ctrl().Key(Hex1bKey.C)
@@ -721,7 +721,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Yellow Right"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-in-splitter")
             .Ctrl().Key(Hex1bKey.C)
@@ -771,7 +771,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Cached Theme Button 2"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-cached-theme")
             .Ctrl().Key(Hex1bKey.C)
@@ -791,7 +791,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// This test is currently flaky when run with other tests due to what appears
     /// to be a test isolation issue. It passes reliably when run in isolation.
     /// </remarks>
-    [Fact(Skip = "Flaky test - passes in isolation, fails with other tests. Needs investigation.")]
+    [Fact]
     public async Task ThemePanel_PassthroughTheme_HasNoEffect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -810,7 +810,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Should Look Normal"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-passthrough")
             .Ctrl().Key(Hex1bKey.C)
@@ -864,7 +864,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item B"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-multiple-widgets")
             .Ctrl().Key(Hex1bKey.C)
@@ -912,7 +912,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Responsive"), TimeSpan.FromSeconds(2))
             .Capture($"themepanel-width-{width}")
             .Ctrl().Key(Hex1bKey.C)
@@ -981,7 +981,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         recorder.AddMarker("Initial State");
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Another Default"), TimeSpan.FromSeconds(2))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
@@ -990,7 +990,7 @@ public class ThemePanelIntegrationTests : IDisposable
         recorder.AddMarker("Navigate to Themed Buttons");
 
         // Navigate through buttons to show theme scoping
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Tab)
             .Wait(TimeSpan.FromMilliseconds(300))
             .Key(Hex1bKey.Tab)
@@ -1072,7 +1072,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         recorder.AddMarker("Initial State");
 
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Blue Outer 2"), TimeSpan.FromSeconds(2))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
@@ -1083,7 +1083,7 @@ public class ThemePanelIntegrationTests : IDisposable
         // Navigate through all buttons
         for (int i = 0; i < 4; i++)
         {
-            await new Hex1bTestSequenceBuilder()
+            await new Hex1bTerminalInputSequenceBuilder()
                 .Key(Hex1bKey.Tab)
                 .Wait(TimeSpan.FromMilliseconds(400))
                 .Build()
@@ -1170,7 +1170,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Memory:"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-dashboard")
             .Ctrl().Key(Hex1bKey.C)
@@ -1238,7 +1238,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTestSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit Registration"), TimeSpan.FromSeconds(2))
             .Capture("themepanel-form-validation")
             .Ctrl().Key(Hex1bKey.C)

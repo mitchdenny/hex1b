@@ -1,5 +1,5 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 using Hex1bTheming = Hex1b.Theming;
 
@@ -27,7 +27,7 @@ public class RenderOptimizationTests
 
         // Trigger re-renders via input
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Key(Hex1bKey.C)
@@ -55,11 +55,11 @@ public class RenderOptimizationTests
                 // Text changes each frame - node should be marked dirty
                 return Task.FromResult<Hex1bWidget>(ctx.Text($"Counter: {counter}"));
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Capture("final")
@@ -93,7 +93,7 @@ public class RenderOptimizationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Capture("final")
@@ -130,11 +130,11 @@ public class RenderOptimizationTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Capture("final")
@@ -182,11 +182,11 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .Capture("final")
@@ -232,7 +232,7 @@ public class RenderOptimizationTests
 
         // First render only
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -272,12 +272,12 @@ public class RenderOptimizationTests
                     ctx.VStack(v => [testWidget])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         // Frame 1: [testWidget] - new node, rendered
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)  // triggers frame 2: [testWidget] - same node, clean, NOT rendered
             .Key(Hex1bKey.B)  // triggers frame 3: [Text, testWidget] - new node at index 1, rendered
             .Capture("final")
@@ -316,7 +316,7 @@ public class RenderOptimizationTests
 
         // Move mouse multiple times - with native cursor, this should NOT trigger re-renders
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .MouseMoveTo(5, 5)
             .MouseMoveTo(10, 10)
             .MouseMoveTo(15, 15)
@@ -360,7 +360,7 @@ public class RenderOptimizationTests
 
         // Initial render
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Tab)  // Let the app initialize
             // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
             // Drag right by 5 characters
@@ -400,7 +400,7 @@ public class RenderOptimizationTests
         // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
         // Drag right by 10 characters
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Drag(21, 5, 31, 5)
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -472,7 +472,7 @@ public class RenderOptimizationTests
         // Trigger a resize event
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await workload.ResizeAsync(100, 30, TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -517,7 +517,7 @@ public class RenderOptimizationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Wait for initial render, then move mouse over button to trigger hover state
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(5, 1)
             .Capture("final")

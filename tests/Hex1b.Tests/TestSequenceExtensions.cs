@@ -1,4 +1,4 @@
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 
 namespace Hex1b.Tests;
 
@@ -13,7 +13,7 @@ public static class TestSequenceExtensions
     /// <param name="builder">The test sequence builder.</param>
     /// <param name="name">Name for this capture (used as filename prefix).</param>
     /// <returns>The builder for fluent chaining.</returns>
-    public static Hex1bTestSequenceBuilder Capture(this Hex1bTestSequenceBuilder builder, string name = "snapshot")
+    public static Hex1bTerminalInputSequenceBuilder Capture(this Hex1bTerminalInputSequenceBuilder builder, string name = "snapshot")
     {
         builder._steps.Add(new CaptureStep(name));
         return builder;
@@ -27,7 +27,7 @@ public static class TestSequenceExtensions
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A snapshot of the terminal state after all steps have been executed.</returns>
     public static Task<Hex1bTerminalSnapshot> ApplyWithCaptureAsync(
-        this Hex1bTestSequence sequence,
+        this Hex1bTerminalInputSequence sequence,
         Hex1bTerminal terminal,
         CancellationToken ct = default)
     {

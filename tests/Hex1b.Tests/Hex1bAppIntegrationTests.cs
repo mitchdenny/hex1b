@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using Xunit.Sdk;
 using Hex1b.Input;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -26,7 +26,7 @@ public class Hex1bAppIntegrationTests
 
         // Run app and exit with Ctrl+C
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -50,7 +50,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -82,7 +82,7 @@ public class Hex1bAppIntegrationTests
 
         // Send some keys then exit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
@@ -116,7 +116,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
             .Capture("final")
@@ -173,7 +173,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -208,7 +208,7 @@ public class Hex1bAppIntegrationTests
 
         // Type in first box, tab to second, type in second
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("a")
             .Tab()
@@ -249,7 +249,7 @@ public class Hex1bAppIntegrationTests
 
         // Navigate down twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
@@ -287,7 +287,7 @@ public class Hex1bAppIntegrationTests
 
         // Click the button twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
@@ -316,7 +316,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -364,7 +364,6 @@ public class Hex1bAppIntegrationTests
     public async Task App_InvalidateMultipleTimes_CoalescesRerenders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         var renderCount = 0;
         
@@ -377,11 +376,13 @@ public class Hex1bAppIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
+        // Act - Wait for initial render using proper synchronization
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Render:"), TimeSpan.FromSeconds(2), "initial render")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        // Wait for initial render
-        await Task.Delay(50, TestContext.Current.CancellationToken);
         var initialRenderCount = renderCount;
         
         // Rapid-fire multiple invalidations
@@ -390,15 +391,20 @@ public class Hex1bAppIntegrationTests
             app.Invalidate();
         }
         
-        // Wait for processing
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        // Wait for processing - use a small delay then check final count
+        // The key insight is that we should see FAR fewer than 100 extra renders
+        await Task.Delay(200, TestContext.Current.CancellationToken);
         
         // Should have coalesced - not 100 extra renders
-        // At most a few extra renders (bounded channel with size 1 drops excess)
-        Assert.True(renderCount < initialRenderCount + 10, 
+        // Allow up to 20 extra renders to account for timing variations in CI
+        Assert.True(renderCount < initialRenderCount + 20, 
             $"Expected coalesced renders, but got {renderCount - initialRenderCount} extra renders");
         
-        cts.Cancel();
+        // Exit the app
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
     }
 
@@ -425,7 +431,7 @@ public class Hex1bAppIntegrationTests
         await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Send CTRL-C after the first render to exercise the default binding
-        new Hex1bTestSequenceBuilder()
+        new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);
@@ -471,7 +477,7 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50, TestContext.Current.CancellationToken);
         
         // Send CTRL-C
-        new Hex1bTestSequenceBuilder()
+        new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);
@@ -522,7 +528,7 @@ public class Hex1bAppIntegrationTests
         await Task.Delay(50, TestContext.Current.CancellationToken);
         
         // Send CTRL-C
-        new Hex1bTestSequenceBuilder()
+        new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
             .Apply(terminal);

@@ -1,6 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -405,7 +405,7 @@ public class TextBlockNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Integration Test"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -435,7 +435,7 @@ public class TextBlockNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Third Line"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -485,7 +485,7 @@ public class TextBlockNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Wait for initial render, Enter to click button (it should have focus), wait for re-render
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Counter: 1"), TimeSpan.FromSeconds(2))
             .Enter() // Click the button (should already have focus as only focusable widget)
             .WaitUntil(s => s.ContainsText("Counter: 2"), TimeSpan.FromSeconds(2))
@@ -518,7 +518,7 @@ public class TextBlockNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -548,7 +548,7 @@ public class TextBlockNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello from State"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -573,7 +573,7 @@ public class TextBlockNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // No specific text to wait for, just give it time to render then exit
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(50))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -597,7 +597,7 @@ public class TextBlockNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("日本語テスト"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)

@@ -1,7 +1,8 @@
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -22,9 +23,9 @@ public class Osc8HyperlinkTests
         
         // OSC 8 format: ESC ] 8 ; params ; URI ST
         // ST can be ESC \ or BEL (\x07)
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Link Text");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\"); // End hyperlink
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link Text"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\")); // End hyperlink
         
         // Should track the hyperlink data
         Assert.Equal(1, terminal.TrackedHyperlinkCount);
@@ -44,9 +45,9 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // OSC 8 with BEL terminator instead of ESC \
-        terminal.ProcessOutput("\x1b]8;;https://example.org\x07");
-        terminal.ProcessOutput("Click here");
-        terminal.ProcessOutput("\x1b]8;;\x07"); // End hyperlink
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.org\x07"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Click here"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x07")); // End hyperlink
         
         Assert.Equal(1, terminal.TrackedHyperlinkCount);
         
@@ -62,9 +63,9 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // OSC 8 with parameters (e.g., id=unique-id)
-        terminal.ProcessOutput("\x1b]8;id=test123;https://example.com/path\x1b\\");
-        terminal.ProcessOutput("Link");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;id=test123;https://example.com/path\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var hyperlinkData = terminal.GetHyperlinkDataAt(0, 0);
         Assert.NotNull(hyperlinkData);
@@ -79,8 +80,8 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Start hyperlink
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Link");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
         
         // Verify hyperlink exists
         Assert.Equal(1, terminal.TrackedHyperlinkCount);
@@ -88,10 +89,10 @@ public class Osc8HyperlinkTests
         Assert.NotNull(linkData1);
         
         // End hyperlink
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Write more text without hyperlink
-        terminal.ProcessOutput(" Plain");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(" Plain"));
         
         // The plain text should not have hyperlink
         var linkData2 = terminal.GetHyperlinkDataAt(5, 0);
@@ -109,14 +110,14 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Create hyperlink
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Link");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         Assert.Equal(1, terminal.TrackedHyperlinkCount);
         
         // Overwrite the cells
-        terminal.ProcessOutput("\x1b[1;1HXXXXXXXX");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
         
         // Hyperlink data should be released (refcount reached 0)
         Assert.Equal(0, terminal.TrackedHyperlinkCount);
@@ -129,15 +130,15 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Create same hyperlink twice
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("First");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("First"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
-        terminal.ProcessOutput(" ");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(" "));
         
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Second");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Second"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Should still only have one unique tracked object
         Assert.Equal(1, terminal.TrackedHyperlinkCount);
@@ -155,9 +156,9 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Create same hyperlink with multiple characters
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Link");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var trackedLink = terminal.GetTrackedHyperlinkAt(0, 0);
         Assert.NotNull(trackedLink);
@@ -173,13 +174,13 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Same URI but different parameters should create different objects
-        terminal.ProcessOutput("\x1b]8;id=1;https://example.com\x1b\\");
-        terminal.ProcessOutput("A");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;id=1;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("A"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
-        terminal.ProcessOutput("\x1b]8;id=2;https://example.com\x1b\\");
-        terminal.ProcessOutput("B");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;id=2;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("B"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Should have two unique tracked objects
         Assert.Equal(2, terminal.TrackedHyperlinkCount);
@@ -198,10 +199,10 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Start hyperlink and write across multiple lines
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\");
-        terminal.ProcessOutput("Line 1\n");
-        terminal.ProcessOutput("Line 2");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Line 1\n"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Line 2"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Both lines should have the hyperlink
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
@@ -220,13 +221,13 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Start first hyperlink
-        terminal.ProcessOutput("\x1b]8;;https://first.com\x1b\\");
-        terminal.ProcessOutput("A");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://first.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("A"));
         
         // Start second hyperlink without closing first (should replace)
-        terminal.ProcessOutput("\x1b]8;;https://second.com\x1b\\");
-        terminal.ProcessOutput("B");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://second.com\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("B"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // First character should have first link
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
@@ -272,9 +273,9 @@ public class Osc8HyperlinkTests
         
         // Complex URI with query parameters, hash, etc.
         var uri = "https://example.com/path?foo=bar&baz=qux#section";
-        terminal.ProcessOutput($"\x1b]8;;{uri}\x1b\\");
-        terminal.ProcessOutput("X");
-        terminal.ProcessOutput("\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b]8;;{uri}\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("X"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var linkData = terminal.GetHyperlinkDataAt(0, 0);
         Assert.NotNull(linkData);
@@ -300,7 +301,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Visit GitHub"), TimeSpan.FromSeconds(2))
             .Capture("single-link")
             .Ctrl().Key(Hex1bKey.C)
@@ -335,7 +336,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("API Reference"), TimeSpan.FromSeconds(2))
             .Capture("multiple-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -375,7 +376,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("inline-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -413,7 +414,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Issue Tracker"), TimeSpan.FromSeconds(2))
             .Capture("bordered-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -449,7 +450,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter() // Click the link
             .Enter() // Click again
@@ -490,7 +491,7 @@ public class Osc8HyperlinkTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate and capture at each focus state
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Third Link"), TimeSpan.FromSeconds(2))
             .Capture("focus-first")
             .Tab()
@@ -532,7 +533,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("View Source"), TimeSpan.FromSeconds(2))
             .Enter() // Click first link
             .Tab()
@@ -572,7 +573,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mailto Link"), TimeSpan.FromSeconds(2))
             .Capture("complex-urls")
             .Ctrl().Key(Hex1bKey.C)
@@ -606,7 +607,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Links"), TimeSpan.FromSeconds(2))
             .Capture("narrow-terminal")
             .Ctrl().Key(Hex1bKey.C)
@@ -645,7 +646,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("splitter-clipping")
             .Ctrl().Key(Hex1bKey.C)
@@ -686,7 +687,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(2))
             .Capture("scroll-initial")
             .Down().Down().Down() // Scroll down
@@ -721,7 +722,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Tiny"), TimeSpan.FromSeconds(2))
             .Capture("border-clipped")
             .Ctrl().Key(Hex1bKey.C)
@@ -758,7 +759,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("hstack-overflow")
             .Ctrl().Key(Hex1bKey.C)
@@ -790,7 +791,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(2))
             .Capture("empty-text")
             .Ctrl().Key(Hex1bKey.C)
@@ -823,7 +824,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("ampersand"), TimeSpan.FromSeconds(2))
             .Capture("special-chars")
             .Ctrl().Key(Hex1bKey.C)
@@ -857,7 +858,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("same link"), TimeSpan.FromSeconds(2))
             .Capture("with-id")
             .Ctrl().Key(Hex1bKey.C)
@@ -893,7 +894,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Clipped Box"), TimeSpan.FromSeconds(2))
             .Capture("clipped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -938,7 +939,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2))
             .Capture("constrained-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -982,7 +983,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("This"), TimeSpan.FromSeconds(2))
             .Capture("wrapped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -1034,7 +1035,7 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Capture("multi-line-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -1078,7 +1079,7 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 40, 5);
         
         // Write OSC 8 hyperlink with text
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\Click Me\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\Click Me\x1b]8;;\x1b\\"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
@@ -1096,7 +1097,7 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 40, 5);
         
         // Write text for hyperlink - each character gets same hyperlink
-        terminal.ProcessOutput("\x1b]8;;https://example.com\x1b\\ABCDE\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\ABCDE\x1b]8;;\x1b\\"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
@@ -1113,9 +1114,9 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 40, 5);
         
         // Write two different hyperlinks
-        terminal.ProcessOutput("\x1b]8;;https://example1.com\x1b\\Link1\x1b]8;;\x1b\\");
-        terminal.ProcessOutput(" ");
-        terminal.ProcessOutput("\x1b]8;;https://example2.com\x1b\\Link2\x1b]8;;\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example1.com\x1b\\Link1\x1b]8;;\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(" "));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example2.com\x1b\\Link2\x1b]8;;\x1b\\"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
@@ -1132,7 +1133,7 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 40, 5);
         
         // Write some regular text (no hyperlink)
-        terminal.ProcessOutput("Hello World");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Hello World"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
@@ -1148,7 +1149,7 @@ public class Osc8HyperlinkTests
         // SVG should include CSS for highlighting cell groups
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 40, 5);
-        terminal.ProcessOutput("Hello");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Hello"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
@@ -1163,7 +1164,7 @@ public class Osc8HyperlinkTests
         // Each cell group should have data-x and data-y attributes
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 10, 3);
-        terminal.ProcessOutput("AB");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("AB"));
         
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();

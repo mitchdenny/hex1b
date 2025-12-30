@@ -2,19 +2,20 @@
 
 using Hex1b;
 using Hex1b.Terminal;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
 public class TrackedObjectTests
 {
     [Fact]
-    public void ProcessOutput_WithSixelSequence_CreatesSixelData()
+    public void ApplyTokens_WithSixelSequence_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Process a Sixel sequence directly
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should track the Sixel data
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -27,13 +28,13 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void ProcessOutput_WithCursorPositionThenSixel_CreatesSixelData()
+    public void ApplyTokens_WithCursorPositionThenSixel_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Process cursor position followed by Sixel sequence
-        terminal.ProcessOutput("\x1b[1;1H\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should track the Sixel data
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -107,11 +108,11 @@ public class TrackedObjectTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Process a Sixel sequence
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         Assert.Equal(1, terminal.TrackedSixelCount);
         
         // Overwrite the cell with text
-        terminal.ProcessOutput("\x1b[1;1HXXXXXXXX");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
         
         // Sixel data should be released (refcount reached 0)
         Assert.Equal(0, terminal.TrackedSixelCount);
@@ -124,9 +125,9 @@ public class TrackedObjectTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Process the same Sixel sequence twice
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
-        terminal.ProcessOutput("\x1b[2;1H"); // Move cursor to next row
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;1H")); // Move cursor to next row
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should still only have one unique tracked object
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -144,9 +145,9 @@ public class TrackedObjectTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Process the same Sixel sequence twice
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
-        terminal.ProcessOutput("\x1b[2;1H"); // Move cursor to next row
-        terminal.ProcessOutput("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;1H")); // Move cursor to next row
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         var trackedSixel = terminal.GetTrackedSixelAt(0, 0);
         Assert.NotNull(trackedSixel);

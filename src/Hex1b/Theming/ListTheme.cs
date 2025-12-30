@@ -12,10 +12,10 @@ public static class ListTheme
         new($"{nameof(ListTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedForegroundColor = 
-        new($"{nameof(ListTheme)}.{nameof(SelectedForegroundColor)}", () => Hex1bColor.White);
+        new($"{nameof(ListTheme)}.{nameof(SelectedForegroundColor)}", () => Hex1bColor.Black);
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedBackgroundColor = 
-        new($"{nameof(ListTheme)}.{nameof(SelectedBackgroundColor)}", () => Hex1bColor.Blue);
+        new($"{nameof(ListTheme)}.{nameof(SelectedBackgroundColor)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<string> SelectedIndicator = 
         new($"{nameof(ListTheme)}.{nameof(SelectedIndicator)}", () => "> ");

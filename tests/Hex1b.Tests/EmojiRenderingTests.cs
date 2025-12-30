@@ -1,5 +1,6 @@
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
@@ -32,7 +33,7 @@ public class EmojiRenderingTests
 
         public void Write(string text)
         {
-            Terminal.ProcessOutput(text);
+            Terminal.ApplyTokens(AnsiTokenizer.Tokenize(text));
         }
 
         public void Dispose()

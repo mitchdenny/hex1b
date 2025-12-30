@@ -62,4 +62,28 @@ public class Hex1bAppOptions
     /// Default is true.
     /// </summary>
     public bool EnableDefaultCtrlCExit { get; set; } = true;
+    
+    /// <summary>
+    /// Whether to enable input coalescing. When enabled, multiple rapid inputs are
+    /// batched together before rendering, improving performance under back pressure.
+    /// Disable for testing to ensure each input triggers a separate frame.
+    /// Default is true.
+    /// </summary>
+    public bool EnableInputCoalescing { get; set; } = true;
+    
+    /// <summary>
+    /// Initial delay in milliseconds for input coalescing. After processing an input,
+    /// the app waits this long to allow additional inputs to arrive before rendering.
+    /// Only applies when <see cref="EnableInputCoalescing"/> is true.
+    /// Default is 5ms.
+    /// </summary>
+    public int InputCoalescingInitialDelayMs { get; set; } = 5;
+    
+    /// <summary>
+    /// Maximum delay in milliseconds for input coalescing. The delay adaptively scales
+    /// based on output queue depth but will not exceed this value.
+    /// Only applies when <see cref="EnableInputCoalescing"/> is true.
+    /// Default is 100ms.
+    /// </summary>
+    public int InputCoalescingMaxDelayMs { get; set; } = 100;
 }

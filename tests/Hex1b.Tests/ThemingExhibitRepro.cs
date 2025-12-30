@@ -1,7 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -36,11 +36,16 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left: VStack with List
-                        root.VStack(left => [
-                            left.Text("═══ Themes ═══"),
-                            left.List(items)
-                        ]),
+                        // Left: VStack with List (themed with gray selection to distinguish from TextBox cursor)
+                        root.ThemePanel(
+                            theme => theme
+                                .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                                .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                            ctx.VStack(left => [
+                                left.Text("═══ Themes ═══"),
+                                left.List(items)
+                            ])
+                        ),
                         // Right: Layout -> VStack -> TextBox
                         root.Layout(
                             root.VStack(right => [
@@ -61,7 +66,7 @@ public class ThemingExhibitRepro
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -162,53 +167,80 @@ public class ThemingExhibitRepro
     }
 
     /// <summary>
-    /// Verify that when TextBoxNode.IsFocused is false, rendering does not include cursor colors.
+    /// Verify that when a TextBox has focus (which it gets by default as the first focusable widget),
+    /// the cursor colors are rendered. This test uses text-based waiting which is more reliable.
     /// </summary>
     [Fact]
-    public void TextBoxNode_WhenNotFocused_ShouldNotRenderCursorColors()
+    public async Task TextBox_WhenNotFocused_ShouldNotRenderCursorColors()
     {
+        // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
 
-        using var terminal = new Hex1bTerminal(workload, 80, 5);
-        var context = new Hex1bRenderContext(workload);
-        
-        var node = new TextBoxNode
-        {
-            Text = "test",
-            IsFocused = false
-        };
+        // Create a VStack with a List (focusable) first, then a TextBox
+        // The List gets focus by default, so the TextBox should NOT show cursor colors
+        var items = new List<string> { "Item 1", "Item 2" };
+        using var app = new Hex1bApp(
+            ctx => ctx.VStack(root => [
+                // Use gray selection for List to distinguish from TextBox cursor (white bg)
+                root.ThemePanel(
+                    theme => theme
+                        .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                        .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                    ctx.List(items)       // List gets focus first
+                ),
+                root.TextBox("test text") // TextBox does NOT have focus initially
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
 
-        node.Render(context);
+        // Act - Run app, wait for content to render
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("test text"), TimeSpan.FromSeconds(2),
+                "List and TextBox content to appear")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
 
-        // Default cursor colors from theme:
-        // CursorForegroundColor = Black (0,0,0)
-        // CursorBackgroundColor = White (255,255,255)
-        Assert.False(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
-        // Note: foreground might match other things, so we focus on the distinctive background
+        // Assert - The cursor background color (white) should NOT be present because TextBox doesn't have focus.
+        // The List has focus, not the TextBox.
+        var snapshot = terminal.CreateSnapshot();
+        Assert.False(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+            "TextBox should NOT have cursor colors when it doesn't have focus (List has focus)");
     }
 
     /// <summary>
-    /// Verify that when TextBoxNode.IsFocused is true, rendering DOES include cursor colors.
+    /// Verify that when a TextBox has focus, rendering DOES include cursor colors at the cursor position.
+    /// Uses full Hex1bApp integration for reliable behavior.
     /// </summary>
     [Fact]
-    public void TextBoxNode_WhenFocused_ShouldRenderCursorColors()
+    public async Task TextBox_WhenFocused_ShouldRenderCursorColors()
     {
+        // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 30, 5);
 
-        using var terminal = new Hex1bTerminal(workload, 80, 5);
-        var context = new Hex1bRenderContext(workload);
-        
-        var node = new TextBoxNode
-        {
-            Text = "test",
-            IsFocused = true
-        };
-        node.State.CursorPosition = 1;
+        using var app = new Hex1bApp(
+            ctx => ctx.TextBox("test"),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
 
-        node.Render(context);
+        // Act - Run app, wait for TextBox text to appear, then check for cursor colors
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2), "TextBox content to appear")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
 
-        // Default cursor background = White (255,255,255)
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
+        // Assert - The cursor background color (white) should be in the snapshot
+        // Default cursor colors: foreground=Black, background=White (255,255,255)
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+            "TextBox should render cursor with white background when focused");
     }
 
     /// <summary>
@@ -235,12 +267,17 @@ public class ThemingExhibitRepro
             {
                 var widget = ctx.VStack(root => [
                     root.HSplitter(
-                        // Left pane: VStack with List
-                        root.VStack(left => [
-                            left.Text("═══ Themes ═══"),
-                            left.Text(""),
-                            left.List(items)
-                        ]),
+                        // Left pane: VStack with List (themed with gray selection to distinguish from TextBox cursor)
+                        root.ThemePanel(
+                            theme => theme
+                                .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Gray)
+                                .Set(ListTheme.SelectedForegroundColor, Hex1bColor.White),
+                            ctx.VStack(left => [
+                                left.Text("═══ Themes ═══"),
+                                left.Text(""),
+                                left.List(items)
+                            ])
+                        ),
                         // Right pane: Layout -> VStack with TextBox and Button
                         root.Layout(
                             root.VStack(right => [
@@ -268,7 +305,7 @@ public class ThemingExhibitRepro
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         // Wait for the content to render, then exit
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)

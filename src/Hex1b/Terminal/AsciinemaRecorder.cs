@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Hex1b.Tokens;
 
 namespace Hex1b.Terminal;
 
@@ -96,7 +97,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnSessionStartAsync(int width, int height, DateTimeOffset timestamp)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct)
     {
         lock (_lock)
         {
@@ -108,11 +109,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct)
     {
-        if (data.IsEmpty) return;
+        if (tokens.Count == 0) return;
 
-        var text = Encoding.UTF8.GetString(data.Span);
+        // Serialize tokens back to ANSI text for recording
+        var text = AnsiTokenSerializer.Serialize(tokens);
         lock (_lock)
         {
             _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "o", text));
@@ -120,12 +122,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
         if (_options.AutoFlush)
         {
-            await FlushAsync();
+            await FlushAsync(ct);
         }
     }
 
     /// <inheritdoc />
-    ValueTask IHex1bTerminalWorkloadFilter.OnFrameCompleteAsync(TimeSpan elapsed)
+    ValueTask IHex1bTerminalWorkloadFilter.OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct)
     {
         // Frame boundaries are implicit in Asciinema - we don't need to record them
         // But this could be useful for adding markers or other analysis
@@ -133,7 +135,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct)
     {
         // Only record input if explicitly enabled (per Asciinema spec recommendation)
         if (!_options.CaptureInput) return;
@@ -147,12 +149,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
         if (_options.AutoFlush)
         {
-            await FlushAsync();
+            await FlushAsync(ct);
         }
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnResizeAsync(int width, int height, TimeSpan elapsed)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct)
     {
         lock (_lock)
         {
@@ -163,12 +165,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
         if (_options.AutoFlush)
         {
-            await FlushAsync();
+            await FlushAsync(ct);
         }
     }
 
     /// <inheritdoc />
-    ValueTask IHex1bTerminalWorkloadFilter.OnSessionEndAsync(TimeSpan elapsed)
+    ValueTask IHex1bTerminalWorkloadFilter.OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct)
     {
         // Session end is implicit - no specific event needed
         return ValueTask.CompletedTask;

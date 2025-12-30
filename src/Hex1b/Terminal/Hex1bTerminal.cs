@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Terminal;
 
@@ -57,6 +58,12 @@ public sealed class Hex1bTerminal : IDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
+    
+    // Lock to protect screen buffer state from concurrent access.
+    // The resize event comes from the input thread while the output pump
+    // runs on a separate thread, both accessing _screenBuffer, _width, _height.
+    private readonly object _bufferLock = new();
+    
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
     private int _cursorY;
@@ -69,6 +76,8 @@ public sealed class Hex1bTerminal : IDisposable
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
     private long _writeSequence; // Monotonically increasing write order counter
+    private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
+    private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
 
 
 
@@ -228,10 +237,18 @@ public sealed class Hex1bTerminal : IDisposable
     /// <remarks>
     /// This is called automatically by screen buffer read operations (GetScreenText, 
     /// ContainsText, etc.) so callers don't need to call it directly.
+    /// When PumpWorkloadOutputAsync is running (presentation mode), this method
+    /// does nothing since the pump already updates the buffer and forwards to
+    /// presentation filters.
     /// </remarks>
     internal void FlushOutput()
     {
         if (_workload is not Hex1bAppWorkloadAdapter appWorkload)
+            return;
+
+        // When the output pump is running, it's already updating the buffer
+        // and forwarding to presentation filters. Don't compete for channel data.
+        if (_outputProcessingTask != null)
             return;
 
         // Drain all available output synchronously using non-blocking reads
@@ -242,11 +259,15 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
             }
 
-            // Notify workload filters of output FROM workload (fire-and-forget in sync context)
-            _ = NotifyWorkloadFiltersOutputAsync(data);
-
+            // Tokenize once, use for both notifications and buffer application
             var text = Encoding.UTF8.GetString(data.Span);
-            ProcessOutput(text);
+            var tokens = AnsiTokenizer.Tokenize(text);
+            
+            // Notify workload filters (fire-and-forget in sync context)
+            _ = NotifyWorkloadFiltersOutputAsync(tokens);
+            
+            // Apply tokens to buffer
+            ApplyTokens(tokens);
         }
 
         // Channel drained - notify frame complete (fire-and-forget in sync context)
@@ -308,19 +329,25 @@ public sealed class Hex1bTerminal : IDisposable
                     continue;
                 }
 
-                // Notify workload filters of output FROM workload
-                await NotifyWorkloadFiltersOutputAsync(data);
-
+                // Tokenize once, use for all processing
                 var text = Encoding.UTF8.GetString(data.Span);
-                ProcessOutput(text);
-
+                var tokens = AnsiTokenizer.Tokenize(text);
+                
+                // Notify workload filters with tokens
+                await NotifyWorkloadFiltersOutputAsync(tokens);
+                
+                // Apply tokens to our internal buffer and collect cell impacts
+                var appliedTokens = ApplyTokensWithImpacts(tokens);
+                
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
-                    // Notify presentation filters of output TO presentation
-                    await NotifyPresentationFiltersOutputAsync(data);
+                    // Pass through presentation filters, serialize and send
+                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                     
-                    await _presentation.WriteOutputAsync(data);
+                    await _presentation.WriteOutputAsync(filteredBytes);
                 }
             }
         }
@@ -449,7 +476,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     internal void EnterAlternateScreen()
     {
-        ProcessOutput("\x1b[?1049h");
+        ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
     }
 
     /// <summary>
@@ -458,7 +485,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     internal void ExitAlternateScreen()
     {
-        ProcessOutput("\x1b[?1049l");
+        ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
     }
 
     /// <summary>
@@ -628,10 +655,10 @@ public sealed class Hex1bTerminal : IDisposable
     /// Useful for assertions and wait conditions in tests.
     /// Automatically flushes pending output before creating the snapshot.
     /// </summary>
-    public Testing.Hex1bTerminalSnapshot CreateSnapshot()
+    public Automation.Hex1bTerminalSnapshot CreateSnapshot()
     {
         FlushOutput();
-        return new Testing.Hex1bTerminalSnapshot(this);
+        return new Automation.Hex1bTerminalSnapshot(this);
     }
 
     /// <summary>
@@ -639,47 +666,50 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
-        var newBuffer = new TerminalCell[newHeight, newWidth];
-        
-        // Initialize with empty cells
-        for (int y = 0; y < newHeight; y++)
+        lock (_bufferLock)
         {
-            for (int x = 0; x < newWidth; x++)
+            var newBuffer = new TerminalCell[newHeight, newWidth];
+            
+            // Initialize with empty cells
+            for (int y = 0; y < newHeight; y++)
             {
-                newBuffer[y, x] = TerminalCell.Empty;
+                for (int x = 0; x < newWidth; x++)
+                {
+                    newBuffer[y, x] = TerminalCell.Empty;
+                }
             }
-        }
 
-        // Copy existing content that fits in the new size
-        var copyHeight = Math.Min(_height, newHeight);
-        var copyWidth = Math.Min(_width, newWidth);
-        for (int y = 0; y < copyHeight; y++)
-        {
-            for (int x = 0; x < copyWidth; x++)
+            // Copy existing content that fits in the new size
+            var copyHeight = Math.Min(_height, newHeight);
+            var copyWidth = Math.Min(_width, newWidth);
+            for (int y = 0; y < copyHeight; y++)
             {
-                newBuffer[y, x] = _screenBuffer[y, x];
+                for (int x = 0; x < copyWidth; x++)
+                {
+                    newBuffer[y, x] = _screenBuffer[y, x];
+                }
             }
-        }
-        
-        // Release tracked objects from cells that are being removed
-        // (cells outside the new bounds)
-        for (int y = 0; y < _height; y++)
-        {
-            for (int x = 0; x < _width; x++)
+            
+            // Release tracked objects from cells that are being removed
+            // (cells outside the new bounds)
+            for (int y = 0; y < _height; y++)
             {
-                // Skip cells that were copied to the new buffer
-                if (y < copyHeight && x < copyWidth)
-                    continue;
-                    
-                _screenBuffer[y, x].TrackedSixel?.Release();
+                for (int x = 0; x < _width; x++)
+                {
+                    // Skip cells that were copied to the new buffer
+                    if (y < copyHeight && x < copyWidth)
+                        continue;
+                        
+                    _screenBuffer[y, x].TrackedSixel?.Release();
+                }
             }
-        }
 
-        _screenBuffer = newBuffer;
-        _width = newWidth;
-        _height = newHeight;
-        _cursorX = Math.Min(_cursorX, newWidth - 1);
-        _cursorY = Math.Min(_cursorY, newHeight - 1);
+            _screenBuffer = newBuffer;
+            _width = newWidth;
+            _height = newHeight;
+            _cursorX = Math.Min(_cursorX, newWidth - 1);
+            _cursorY = Math.Min(_cursorY, newHeight - 1);
+        }
     }
 
     // === Screen Buffer Parsing ===
@@ -688,7 +718,11 @@ public sealed class Hex1bTerminal : IDisposable
     /// Sets a cell in the screen buffer, properly managing tracked object references.
     /// Releases the old cell's tracked object (if any) and adds a reference for the new one (if any).
     /// </summary>
-    private void SetCell(int y, int x, TerminalCell newCell)
+    /// <param name="y">The row position (0-based).</param>
+    /// <param name="x">The column position (0-based).</param>
+    /// <param name="newCell">The new cell value.</param>
+    /// <param name="impacts">Optional list to record the cell impact for delta tracking.</param>
+    private void SetCell(int y, int x, TerminalCell newCell, List<CellImpact>? impacts = null)
     {
         ref var oldCell = ref _screenBuffer[y, x];
         
@@ -704,6 +738,9 @@ public sealed class Hex1bTerminal : IDisposable
         // with the correct refcount
         
         oldCell = newCell;
+        
+        // Record the impact if tracking is enabled
+        impacts?.Add(new CellImpact(x, y, newCell));
     }
 
     /// <summary>
@@ -811,13 +848,13 @@ public sealed class Hex1bTerminal : IDisposable
         return false;
     }
 
-    private void ClearBuffer()
+    private void ClearBuffer(List<CellImpact>? impacts = null)
     {
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
         _currentForeground = null;
@@ -825,32 +862,188 @@ public sealed class Hex1bTerminal : IDisposable
     }
 
     /// <summary>
-    /// Process ANSI output text into the screen buffer.
+    /// Applies a list of ANSI tokens to the screen buffer.
     /// </summary>
-    /// <param name="text">Text containing ANSI escape sequences.</param>
-    internal void ProcessOutput(string text)
+    /// <remarks>
+    /// This method works with pre-tokenized input, which is useful when tokens
+    /// have been processed through workload filters.
+    /// </remarks>
+    /// <param name="tokens">The tokens to apply.</param>
+    internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
     {
+        lock (_bufferLock)
+        {
+            foreach (var token in tokens)
+            {
+                ApplyToken(token, null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies a list of ANSI tokens to the screen buffer and captures the impact of each token.
+    /// </summary>
+    /// <remarks>
+    /// This method tracks which cells were modified by each token and captures cursor movement.
+    /// The returned <see cref="AppliedToken"/> list contains metadata useful for delta encoding
+    /// and other presentation filters.
+    /// </remarks>
+    /// <param name="tokens">The tokens to apply.</param>
+    /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
+    internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(IReadOnlyList<AnsiToken> tokens)
+    {
+        lock (_bufferLock)
+        {
+            var result = new List<AppliedToken>(tokens.Count);
+            
+            foreach (var token in tokens)
+            {
+                int cursorXBefore = _cursorX;
+                int cursorYBefore = _cursorY;
+                
+                var impacts = new List<CellImpact>();
+                ApplyToken(token, impacts);
+                
+                result.Add(new AppliedToken(
+                    token,
+                    impacts,
+                    cursorXBefore, cursorYBefore,
+                    _cursorX, _cursorY));
+            }
+            
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Applies a single ANSI token to the screen buffer.
+    /// </summary>
+    /// <param name="token">The token to apply.</param>
+    /// <param name="impacts">Optional list to record cell impacts for delta tracking.</param>
+    private void ApplyToken(AnsiToken token, List<CellImpact>? impacts)
+    {
+        switch (token)
+        {
+            case TextToken textToken:
+                ApplyTextToken(textToken, impacts);
+                break;
+                
+            case ControlCharacterToken controlToken:
+                ApplyControlCharacter(controlToken);
+                break;
+                
+            case SgrToken sgrToken:
+                ProcessSgr(sgrToken.Parameters);
+                break;
+                
+            case CursorPositionToken cursorToken:
+                _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                break;
+                
+            case ClearScreenToken clearToken:
+                ApplyClearScreen(clearToken.Mode, impacts);
+                break;
+                
+            case ClearLineToken clearLineToken:
+                ApplyClearLine(clearLineToken.Mode, impacts);
+                break;
+                
+            case PrivateModeToken privateModeToken:
+                if (privateModeToken.Mode == 1049)
+                {
+                    if (privateModeToken.Enable)
+                        DoEnterAlternateScreen();
+                    else
+                        DoExitAlternateScreen();
+                }
+                break;
+                
+            case OscToken oscToken:
+                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload);
+                break;
+                
+            case DcsToken dcsToken:
+                ProcessSixelData(dcsToken.Payload, impacts);
+                break;
+                
+            case ScrollRegionToken scrollRegionToken:
+                // Store scroll region for future scroll operations
+                // Not yet implemented in ProcessOutput either
+                break;
+                
+            case SaveCursorToken:
+                _savedCursorX = _cursorX;
+                _savedCursorY = _cursorY;
+                break;
+                
+            case RestoreCursorToken:
+                _cursorX = _savedCursorX;
+                _cursorY = _savedCursorY;
+                break;
+                
+            case CursorShapeToken:
+                // Cursor shape is presentation-only, no buffer state to update
+                break;
+                
+            case UnrecognizedSequenceToken:
+                // Ignore unrecognized sequences
+                break;
+        }
+    }
+
+    private void ApplyTextToken(TextToken token, List<CellImpact>? impacts)
+    {
+        var text = token.Text;
         int i = 0;
+        
         while (i < text.Length)
         {
-            // Check for OSC sequence (ESC ] or 0x9D) - OSC 8 is for hyperlinks
-            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload))
+            var grapheme = GetGraphemeAt(text, i);
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            
+            // Scroll if cursor is past the bottom of the screen BEFORE writing
+            if (_cursorY >= _height)
             {
-                ProcessOscSequence(oscCommand, oscParams, oscPayload);
-                i += oscConsumed;
+                ScrollUp();
+                _cursorY = _height - 1;
             }
-            // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            else if (TryParseSixelSequence(text, i, out var sixelConsumed, out var sixelPayload))
+            
+            if (_cursorX < _width && _cursorY < _height)
             {
-                ProcessSixelData(sixelPayload);
-                i += sixelConsumed;
+                var sequence = ++_writeSequence;
+                var writtenAt = _timeProvider.GetUtcNow();
+                
+                _currentHyperlink?.AddRef();
+                
+                SetCell(_cursorY, _cursorX, new TerminalCell(
+                    grapheme, _currentForeground, _currentBackground, _currentAttributes,
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                
+                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                {
+                    _currentHyperlink?.AddRef();
+                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
+                        "", _currentForeground, _currentBackground, _currentAttributes,
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                }
+                
+                _cursorX += graphemeWidth;
+                if (_cursorX >= _width)
+                {
+                    _cursorX = 0;
+                    _cursorY++;
+                }
             }
-            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
-            {
-                i = ProcessAnsiSequence(text, i);
-            }
-            else if (text[i] == '\n')
-            {
+            i += grapheme.Length;
+        }
+    }
+
+    private void ApplyControlCharacter(ControlCharacterToken token)
+    {
+        switch (token.Character)
+        {
+            case '\n':
                 _cursorY++;
                 _cursorX = 0;
                 if (_cursorY >= _height)
@@ -858,65 +1051,52 @@ public sealed class Hex1bTerminal : IDisposable
                     ScrollUp();
                     _cursorY = _height - 1;
                 }
-                i++;
-            }
-            else if (text[i] == '\r')
-            {
+                break;
+                
+            case '\r':
                 _cursorX = 0;
-                i++;
-            }
-            else
-            {
-                // Extract the grapheme cluster starting at position i
-                var grapheme = GetGraphemeAt(text, i);
-                var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+                break;
                 
-                // Scroll if cursor is past the bottom of the screen BEFORE writing
-                // This implements "delayed line wrap" behavior
-                if (_cursorY >= _height)
-                {
-                    ScrollUp();
-                    _cursorY = _height - 1;
-                }
-                
-                if (_cursorX < _width && _cursorY < _height)
-                {
-                    // Assign sequence number and timestamp for this write operation
-                    var sequence = ++_writeSequence;
-                    var writtenAt = _timeProvider.GetUtcNow();
-                    
-                    // Add reference to current hyperlink for this character (if any)
-                    // Each character that uses a hyperlink needs its own reference
-                    _currentHyperlink?.AddRef();
-                    
-                    // Write the grapheme to the current cell with current hyperlink if any
-                    SetCell(_cursorY, _cursorX, new TerminalCell(
-                        grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
-                    
-                    // For wide characters (width > 1), fill subsequent cells with continuation markers
-                    // Use the same sequence and timestamp so they're part of the same logical write
-                    for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
-                    {
-                        // Add reference for each continuation cell too
-                        _currentHyperlink?.AddRef();
-                        
-                        // Use empty string as continuation marker (the previous cell "owns" this space)
-                        SetCell(_cursorY, _cursorX + w, new TerminalCell(
-                            "", _currentForeground, _currentBackground, _currentAttributes,
-                            sequence, writtenAt, TrackedSixel: null, _currentHyperlink));
-                    }
-                    
-                    _cursorX += graphemeWidth;
-                    if (_cursorX >= _width)
-                    {
-                        _cursorX = 0;
-                        _cursorY++;
-                        // Don't scroll yet - we'll scroll when we try to write the next character
-                    }
-                }
-                i += grapheme.Length;
-            }
+            case '\t':
+                // Move to next tab stop (every 8 columns)
+                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+        }
+    }
+
+    private void ApplyClearScreen(ClearMode mode, List<CellImpact>? impacts)
+    {
+        switch (mode)
+        {
+            case ClearMode.ToEnd:
+                ClearFromCursor(impacts);
+                break;
+            case ClearMode.ToStart:
+                ClearToCursor(impacts);
+                break;
+            case ClearMode.All:
+            case ClearMode.AllAndScrollback:
+                ClearBuffer(impacts);
+                break;
+        }
+    }
+
+    private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
+    {
+        switch (mode)
+        {
+            case ClearMode.ToEnd:
+                for (int x = _cursorX; x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                break;
+            case ClearMode.ToStart:
+                for (int x = 0; x <= _cursorX && x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                break;
+            case ClearMode.All:
+                for (int x = 0; x < _width; x++)
+                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                break;
         }
     }
 
@@ -1173,33 +1353,33 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ClearFromCursor()
+    private void ClearFromCursor(List<CellImpact>? impacts = null)
     {
         for (int x = _cursorX; x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty);
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
     }
 
-    private void ClearToCursor()
+    private void ClearToCursor(List<CellImpact>? impacts = null)
     {
         for (int y = 0; y < _cursorY; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty);
+                SetCell(y, x, TerminalCell.Empty, impacts);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty);
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
     }
 
@@ -1298,7 +1478,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <summary>
     /// Processes Sixel data by creating a tracked object and marking cells.
     /// </summary>
-    private void ProcessSixelData(string sixelPayload)
+    private void ProcessSixelData(string sixelPayload, List<CellImpact>? impacts)
     {
         // Estimate the size in cells based on Sixel data
         // This is approximate - Sixel images can specify dimensions in the data
@@ -1326,7 +1506,7 @@ public sealed class Hex1bTerminal : IDisposable
                     SetCell(y, x, new TerminalCell(
                         " ", _currentForeground, _currentBackground,
                         _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt, sixelData));
+                        sequence, writtenAt, sixelData), impacts);
                 }
                 else
                 {
@@ -1335,7 +1515,7 @@ public sealed class Hex1bTerminal : IDisposable
                     SetCell(y, x, new TerminalCell(
                         "", _currentForeground, _currentBackground,
                         _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt));
+                        sequence, writtenAt), impacts);
                 }
             }
         }
@@ -1817,105 +1997,122 @@ public sealed class Hex1bTerminal : IDisposable
 
     private TimeSpan GetElapsed() => _timeProvider.GetUtcNow() - _sessionStart;
 
-    private async ValueTask NotifyWorkloadFiltersSessionStartAsync()
+    private async ValueTask NotifyWorkloadFiltersSessionStartAsync(CancellationToken ct = default)
     {
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersSessionEndAsync(TimeSpan elapsed)
+    private async ValueTask NotifyWorkloadFiltersSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnSessionEndAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionEndAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersOutputAsync(ReadOnlyMemory<byte> data)
-    {
-        if (_workloadFilters.Count == 0) return;
-        var elapsed = GetElapsed();
-        foreach (var filter in _workloadFilters)
-        {
-            await filter.OnOutputAsync(data, elapsed);
-        }
-    }
-
-    private async ValueTask NotifyWorkloadFiltersFrameCompleteAsync()
+    private async ValueTask NotifyWorkloadFiltersOutputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnFrameCompleteAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnOutputAsync(tokens, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask NotifyWorkloadFiltersFrameCompleteAsync(CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnInputAsync(data, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnFrameCompleteAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersResizeAsync(int width, int height)
+    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
-            await filter.OnResizeAsync(width, height, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnInputAsync(data, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersSessionStartAsync()
+    private async ValueTask NotifyWorkloadFiltersResizeAsync(int width, int height, CancellationToken ct = default)
+    {
+        if (_workloadFilters.Count == 0) return;
+        var elapsed = GetElapsed();
+        foreach (var filter in _workloadFilters)
+        {
+            ct.ThrowIfCancellationRequested();
+            await filter.OnResizeAsync(width, height, elapsed, ct);
+        }
+    }
+
+    private async ValueTask NotifyPresentationFiltersSessionStartAsync(CancellationToken ct = default)
     {
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnSessionStartAsync(_width, _height, _sessionStart);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionStartAsync(_width, _height, _sessionStart, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersSessionEndAsync(TimeSpan elapsed)
+    private async ValueTask NotifyPresentationFiltersSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
     {
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnSessionEndAsync(elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnSessionEndAsync(elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersOutputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, CancellationToken ct = default)
+    {
+        if (_presentationFilters.Count == 0) return appliedTokens.Select(at => at.Token).ToList();
+        var elapsed = GetElapsed();
+        var currentAppliedTokens = appliedTokens;
+        IReadOnlyList<AnsiToken> resultTokens = appliedTokens.Select(at => at.Token).ToList();
+        foreach (var filter in _presentationFilters)
+        {
+            ct.ThrowIfCancellationRequested();
+            resultTokens = await filter.OnOutputAsync(currentAppliedTokens, elapsed, ct);
+            // For subsequent filters, wrap the result tokens as AppliedTokens with no cell impacts
+            // (since they may have been transformed by the previous filter)
+            currentAppliedTokens = resultTokens.Select(t => AppliedToken.WithNoCellImpacts(t, 0, 0, 0, 0)).ToList();
+        }
+        return resultTokens;
+    }
+
+    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnOutputAsync(data, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnInputAsync(data, elapsed, ct);
         }
     }
 
-    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data)
+    private async ValueTask NotifyPresentationFiltersResizeAsync(int width, int height, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
-            await filter.OnInputAsync(data, elapsed);
-        }
-    }
-
-    private async ValueTask NotifyPresentationFiltersResizeAsync(int width, int height)
-    {
-        if (_presentationFilters.Count == 0) return;
-        var elapsed = GetElapsed();
-        foreach (var filter in _presentationFilters)
-        {
-            await filter.OnResizeAsync(width, height, elapsed);
+            ct.ThrowIfCancellationRequested();
+            await filter.OnResizeAsync(width, height, elapsed, ct);
         }
     }
 }

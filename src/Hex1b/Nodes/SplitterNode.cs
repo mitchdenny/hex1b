@@ -1,10 +1,11 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Theming;
 
 namespace Hex1b;
 
-public sealed class SplitterNode : Hex1bNode
+public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
 {
     /// <summary>
     /// The first child (left for horizontal, top for vertical).
@@ -402,11 +403,18 @@ public sealed class SplitterNode : Hex1bNode
             dividerBg = Hex1bColor.Default;
         }
         
-        // Render first pane
+        // Render first pane with clipping
         if (First != null)
         {
+            var previousLayout = context.CurrentLayoutProvider;
+            var firstPaneProvider = new RectLayoutProvider(First.Bounds);
+            firstPaneProvider.ParentLayoutProvider = previousLayout;
+            context.CurrentLayoutProvider = firstPaneProvider;
+            
             context.SetCursorPosition(First.Bounds.X, First.Bounds.Y);
             First.Render(context);
+            
+            context.CurrentLayoutProvider = previousLayout;
         }
         
         if (Orientation == SplitterOrientation.Horizontal)
@@ -418,11 +426,18 @@ public sealed class SplitterNode : Hex1bNode
             RenderVerticalDivider(context, dividerFg, dividerBg, theme);
         }
         
-        // Render second pane
+        // Render second pane with clipping
         if (Second != null)
         {
+            var previousLayout = context.CurrentLayoutProvider;
+            var secondPaneProvider = new RectLayoutProvider(Second.Bounds);
+            secondPaneProvider.ParentLayoutProvider = previousLayout;
+            context.CurrentLayoutProvider = secondPaneProvider;
+            
             context.SetCursorPosition(Second.Bounds.X, Second.Bounds.Y);
             Second.Render(context);
+            
+            context.CurrentLayoutProvider = previousLayout;
         }
     }
 
@@ -550,5 +565,22 @@ public sealed class SplitterNode : Hex1bNode
     {
         if (First != null) yield return First;
         if (Second != null) yield return Second;
+    }
+
+    /// <inheritdoc />
+    public ILayoutProvider? GetChildLayoutProvider(Hex1bNode child)
+    {
+        // Each pane gets its own clipping provider based on its bounds
+        if (ReferenceEquals(child, First) && First != null)
+        {
+            return new RectLayoutProvider(First.Bounds);
+        }
+        
+        if (ReferenceEquals(child, Second) && Second != null)
+        {
+            return new RectLayoutProvider(Second.Bounds);
+        }
+        
+        return null;
     }
 }

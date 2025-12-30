@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 using Hex1b.Terminal;
@@ -674,7 +674,7 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -703,7 +703,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down to select second item
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Down()
             .Capture("final")
@@ -733,7 +733,7 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -763,7 +763,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Simulate down arrow
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .Capture("final")
@@ -794,7 +794,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Simulate Enter key
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Action 1"), TimeSpan.FromSeconds(2))
             .Enter()
             .Capture("final")
@@ -825,7 +825,7 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -851,7 +851,7 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -879,7 +879,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down twice
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
@@ -913,7 +913,7 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1305,7 +1305,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down through the list
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
             .Down().Down().Down() // Move to Date (index 3)
             .Capture("after_navigation")
@@ -1339,7 +1339,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Position mouse over the list (inside the border) and scroll
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(5, 2) // Position mouse inside the list area
             .ScrollDown(3) // Scroll down 3 times to reach Date
@@ -1414,7 +1414,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Navigate down to item 15
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .Down().Down().Down().Down().Down() // Items 2-6
             .Down().Down().Down().Down().Down() // Items 7-11
@@ -1456,7 +1456,7 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Scroll down to the end using mouse wheel
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(10, 5) // Position mouse over list
             .ScrollDown(19) // Scroll down 19 times to reach item 20
@@ -1495,7 +1495,7 @@ public class ListNodeTests
         
         // First scroll down with mouse wheel to move past item 5
         // Then click on the second visible row - should select the correct item
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(10, 5) // Position over list area
             .ScrollDown(5) // Selection moves to item 6, scroll offset adjusts

@@ -24,7 +24,7 @@ public static class SplitterTheme
     /// The left arrow character shown on horizontal splitters to indicate they can be moved.
     /// </summary>
     public static readonly Hex1bThemeElement<string> LeftArrowCharacter = 
-        new($"{nameof(SplitterTheme)}.{nameof(LeftArrowCharacter)}", () => "◀");
+        new($"{nameof(SplitterTheme)}.{nameof(LeftArrowCharacter)}", () => "←");
     
     /// <summary>
     /// The color of the left arrow on horizontal splitters. Defaults to divider color if not set.
@@ -36,7 +36,7 @@ public static class SplitterTheme
     /// The right arrow character shown on horizontal splitters to indicate they can be moved.
     /// </summary>
     public static readonly Hex1bThemeElement<string> RightArrowCharacter = 
-        new($"{nameof(SplitterTheme)}.{nameof(RightArrowCharacter)}", () => "▶");
+        new($"{nameof(SplitterTheme)}.{nameof(RightArrowCharacter)}", () => "→");
     
     /// <summary>
     /// The color of the right arrow on horizontal splitters. Defaults to divider color if not set.
@@ -48,7 +48,7 @@ public static class SplitterTheme
     /// The up arrow character shown on vertical splitters to indicate they can be moved.
     /// </summary>
     public static readonly Hex1bThemeElement<string> UpArrowCharacter = 
-        new($"{nameof(SplitterTheme)}.{nameof(UpArrowCharacter)}", () => "▲");
+        new($"{nameof(SplitterTheme)}.{nameof(UpArrowCharacter)}", () => "↑");
     
     /// <summary>
     /// The color of the up arrow on vertical splitters. Defaults to divider color if not set.
@@ -60,7 +60,7 @@ public static class SplitterTheme
     /// The down arrow character shown on vertical splitters to indicate they can be moved.
     /// </summary>
     public static readonly Hex1bThemeElement<string> DownArrowCharacter = 
-        new($"{nameof(SplitterTheme)}.{nameof(DownArrowCharacter)}", () => "▼");
+        new($"{nameof(SplitterTheme)}.{nameof(DownArrowCharacter)}", () => "↓");
     
     /// <summary>
     /// The color of the down arrow on vertical splitters. Defaults to divider color if not set.

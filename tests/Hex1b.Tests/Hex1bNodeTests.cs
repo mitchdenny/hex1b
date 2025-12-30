@@ -81,6 +81,54 @@ public class Hex1bNodeTests
     }
 
     [Fact]
+    public void InheritBoundsFromReplacedNode_SetsBoundsFromOldNode()
+    {
+        // Arrange - old node with established bounds
+        var oldNode = new TestNode();
+        var oldBounds = new Rect(5, 10, 30, 15);
+        oldNode.Arrange(oldBounds);
+        
+        // New replacement node starts with empty bounds
+        var newNode = new TestNode();
+        Assert.Equal(new Rect(0, 0, 0, 0), newNode.Bounds);
+
+        // Act - inherit bounds from the replaced node
+        newNode.InheritBoundsFromReplacedNode(oldNode);
+
+        // Assert - Bounds is now the old node's bounds
+        // When Arrange is called, this will become PreviousBounds
+        Assert.Equal(oldBounds, newNode.Bounds);
+    }
+
+    [Fact]
+    public void InheritBoundsFromReplacedNode_AllowsDirtyRegionClearing()
+    {
+        // This tests the scenario where a node is replaced with a smaller one
+        // The ClearDirtyRegions logic needs PreviousBounds to know what to clear
+        
+        // Arrange - old node occupied a large area
+        var oldNode = new TestNode();
+        var oldBounds = new Rect(0, 0, 40, 10);
+        oldNode.Arrange(oldBounds);
+        
+        // New node is smaller
+        var newNode = new TestNode();
+        var newBounds = new Rect(0, 0, 20, 5);
+        
+        // Act - inherit bounds, then arrange at new smaller size
+        newNode.InheritBoundsFromReplacedNode(oldNode);
+        newNode.Arrange(newBounds);
+
+        // Assert - PreviousBounds should be the inherited old bounds, not empty
+        // This allows ClearDirtyRegions to know the full area that was occupied
+        Assert.Equal(oldBounds, newNode.PreviousBounds);
+        Assert.Equal(newBounds, newNode.Bounds);
+        
+        // The difference between these rects is what needs to be cleared
+        Assert.True(newNode.Bounds != newNode.PreviousBounds);
+    }
+
+    [Fact]
     public void BoundsDidMove_WhenPositionChanges_ReturnsTrue()
     {
         var node = new TestNode();
@@ -104,6 +152,60 @@ public class Hex1bNodeTests
                       node.Bounds.Height != node.PreviousBounds.Height;
         
         Assert.True(resized);
+    }
+
+    #endregion
+
+    #region Orphaned Child Bounds Tests
+
+    [Fact]
+    public void AddOrphanedChildBounds_AddsToList()
+    {
+        var node = new TestNode();
+        var orphanBounds = new Rect(0, 5, 10, 1);
+        
+        node.AddOrphanedChildBounds(orphanBounds);
+        
+        Assert.NotNull(node.OrphanedChildBounds);
+        Assert.Single(node.OrphanedChildBounds);
+        Assert.Equal(orphanBounds, node.OrphanedChildBounds[0]);
+    }
+
+    [Fact]
+    public void AddOrphanedChildBounds_MarksDirty()
+    {
+        var node = new TestNode();
+        node.ClearDirty(); // Start clean
+        Assert.False(node.IsDirty);
+        
+        node.AddOrphanedChildBounds(new Rect(0, 5, 10, 1));
+        
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void AddOrphanedChildBounds_IgnoresEmptyBounds()
+    {
+        var node = new TestNode();
+        
+        node.AddOrphanedChildBounds(new Rect(0, 0, 0, 0));
+        node.AddOrphanedChildBounds(new Rect(5, 5, 0, 1));
+        node.AddOrphanedChildBounds(new Rect(5, 5, 10, 0));
+        
+        Assert.Null(node.OrphanedChildBounds);
+    }
+
+    [Fact]
+    public void ClearOrphanedChildBounds_ClearsList()
+    {
+        var node = new TestNode();
+        node.AddOrphanedChildBounds(new Rect(0, 5, 10, 1));
+        node.AddOrphanedChildBounds(new Rect(0, 6, 10, 1));
+        Assert.Equal(2, node.OrphanedChildBounds!.Count);
+        
+        node.ClearOrphanedChildBounds();
+        
+        Assert.Empty(node.OrphanedChildBounds);
     }
 
     #endregion

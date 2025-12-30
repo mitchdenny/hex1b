@@ -1,4 +1,5 @@
 using Hex1b.Terminal;
+using Hex1b.Terminal.Automation;
 
 namespace Hex1b.Tests;
 
@@ -178,6 +179,36 @@ public class TerminalFilterTests
         Assert.Single(filter2.OutputChunks);
     }
 
+    [Fact]
+    public void TokenBasedFilters_UsesApplyTokensPath()
+    {
+        // Arrange
+        var filter = new TestWorkloadFilter();
+        var workload = new Hex1bAppWorkloadAdapter();
+        var options = new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = workload
+        };
+        options.WorkloadFilters.Add(filter);
+        using var terminal = new Hex1bTerminal(options);
+
+        // Act
+        workload.Write("Hello\x1b[31mRed\x1b[0mWorld");
+        terminal.FlushOutput();
+
+        // Assert
+        Assert.Single(filter.OutputChunks);
+        Assert.Contains("Hello", filter.OutputChunks[0]);
+        Assert.Contains("Red", filter.OutputChunks[0]);
+        Assert.Contains("World", filter.OutputChunks[0]);
+        
+        // Verify terminal buffer was updated correctly
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Equal("HelloRedWorld", snapshot.GetLine(0).TrimEnd());
+    }
+
     // Test helpers
 
     private class TestWorkloadFilter : IHex1bTerminalWorkloadFilter
@@ -191,7 +222,7 @@ public class TerminalFilterTests
         public int FrameCompleteCount { get; private set; }
         public List<(int Width, int Height)> Resizes { get; } = new();
 
-        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp)
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
         {
             SessionStarted = true;
             Width = width;
@@ -199,31 +230,31 @@ public class TerminalFilterTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+        public ValueTask OnOutputAsync(IReadOnlyList<Hex1b.Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
         {
-            OutputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
+            OutputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnFrameCompleteAsync(TimeSpan elapsed)
+        public ValueTask OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct = default)
         {
             FrameCompleteCount++;
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
         {
             InputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed)
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
         {
             Resizes.Add((width, height));
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnSessionEndAsync(TimeSpan elapsed)
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
         {
             SessionEnded = true;
             return ValueTask.CompletedTask;
@@ -237,30 +268,31 @@ public class TerminalFilterTests
         public List<string> OutputChunks { get; } = new();
         public List<string> InputChunks { get; } = new();
 
-        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp)
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
         {
             SessionStarted = true;
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+        public ValueTask<IReadOnlyList<Hex1b.Tokens.AnsiToken>> OnOutputAsync(IReadOnlyList<Hex1b.Tokens.AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default)
         {
-            OutputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
-            return ValueTask.CompletedTask;
+            var tokens = appliedTokens.Select(at => at.Token).ToList();
+            OutputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
+            return ValueTask.FromResult<IReadOnlyList<Hex1b.Tokens.AnsiToken>>(tokens);
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed)
+        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
         {
             InputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed)
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnSessionEndAsync(TimeSpan elapsed)
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
         {
             SessionEnded = true;
             return ValueTask.CompletedTask;

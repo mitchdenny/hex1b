@@ -1,3 +1,5 @@
+using Hex1b.Tokens;
+
 namespace Hex1b.Terminal;
 
 /// <summary>
@@ -31,7 +33,8 @@ public interface IHex1bTerminalWorkloadFilter
     /// <param name="width">Initial terminal width.</param>
     /// <param name="height">Initial terminal height.</param>
     /// <param name="timestamp">When the session started.</param>
-    ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default);
 
     /// <summary>
     /// Called when output data is read from the workload.
@@ -39,10 +42,12 @@ public interface IHex1bTerminalWorkloadFilter
     /// <remarks>
     /// This is called for each chunk of data read from the workload's output channel.
     /// Multiple chunks may arrive in quick succession before <see cref="OnFrameCompleteAsync"/> is called.
+    /// Use <see cref="AnsiTokenSerializer.Serialize(IEnumerable{AnsiToken})"/> to convert tokens back to bytes if needed.
     /// </remarks>
-    /// <param name="data">The raw output bytes (typically ANSI sequences).</param>
+    /// <param name="tokens">The parsed ANSI tokens from the workload output.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
-    ValueTask OnOutputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when the workload output channel is drained (no more data immediately available).
@@ -53,14 +58,16 @@ public interface IHex1bTerminalWorkloadFilter
     /// render cycle.
     /// </remarks>
     /// <param name="elapsed">Time elapsed since session start.</param>
-    ValueTask OnFrameCompleteAsync(TimeSpan elapsed);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when input is being sent to the workload.
     /// </summary>
     /// <param name="data">The raw input bytes.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
-    ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when the terminal is resized.
@@ -68,11 +75,13 @@ public interface IHex1bTerminalWorkloadFilter
     /// <param name="width">New width in columns.</param>
     /// <param name="height">New height in rows.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
-    ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when the terminal session ends.
     /// </summary>
     /// <param name="elapsed">Total duration of the session.</param>
-    ValueTask OnSessionEndAsync(TimeSpan elapsed);
+    /// <param name="ct">Cancellation token.</param>
+    ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default);
 }

@@ -3,7 +3,7 @@
 using System.Text;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -98,7 +98,7 @@ public class SixelScalingIntegrationTests
         
         // Run app briefly to render
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
@@ -179,7 +179,7 @@ public class SixelScalingIntegrationTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)

@@ -158,11 +158,13 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
             _driver.Write(Encoding.UTF8.GetBytes(MouseParser.DisableMouseTracking));
             _driver.Flush();
             
-            // Small delay to let the terminal process the disable command
-            Thread.Sleep(10);
-            
-            // Drain any pending input that was buffered while mouse was enabled
-            _driver.DrainInput();
+            // Drain input multiple times with delays to catch any in-flight mouse events
+            // Mouse events can still be arriving from the terminal after we send disable
+            for (int i = 0; i < 3; i++)
+            {
+                Thread.Sleep(20);
+                _driver.DrainInput();
+            }
         }
 
         // Now send the rest of the exit sequences

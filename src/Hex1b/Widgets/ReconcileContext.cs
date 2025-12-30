@@ -80,9 +80,17 @@ public sealed class ReconcileContext
         }
 
         var childContext = WithParent(parent);
-        childContext.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
+        var isReplacement = existingNode is not null && existingNode.GetType() != widget.GetExpectedNodeType();
+        childContext.IsNew = existingNode is null || isReplacement;
         
         var node = widget.Reconcile(existingNode, childContext);
+
+        // If this is a replacement (different node type), inherit bounds from the old node
+        // so ClearDirtyRegions knows to clear the region previously occupied by the old content
+        if (isReplacement)
+        {
+            node.InheritBoundsFromReplacedNode(existingNode!);
+        }
 
         // Set common properties on the reconciled node
         node.Parent = parent;

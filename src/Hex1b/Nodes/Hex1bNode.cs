@@ -17,6 +17,35 @@ public abstract class Hex1bNode
     public Rect PreviousBounds { get; private set; }
 
     /// <summary>
+    /// Bounds of child nodes that were removed during reconciliation.
+    /// These regions need to be cleared to avoid visual artifacts.
+    /// Cleared after each render frame by the framework.
+    /// </summary>
+    internal List<Rect>? OrphanedChildBounds { get; private set; }
+
+    /// <summary>
+    /// Adds the bounds of a removed child node to the orphaned bounds list.
+    /// Call this during reconciliation when a child is removed from the tree.
+    /// </summary>
+    /// <param name="bounds">The bounds of the removed child.</param>
+    internal void AddOrphanedChildBounds(Rect bounds)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        OrphanedChildBounds ??= new List<Rect>();
+        OrphanedChildBounds.Add(bounds);
+        MarkDirty(); // Container needs re-render to clear orphaned regions
+    }
+
+    /// <summary>
+    /// Clears the list of orphaned child bounds after they've been processed.
+    /// Called by the framework after clearing dirty regions.
+    /// </summary>
+    internal void ClearOrphanedChildBounds()
+    {
+        OrphanedChildBounds?.Clear();
+    }
+
+    /// <summary>
     /// Whether this node needs to be re-rendered.
     /// New nodes start dirty. The framework clears this after each render frame.
     /// </summary>
@@ -57,6 +86,20 @@ public abstract class Hex1bNode
     internal void ClearDirty()
     {
         IsDirty = false;
+    }
+
+    /// <summary>
+    /// Inherits bounds from a replaced node for proper dirty region clearing.
+    /// When a node is replaced by a different type, we need to know the old bounds
+    /// to clear the region previously occupied by the old node.
+    /// </summary>
+    /// <param name="replacedNode">The node being replaced.</param>
+    internal void InheritBoundsFromReplacedNode(Hex1bNode replacedNode)
+    {
+        // Set Bounds to the replaced node's Bounds so that when Arrange() is called,
+        // it will copy this to PreviousBounds before setting the new Bounds.
+        // This ensures ClearDirtyRegions knows to clear the old region.
+        Bounds = replacedNode.Bounds;
     }
 
     /// <summary>

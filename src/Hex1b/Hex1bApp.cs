@@ -101,6 +101,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Default CTRL-C binding option
     private readonly bool _enableDefaultCtrlCExit;
+    
+    // Input coalescing options
+    private readonly bool _enableInputCoalescing;
+    private readonly int _inputCoalescingInitialDelayMs;
+    private readonly int _inputCoalescingMaxDelayMs;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -145,6 +150,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Default CTRL-C binding option
         _enableDefaultCtrlCExit = options.EnableDefaultCtrlCExit;
+        
+        // Input coalescing options
+        _enableInputCoalescing = options.EnableInputCoalescing;
+        _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
+        _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
     }
 
     /// <summary>
@@ -206,69 +216,35 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 
                 if (completedTask == inputTask)
                 {
+                    // Process the first input event
                     var inputEvent = await inputTask;
+                    await ProcessInputEventAsync(inputEvent, cancellationToken);
                     
-                    switch (inputEvent)
+                    // Input coalescing: batch rapid inputs together before rendering
+                    // This prevents back pressure from rapid input (key repeats, mouse moves)
+                    if (_enableInputCoalescing)
                     {
-                        // Terminal capability events are logged but capabilities are now
-                        // provided via TerminalCapabilities at startup rather than runtime detection
-                        case Hex1bTerminalEvent:
-                            // No action needed - capabilities come from workload adapter
-                            continue;
-                        
-                        // Resize events trigger a re-layout and re-render
-                        case Hex1bResizeEvent resizeEvent:
-                            // Terminal size changed - we need a full re-render
-                            // Mark root dirty to ensure everything re-renders at new size
-                            _rootNode?.MarkDirty();
-                            // Force full clear to handle new screen regions
-                            _isFirstFrame = true;
-                            break;
-                        
-                        // Key events are routed to the focused node through the tree
-                        case Hex1bKeyEvent keyEvent when _rootNode != null:
-                            // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
-                            break;
-                        
-                        // Mouse events: update cursor position and handle clicks/drags
-                        case Hex1bMouseEvent mouseEvent:
-                            _mouseX = mouseEvent.X;
-                            _mouseY = mouseEvent.Y;
+                        // Adaptive delay: scales based on output queue depth
+                        var outputBacklog = _adapter.OutputQueueDepth;
+                        var coalescingDelayMs = Math.Min(
+                            _inputCoalescingInitialDelayMs + (outputBacklog * 10), 
+                            _inputCoalescingMaxDelayMs);
+                        await Task.Delay(coalescingDelayMs, cancellationToken);
+                    
+                        // Drain any pending input that arrived during the delay
+                        while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                        {
+                            await ProcessInputEventAsync(pendingEvent, cancellationToken);
                             
-                            // Update hover state on any mouse event
-                            UpdateHoverState(mouseEvent.X, mouseEvent.Y);
-                            
-                            // If a drag is active, route all events to the drag handler
-                            if (_activeDragHandler != null)
-                            {
-                                // Handle both Move (no button) and Drag (button held) actions
-                                if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
-                                {
-                                    var deltaX = mouseEvent.X - _dragStartX;
-                                    var deltaY = mouseEvent.Y - _dragStartY;
-                                    _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
-                                }
-                                else if (mouseEvent.Action == MouseAction.Up)
-                                {
-                                    _activeDragHandler.OnEnd?.Invoke();
-                                    _activeDragHandler = null;
-                                }
-                                // While dragging, skip normal event handling
+                            // Check for stop request between events
+                            if (_stopRequested || cancellationToken.IsCancellationRequested)
                                 break;
-                            }
-                            
-                            // Handle click events (button down) - may start a drag
-                            if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
-                            {
-                                await HandleMouseClickAsync(mouseEvent, cancellationToken);
-                            }
-                            break;
+                        }
                     }
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)
 
-                // Re-render after handling input or invalidation (state may have changed)
+                // Re-render after handling ALL input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
             }
         }
@@ -284,6 +260,70 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         {
             // Always exit alternate buffer, even on error
             _context.ExitAlternateScreen();
+        }
+    }
+
+    /// <summary>
+    /// Processes a single input event (key, mouse, resize, etc.).
+    /// </summary>
+    private async Task ProcessInputEventAsync(Hex1bEvent inputEvent, CancellationToken cancellationToken)
+    {
+        switch (inputEvent)
+        {
+            // Terminal capability events are logged but capabilities are now
+            // provided via TerminalCapabilities at startup rather than runtime detection
+            case Hex1bTerminalEvent:
+                // No action needed - capabilities come from workload adapter
+                break;
+            
+            // Resize events trigger a re-layout and re-render
+            case Hex1bResizeEvent resizeEvent:
+                // Terminal size changed - we need a full re-render
+                // Mark root dirty to ensure everything re-renders at new size
+                _rootNode?.MarkDirty();
+                // Force full clear to handle new screen regions
+                _isFirstFrame = true;
+                break;
+            
+            // Key events are routed to the focused node through the tree
+            case Hex1bKeyEvent keyEvent when _rootNode != null:
+                // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
+                break;
+            
+            // Mouse events: update cursor position and handle clicks/drags
+            case Hex1bMouseEvent mouseEvent:
+                _mouseX = mouseEvent.X;
+                _mouseY = mouseEvent.Y;
+                
+                // Update hover state on any mouse event
+                UpdateHoverState(mouseEvent.X, mouseEvent.Y);
+                
+                // If a drag is active, route all events to the drag handler
+                if (_activeDragHandler != null)
+                {
+                    // Handle both Move (no button) and Drag (button held) actions
+                    if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
+                    {
+                        var deltaX = mouseEvent.X - _dragStartX;
+                        var deltaY = mouseEvent.Y - _dragStartY;
+                        _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
+                    }
+                    else if (mouseEvent.Action == MouseAction.Up)
+                    {
+                        _activeDragHandler.OnEnd?.Invoke();
+                        _activeDragHandler = null;
+                    }
+                    // While dragging, skip normal event handling
+                    break;
+                }
+                
+                // Handle click events (button down) - may start a drag
+                if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
+                {
+                    await HandleMouseClickAsync(mouseEvent, cancellationToken);
+                }
+                break;
         }
     }
 
@@ -353,6 +393,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             _context.Write("\x1b[?25l"); // Hide cursor
         }
 
+        // Step 6.6: Begin frame buffering - all changes from here until EndFrame
+        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
+        _context.BeginFrame();
+
         // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
         // On first frame or when root is new, do a full clear
         if (_isFirstFrame)
@@ -371,7 +415,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             RenderTree(_rootNode);
         }
         
-        // Step 9: Render mouse cursor overlay if enabled
+        // Step 9: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
+        // the net changes (e.g., clear + re-render same content = no output)
+        _context.EndFrame();
+        
+        // Step 9.5: Ensure cursor is hidden after rendering to prevent it showing at last write position
+        _context.Write("\x1b[?25l");
+        
+        // Step 9.6: Render mouse cursor overlay if enabled (after hiding default cursor)
+        // This positions and shows the cursor at the mouse location
         RenderMouseCursor();
         
         // Step 10: Clear dirty flags on all nodes (they've been rendered)
@@ -403,7 +455,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var effectiveTheme = currentTheme ?? _context.Theme;
         if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
         {
-            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme);
+            // Clone the theme before passing to mutator to prevent mutation of parent themes
+            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme.Clone());
         }
         
         // If this specific node is dirty, render it (and its children)
@@ -422,9 +475,31 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
         
         // Node is clean but has dirty descendants - traverse children with the current theme
+        // Check if this node provides custom layout/clipping for its children
+        var childLayoutProvider = node as Nodes.IChildLayoutProvider;
+        
         foreach (var child in node.GetChildren())
         {
-            RenderTree(child, effectiveTheme);
+            if (!child.NeedsRender()) continue;
+            
+            // Get layout provider for this child (if any)
+            var layoutForChild = childLayoutProvider?.GetChildLayoutProvider(child);
+            
+            if (layoutForChild != null)
+            {
+                // Set up clipping context for this child
+                var previousLayout = _context.CurrentLayoutProvider;
+                layoutForChild.ParentLayoutProvider = previousLayout;
+                _context.CurrentLayoutProvider = layoutForChild;
+                
+                RenderTree(child, effectiveTheme);
+                
+                _context.CurrentLayoutProvider = previousLayout;
+            }
+            else
+            {
+                RenderTree(child, effectiveTheme);
+            }
         }
     }
     
@@ -434,32 +509,56 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// intersected with any active clip rect from ancestor layout providers.
     /// Tracks theme from ThemePanelNodes to ensure proper clearing with the correct background.
     /// </summary>
-    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null)
+    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Rect? expandedClipRect = null)
     {
-        // If this node is an ILayoutProvider, intersect its clip rect with the current one
+        // Calculate this node's effective clip rect first
         var effectiveClipRect = clipRect;
+        var effectiveExpandedClipRect = expandedClipRect;
+        
         if (node is Nodes.ILayoutProvider layoutProvider && layoutProvider.ClipMode == Widgets.ClipMode.Clip)
         {
+            // For normal rendering, use current bounds as clip
             effectiveClipRect = effectiveClipRect.HasValue 
                 ? Intersect(effectiveClipRect.Value, layoutProvider.ClipRect)
                 : layoutProvider.ClipRect;
+            
+            // For orphan clearing, use union of current and previous bounds
+            // This allows clearing areas that were visible before the node shrunk
+            var expandedNodeClip = Union(node.Bounds, node.PreviousBounds);
+            effectiveExpandedClipRect = effectiveExpandedClipRect.HasValue 
+                ? Intersect(effectiveExpandedClipRect.Value, expandedNodeClip)
+                : expandedNodeClip;
         }
         
         // Track theme from ThemePanelNode
         var previousTheme = _context.Theme;
         if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
         {
-            // Apply the theme mutator to see what background it sets
-            _context.Theme = themePanelNode.ThemeMutator(previousTheme);
+            // Clone the theme before passing to mutator to prevent mutation of parent themes
+            _context.Theme = themePanelNode.ThemeMutator(previousTheme.Clone());
         }
         
         if (node.IsDirty)
         {
-            // Clear the previous bounds (where the node was), clipped to effective clip rect
+            // Clear the previous bounds (where the node was)
+            // Use expanded clip rect if content shrunk (PreviousBounds larger than Bounds)
+            // This ensures areas outside current bounds but inside previous bounds get cleared
             if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
             {
-                var regionToClear = effectiveClipRect.HasValue 
-                    ? Intersect(node.PreviousBounds, effectiveClipRect.Value)
+                // Check if content shrunk in either dimension
+                var shrunk = node.PreviousBounds.Width > node.Bounds.Width ||
+                             node.PreviousBounds.Height > node.Bounds.Height ||
+                             node.PreviousBounds.X < node.Bounds.X ||
+                             node.PreviousBounds.Y < node.Bounds.Y ||
+                             node.PreviousBounds.X + node.PreviousBounds.Width > node.Bounds.X + node.Bounds.Width ||
+                             node.PreviousBounds.Y + node.PreviousBounds.Height > node.Bounds.Y + node.Bounds.Height;
+                
+                var clipToUse = shrunk && effectiveExpandedClipRect.HasValue 
+                    ? effectiveExpandedClipRect.Value 
+                    : effectiveClipRect;
+                    
+                var regionToClear = clipToUse.HasValue 
+                    ? Intersect(node.PreviousBounds, clipToUse.Value)
                     : node.PreviousBounds;
                 if (regionToClear.Width > 0 && regionToClear.Height > 0)
                 {
@@ -479,12 +578,31 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     _context.ClearRegion(regionToClear);
                 }
             }
+            
+            // Clear orphaned child bounds (children that were removed during reconciliation)
+            // Use the EXPANDED clip rect which includes both current and previous bounds
+            // of all ancestor nodes - this allows clearing areas that were visible before
+            // any ancestor container shrunk
+            if (node.OrphanedChildBounds != null)
+            {
+                foreach (var orphanedBounds in node.OrphanedChildBounds)
+                {
+                    var regionToClear = effectiveExpandedClipRect.HasValue 
+                        ? Intersect(orphanedBounds, effectiveExpandedClipRect.Value)
+                        : orphanedBounds;
+                    if (regionToClear.Width > 0 && regionToClear.Height > 0)
+                    {
+                        _context.ClearRegion(regionToClear);
+                    }
+                }
+                node.ClearOrphanedChildBounds();
+            }
         }
         
-        // Recurse into children with the effective clip rect
+        // Recurse into children with the effective clip rects
         foreach (var child in node.GetChildren())
         {
-            ClearDirtyRegions(child, effectiveClipRect);
+            ClearDirtyRegions(child, effectiveClipRect, effectiveExpandedClipRect);
         }
         
         // Restore previous theme after processing children
@@ -508,6 +626,24 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         return new Rect(x, y, width, height);
     }
     
+    /// <summary>
+    /// Computes the union (bounding box) of two rectangles.
+    /// If either rect is empty, returns the other.
+    /// </summary>
+    private static Rect Union(Rect a, Rect b)
+    {
+        // Handle empty rects
+        if (a.Width <= 0 || a.Height <= 0) return b;
+        if (b.Width <= 0 || b.Height <= 0) return a;
+        
+        var x = Math.Min(a.X, b.X);
+        var y = Math.Min(a.Y, b.Y);
+        var right = Math.Max(a.X + a.Width, b.X + b.Width);
+        var bottom = Math.Max(a.Y + a.Height, b.Y + b.Height);
+        
+        return new Rect(x, y, right - x, bottom - y);
+    }
+
     /// <summary>
     /// Recursively clears the dirty flag on a node and all its children.
     /// Called after rendering to prepare for the next frame.

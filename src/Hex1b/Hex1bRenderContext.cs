@@ -48,6 +48,38 @@ public class Hex1bRenderContext
     /// </summary>
     public TerminalCapabilities Capabilities => _adapter.Capabilities;
     
+    // Frame boundary tokens (APC format: ESC _ content ESC \)
+    private const string FrameBeginSequence = "\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\";
+    private const string FrameEndSequence = "\x1b_HEX1BAPP:FRAME:END\x1b\\";
+    
+    // Synchronized Update Mode (DEC private mode 2026)
+    // Tells compatible terminals to buffer output until the end sequence, then render atomically.
+    // Terminals that don't support it safely ignore these sequences.
+    private const string SyncUpdateBegin = "\x1b[?2026h";  // Begin synchronized update
+    private const string SyncUpdateEnd = "\x1b[?2026l";    // End synchronized update
+    
+    /// <summary>
+    /// Signals the beginning of a render frame to the presentation filter pipeline.
+    /// When frame buffering is enabled, updates are accumulated until <see cref="EndFrame"/> is called.
+    /// Also enables Synchronized Update Mode for terminals that support it (DEC 2026).
+    /// </summary>
+    public void BeginFrame()
+    {
+        _adapter.Write(SyncUpdateBegin);   // Tell terminal to start buffering
+        _adapter.Write(FrameBeginSequence); // Tell our filter pipeline
+    }
+    
+    /// <summary>
+    /// Signals the end of a render frame. The presentation filter pipeline will emit
+    /// only the net changes between this frame and the previous committed frame.
+    /// Also ends Synchronized Update Mode, triggering atomic render on supported terminals.
+    /// </summary>
+    public void EndFrame()
+    {
+        _adapter.Write(FrameEndSequence);  // Tell our filter pipeline
+        _adapter.Write(SyncUpdateEnd);      // Tell terminal to flush and render
+    }
+    
     /// <summary>
     /// Clears a rectangular region by writing spaces.
     /// Used for dirty region clearing to avoid full-screen flicker.

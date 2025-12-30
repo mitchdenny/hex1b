@@ -30,7 +30,8 @@ var button3Clicks = 0;
 var textValue = "Type here...";
 var counter = 0;
 var selectedTab = 0;
-var toggleState = new ToggleSwitchState { Options = ["Off", "On"], SelectedIndex = 0 };
+var toggleOptions = new[] { "Off", "On" };
+var toggleSelectedIndex = 0;
 var listItems = new List<string> { "Apple", "Banana", "Cherry", "Date", "Elderberry" };
 var selectedItem = "Apple";
 var lastAction = "None";
@@ -88,11 +89,12 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
             p.Text(""),
             p.HStack(h => [
                 h.Text("Power: "),
-                h.ToggleSwitch(toggleState),
+                h.ToggleSwitch(toggleOptions, toggleSelectedIndex)
+                    .OnSelectionChanged(e => toggleSelectedIndex = e.SelectedIndex),
             ]),
             p.Text(""),
-            p.Text($"Current value: {toggleState.Options[toggleState.SelectedIndex]}"),
-            p.Text($"Selected index: {toggleState.SelectedIndex}"),
+            p.Text($"Current value: {toggleOptions[toggleSelectedIndex]}"),
+            p.Text($"Selected index: {toggleSelectedIndex}"),
         ]),
 
         4 => v.VStack(p => [
@@ -150,9 +152,17 @@ try
     // Create the workload adapter that Hex1bApp will use
     var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
+    // Create terminal options with Hex1bApp render optimization filter
+    var terminalOptions = new Hex1bTerminalOptions
+    {
+        PresentationAdapter = presentation,
+        WorkloadAdapter = workload
+    };
+    terminalOptions.AddHex1bAppRenderOptimization();
+    
     // Create the terminal that bridges presentation ↔ workload
     // The terminal auto-starts I/O pumps when a presentation adapter is provided
-    using var terminal = new Hex1bTerminal(presentation, workload);
+    using var terminal = new Hex1bTerminal(terminalOptions);
 
     await using var app = new Hex1bApp(
         ctx => ctx.VStack(root => [

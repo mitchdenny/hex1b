@@ -3,7 +3,7 @@ using System.Text.Json;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
-using Hex1b.Terminal.Testing;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Time.Testing;
 
@@ -85,7 +85,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Act - directly call the filter's OnResizeAsync since we're in headless mode
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnResizeAsync(100, 40, TimeSpan.FromSeconds(1));
+        await filter.OnResizeAsync(100, 40, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
 
@@ -126,7 +126,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input by calling the filter directly (since we're headless)
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1));
+        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -158,7 +158,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1));
+        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -295,8 +295,8 @@ public class AsciinemaRecorderTests : IDisposable
         var tempFile = GetTempFile();
         var recorder = new AsciinemaRecorder(tempFile);
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
-        await filter.OnOutputAsync("test"u8.ToArray(), TimeSpan.FromSeconds(1));
+        await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+        await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, recorder.PendingEventCount);
 
@@ -402,7 +402,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 1: Initial render at 120 cols (wide layout) ===
         recorder.AddMarker("App Start - Wide Layout (120 cols)");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Todo Items"), TimeSpan.FromSeconds(2))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
@@ -411,7 +411,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 2: Navigate the todo list ===
         recorder.AddMarker("Navigating Todo List");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.DownArrow)
             .Wait(TimeSpan.FromMilliseconds(300))
             .Key(Hex1bKey.DownArrow)
@@ -424,7 +424,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 3: Toggle a todo item ===
         recorder.AddMarker("Toggling Todo Item");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Spacebar)  // Toggle the selected item
             .Wait(TimeSpan.FromMilliseconds(500))
             .Key(Hex1bKey.DownArrow)
@@ -437,7 +437,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 4: Tab to the text input and add a new todo ===
         recorder.AddMarker("Adding New Todo Item");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(300))
             .Type("Buy holiday gifts")
@@ -453,11 +453,11 @@ public class AsciinemaRecorderTests : IDisposable
         recorder.AddMarker("Resizing to Medium Layout (80 cols)");
         
         // Notify the filter about resize
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(80, 24, TimeSpan.FromSeconds(4));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(80, 24, TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
         terminal.Resize(80, 24);
         await workload.ResizeAsync(80, 24, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -465,7 +465,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 6: Navigate in medium layout ===
         recorder.AddMarker("Navigating in Medium Layout");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Tab()  // Go back to list
             .Wait(TimeSpan.FromMilliseconds(300))
             .Shift().Tab()
@@ -482,11 +482,11 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 7: Resize to compact layout ===
         recorder.AddMarker("Resizing to Compact Layout (50 cols)");
         
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(50, 20, TimeSpan.FromSeconds(6));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(50, 20, TimeSpan.FromSeconds(6), TestContext.Current.CancellationToken);
         terminal.Resize(50, 20);
         await workload.ResizeAsync(50, 20, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -494,7 +494,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 8: Add another todo in compact mode ===
         recorder.AddMarker("Adding Todo in Compact Mode");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(300))
             .Type("Call mom")
@@ -509,11 +509,11 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 9: Resize back to extra wide ===
         recorder.AddMarker("Resizing to Extra Wide Layout (160 cols)");
         
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(160, 35, TimeSpan.FromSeconds(8));
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(160, 35, TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
         terminal.Resize(160, 35);
         await workload.ResizeAsync(160, 35, TestContext.Current.CancellationToken);
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(800))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -521,7 +521,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Phase 10: Final navigation and interactions ===
         recorder.AddMarker("Final Interactions");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Tab()
             .Wait(TimeSpan.FromMilliseconds(200))
             .Shift().Tab()
@@ -542,7 +542,7 @@ public class AsciinemaRecorderTests : IDisposable
         // === Shutdown ===
         recorder.AddMarker("Session End");
         
-        await new Hex1bTestSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Wait(TimeSpan.FromMilliseconds(500))
             .Ctrl().Key(Hex1bKey.C)
             .Build()

@@ -297,7 +297,7 @@ public async Task Button_Click_UpdatesCounter()
     
     // Run app and send input
     var runTask = app.RunAsync();
-    await new Hex1bTestSequenceBuilder()
+    await new Hex1bTerminalInputSequenceBuilder()
         .WaitUntil(s => s.ContainsText("Clicks:"), TimeSpan.FromSeconds(2))
         .Enter()  // Click button
         .Ctrl().Key(Hex1bKey.C)  // Exit app
