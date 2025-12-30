@@ -44,8 +44,8 @@ public static class AnsiTokenSerializer
             PrivateModeToken pm => SerializePrivateMode(pm),
             OscToken osc => SerializeOsc(osc),
             DcsToken dcs => SerializeDcs(dcs),
-            FrameBeginToken => SerializeApc("HEX1B:FRAME:BEGIN"),
-            FrameEndToken => SerializeApc("HEX1B:FRAME:END"),
+            FrameBeginToken => SerializeApc("HEX1BAPP:FRAME:BEGIN"),
+            FrameEndToken => SerializeApc("HEX1BAPP:FRAME:END"),
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };

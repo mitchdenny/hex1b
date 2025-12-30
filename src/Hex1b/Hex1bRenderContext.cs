@@ -49,8 +49,8 @@ public class Hex1bRenderContext
     public TerminalCapabilities Capabilities => _adapter.Capabilities;
     
     // Frame boundary tokens (APC format: ESC _ content ESC \)
-    private const string FrameBeginSequence = "\x1b_HEX1B:FRAME:BEGIN\x1b\\";
-    private const string FrameEndSequence = "\x1b_HEX1B:FRAME:END\x1b\\";
+    private const string FrameBeginSequence = "\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\";
+    private const string FrameEndSequence = "\x1b_HEX1BAPP:FRAME:END\x1b\\";
     
     // Synchronized Update Mode (DEC private mode 2026)
     // Tells compatible terminals to buffer output until the end sequence, then render atomically.

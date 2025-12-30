@@ -8,13 +8,13 @@ namespace Hex1b.Tests;
 // since they're testing synchronous filter logic with simple async wrappers
 #pragma warning disable xUnit1051
 
-public class RenderOptimizationFilterTests
+public class Hex1bAppRenderOptimizationFilterTests
 {
     [Fact]
     public async Task OnOutputAsync_WithNoShadowBuffer_PassesThroughAllTokens()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         var appliedTokens = new List<AppliedToken>
         {
             AppliedToken.WithNoCellImpacts(new TextToken("Hello"), 0, 0, 0, 5)
@@ -35,7 +35,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_WithShadowBuffer_FiltersUnchangedCells()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // First write - all cells are new, should produce output
@@ -61,7 +61,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_WithChangedCell_ProducesOutput()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // First write
@@ -99,7 +99,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_WithColorChange_ProducesOutput()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // First write with no color
@@ -136,7 +136,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_GeneratesOptimalCursorMovement()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // First frame - clears the forceFullRefresh flag
@@ -175,7 +175,7 @@ public class RenderOptimizationFilterTests
     public async Task OnResizeAsync_ClearsShadowBuffer()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // Write a cell
@@ -207,7 +207,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_AfterResize_PrependsSgrReset()
     {
         // Arrange - this tests the fix for color bleeding after resize
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // Simulate some colored content being written
@@ -248,7 +248,7 @@ public class RenderOptimizationFilterTests
         // Arrange - this tests the fix for resize during frame buffering
         // When a resize happens mid-frame, the buffered content is invalid
         // (it was for the old terminal dimensions) so we must cancel the frame
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // Start a frame
@@ -289,7 +289,7 @@ public class RenderOptimizationFilterTests
     public async Task OnResizeAsync_DuringFrameBuffering_NextFrameIsFullRefresh()
     {
         // Arrange - verify that after resize, the next content is a full refresh
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // Write initial content (before any buffering) - this consumes forceFullRefresh
@@ -336,7 +336,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_WithAttributeChange_ProducesOutput()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // First write - no attributes
@@ -374,7 +374,7 @@ public class RenderOptimizationFilterTests
     public async Task OnSessionEndAsync_CleansUp()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow);
 
         // Act
@@ -398,7 +398,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_StandaloneCursorPosition_PassesThrough()
     {
         // Arrange - this tests the mouse cursor tracking scenario
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.UtcNow);
 
         // First frame to clear _forceFullRefresh
@@ -427,7 +427,7 @@ public class RenderOptimizationFilterTests
     public async Task OnOutputAsync_CursorPositionWithCellImpacts_NotDuplicatedInOutput()
     {
         // Arrange - cursor position used for rendering (not standalone)
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.UtcNow);
 
         // First frame to clear _forceFullRefresh
@@ -461,7 +461,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_NoOutputUntilFrameEnd()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // Consume the first frame (force refresh) with actual content
@@ -487,7 +487,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_OutputOnFrameEnd()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // Consume force refresh with actual content
@@ -520,7 +520,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_ClearThenRender_OnlyEmitsNetChanges()
     {
         // Arrange - This is the key flicker fix test!
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // First, render some content and commit it
@@ -565,7 +565,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_ClearThenRenderDifferent_EmitsOnlyDifference()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // First, render "Hello"
@@ -609,7 +609,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_ControlTokensPreserved()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         await filter.OnOutputAsync([], TimeSpan.Zero); // Consume force refresh
         
@@ -633,7 +633,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_FrameEndWithoutBegin_IsIgnored()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // Consume the first frame (force refresh) with empty content
@@ -654,7 +654,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_NestedFrameBegin_FlushesFirst()
     {
         // Arrange
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now);
         
         // Consume force refresh with actual content
@@ -691,7 +691,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_TokensAfterFrameEnd_AreProcessed()
     {
         // Arrange - tests that tokens like ?2026l that follow FrameEnd in the same batch are not lost
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now, TestContext.Current.CancellationToken);
         
         // Consume force refresh with actual content
@@ -722,7 +722,7 @@ public class RenderOptimizationFilterTests
     public async Task FrameBuffering_SeparateBatchAfterFrameEnd_TokensPassThrough()
     {
         // Arrange - tests that tokens like ?2026l that come in a separate batch after FrameEnd pass through
-        var filter = new RenderOptimizationFilter();
+        var filter = new Hex1bAppRenderOptimizationFilter();
         await filter.OnSessionStartAsync(10, 5, DateTimeOffset.Now, TestContext.Current.CancellationToken);
         
         // Consume force refresh with actual content

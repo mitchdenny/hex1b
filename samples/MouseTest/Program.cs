@@ -152,13 +152,13 @@ try
     // Create the workload adapter that Hex1bApp will use
     var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
-    // Create terminal options with render optimization filter for optimized rendering
+    // Create terminal options with Hex1bApp render optimization filter
     var terminalOptions = new Hex1bTerminalOptions
     {
         PresentationAdapter = presentation,
         WorkloadAdapter = workload
     };
-    terminalOptions.AddRenderOptimization();
+    terminalOptions.AddHex1bAppRenderOptimization();
     
     // Create the terminal that bridges presentation ↔ workload
     // The terminal auto-starts I/O pumps when a presentation adapter is provided

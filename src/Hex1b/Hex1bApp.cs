@@ -354,7 +354,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
 
         // Step 6.6: Begin frame buffering - all changes from here until EndFrame
-        // will be accumulated in the RenderOptimizationFilter and emitted as net changes
+        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
         _context.BeginFrame();
 
         // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
@@ -378,7 +378,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Step 9: Render mouse cursor overlay if enabled
         RenderMouseCursor();
         
-        // Step 9.5: End frame buffering - RenderOptimizationFilter will now emit only
+        // Step 9.5: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
         // the net changes (e.g., clear + re-render same content = no output)
         _context.EndFrame();
         

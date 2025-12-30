@@ -6,7 +6,7 @@ namespace Hex1b.Tokens;
 /// <remarks>
 /// <para>
 /// This token is used internally by Hex1bApp to bracket render operations.
-/// When a <see cref="Terminal.RenderOptimizationFilter"/> (or similar filter) receives this token,
+/// When a <see cref="Terminal.Hex1bAppRenderOptimizationFilter"/> (or similar filter) receives this token,
 /// it exits "buffering mode", compares the accumulated buffer against the committed
 /// state, and emits only the cells that actually changed.
 /// </para>
@@ -15,7 +15,7 @@ namespace Hex1b.Tokens;
 /// are collapsed into a single update, eliminating flicker.
 /// </para>
 /// <para>
-/// Uses APC (Application Program Command) format: ESC _ HEX1B:FRAME:END ESC \
+/// Uses APC (Application Program Command) format: ESC _ HEX1BAPP:FRAME:END ESC \
 /// </para>
 /// </remarks>
 public sealed record FrameEndToken : AnsiToken

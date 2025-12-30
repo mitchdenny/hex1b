@@ -8,13 +8,13 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Integration tests for the RenderOptimizationFilter to verify it only sends changed cells.
+/// Integration tests for the Hex1bAppRenderOptimizationFilter to verify it only sends changed cells.
 /// </summary>
 /// <remarks>
 /// These tests are timing-sensitive and use Collection to ensure they don't run in parallel
 /// with other tests, which can cause CPU contention and timeouts.
 /// </remarks>
-public class RenderOptimizationFilterIntegrationTests
+public class Hex1bAppRenderOptimizationFilterIntegrationTests
 {
     /// <summary>
     /// A null presentation adapter that just discards output.
@@ -79,7 +79,7 @@ public class RenderOptimizationFilterIntegrationTests
 
     /// <summary>
     /// A test presentation filter that captures the token stream after delta encoding.
-    /// Placed after the RenderOptimizationFilter to see what actually gets sent.
+    /// Placed after the Hex1bAppRenderOptimizationFilter to see what actually gets sent.
     /// Uses the DEC 2026 synchronized update end sequence (?2026l) to detect frame completion.
     /// </summary>
     private class TokenCapturePresentationFilter : IHex1bTerminalPresentationFilter
@@ -255,7 +255,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange
         var captureFilter = new TokenCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var presentation = new NullPresentationAdapter(40, 10);
@@ -321,7 +321,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange
         var captureFilter = new TokenCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var presentation = new NullPresentationAdapter(60, 20);
@@ -393,7 +393,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange
         var captureFilter = new TokenCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var presentation = new NullPresentationAdapter(80, 24);
@@ -472,7 +472,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange
         var captureFilter = new TokenCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var presentation = new NullPresentationAdapter(40, 15);
@@ -541,7 +541,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange
         var captureFilter = new TokenCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var presentation = new NullPresentationAdapter(50, 10);
@@ -769,7 +769,7 @@ public class RenderOptimizationFilterIntegrationTests
     {
         // Arrange - use a precise filter that tracks exact cell positions
         var captureFilter = new CellPositionCapturePresentationFilter();
-        var deltaFilter = new RenderOptimizationFilter();
+        var deltaFilter = new Hex1bAppRenderOptimizationFilter();
         
         const int terminalWidth = 40;
         const int terminalHeight = 10;

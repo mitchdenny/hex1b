@@ -36,8 +36,8 @@ public static class AnsiTokenizer
                 FlushTextToken(text, ref textStart, i, tokens);
                 var apcToken = apcContent switch
                 {
-                    "HEX1B:FRAME:BEGIN" => (AnsiToken)FrameBeginToken.Instance,
-                    "HEX1B:FRAME:END" => FrameEndToken.Instance,
+                    "HEX1BAPP:FRAME:BEGIN" => (AnsiToken)FrameBeginToken.Instance,
+                    "HEX1BAPP:FRAME:END" => FrameEndToken.Instance,
                     _ => new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\")
                 };
                 tokens.Add(apcToken);

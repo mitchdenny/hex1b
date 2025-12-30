@@ -461,20 +461,20 @@ public class AnsiTokenSerializerTests
     public void Serialize_FrameBeginToken_ReturnsApcSequence()
     {
         var result = AnsiTokenSerializer.Serialize(FrameBeginToken.Instance);
-        Assert.Equal("\x1b_HEX1B:FRAME:BEGIN\x1b\\", result);
+        Assert.Equal("\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\", result);
     }
 
     [Fact]
     public void Serialize_FrameEndToken_ReturnsApcSequence()
     {
         var result = AnsiTokenSerializer.Serialize(FrameEndToken.Instance);
-        Assert.Equal("\x1b_HEX1B:FRAME:END\x1b\\", result);
+        Assert.Equal("\x1b_HEX1BAPP:FRAME:END\x1b\\", result);
     }
 
     [Fact]
     public void RoundTrip_FrameBeginToken_PreservesToken()
     {
-        var input = "\x1b_HEX1B:FRAME:BEGIN\x1b\\";
+        var input = "\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\";
         var tokens = AnsiTokenizer.Tokenize(input);
         
         Assert.Single(tokens);
@@ -487,7 +487,7 @@ public class AnsiTokenSerializerTests
     [Fact]
     public void RoundTrip_FrameEndToken_PreservesToken()
     {
-        var input = "\x1b_HEX1B:FRAME:END\x1b\\";
+        var input = "\x1b_HEX1BAPP:FRAME:END\x1b\\";
         var tokens = AnsiTokenizer.Tokenize(input);
         
         Assert.Single(tokens);
