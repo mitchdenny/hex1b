@@ -183,16 +183,19 @@ public class ThemingExhibitRepro
 
         // Act - Run app, wait for render, then exit WITHOUT focusing the textbox
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for the cursor color (white background) to appear, which indicates the TextBox has focus
+        // The TextBox IS focusable and is the first focusable widget, so it WILL have focus.
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("test text"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
+                "cursor background color (white) to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - The cursor background color (white) should appear because TextBox gets focus by default
-        // Actually, since TextBox IS focusable and is the first focusable widget, it WILL have focus.
-        // This test verifies that behavior - the cursor color IS present when focused.
+        // Assert - The cursor background color (white) should be present because TextBox has focus.
+        // This test verifies that the first focusable widget gets focus by default.
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
             "TextBox should have cursor colors when it has focus (it's the first focusable widget)");
@@ -214,16 +217,19 @@ public class ThemingExhibitRepro
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Act - Run app, wait for TextBox to render with focus
+        // Act - Run app, wait for TextBox to render with focus and cursor colors
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for the cursor color to appear (white background), which is more reliable than waiting for text
         await new Hex1bTestSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), TimeSpan.FromSeconds(2),
+                "cursor background color (white) to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - The cursor background color (white) should appear in the TextBox
+        // Assert - The cursor background color (white) should be in the snapshot
         // Default cursor colors: foreground=Black, background=White (255,255,255)
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
