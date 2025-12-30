@@ -42,6 +42,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private bool _disposed;
     private bool _inTuiMode;
     private bool _dimensionsInitialized;
+    private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
 
     /// <summary>
     /// Creates a new app workload adapter.
@@ -86,7 +87,10 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         var bytes = Encoding.UTF8.GetBytes(text);
-        _outputChannel.Writer.TryWrite(bytes);
+        if (_outputChannel.Writer.TryWrite(bytes))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
     }
 
     /// <summary>
@@ -95,7 +99,10 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_disposed) return;
-        _outputChannel.Writer.TryWrite(data.ToArray());
+        if (_outputChannel.Writer.TryWrite(data.ToArray()))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
     }
 
     /// <summary>
@@ -125,6 +132,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// Terminal capabilities.
     /// </summary>
     public TerminalCapabilities Capabilities { get; }
+    
+    /// <summary>
+    /// Gets the number of output items waiting to be consumed by the terminal.
+    /// Can be used to detect back pressure and adjust input processing accordingly.
+    /// </summary>
+    public int OutputQueueDepth => _outputQueueDepth;
 
     /// <summary>
     /// Enter TUI mode. Writes standard ANSI sequences for alternate screen, hide cursor, enable mouse.
@@ -197,6 +210,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         
         if (_outputChannel.Reader.TryRead(out var bytes))
         {
+            Interlocked.Decrement(ref _outputQueueDepth);
             data = bytes;
             return true;
         }
@@ -214,6 +228,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             {
                 if (_outputChannel.Reader.TryRead(out var bytes))
                 {
+                    Interlocked.Decrement(ref _outputQueueDepth);
                     return bytes;
                 }
             }

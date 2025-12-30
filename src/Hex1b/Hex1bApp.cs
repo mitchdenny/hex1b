@@ -206,69 +206,32 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 
                 if (completedTask == inputTask)
                 {
+                    // Process the first input event
                     var inputEvent = await inputTask;
+                    await ProcessInputEventAsync(inputEvent, cancellationToken);
                     
-                    switch (inputEvent)
+                    // DRAIN ALL PENDING INPUT before rendering
+                    // This prevents back pressure from rapid input (key repeats, mouse moves)
+                    // by processing all queued events and rendering once at the final state
+                    
+                    // Adaptive input coalescing: if output is backing up, wait longer to batch more input
+                    // Base delay is 5ms, increases based on output queue depth (up to 100ms max)
+                    var outputBacklog = _adapter.OutputQueueDepth;
+                    var coalescingDelayMs = Math.Min(5 + (outputBacklog * 10), 100);
+                    await Task.Delay(coalescingDelayMs, cancellationToken);
+                    
+                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
                     {
-                        // Terminal capability events are logged but capabilities are now
-                        // provided via TerminalCapabilities at startup rather than runtime detection
-                        case Hex1bTerminalEvent:
-                            // No action needed - capabilities come from workload adapter
-                            continue;
+                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
                         
-                        // Resize events trigger a re-layout and re-render
-                        case Hex1bResizeEvent resizeEvent:
-                            // Terminal size changed - we need a full re-render
-                            // Mark root dirty to ensure everything re-renders at new size
-                            _rootNode?.MarkDirty();
-                            // Force full clear to handle new screen regions
-                            _isFirstFrame = true;
-                            break;
-                        
-                        // Key events are routed to the focused node through the tree
-                        case Hex1bKeyEvent keyEvent when _rootNode != null:
-                            // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                            await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
-                            break;
-                        
-                        // Mouse events: update cursor position and handle clicks/drags
-                        case Hex1bMouseEvent mouseEvent:
-                            _mouseX = mouseEvent.X;
-                            _mouseY = mouseEvent.Y;
-                            
-                            // Update hover state on any mouse event
-                            UpdateHoverState(mouseEvent.X, mouseEvent.Y);
-                            
-                            // If a drag is active, route all events to the drag handler
-                            if (_activeDragHandler != null)
-                            {
-                                // Handle both Move (no button) and Drag (button held) actions
-                                if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
-                                {
-                                    var deltaX = mouseEvent.X - _dragStartX;
-                                    var deltaY = mouseEvent.Y - _dragStartY;
-                                    _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
-                                }
-                                else if (mouseEvent.Action == MouseAction.Up)
-                                {
-                                    _activeDragHandler.OnEnd?.Invoke();
-                                    _activeDragHandler = null;
-                                }
-                                // While dragging, skip normal event handling
-                                break;
-                            }
-                            
-                            // Handle click events (button down) - may start a drag
-                            if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
-                            {
-                                await HandleMouseClickAsync(mouseEvent, cancellationToken);
-                            }
+                        // Check for stop request between events
+                        if (_stopRequested || cancellationToken.IsCancellationRequested)
                             break;
                     }
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)
 
-                // Re-render after handling input or invalidation (state may have changed)
+                // Re-render after handling ALL input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
             }
         }
@@ -284,6 +247,70 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         {
             // Always exit alternate buffer, even on error
             _context.ExitAlternateScreen();
+        }
+    }
+
+    /// <summary>
+    /// Processes a single input event (key, mouse, resize, etc.).
+    /// </summary>
+    private async Task ProcessInputEventAsync(Hex1bEvent inputEvent, CancellationToken cancellationToken)
+    {
+        switch (inputEvent)
+        {
+            // Terminal capability events are logged but capabilities are now
+            // provided via TerminalCapabilities at startup rather than runtime detection
+            case Hex1bTerminalEvent:
+                // No action needed - capabilities come from workload adapter
+                break;
+            
+            // Resize events trigger a re-layout and re-render
+            case Hex1bResizeEvent resizeEvent:
+                // Terminal size changed - we need a full re-render
+                // Mark root dirty to ensure everything re-renders at new size
+                _rootNode?.MarkDirty();
+                // Force full clear to handle new screen regions
+                _isFirstFrame = true;
+                break;
+            
+            // Key events are routed to the focused node through the tree
+            case Hex1bKeyEvent keyEvent when _rootNode != null:
+                // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
+                break;
+            
+            // Mouse events: update cursor position and handle clicks/drags
+            case Hex1bMouseEvent mouseEvent:
+                _mouseX = mouseEvent.X;
+                _mouseY = mouseEvent.Y;
+                
+                // Update hover state on any mouse event
+                UpdateHoverState(mouseEvent.X, mouseEvent.Y);
+                
+                // If a drag is active, route all events to the drag handler
+                if (_activeDragHandler != null)
+                {
+                    // Handle both Move (no button) and Drag (button held) actions
+                    if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
+                    {
+                        var deltaX = mouseEvent.X - _dragStartX;
+                        var deltaY = mouseEvent.Y - _dragStartY;
+                        _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
+                    }
+                    else if (mouseEvent.Action == MouseAction.Up)
+                    {
+                        _activeDragHandler.OnEnd?.Invoke();
+                        _activeDragHandler = null;
+                    }
+                    // While dragging, skip normal event handling
+                    break;
+                }
+                
+                // Handle click events (button down) - may start a drag
+                if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
+                {
+                    await HandleMouseClickAsync(mouseEvent, cancellationToken);
+                }
+                break;
         }
     }
 
@@ -381,6 +408,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Step 9.5: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
         // the net changes (e.g., clear + re-render same content = no output)
         _context.EndFrame();
+        
+        // Step 9.6: Ensure cursor is hidden after rendering to prevent it showing at last write position
+        // RenderMouseCursor will show it at the correct position if mouse cursor is enabled
+        _context.Write("\x1b[?25l");
         
         // Step 10: Clear dirty flags on all nodes (they've been rendered)
         if (_rootNode != null)
