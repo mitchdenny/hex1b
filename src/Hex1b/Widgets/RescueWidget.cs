@@ -62,7 +62,7 @@ public sealed record RescueWidget : Hex1bWidget
 #endif
     }
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as RescueNode ?? new RescueNode();
         node.State = State;
@@ -75,13 +75,13 @@ public sealed record RescueWidget : Hex1bWidget
         {
             // Build and reconcile the fallback instead
             var fallbackWidget = BuildFallback();
-            node.FallbackChild = context.ReconcileChild(node.FallbackChild, fallbackWidget, node);
+            node.FallbackChild = await context.ReconcileChildAsync(node.FallbackChild, fallbackWidget, node);
             return node;
         }
         
         try
         {
-            node.Child = context.ReconcileChild(node.Child, Child, node);
+            node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
             node.FallbackChild = null; // Clear any previous fallback
         }
         catch (Exception ex)
@@ -92,7 +92,7 @@ public sealed record RescueWidget : Hex1bWidget
             
             // Build fallback
             var fallbackWidget = BuildFallback();
-            node.FallbackChild = context.ReconcileChild(node.FallbackChild, fallbackWidget, node);
+            node.FallbackChild = await context.ReconcileChildAsync(node.FallbackChild, fallbackWidget, node);
         }
         
         return node;

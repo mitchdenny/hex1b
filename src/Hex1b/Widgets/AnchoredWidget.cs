@@ -16,7 +16,7 @@ internal sealed record AnchoredWidget(
     Hex1bNode AnchorNode,
     AnchorPosition Position) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as AnchoredNode ?? new AnchoredNode();
         
@@ -25,7 +25,7 @@ internal sealed record AnchoredWidget(
         
         // Reconcile the child
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);
-        node.Child = childContext.ReconcileChild(node.Child, Child, node);
+        node.Child = await childContext.ReconcileChildAsync(node.Child, Child, node);
         
         return node;
     }

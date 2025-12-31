@@ -12,12 +12,12 @@ public sealed record InfoBarWidget(
     IReadOnlyList<InfoBarSection> Sections,
     bool InvertColors = true) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as InfoBarNode ?? new InfoBarNode();
         node.Sections = Sections;
         node.InvertColors = InvertColors;
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(InfoBarNode);

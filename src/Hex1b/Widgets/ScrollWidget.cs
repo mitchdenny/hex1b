@@ -61,10 +61,10 @@ public sealed record ScrollWidget : Hex1bWidget
     public ScrollWidget OnScroll(Func<ScrollChangedEventArgs, Task> handler)
         => this with { ScrollHandler = handler };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ScrollNode ?? new ScrollNode();
-        node.Child = context.ReconcileChild(node.Child, Child, node);
+        node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         node.SourceWidget = this;
         node.Orientation = Orientation;
         node.ShowScrollbar = ShowScrollbar;

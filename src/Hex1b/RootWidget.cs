@@ -8,7 +8,7 @@ using Hex1b.Widgets;
 /// </summary>
 public sealed record RootWidget : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
         => throw new NotSupportedException("RootWidget is a type marker and should not be reconciled.");
 
     internal override Type GetExpectedNodeType()

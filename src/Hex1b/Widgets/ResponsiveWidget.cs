@@ -9,7 +9,7 @@ namespace Hex1b.Widgets;
 /// <param name="Branches">The list of conditional widgets to evaluate. The first matching branch is displayed.</param>
 public sealed record ResponsiveWidget(IReadOnlyList<ConditionalWidget> Branches) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ResponsiveNode ?? new ResponsiveNode();
         node.Branches = Branches;
@@ -19,7 +19,7 @@ public sealed record ResponsiveWidget(IReadOnlyList<ConditionalWidget> Branches)
         for (int i = 0; i < Branches.Count; i++)
         {
             var existingChild = i < node.ChildNodes.Count ? node.ChildNodes[i] : null;
-            var reconciledChild = context.ReconcileChild(existingChild, Branches[i].Content, node);
+            var reconciledChild = await context.ReconcileChildAsync(existingChild, Branches[i].Content, node);
             newChildNodes.Add(reconciledChild);
         }
         node.ChildNodes = newChildNodes;

@@ -23,7 +23,7 @@ public sealed record ButtonWidget(string Label) : Hex1bWidget
     public ButtonWidget OnClick(Func<ButtonClickedEventArgs, Task> handler)
         => this with { ClickHandler = handler };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ButtonNode ?? new ButtonNode();
         
@@ -50,7 +50,7 @@ public sealed record ButtonWidget(string Label) : Hex1bWidget
             node.ClickAction = null;
         }
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(ButtonNode);

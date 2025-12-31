@@ -409,7 +409,7 @@ public class ThemePanelNodeTests
         var widget = new ThemePanelWidget(t => t, new TextBlockWidget("Test"));
         var context = ReconcileContext.CreateRoot();
 
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
 
         Assert.IsType<ThemePanelNode>(node);
         var themePanelNode = (ThemePanelNode)node;
@@ -428,7 +428,7 @@ public class ThemePanelNodeTests
         var widget = new ThemePanelWidget(t => t.Clone(), new TextBlockWidget("New"));
         var context = ReconcileContext.CreateRoot();
 
-        var node = widget.Reconcile(existingNode, context);
+        var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
         Assert.Same(existingNode, node);
     }
@@ -445,7 +445,7 @@ public class ThemePanelNodeTests
         var widget = new ThemePanelWidget(newMutator, new TextBlockWidget("Test"));
         var context = ReconcileContext.CreateRoot();
 
-        widget.Reconcile(existingNode, context);
+        widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
         Assert.Same(newMutator, existingNode.ThemeMutator);
     }
@@ -461,7 +461,7 @@ public class ThemePanelNodeTests
         var widget = new ThemePanelWidget(t => t, new TextBlockWidget("New"));
         var context = ReconcileContext.CreateRoot();
 
-        widget.Reconcile(existingNode, context);
+        widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
         Assert.IsType<TextBlockNode>(existingNode.Child);
         Assert.Equal("New", ((TextBlockNode)existingNode.Child!).Text);

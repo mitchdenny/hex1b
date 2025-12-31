@@ -11,7 +11,7 @@ namespace Hex1b.Widgets;
 public sealed record ConditionalWidget(Func<int, int, bool> Condition, Hex1bWidget Content) : Hex1bWidget
 {
     // ConditionalWidget is never directly reconciled - it's used as configuration for ResponsiveWidget
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
         => throw new NotSupportedException("ConditionalWidget should not be reconciled directly. Use ResponsiveWidget instead.");
 
     internal override Type GetExpectedNodeType()

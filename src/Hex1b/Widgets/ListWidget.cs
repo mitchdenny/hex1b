@@ -43,7 +43,7 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
     public ListWidget OnItemActivated(Func<ListItemActivatedEventArgs, Task> handler)
         => this with { ItemActivatedHandler = handler };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ListNode ?? new ListNode();
         node.Items = Items;
@@ -100,7 +100,7 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
             node.IsFocused = true;
         }
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(ListNode);

@@ -51,7 +51,7 @@ public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overf
     public HyperlinkWidget WithId(string id)
         => this with { Parameters = $"id={id}" };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as HyperlinkNode ?? new HyperlinkNode();
         
@@ -81,7 +81,7 @@ public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overf
             node.ClickAction = null;
         }
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(HyperlinkNode);

@@ -123,7 +123,7 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
     public BackdropWidget OnClickAway(Func<BackdropClickedEventArgs, Task> handler)
         => this with { ClickAwayEventHandler = handler, ClickAwayHandler = null };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as BackdropNode ?? new BackdropNode();
 
@@ -143,7 +143,7 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
         if (Child != null)
         {
             var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);
-            node.Child = childContext.ReconcileChild(node.Child, Child, node);
+            node.Child = await childContext.ReconcileChildAsync(node.Child, Child, node);
         }
         else
         {

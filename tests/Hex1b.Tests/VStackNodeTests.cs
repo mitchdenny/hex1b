@@ -660,7 +660,7 @@ public class VStackNodeTests
         });
         
         var context = ReconcileContext.CreateRoot();
-        var node = initialWidget.Reconcile(null, context) as VStackNode;
+        var node = initialWidget.ReconcileAsync(null, context).GetAwaiter().GetResult() as VStackNode;
         Assert.NotNull(node);
         Assert.Equal(5, node.Children.Count);
         
@@ -681,7 +681,7 @@ public class VStackNodeTests
         {
             new TextBlockWidget("Only one line"),
         });
-        var reconciledNode = fewerWidget.Reconcile(node, context) as VStackNode;
+        var reconciledNode = fewerWidget.ReconcileAsync(node, context).GetAwaiter().GetResult() as VStackNode;
         
         // Assert - orphaned bounds should be tracked
         Assert.Same(node, reconciledNode); // Same node reused
@@ -708,7 +708,7 @@ public class VStackNodeTests
         });
         
         var context = ReconcileContext.CreateRoot();
-        var node = initialWidget.Reconcile(null, context) as VStackNode;
+        var node = initialWidget.ReconcileAsync(null, context).GetAwaiter().GetResult() as VStackNode;
         Assert.NotNull(node);
         node.Arrange(new Rect(0, 0, 50, 2));
         
@@ -718,7 +718,7 @@ public class VStackNodeTests
             new TextBlockWidget("Updated Line 1"),
             new TextBlockWidget("Updated Line 2"),
         });
-        var reconciledNode = sameWidget.Reconcile(node, context) as VStackNode;
+        var reconciledNode = sameWidget.ReconcileAsync(node, context).GetAwaiter().GetResult() as VStackNode;
         
         // Assert - no orphaned bounds
         Assert.Null(reconciledNode!.OrphanedChildBounds);

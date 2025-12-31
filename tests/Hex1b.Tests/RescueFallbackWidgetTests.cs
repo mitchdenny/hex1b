@@ -34,7 +34,7 @@ public class RescueFallbackWidgetTests
         // Act - reconcile like Hex1bApp.Reconcile does
         var context = ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
@@ -92,7 +92,7 @@ public class RescueFallbackWidgetTests
         // Reconcile like Hex1bApp.Reconcile does
         var context = ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
@@ -141,7 +141,7 @@ public class RescueFallbackWidgetTests
         // Reconcile like Hex1bApp.Reconcile does
         var context = ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
@@ -195,7 +195,7 @@ public class RescueFallbackWidgetTests
         // Reconcile and layout
         var context = ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         var terminalSize = new Size(80, 24);
         node.Measure(Constraints.Tight(terminalSize));
         node.Arrange(Rect.FromSize(terminalSize));
@@ -252,7 +252,7 @@ public class RescueFallbackWidgetTests
         
         // Act - reconcile the widget tree
         var context = ReconcileContext.CreateRoot();
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         
         // Build focus ring
         var focusRing = new FocusRing();

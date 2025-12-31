@@ -16,7 +16,7 @@ namespace Hex1b.Widgets;
 [Experimental("HEX1B001")]
 public sealed record NavigatorWidget(NavigatorState State) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NavigatorNode ?? new NavigatorNode();
         node.State = State;
@@ -70,7 +70,7 @@ public sealed record NavigatorWidget(NavigatorState State) : Hex1bWidget
 
         // Build the current route's widget and reconcile it as the child
         var currentWidget = State.BuildCurrentWidget();
-        node.CurrentChild = context.ReconcileChild(node.CurrentChild, currentWidget, node);
+        node.CurrentChild = await context.ReconcileChildAsync(node.CurrentChild, currentWidget, node);
 
         // Set focus based on whether we're returning from pop or navigating forward
         if (context.IsNew || routeChanged)

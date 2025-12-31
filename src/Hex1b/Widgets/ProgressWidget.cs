@@ -101,7 +101,7 @@ public sealed record ProgressWidget : Hex1bWidget
     public ProgressWidget WithAnimationPosition(double position)
         => this with { AnimationPosition = position % 1.0 };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ProgressNode ?? new ProgressNode();
         
@@ -121,7 +121,7 @@ public sealed record ProgressWidget : Hex1bWidget
         node.IsIndeterminate = IsIndeterminate;
         node.AnimationPosition = AnimationPosition;
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(ProgressNode);

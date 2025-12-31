@@ -45,7 +45,7 @@ namespace Hex1b.Widgets;
 /// <seealso cref="TextBoxWidget"/>
 public sealed record TextBlockWidget(string Text, TextOverflow Overflow = TextOverflow.Truncate) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBlockNode ?? new TextBlockNode();
         
@@ -57,7 +57,7 @@ public sealed record TextBlockWidget(string Text, TextOverflow Overflow = TextOv
         
         node.Text = Text;
         node.Overflow = Overflow;
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(TextBlockNode);

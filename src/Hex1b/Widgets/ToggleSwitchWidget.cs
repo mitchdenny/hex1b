@@ -27,7 +27,7 @@ public sealed record ToggleSwitchWidget(IReadOnlyList<string> Options, int Selec
     public ToggleSwitchWidget OnSelectionChanged(Func<ToggleSelectionChangedEventArgs, Task> handler)
         => this with { SelectionChangedHandler = handler };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ToggleSwitchNode ?? new ToggleSwitchNode();
         node.Options = Options;
@@ -68,7 +68,7 @@ public sealed record ToggleSwitchWidget(IReadOnlyList<string> Options, int Selec
             node.SelectionChangedAction = null;
         }
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(ToggleSwitchNode);

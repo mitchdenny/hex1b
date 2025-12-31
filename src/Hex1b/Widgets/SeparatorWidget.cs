@@ -25,14 +25,14 @@ public sealed record SeparatorWidget : Hex1bWidget
     /// </summary>
     public LayoutAxis? ExplicitAxis { get; init; }
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as SeparatorNode ?? new SeparatorNode();
         node.HorizontalChar = HorizontalChar;
         node.VerticalChar = VerticalChar;
         node.ExplicitAxis = ExplicitAxis;
         node.InferredAxis = context.LayoutAxis;
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(SeparatorNode);

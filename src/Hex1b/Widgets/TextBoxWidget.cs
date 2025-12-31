@@ -39,7 +39,7 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public TextBoxWidget OnSubmit(Func<TextSubmittedEventArgs, Task> handler)
         => this with { SubmitHandler = handler };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
         
@@ -88,7 +88,7 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
             node.SubmitAction = null;
         }
         
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(TextBoxNode);

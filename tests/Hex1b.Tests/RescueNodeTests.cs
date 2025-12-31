@@ -314,7 +314,7 @@ public class RescueNodeTests
         var widget = new RescueWidget(childWidget);
         
         var context = ReconcileContext.CreateRoot();
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         
         Assert.IsType<RescueNode>(node);
     }
@@ -326,8 +326,8 @@ public class RescueNodeTests
         var widget = new RescueWidget(childWidget);
         
         var context = ReconcileContext.CreateRoot();
-        var node1 = widget.Reconcile(null, context) as RescueNode;
-        var node2 = widget.Reconcile(node1, context) as RescueNode;
+        var node1 = widget.ReconcileAsync(null, context).GetAwaiter().GetResult() as RescueNode;
+        var node2 = widget.ReconcileAsync(node1, context).GetAwaiter().GetResult() as RescueNode;
         
         Assert.Same(node1, node2);
     }
@@ -340,7 +340,7 @@ public class RescueNodeTests
         var widget = new RescueWidget(childWidget, state);
         
         var context = ReconcileContext.CreateRoot();
-        var node = widget.Reconcile(null, context) as RescueNode;
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult() as RescueNode;
         
         Assert.Same(state, node?.State);
     }
@@ -355,7 +355,7 @@ public class RescueNodeTests
         var widget = new RescueWidget(childWidget, state);
         
         var context = ReconcileContext.CreateRoot();
-        var node = widget.Reconcile(null, context) as RescueNode;
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult() as RescueNode;
         
         // Should have fallback child, not main child
         Assert.NotNull(node?.FallbackChild);
@@ -415,7 +415,7 @@ public class RescueNodeTests
         var borderedWidget = new BorderWidget(rescueWidget);
         
         var context = ReconcileContext.CreateRoot();
-        var node = borderedWidget.Reconcile(null, context) as BorderNode;
+        var node = borderedWidget.ReconcileAsync(null, context).GetAwaiter().GetResult() as BorderNode;
         
         Assert.NotNull(node);
         Assert.IsType<RescueNode>(node?.Child);

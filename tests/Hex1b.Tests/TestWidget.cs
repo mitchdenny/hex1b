@@ -39,13 +39,13 @@ public sealed record TestWidget : Hex1bWidget
         ReconcileHandler?.Invoke(new TestWidgetReconcileEventArgs(this, node, actionContext, _reconcileCount, existingNode));
     }
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var actionContext = new InputBindingActionContext(context.FocusRing);
         var node = existingNode as TestWidgetNode ?? new TestWidgetNode();
         node.RenderCallback = () => RaiseRender(node, actionContext);
         RaiseReconcile(existingNode, node, actionContext);
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     internal override Type GetExpectedNodeType() => typeof(TestWidgetNode);

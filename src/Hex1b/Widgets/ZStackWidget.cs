@@ -33,7 +33,7 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
     /// <param name="widget">The widget whose bounds define the clip region.</param>
     public ZStackWidget ClipTo(Hex1bWidget widget) => this with { ClipScopeValue = ClipScope.Widget(widget) };
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ZStackNode ?? new ZStackNode();
         
@@ -62,7 +62,7 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         for (int i = 0; i < allChildren.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = childContext.ReconcileChild(existingChild, allChildren[i], node);
+            var reconciledChild = await childContext.ReconcileChildAsync(existingChild, allChildren[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);

@@ -7,10 +7,10 @@ namespace Hex1b.Widgets;
 /// </summary>
 internal sealed record RescueBorderWidget(Hex1bWidget Child) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as RescueBorderNode ?? new RescueBorderNode();
-        node.Child = context.ReconcileChild(node.Child, Child, node);
+        node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         return node;
     }
 

@@ -33,7 +33,7 @@ namespace Hex1b.Widgets;
 /// <seealso cref="Alignment"/>
 public sealed record AlignWidget(Hex1bWidget Child, Alignment Alignment) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as AlignNode ?? new AlignNode();
         
@@ -43,7 +43,7 @@ public sealed record AlignWidget(Hex1bWidget Child, Alignment Alignment) : Hex1b
         }
         
         node.Alignment = Alignment;
-        node.Child = context.ReconcileChild(node.Child, Child, node);
+        node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         
         return node;
     }

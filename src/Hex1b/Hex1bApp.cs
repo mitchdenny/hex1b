@@ -372,7 +372,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         widgetTree = new ZStackWidget([widgetTree]);
 
         // Step 3: Reconcile - update the node tree to match the widget tree
-        _rootNode = Reconcile(_rootNode, widgetTree);
+        _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
 
         // Step 4: Layout - measure and arrange the node tree
         if (_rootNode != null)
@@ -868,10 +868,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Reconciles a node with a widget, creating/updating/replacing as needed.
+    /// Reconciles a node with a widget asynchronously, creating/updating/replacing as needed.
     /// This is the core of the "diffing" algorithm.
     /// </summary>
-    private Hex1bNode? Reconcile(Hex1bNode? existingNode, Hex1bWidget? widget)
+    private async Task<Hex1bNode?> ReconcileAsync(Hex1bNode? existingNode, Hex1bWidget? widget, CancellationToken cancellationToken)
     {
         if (widget is null)
         {
@@ -879,11 +879,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
 
         // Create the root reconcile context
-        var context = ReconcileContext.CreateRoot(_focusRing);
+        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
-        // Delegate to the widget's own Reconcile method
-        var node = widget.Reconcile(existingNode, context);
+        // Delegate to the widget's own ReconcileAsync method
+        var node = await widget.ReconcileAsync(existingNode, context);
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent

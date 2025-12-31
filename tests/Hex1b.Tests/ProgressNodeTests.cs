@@ -62,8 +62,8 @@ public class ProgressNodeTests
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
         // Act
-        var node1 = widget1.Reconcile(null, context);
-        var node2 = widget2.Reconcile(node1, context);
+        var node1 = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult();
+        var node2 = widget2.ReconcileAsync(node1, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.Same(node1, node2);
@@ -78,11 +78,11 @@ public class ProgressNodeTests
         var widget2 = new ProgressWidget { Value = 75, Maximum = 100 };
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
-        var node = widget1.Reconcile(null, context) as ProgressNode;
+        var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as ProgressNode;
         node!.ClearDirty();
 
         // Act
-        widget2.Reconcile(node, context);
+        widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.True(node.IsDirty);
@@ -96,11 +96,11 @@ public class ProgressNodeTests
         var widget2 = new ProgressWidget { Value = 50, Minimum = -50, Maximum = 100 };
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
-        var node = widget1.Reconcile(null, context) as ProgressNode;
+        var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as ProgressNode;
         node!.ClearDirty();
 
         // Act
-        widget2.Reconcile(node, context);
+        widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.True(node.IsDirty);
@@ -114,11 +114,11 @@ public class ProgressNodeTests
         var widget2 = new ProgressWidget { Value = 50, Maximum = 200 };
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
-        var node = widget1.Reconcile(null, context) as ProgressNode;
+        var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as ProgressNode;
         node!.ClearDirty();
 
         // Act
-        widget2.Reconcile(node, context);
+        widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.True(node.IsDirty);
@@ -132,11 +132,11 @@ public class ProgressNodeTests
         var widget2 = new ProgressWidget { Value = 50, IsIndeterminate = true };
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
-        var node = widget1.Reconcile(null, context) as ProgressNode;
+        var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as ProgressNode;
         node!.ClearDirty();
 
         // Act
-        widget2.Reconcile(node, context);
+        widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.True(node.IsDirty);
@@ -150,11 +150,11 @@ public class ProgressNodeTests
         var widget2 = new ProgressWidget { Value = 50, Maximum = 100 };
         var context = ReconcileContext.CreateRoot(new FocusRing());
 
-        var node = widget1.Reconcile(null, context) as ProgressNode;
+        var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as ProgressNode;
         node!.ClearDirty();
 
         // Act
-        widget2.Reconcile(node, context);
+        widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
         Assert.False(node.IsDirty);

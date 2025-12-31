@@ -7,10 +7,10 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record BorderWidget(Hex1bWidget Child, string? Title = null) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as BorderNode ?? new BorderNode();
-        node.Child = context.ReconcileChild(node.Child, Child, node);
+        node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         node.Title = Title;
         
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus

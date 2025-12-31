@@ -27,14 +27,14 @@ public sealed record RescueFallbackWidget(
     internal static readonly Hex1bColor ButtonNormalBg = Hex1bColor.FromRgb(80, 30, 30);      // Darker red for normal button
     internal static readonly Hex1bColor ButtonNormalFg = Hex1bColor.FromRgb(255, 200, 200);   // Light text on normal button
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         // Build widget tree using normal components
         var widgetTree = BuildWidgetTree();
         
         // Reconcile into a RescueFallbackContainerNode that sets hardcoded colors
         var node = existingNode as RescueFallbackContainerNode ?? new RescueFallbackContainerNode();
-        node.Child = context.ReconcileChild(node.Child, widgetTree, node);
+        node.Child = await context.ReconcileChildAsync(node.Child, widgetTree, node);
         
         // Invalidate focus cache since children may have changed
         node.InvalidateFocusCache();

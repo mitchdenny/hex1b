@@ -35,20 +35,27 @@ public sealed class ReconcileContext
     /// Used by SeparatorWidget to determine orientation.
     /// </summary>
     public LayoutAxis? LayoutAxis { get; private set; }
+    
+    /// <summary>
+    /// The cancellation token for the current render frame.
+    /// Composite widgets that perform async work should observe this token.
+    /// </summary>
+    public CancellationToken CancellationToken { get; }
 
-    private ReconcileContext(Hex1bNode? parent, FocusRing focusRing, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
+    private ReconcileContext(Hex1bNode? parent, FocusRing focusRing, CancellationToken cancellationToken, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
         LayoutAxis = layoutAxis;
         FocusRing = focusRing;
+        CancellationToken = cancellationToken;
     }
 
     /// <summary>
     /// Creates a root reconcile context (no parent).
     /// </summary>
-    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null) 
-        => new(null, focusRing ?? new FocusRing());
+    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null, CancellationToken cancellationToken = default) 
+        => new(null, focusRing ?? new FocusRing(), cancellationToken);
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -59,7 +66,7 @@ public sealed class ReconcileContext
         // Build the new ancestor list: [parent, ...current ancestors]
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
-        return new ReconcileContext(parent, FocusRing, newAncestors, LayoutAxis);
+        return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis);
     }
     
     /// <summary>
@@ -68,13 +75,13 @@ public sealed class ReconcileContext
     /// </summary>
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
-        return new ReconcileContext(Parent, FocusRing, _ancestors.ToList(), axis) { IsNew = IsNew };
+        return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis) { IsNew = IsNew };
     }
 
     /// <summary>
-    /// Reconciles a child widget, returning the updated or new node.
+    /// Reconciles a child widget asynchronously, returning the updated or new node.
     /// </summary>
-    public Hex1bNode? ReconcileChild(Hex1bNode? existingNode, Hex1bWidget? widget, Hex1bNode parent)
+    public async Task<Hex1bNode?> ReconcileChildAsync(Hex1bNode? existingNode, Hex1bWidget? widget, Hex1bNode parent)
     {
         if (widget is null)
         {
@@ -85,7 +92,7 @@ public sealed class ReconcileContext
         var isReplacement = existingNode is not null && existingNode.GetType() != widget.GetExpectedNodeType();
         childContext.IsNew = existingNode is null || isReplacement;
         
-        var node = widget.Reconcile(existingNode, childContext);
+        var node = await widget.ReconcileAsync(existingNode, childContext);
 
         // If this is a replacement (different node type), inherit bounds from the old node
         // so ClearDirtyRegions knows to clear the region previously occupied by the old content

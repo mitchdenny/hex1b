@@ -262,7 +262,7 @@ public class HyperlinkWidgetTests
         var widget = new HyperlinkWidget("Link", "https://example.com");
         var context = ReconcileContext.CreateRoot();
         
-        var node = widget.Reconcile(null, context);
+        var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         
         Assert.IsType<HyperlinkNode>(node);
         var hyperlinkNode = (HyperlinkNode)node;
@@ -277,7 +277,7 @@ public class HyperlinkWidgetTests
         var existingNode = new HyperlinkNode();
         var context = ReconcileContext.CreateRoot();
         
-        var node = widget.Reconcile(existingNode, context);
+        var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
         
         Assert.Same(existingNode, node);
     }
@@ -295,7 +295,7 @@ public class HyperlinkWidgetTests
         };
         var context = ReconcileContext.CreateRoot();
         
-        var node = widget.Reconcile(existingNode, context);
+        var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
         
         var hyperlinkNode = (HyperlinkNode)node;
         Assert.Equal("New Text", hyperlinkNode.Text);

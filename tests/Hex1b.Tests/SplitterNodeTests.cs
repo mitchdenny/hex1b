@@ -2074,7 +2074,7 @@ public class SplitterNodeTests
         // Reconcile from root
         var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var rootNode = outerSplitter.Reconcile(null, context) as SplitterNode;
+        var rootNode = outerSplitter.ReconcileAsync(null, context).GetAwaiter().GetResult() as SplitterNode;
 
         Assert.NotNull(rootNode);
 
@@ -2123,7 +2123,7 @@ public class SplitterNodeTests
         // Reconcile from root
         var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
         context.IsNew = true;
-        var rootNode = outerSplitter.Reconcile(null, context) as SplitterNode;
+        var rootNode = outerSplitter.ReconcileAsync(null, context).GetAwaiter().GetResult() as SplitterNode;
 
         Assert.NotNull(rootNode);
 

@@ -125,9 +125,9 @@ public sealed class RescueNode : Hex1bNode
         // Build the fallback widget and create a node manually
         var fallbackWidget = BuildFallback();
         
-        // Simple reconciliation for the fallback
+        // Simple reconciliation for the fallback (sync wait since this is error path)
         var context = ReconcileContext.CreateRoot();
-        FallbackChild = context.ReconcileChild(null, fallbackWidget, this);
+        FallbackChild = context.ReconcileChildAsync(null, fallbackWidget, this).GetAwaiter().GetResult();
     }
 
     private Hex1bWidget BuildFallback()

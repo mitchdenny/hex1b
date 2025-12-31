@@ -18,13 +18,13 @@ public sealed record SixelWidget(
     int? Width = null,
     int? Height = null) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as SixelNode ?? new SixelNode();
         node.ImageData = ImageData;
         node.RequestedWidth = Width;
         node.RequestedHeight = Height;
-        node.Fallback = context.ReconcileChild(node.Fallback, Fallback, node);
+        node.Fallback = await context.ReconcileChildAsync(node.Fallback, Fallback, node);
         return node;
     }
 

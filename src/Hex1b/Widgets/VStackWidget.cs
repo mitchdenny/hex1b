@@ -4,7 +4,7 @@ namespace Hex1b.Widgets;
 
 public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
 {
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as VStackNode ?? new VStackNode();
 
@@ -26,7 +26,7 @@ public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         for (int i = 0; i < Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = childContext.ReconcileChild(existingChild, Children[i], node);
+            var reconciledChild = await childContext.ReconcileChildAsync(existingChild, Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);

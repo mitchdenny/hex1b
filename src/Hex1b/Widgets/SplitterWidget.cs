@@ -57,11 +57,11 @@ public sealed record SplitterWidget : Hex1bWidget
     internal Hex1bWidget Right => Second;
     internal int LeftWidth => FirstSize;
 
-    internal override Hex1bNode Reconcile(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as SplitterNode ?? new SplitterNode();
-        node.First = context.ReconcileChild(node.First, First, node);
-        node.Second = context.ReconcileChild(node.Second, Second, node);
+        node.First = await context.ReconcileChildAsync(node.First, First, node);
+        node.Second = await context.ReconcileChildAsync(node.Second, Second, node);
         node.Orientation = Orientation;
         
         // Only set FirstSize on initial creation - preserve user resizing

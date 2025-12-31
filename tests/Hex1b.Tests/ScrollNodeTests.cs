@@ -802,7 +802,7 @@ public class ScrollNodeTests
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.Reconcile(null, context);
+        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(20);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -824,7 +824,7 @@ public class ScrollNodeTests
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.Reconcile(null, context);
+        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -854,7 +854,7 @@ public class ScrollNodeTests
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.Reconcile(null, context);
+        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -879,7 +879,7 @@ public class ScrollNodeTests
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.Reconcile(null, context);
+        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
