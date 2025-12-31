@@ -317,10 +317,24 @@ public sealed class ListNode : Hex1bNode
         var unselectedIndicator = theme.Get(ListTheme.UnselectedIndicator);
         var selectedFg = theme.Get(ListTheme.SelectedForegroundColor);
         var selectedBg = theme.Get(ListTheme.SelectedBackgroundColor);
+        var hoveredFg = theme.Get(ListTheme.HoveredForegroundColor);
+        var hoveredBg = theme.Get(ListTheme.HoveredBackgroundColor);
         
         // Get global colors for non-selected items
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
+        
+        // Calculate which item is hovered (if any)
+        var hoveredItemIndex = -1;
+        if (IsHovered && context.MouseY >= Bounds.Y && context.MouseY < Bounds.Y + _viewportHeight)
+        {
+            var localY = context.MouseY - Bounds.Y;
+            hoveredItemIndex = localY + _scrollOffset;
+            if (hoveredItemIndex >= Items.Count)
+            {
+                hoveredItemIndex = -1;
+            }
+        }
         
         // Calculate which items are visible in the viewport
         var visibleStart = _scrollOffset;
@@ -330,6 +344,7 @@ public sealed class ListNode : Hex1bNode
         {
             var item = Items[i];
             var isSelected = i == SelectedIndex;
+            var isHoveredItem = i == hoveredItemIndex;
 
             var x = Bounds.X;
             var y = Bounds.Y + (i - _scrollOffset);  // Adjust y position for scroll offset
@@ -339,6 +354,11 @@ public sealed class ListNode : Hex1bNode
             {
                 // Focused and selected: use theme colors
                 text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item}{resetToGlobal}";
+            }
+            else if (isHoveredItem && !isSelected)
+            {
+                // Hovered but not selected: use hover colors
+                text = $"{hoveredFg.ToForegroundAnsi()}{hoveredBg.ToBackgroundAnsi()}{unselectedIndicator}{item}{resetToGlobal}";
             }
             else if (isSelected)
             {

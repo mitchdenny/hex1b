@@ -20,8 +20,11 @@ public static class ButtonTheme
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor = 
         new($"{nameof(ButtonTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.White);
     
+    public static readonly Hex1bThemeElement<Hex1bColor> HoveredForegroundColor = 
+        new($"{nameof(ButtonTheme)}.{nameof(HoveredForegroundColor)}", () => Hex1bColor.Black);
+    
     public static readonly Hex1bThemeElement<Hex1bColor> HoveredBackgroundColor = 
-        new($"{nameof(ButtonTheme)}.{nameof(HoveredBackgroundColor)}", () => Hex1bColor.FromRgb(40, 40, 40));
+        new($"{nameof(ButtonTheme)}.{nameof(HoveredBackgroundColor)}", () => Hex1bColor.FromRgb(180, 180, 180));
     
     public static readonly Hex1bThemeElement<string> LeftBracket = 
         new($"{nameof(ButtonTheme)}.{nameof(LeftBracket)}", () => "[ ");
