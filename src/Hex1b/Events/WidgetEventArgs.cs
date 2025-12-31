@@ -67,15 +67,20 @@ public abstract class WidgetEventArgs<TWidget, TNode> : WidgetEventArgs
     /// </summary>
     /// <param name="position">Where to position the popup relative to this node.</param>
     /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
+    /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
     /// <example>
     /// <code>
     /// menuBar.Button(" File ")
     ///     .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildFileMenu()));
+    /// 
+    /// // Or with barrier for modal-like behavior:
+    /// menuBar.Button(" Dialog ")
+    ///     .OnClick(e => e.PushAnchored(AnchorPosition.Below, () => BuildDialog()).AsBarrier());
     /// </code>
     /// </example>
-    public void PushAnchored(AnchorPosition position, Func<Hex1bWidget> contentBuilder)
+    public PopupEntry PushAnchored(AnchorPosition position, Func<Hex1bWidget> contentBuilder)
     {
-        Popups.PushAnchored(Node, position, contentBuilder);
+        return Popups.PushAnchored(Node, position, contentBuilder);
     }
     
     /// <summary>
@@ -84,8 +89,9 @@ public abstract class WidgetEventArgs<TWidget, TNode> : WidgetEventArgs
     /// </summary>
     /// <param name="position">Where to position the popup relative to this node.</param>
     /// <param name="content">The widget content for the popup.</param>
-    public void PushAnchored(AnchorPosition position, Hex1bWidget content)
+    /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
+    public PopupEntry PushAnchored(AnchorPosition position, Hex1bWidget content)
     {
-        Popups.PushAnchored(Node, position, content);
+        return Popups.PushAnchored(Node, position, content);
     }
 }
