@@ -68,6 +68,11 @@ builder.Services.AddSingleton<IGalleryExample, ListSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, ListActivateExample>();
 builder.Services.AddSingleton<IGalleryExample, ListLongExample>();
 
+// Register Picker widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, PickerBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, PickerSelectionExample>();
+builder.Services.AddSingleton<IGalleryExample, PickerInitialExample>();
+
 // Register TextBox widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TextBoxBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();

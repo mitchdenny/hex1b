@@ -52,6 +52,7 @@ export default defineConfig({
             { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
             { text: 'List', link: '/guide/widgets/list' },
             { text: 'Navigator', link: '/guide/widgets/navigator' },
+            { text: 'Picker', link: '/guide/widgets/picker' },
             { text: 'Progress', link: '/guide/widgets/progress' },
             { text: 'Scroll', link: '/guide/widgets/scroll' },
             { text: 'Splitter', link: '/guide/widgets/splitter' },

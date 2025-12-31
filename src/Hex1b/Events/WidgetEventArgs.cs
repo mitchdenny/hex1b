@@ -64,6 +64,7 @@ public abstract class WidgetEventArgs<TWidget, TNode> : WidgetEventArgs
     /// <summary>
     /// Pushes an anchored popup positioned relative to the node that triggered this event.
     /// This is a convenience method for the common pattern of anchoring a menu to the clicked button.
+    /// When the popup is dismissed, focus will be restored to the node that was focused when the popup was opened.
     /// </summary>
     /// <param name="position">Where to position the popup relative to this node.</param>
     /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
@@ -80,18 +81,19 @@ public abstract class WidgetEventArgs<TWidget, TNode> : WidgetEventArgs
     /// </example>
     public PopupEntry PushAnchored(AnchorPosition position, Func<Hex1bWidget> contentBuilder)
     {
-        return Popups.PushAnchored(Node, position, contentBuilder);
+        return Popups.PushAnchored(Node, position, contentBuilder, Context.FocusedNode);
     }
     
     /// <summary>
     /// Pushes an anchored popup positioned relative to the node that triggered this event.
     /// This is a convenience method for the common pattern of anchoring a menu to the clicked button.
+    /// When the popup is dismissed, focus will be restored to the node that was focused when the popup was opened.
     /// </summary>
     /// <param name="position">Where to position the popup relative to this node.</param>
     /// <param name="content">The widget content for the popup.</param>
     /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
     public PopupEntry PushAnchored(AnchorPosition position, Hex1bWidget content)
     {
-        return Popups.PushAnchored(Node, position, content);
+        return Popups.PushAnchored(Node, position, () => content, Context.FocusedNode);
     }
 }

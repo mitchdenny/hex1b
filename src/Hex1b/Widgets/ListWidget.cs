@@ -10,6 +10,12 @@ namespace Hex1b.Widgets;
 public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>
+    /// The initial selected index when the list is first created.
+    /// Defaults to 0 (first item). Only applied when the node is new.
+    /// </summary>
+    public int InitialSelectedIndex { get; init; } = 0;
+    
+    /// <summary>
     /// Internal handler for selection changed events.
     /// </summary>
     internal Func<ListSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
@@ -46,11 +52,17 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ListNode ?? new ListNode();
+        var isNewNode = existingNode == null;
         node.Items = Items;
         node.SourceWidget = this;
         
+        // Apply initial selection for new nodes
+        if (isNewNode && Items.Count > 0)
+        {
+            node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, Items.Count - 1);
+        }
         // Clamp selection if items changed
-        if (node.SelectedIndex >= Items.Count && Items.Count > 0)
+        else if (node.SelectedIndex >= Items.Count && Items.Count > 0)
         {
             node.SelectedIndex = Items.Count - 1;
         }

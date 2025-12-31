@@ -13,6 +13,7 @@ var searchQuery = "";
 // File dialog state
 var currentDirectory = Environment.CurrentDirectory;
 var selectedFilePath = "";
+var openAsMode = "Text";  // Default open mode
 
 // Fake search data
 var allItems = new[]
@@ -322,8 +323,6 @@ Hex1bWidget BuildOpenFileDialog<TParent>(WidgetContext<TParent> ctx, PopupStack 
                             // Left pane: directories
                             dialog.Border(
                                 dialog.VStack(left => [
-                                    left.Text("Directories").ContentHeight(),
-                                    left.Text("───────────").ContentHeight(),
                                     left.List(directories)
                                         .OnItemActivated(e => {
                                             // Navigate to directory
@@ -353,8 +352,6 @@ Hex1bWidget BuildOpenFileDialog<TParent>(WidgetContext<TParent> ctx, PopupStack 
                             // Right pane: files
                             dialog.Border(
                                 dialog.VStack(right => [
-                                    right.Text("Files").ContentHeight(),
-                                    right.Text("─────").ContentHeight(),
                                     files.Count > 0
                                         ? right.List(files)
                                             .OnItemActivated(e => {
@@ -374,11 +371,16 @@ Hex1bWidget BuildOpenFileDialog<TParent>(WidgetContext<TParent> ctx, PopupStack 
                         // Button row
                         dialog.HStack(buttons => [
                             buttons.Text("").Fill(),
+                            buttons.Text("Open as: ").ContentWidth(),
+                            buttons.Picker(["Text", "Binary", "Hex", "Read-Only", "XML", "JSON"])
+                                .OnSelectionChanged(e => { openAsMode = e.SelectedText; })
+                                .ContentWidth(),
+                            buttons.Text("  ").ContentWidth(),
                             buttons.Button(" Open ")
                                 .OnClick(_ => {
                                     if (!string.IsNullOrEmpty(selectedFilePath))
                                     {
-                                        onFileOpened(selectedFilePath);
+                                        onFileOpened($"{selectedFilePath} (as {openAsMode})");
                                     }
                                     popups.Pop();
                                 }),
@@ -388,10 +390,10 @@ Hex1bWidget BuildOpenFileDialog<TParent>(WidgetContext<TParent> ctx, PopupStack 
                                     popups.Pop();
                                 }),
                         ]).ContentHeight(),
-                    ]).FixedWidth(60).FixedHeight(20),
+                    ]),
                     title: "📂 Open File"
                 )
-            )
+            ).FixedWidth(60).FixedHeight(20)
         )
     ).Transparent(); // Transparent backdrop, but modal (no click-away)
 }

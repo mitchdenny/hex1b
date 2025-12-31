@@ -1585,6 +1585,7 @@ public class ListNodeTests
         var bottomNode = new TextBlockNode { Text = "Bottom content" };
         
         // Create vertical splitter with list on top
+        // Container height 25 allows FirstSize=15 with divider=1 and min second pane=5
         var splitterNode = new SplitterNode 
         { 
             First = listNode, 
@@ -1593,9 +1594,9 @@ public class ListNodeTests
             Orientation = SplitterOrientation.Vertical 
         };
         
-        // Measure and arrange in a 40x20 space
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        // Measure and arrange in a 40x25 space (taller to accommodate min pane sizes)
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list has 15 rows
         Assert.Equal(15, listNode.ViewportHeight);
@@ -1611,8 +1612,8 @@ public class ListNodeTests
         splitterNode.FirstSize = 10;
         
         // Re-arrange (this simulates what happens when the splitter is moved)
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 10 rows
         Assert.Equal(10, listNode.ViewportHeight);
@@ -1672,6 +1673,7 @@ public class ListNodeTests
         var bottomNode = new TextBlockNode { Text = "Bottom content" };
         
         // Create vertical splitter with list on top
+        // Container height 25 allows FirstSize=15 with divider=1 and min second pane=5
         var splitterNode = new SplitterNode 
         { 
             First = listNode, 
@@ -1680,9 +1682,9 @@ public class ListNodeTests
             Orientation = SplitterOrientation.Vertical 
         };
         
-        // Measure and arrange
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        // Measure and arrange with taller container
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Select a middle item (item 15)
         listNode.SetSelection(15);
@@ -1693,8 +1695,8 @@ public class ListNodeTests
         
         // Shrink the splitter significantly
         splitterNode.FirstSize = 6;
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 6 rows
         Assert.Equal(6, listNode.ViewportHeight);
@@ -1714,6 +1716,7 @@ public class ListNodeTests
         var bottomNode = new TextBlockNode { Text = "Bottom content" };
         
         // Create vertical splitter with small list area
+        // Container height 25 allows growing FirstSize to 15 with min constraints
         var splitterNode = new SplitterNode 
         { 
             First = listNode, 
@@ -1722,9 +1725,9 @@ public class ListNodeTests
             Orientation = SplitterOrientation.Vertical 
         };
         
-        // Measure and arrange
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        // Measure and arrange with taller container
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Select item near the end
         listNode.SetSelection(28);
@@ -1735,8 +1738,8 @@ public class ListNodeTests
         
         // Grow the splitter
         splitterNode.FirstSize = 15;
-        splitterNode.Measure(new Constraints(0, 40, 0, 20));
-        splitterNode.Arrange(new Rect(0, 0, 40, 20));
+        splitterNode.Measure(new Constraints(0, 40, 0, 25));
+        splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 15 rows
         Assert.Equal(15, listNode.ViewportHeight);
@@ -1875,6 +1878,53 @@ public class ListNodeTests
         // Scroll offset should be 11 (15 - 5 + 1)
         Assert.Equal(11, listNode.ScrollOffset);
         Assert.Equal(15, listNode.SelectedIndex);
+    }
+
+    #endregion
+    
+    #region InitialSelectedIndex Tests
+
+    [Fact]
+    public async Task ListWidget_InitialSelectedIndex_SetsSelectionOnNewNode()
+    {
+        // Arrange
+        var widget = new ListWidget(["Apple", "Banana", "Cherry", "Date"]) { InitialSelectedIndex = 2 };
+        var context = ReconcileContext.CreateRoot();
+        
+        // Act
+        var node = await widget.ReconcileAsync(null, context) as ListNode;
+        
+        // Assert
+        Assert.Equal(2, node!.SelectedIndex);
+        Assert.Equal("Cherry", node.SelectedText);
+    }
+
+    [Fact]
+    public async Task ListWidget_InitialSelectedIndex_ClampsToValidRange()
+    {
+        // Arrange - index out of bounds
+        var widget = new ListWidget(["Apple", "Banana"]) { InitialSelectedIndex = 10 };
+        var context = ReconcileContext.CreateRoot();
+        
+        // Act
+        var node = await widget.ReconcileAsync(null, context) as ListNode;
+        
+        // Assert - should be clamped to last item
+        Assert.Equal(1, node!.SelectedIndex);
+    }
+
+    [Fact]
+    public async Task ListWidget_InitialSelectedIndex_DefaultsToZero()
+    {
+        // Arrange
+        var widget = new ListWidget(["Apple", "Banana", "Cherry"]);
+        var context = ReconcileContext.CreateRoot();
+        
+        // Act
+        var node = await widget.ReconcileAsync(null, context) as ListNode;
+        
+        // Assert
+        Assert.Equal(0, node!.SelectedIndex);
     }
 
     #endregion

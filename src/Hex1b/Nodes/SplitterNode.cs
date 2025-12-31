@@ -248,8 +248,15 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         var maxWidth = constraints.MaxWidth;
         var maxHeight = constraints.MaxHeight;
 
-        var firstMaxWidth = Math.Max(0, Math.Min(FirstSize, maxWidth));
-        var secondMaxWidth = Math.Max(0, maxWidth - FirstSize - dividerWidth);
+        // Clamp FirstSize to ensure second pane gets at least MinFirstSize (minimum width)
+        var maxFirstSize = Math.Max(0, maxWidth - dividerWidth - MinFirstSize);
+        // Handle edge case where container is too small: use at least MinFirstSize
+        var effectiveFirstSize = maxFirstSize >= MinFirstSize 
+            ? Math.Clamp(FirstSize, MinFirstSize, maxFirstSize)
+            : Math.Min(FirstSize, Math.Max(0, maxWidth - dividerWidth));
+
+        var firstMaxWidth = Math.Max(0, Math.Min(effectiveFirstSize, maxWidth));
+        var secondMaxWidth = Math.Max(0, maxWidth - effectiveFirstSize - dividerWidth);
 
         var firstConstraints = new Constraints(0, firstMaxWidth, 0, maxHeight);
         var secondConstraints = new Constraints(0, secondMaxWidth, 0, maxHeight);
@@ -257,7 +264,8 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         var firstSize = First?.Measure(firstConstraints) ?? Size.Zero;
         var secondSize = Second?.Measure(secondConstraints) ?? Size.Zero;
 
-        var width = FirstSize + dividerWidth + secondSize.Width;
+        // Use the constrained maxWidth, not the sum of children (which could exceed it)
+        var width = Math.Min(maxWidth, effectiveFirstSize + dividerWidth + secondMaxWidth);
         var height = Math.Max(firstSize.Height, secondSize.Height);
         return constraints.Constrain(new Size(width, height));
     }
@@ -278,8 +286,15 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         var maxWidth = constraints.MaxWidth;
         var maxHeight = constraints.MaxHeight;
 
-        var firstMaxHeight = Math.Max(0, Math.Min(FirstSize, maxHeight));
-        var secondMaxHeight = Math.Max(0, maxHeight - FirstSize - dividerHeight);
+        // Clamp FirstSize to ensure second pane gets at least MinFirstSize (minimum height)
+        var maxFirstSize = Math.Max(0, maxHeight - dividerHeight - MinFirstSize);
+        // Handle edge case where container is too small: use at least MinFirstSize
+        var effectiveFirstSize = maxFirstSize >= MinFirstSize 
+            ? Math.Clamp(FirstSize, MinFirstSize, maxFirstSize)
+            : Math.Min(FirstSize, Math.Max(0, maxHeight - dividerHeight));
+
+        var firstMaxHeight = Math.Max(0, Math.Min(effectiveFirstSize, maxHeight));
+        var secondMaxHeight = Math.Max(0, maxHeight - effectiveFirstSize - dividerHeight);
 
         var firstConstraints = new Constraints(0, maxWidth, 0, firstMaxHeight);
         var secondConstraints = new Constraints(0, maxWidth, 0, secondMaxHeight);
@@ -288,7 +303,8 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         var secondSize = Second?.Measure(secondConstraints) ?? Size.Zero;
 
         var width = Math.Max(firstSize.Width, secondSize.Width);
-        var height = FirstSize + dividerHeight + secondSize.Height;
+        // Use the constrained maxHeight, not the sum of children
+        var height = Math.Min(maxHeight, effectiveFirstSize + dividerHeight + secondMaxHeight);
         return constraints.Constrain(new Size(width, height));
     }
 
@@ -308,34 +324,52 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
 
     private void ArrangeHorizontal(Rect bounds)
     {
-        // First pane gets FirstSize width
+        var dividerWidth = DividerSize;
+        
+        // Clamp FirstSize to ensure both panes fit within bounds
+        var maxFirstSize = Math.Max(0, bounds.Width - dividerWidth - MinFirstSize);
+        // Handle edge case where container is too small
+        var effectiveFirstSize = maxFirstSize >= MinFirstSize 
+            ? Math.Clamp(FirstSize, MinFirstSize, maxFirstSize)
+            : Math.Min(FirstSize, Math.Max(0, bounds.Width - dividerWidth));
+        
+        // First pane gets effectiveFirstSize width
         if (First != null)
         {
-            First.Arrange(new Rect(bounds.X, bounds.Y, FirstSize, bounds.Height));
+            First.Arrange(new Rect(bounds.X, bounds.Y, effectiveFirstSize, bounds.Height));
         }
         
-        // Second pane gets remaining width (minus 3 for divider)
+        // Second pane gets remaining width
         if (Second != null)
         {
-            var secondX = bounds.X + FirstSize + 3;
-            var secondWidth = Math.Max(0, bounds.Width - FirstSize - 3);
+            var secondX = bounds.X + effectiveFirstSize + dividerWidth;
+            var secondWidth = Math.Max(0, bounds.Width - effectiveFirstSize - dividerWidth);
             Second.Arrange(new Rect(secondX, bounds.Y, secondWidth, bounds.Height));
         }
     }
 
     private void ArrangeVertical(Rect bounds)
     {
-        // First pane gets FirstSize height
+        var dividerHeight = DividerSize;
+        
+        // Clamp FirstSize to ensure both panes fit within bounds
+        var maxFirstSize = Math.Max(0, bounds.Height - dividerHeight - MinFirstSize);
+        // Handle edge case where container is too small
+        var effectiveFirstSize = maxFirstSize >= MinFirstSize 
+            ? Math.Clamp(FirstSize, MinFirstSize, maxFirstSize)
+            : Math.Min(FirstSize, Math.Max(0, bounds.Height - dividerHeight));
+        
+        // First pane gets effectiveFirstSize height
         if (First != null)
         {
-            First.Arrange(new Rect(bounds.X, bounds.Y, bounds.Width, FirstSize));
+            First.Arrange(new Rect(bounds.X, bounds.Y, bounds.Width, effectiveFirstSize));
         }
         
-        // Second pane gets remaining height (minus 1 for divider)
+        // Second pane gets remaining height
         if (Second != null)
         {
-            var secondY = bounds.Y + FirstSize + 1;
-            var secondHeight = Math.Max(0, bounds.Height - FirstSize - 1);
+            var secondY = bounds.Y + effectiveFirstSize + dividerHeight;
+            var secondHeight = Math.Max(0, bounds.Height - effectiveFirstSize - dividerHeight);
             Second.Arrange(new Rect(bounds.X, secondY, bounds.Width, secondHeight));
         }
     }

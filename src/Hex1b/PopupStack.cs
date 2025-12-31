@@ -1,3 +1,5 @@
+using Hex1b.Nodes;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -19,18 +21,32 @@ namespace Hex1b;
 /// </remarks>
 public sealed class PopupEntry
 {
-    internal PopupEntry(PopupStack stack, Func<Hex1bWidget> contentBuilder, Hex1bNode? anchorNode = null, AnchorPosition position = AnchorPosition.Below)
+    internal PopupEntry(PopupStack stack, Func<Hex1bWidget> contentBuilder, Hex1bNode? anchorNode = null, AnchorPosition position = AnchorPosition.Below, Func<Hex1bTheme, Hex1bTheme>? themeMutator = null, Hex1bNode? focusRestoreNode = null)
     {
         Stack = stack;
         ContentBuilder = contentBuilder;
         AnchorNode = anchorNode;
         Position = position;
+        ThemeMutator = themeMutator;
+        FocusRestoreNode = focusRestoreNode;
     }
 
     internal PopupStack Stack { get; }
     internal Func<Hex1bWidget> ContentBuilder { get; }
     internal Hex1bNode? AnchorNode { get; }
     internal AnchorPosition Position { get; }
+    
+    /// <summary>
+    /// The captured theme mutator chain from ancestor ThemePanelNodes.
+    /// When set, popup content is wrapped in a ThemePanelWidget with this mutator.
+    /// </summary>
+    internal Func<Hex1bTheme, Hex1bTheme>? ThemeMutator { get; }
+    
+    /// <summary>
+    /// The node that should receive focus when this popup is dismissed.
+    /// Typically the node that was focused when the popup was opened.
+    /// </summary>
+    internal Hex1bNode? FocusRestoreNode { get; }
     
     /// <summary>
     /// Gets whether this popup is a barrier that stops cascade dismissal.
@@ -128,16 +144,57 @@ public sealed class PopupStack
     
     /// <summary>
     /// Pushes an anchored popup positioned relative to a specific node.
+    /// Automatically captures theme context from ancestor ThemePanelNodes.
     /// </summary>
     /// <param name="anchorNode">The node to anchor the popup to.</param>
     /// <param name="position">Where to position the popup relative to the anchor.</param>
     /// <param name="contentBuilder">A function that builds the widget content for the popup.</param>
+    /// <param name="focusRestoreNode">Optional node to restore focus to when this popup is dismissed.</param>
     /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
-    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Func<Hex1bWidget> contentBuilder)
+    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Func<Hex1bWidget> contentBuilder, Hex1bNode? focusRestoreNode = null)
     {
-        var entry = new PopupEntry(this, contentBuilder, anchorNode, position);
+        // Capture theme context from ancestor ThemePanelNodes
+        var themeMutator = CaptureThemeMutator(anchorNode);
+        var entry = new PopupEntry(this, contentBuilder, anchorNode, position, themeMutator, focusRestoreNode);
         _entries.Add(entry);
         return entry;
+    }
+    
+    /// <summary>
+    /// Captures a combined theme mutator from ancestor ThemePanelNodes.
+    /// </summary>
+    private static Func<Hex1bTheme, Hex1bTheme>? CaptureThemeMutator(Hex1bNode? node)
+    {
+        // Collect theme mutators from ancestors (innermost first)
+        var mutators = new List<Func<Hex1bTheme, Hex1bTheme>>();
+        var current = node;
+        while (current != null)
+        {
+            if (current is ThemePanelNode themePanel && themePanel.ThemeMutator != null)
+            {
+                mutators.Add(themePanel.ThemeMutator);
+            }
+            current = current.Parent;
+        }
+        
+        if (mutators.Count == 0)
+        {
+            return null;
+        }
+        
+        // Reverse so we apply from outermost to innermost (like during render)
+        mutators.Reverse();
+        
+        // Combine into a single mutator
+        return theme =>
+        {
+            var result = theme;
+            foreach (var mutator in mutators)
+            {
+                result = mutator(result);
+            }
+            return result;
+        };
     }
     
     /// <summary>
@@ -146,10 +203,11 @@ public sealed class PopupStack
     /// <param name="anchorNode">The node to anchor the popup to.</param>
     /// <param name="position">Where to position the popup relative to the anchor.</param>
     /// <param name="content">The widget content for the popup.</param>
+    /// <param name="focusRestoreNode">Optional node to restore focus to when this popup is dismissed.</param>
     /// <returns>The popup entry for optional fluent configuration (e.g., <c>.AsBarrier()</c>).</returns>
-    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Hex1bWidget content)
+    public PopupEntry PushAnchored(Hex1bNode anchorNode, AnchorPosition position, Hex1bWidget content, Hex1bNode? focusRestoreNode = null)
     {
-        return PushAnchored(anchorNode, position, () => content);
+        return PushAnchored(anchorNode, position, () => content, focusRestoreNode);
     }
 
     /// <summary>
@@ -158,7 +216,23 @@ public sealed class PopupStack
     /// <returns>True if a popup was removed, false if stack was empty.</returns>
     public bool Pop()
     {
-        if (_entries.Count == 0) return false;
+        return Pop(out _);
+    }
+    
+    /// <summary>
+    /// Removes the topmost popup from the stack and returns the node that should receive focus.
+    /// </summary>
+    /// <param name="focusRestoreNode">The node that was designated to receive focus when this popup was pushed, or null.</param>
+    /// <returns>True if a popup was removed, false if stack was empty.</returns>
+    public bool Pop(out Hex1bNode? focusRestoreNode)
+    {
+        if (_entries.Count == 0)
+        {
+            focusRestoreNode = null;
+            return false;
+        }
+        
+        focusRestoreNode = _entries[^1].FocusRestoreNode;
         _entries.RemoveAt(_entries.Count - 1);
         return true;
     }
@@ -174,7 +248,7 @@ public sealed class PopupStack
     /// - The barrier popup itself is NOT popped
     /// </para>
     /// <para>
-    /// If the topmost popup is a barrier, only that popup is popped (using regular <see cref="Pop"/>).
+    /// If the topmost popup is a barrier, only that popup is popped (using regular <see cref="Pop()"/>).
     /// </para>
     /// </remarks>
     /// <returns>True if any popups were removed, false if stack was empty.</returns>
@@ -239,6 +313,7 @@ public sealed class PopupStack
     /// Builds popup widgets wrapped in backdrops for internal use by the reconciler.
     /// Each popup is wrapped in a transparent Backdrop that uses PopToBarrier when clicked away.
     /// Anchored popups are positioned relative to their anchor node.
+    /// Theme context is preserved from the original push location.
     /// </summary>
     /// <returns>An enumerable of backdrop-wrapped popup widgets.</returns>
     internal IEnumerable<Hex1bWidget> BuildPopupWidgets()
@@ -246,6 +321,12 @@ public sealed class PopupStack
         foreach (var entry in _entries)
         {
             var content = entry.ContentBuilder();
+            
+            // If we have a captured theme mutator, wrap content in ThemePanelWidget
+            if (entry.ThemeMutator != null)
+            {
+                content = new ThemePanelWidget(entry.ThemeMutator, content);
+            }
             
             // If anchored, wrap content in AnchoredWidget for positioning
             if (entry.AnchorNode != null)

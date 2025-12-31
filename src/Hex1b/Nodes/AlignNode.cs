@@ -27,9 +27,30 @@ public sealed class AlignNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        // Measure the child with loose constraints to get its natural size
-        var childSize = Child?.Measure(Constraints.Loose(constraints.MaxWidth, constraints.MaxHeight)) 
-            ?? Size.Zero;
+        if (Child == null)
+        {
+            return constraints.Constrain(Size.Zero);
+        }
+
+        // Build child constraints respecting Fixed hints
+        var childMaxWidth = constraints.MaxWidth;
+        var childMaxHeight = constraints.MaxHeight;
+        
+        // If child has a fixed width hint, use that as a tight constraint
+        if (Child.WidthHint is { IsFixed: true } widthHint)
+        {
+            childMaxWidth = Math.Min(childMaxWidth, widthHint.FixedValue);
+        }
+        
+        // If child has a fixed height hint, use that as a tight constraint
+        if (Child.HeightHint is { IsFixed: true } heightHint)
+        {
+            childMaxHeight = Math.Min(childMaxHeight, heightHint.FixedValue);
+        }
+        
+        // Measure the child with potentially constrained size
+        var childConstraints = Constraints.Loose(childMaxWidth, childMaxHeight);
+        var childSize = Child.Measure(childConstraints);
         
         // Return the child's natural size. When Fill() is applied, the parent container
         // will give us more space during Arrange, and alignment happens then.
@@ -42,8 +63,24 @@ public sealed class AlignNode : Hex1bNode
 
         if (Child == null) return;
 
-        // Measure child again with loose constraints to get natural size
-        var childSize = Child.Measure(Constraints.Loose(bounds.Width, bounds.Height));
+        // Build child constraints respecting Fixed hints
+        var childMaxWidth = bounds.Width;
+        var childMaxHeight = bounds.Height;
+        
+        // If child has a fixed width hint, use that as a tight constraint
+        if (Child.WidthHint is { IsFixed: true } widthHint)
+        {
+            childMaxWidth = Math.Min(childMaxWidth, widthHint.FixedValue);
+        }
+        
+        // If child has a fixed height hint, use that as a tight constraint
+        if (Child.HeightHint is { IsFixed: true } heightHint)
+        {
+            childMaxHeight = Math.Min(childMaxHeight, heightHint.FixedValue);
+        }
+
+        // Measure child again with constrained size
+        var childSize = Child.Measure(Constraints.Loose(childMaxWidth, childMaxHeight));
         
         // Calculate horizontal position
         int x = bounds.X;

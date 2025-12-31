@@ -143,12 +143,18 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         }
         WriteLineClipped(context, x, y, topLine);
 
-        // Draw left and right borders for each row
+        // Draw left and right borders for each row, filling inner area with background
         var leftBorder = $"{colorCode}{vertical}{resetToGlobal}";
         var rightBorder = $"{colorCode}{vertical}{resetToGlobal}";
+        var innerFill = innerWidth > 0 ? $"{globalBgAnsi}{new string(' ', innerWidth)}{resetToGlobal}" : "";
         for (int row = 1; row < height - 1; row++)
         {
             WriteLineClipped(context, x, y + row, leftBorder);
+            // Fill inner area with background color to clear any content behind
+            if (innerWidth > 0)
+            {
+                WriteLineClipped(context, x + 1, y + row, innerFill);
+            }
             WriteLineClipped(context, x + width - 1, y + row, rightBorder);
         }
 
