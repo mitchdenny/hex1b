@@ -92,9 +92,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Rescue (error boundary) support
     private readonly bool _rescueEnabled;
-    private readonly Func<RescueState, Hex1bWidget>? _rescueFallbackBuilder;
-    private readonly IReadOnlyList<RescueAction> _rescueActions;
-    private readonly RescueState _rescueState = new();
+    private readonly Func<RescueContext, Hex1bWidget>? _rescueFallbackBuilder;
+    private readonly Action<Events.RescueEventArgs>? _onRescue;
+    private readonly Action<Events.RescueResetEventArgs>? _onRescueReset;
     
     // Stop request flag - set by InputBindingActionContext.RequestStop()
     private volatile bool _stopRequested;
@@ -146,7 +146,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Rescue (error boundary) options
         _rescueEnabled = options.EnableRescue;
         _rescueFallbackBuilder = options.RescueFallbackBuilder;
-        _rescueActions = options.RescueActions ?? [];
+        _onRescue = options.OnRescue;
+        _onRescueReset = options.OnRescueReset;
         
         // Default CTRL-C binding option
         _enableDefaultCtrlCExit = options.EnableDefaultCtrlCExit;
@@ -192,6 +193,30 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _stopRequested = true;
         // Also signal invalidation to wake up the main loop immediately
         Invalidate();
+    }
+
+    /// <summary>
+    /// Copies the specified text to the system clipboard using the OSC 52 escape sequence.
+    /// </summary>
+    /// <param name="text">The text to copy to the clipboard.</param>
+    /// <remarks>
+    /// OSC 52 is the standard escape sequence for clipboard access:
+    /// ESC ] 52 ; c ; &lt;base64-data&gt; ST
+    /// 
+    /// The text is base64-encoded and sent via the OSC 52 sequence. Not all terminals
+    /// support this feature, but most modern terminals do.
+    /// </remarks>
+    public void CopyToClipboard(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        
+        // Base64 encode the text
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text));
+        
+        // Send OSC 52 sequence: ESC ] 52 ; c ; <base64> ST
+        // Using BEL (\a or \x07) as string terminator for better compatibility
+        var osc52 = $"\x1b]52;c;{base64}\x07";
+        _adapter.Write(osc52);
     }
 
     /// <summary>
@@ -288,7 +313,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken);
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard);
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
@@ -349,22 +374,40 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _rootContext.CancellationToken = cancellationToken;
 
         // Step 1: Call the root component to get the widget tree
-        Hex1bWidget widgetTree;
+        Hex1bWidget? widgetTree = null;
+        Exception? buildException = null;
+        
         try
         {
             widgetTree = await _rootComponent(_rootContext);
         }
         catch (Exception ex) when (_rescueEnabled)
         {
-            // Build phase failed - capture and use rescue fallback
-            _rescueState.SetError(ex, RescueErrorPhase.Build);
-            widgetTree = BuildRescueFallback();
+            // Build phase failed - capture exception for RescueWidget to handle
+            buildException = ex;
         }
-        
-        // Step 2: Wrap in rescue widget if enabled (catches Reconcile/Measure/Arrange/Render)
-        if (_rescueEnabled && !_rescueState.HasError)
+
+        // Step 2: Wrap in rescue widget if enabled (catches Reconcile/Measure/Arrange/Render and Build failures)
+        if (_rescueEnabled)
         {
-            widgetTree = new RescueWidget(widgetTree, _rescueState, _rescueFallbackBuilder, actions: _rescueActions);
+            var rescueWidget = new RescueWidget(widgetTree) { BuildException = buildException };
+
+            if (_rescueFallbackBuilder != null)
+            {
+                rescueWidget = rescueWidget.WithFallback(_rescueFallbackBuilder);
+            }
+
+            if (_onRescue != null)
+            {
+                rescueWidget = rescueWidget.OnRescue(_onRescue);
+            }
+
+            if (_onRescueReset != null)
+            {
+                rescueWidget = rescueWidget.OnReset(_onRescueReset);
+            }
+
+            widgetTree = rescueWidget;
         }
         
         // Step 2.5: Wrap in root ZStack for popup support
@@ -677,19 +720,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Builds the fallback widget when the rescue catches an error.
-    /// </summary>
-    private Hex1bWidget BuildRescueFallback()
-    {
-        if (_rescueFallbackBuilder != null)
-        {
-            return _rescueFallbackBuilder(_rescueState);
-        }
-        
-        return RescueNode.BuildDefaultFallback(_rescueState, actions: _rescueActions);
-    }
-    
-    /// <summary>
     /// Renders the mouse cursor overlay at the current mouse position.
     /// </summary>
     private void RenderMouseCursor()
@@ -769,7 +799,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
         // Create action context for mouse bindings (includes mouse coordinates)
-        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y);
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();

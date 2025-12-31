@@ -10,6 +10,7 @@ public sealed class InputBindingActionContext
 {
     private readonly FocusRing _focusRing;
     private readonly Action? _requestStop;
+    private readonly Action<string>? _copyToClipboard;
 
     /// <summary>
     /// Cancellation token from the application run loop.
@@ -34,10 +35,12 @@ public sealed class InputBindingActionContext
         Action? requestStop = null, 
         CancellationToken cancellationToken = default,
         int mouseX = -1,
-        int mouseY = -1)
+        int mouseY = -1,
+        Action<string>? copyToClipboard = null)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
+        _copyToClipboard = copyToClipboard;
         CancellationToken = cancellationToken;
         MouseX = mouseX;
         MouseY = mouseY;
@@ -48,6 +51,21 @@ public sealed class InputBindingActionContext
     /// after the current frame completes.
     /// </summary>
     public void RequestStop() => _requestStop?.Invoke();
+
+    /// <summary>
+    /// Copies the specified text to the system clipboard using the OSC 52 escape sequence.
+    /// This works on terminals that support the OSC 52 clipboard protocol (most modern terminals).
+    /// </summary>
+    /// <param name="text">The text to copy to the clipboard.</param>
+    /// <remarks>
+    /// OSC 52 is the standard escape sequence for clipboard access:
+    /// ESC ] 52 ; c ; &lt;base64-data&gt; ST
+    /// 
+    /// Not all terminals support OSC 52. Some (like older xterm configurations) may require
+    /// explicit enablement. Common terminals with support: iTerm2, Windows Terminal, Alacritty,
+    /// kitty, tmux (with set-clipboard on), and others.
+    /// </remarks>
+    public void CopyToClipboard(string text) => _copyToClipboard?.Invoke(text);
 
     /// <summary>
     /// Moves focus to the next focusable widget in the ring.

@@ -37,6 +37,11 @@ builder.Services.AddSingleton<IGalleryExample, RescueExample>();
 builder.Services.AddSingleton<IGalleryExample, ReactiveBarChartExample>();
 builder.Services.AddSingleton<IGalleryExample, MouseExample>();
 
+// Register Rescue widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, RescueBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, RescueCustomFallbackExample>();
+builder.Services.AddSingleton<IGalleryExample, RescueEventHandlersExample>();
+
 // Register Getting Started tutorial examples
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep1Example>();
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep2Example>();

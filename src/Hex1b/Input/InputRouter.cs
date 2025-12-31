@@ -23,10 +23,11 @@ public static class InputRouter
         FocusRing focusRing,
         InputRouterState state,
         Action? requestStop = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<string>? copyToClipboard = null)
     {
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard);
         
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
@@ -188,17 +189,19 @@ public static class InputRouter
     /// <param name="focusRing">Optional focus ring for context-aware bindings.</param>
     /// <param name="requestStop">Optional callback to request application stop.</param>
     /// <param name="cancellationToken">Cancellation token for async operations.</param>
+    /// <param name="copyToClipboard">Optional callback to copy text to clipboard.</param>
     /// <returns>The result of input processing.</returns>
     public static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
         Hex1bKeyEvent keyEvent, 
         FocusRing? focusRing = null, 
         Action? requestStop = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<string>? copyToClipboard = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();

@@ -10,42 +10,65 @@ public static class RescueExtensions
     /// <summary>
     /// Wraps a widget in a rescue boundary that catches exceptions and displays a fallback.
     /// </summary>
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="child">The child widget to protect.</param>
+    /// <returns>A new RescueWidget.</returns>
+    /// <example>
+    /// <code>
+    /// ctx.Rescue(ctx.SomeWidget())
+    ///    .OnRescue(e => logger.LogError(e.Exception, "Error in {Phase}", e.Phase))
+    /// </code>
+    /// </example>
     public static RescueWidget Rescue<TParent>(
         this WidgetContext<TParent> ctx,
-        Hex1bWidget child,
-        RescueState? state = null,
-        Func<RescueState, Hex1bWidget>? fallbackBuilder = null,
-        bool? showDetails = null)
+        Hex1bWidget child)
         where TParent : Hex1bWidget
-        => new(child, state, fallbackBuilder, showDetails);
+        => new(child);
 
     /// <summary>
     /// Wraps a VStack in a rescue boundary that catches exceptions and displays a fallback.
     /// </summary>
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="childBuilder">A builder function that creates VStack children.</param>
+    /// <returns>A new RescueWidget containing a VStack.</returns>
+    /// <example>
+    /// <code>
+    /// ctx.Rescue(v => [
+    ///     v.Text("Some content"),
+    ///     v.Button("Click me")
+    /// ])
+    /// </code>
+    /// </example>
     public static RescueWidget Rescue<TParent>(
         this WidgetContext<TParent> ctx,
-        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> childBuilder,
-        RescueState? state = null,
-        Func<RescueState, Hex1bWidget>? fallbackBuilder = null,
-        bool? showDetails = null)
+        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> childBuilder)
         where TParent : Hex1bWidget
     {
-        var childCtx = new WidgetContext<VStackWidget>();
-        return new RescueWidget(
-            new VStackWidget(childBuilder(childCtx)),
-            state,
-            fallbackBuilder,
-            showDetails);
+        try
+        {
+            var childCtx = new WidgetContext<VStackWidget>();
+            return new RescueWidget(new VStackWidget(childBuilder(childCtx)));
+        }
+        catch (Exception ex)
+        {
+            // Capture Build phase exception and pass it to RescueWidget
+            return new RescueWidget(null) { BuildException = ex };
+        }
     }
 
     /// <summary>
-    /// Wraps a widget in a rescue boundary with a custom fallback message.
+    /// Wraps a widget in a rescue boundary with hidden exception details.
+    /// Useful for production environments where you want a friendly error message.
     /// </summary>
-    public static RescueWidget Rescue<TParent>(
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="child">The child widget to protect.</param>
+    /// <returns>A new RescueWidget with ShowDetails set to false.</returns>
+    public static RescueWidget RescueFriendly<TParent>(
         this WidgetContext<TParent> ctx,
-        Hex1bWidget child,
-        string fallbackMessage,
-        RescueState? state = null)
+        Hex1bWidget child)
         where TParent : Hex1bWidget
-        => new(child, state, _ => new TextBlockWidget(fallbackMessage));
+        => new RescueWidget(child) { ShowDetails = false };
 }

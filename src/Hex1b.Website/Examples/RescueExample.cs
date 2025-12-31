@@ -1,6 +1,4 @@
 using Hex1b;
-using Hex1b.Layout;
-using Hex1b.Nodes;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
@@ -22,32 +20,19 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
     /// </summary>
     private class RescueExampleState
     {
-        private static readonly string[] ExampleIds = ["global", "local"];
+        private static readonly string[] ExampleIds = ["basic", "custom-fallback", "event-handlers"];
         
         public int SelectedExampleIndex { get; set; } = 0;
         public string SelectedExampleId => ExampleIds[SelectedExampleIndex];
-        public RescueState LocalRescueState { get; } = new();
-        public RescueState GlobalRescueState { get; } = new();
-        public bool TriggerLocalError { get; set; }
-        public bool TriggerGlobalError { get; set; }
+        public int ErrorCount { get; set; }
+        public int ResetCount { get; set; }
         
         public IReadOnlyList<string> ExampleItems { get; } =
         [
-            "Global Rescue",
-            "Local Rescue",
+            "Basic Rescue",
+            "Custom Fallback",
+            "Event Handlers",
         ];
-        
-        public void ResetLocal()
-        {
-            LocalRescueState.Reset();
-            TriggerLocalError = false;
-        }
-        
-        public void ResetGlobal()
-        {
-            GlobalRescueState.Reset();
-            TriggerGlobalError = false;
-        }
     }
 
     /// <summary>
@@ -63,12 +48,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
             This error typically occurs when database operations are not properly disposed, 
             when there's a connection leak in long-running transactions, or when the application 
             is experiencing unusually high load. Consider increasing MaxPoolSize, implementing 
-            connection timeout policies, or reviewing code for undisposed SqlConnection instances. 
-            Additional diagnostic information: Server=db-prod-cluster-07.internal.example.com:5432, 
-            Database=hex1b_production, User=app_service_account, SSL=Required, 
-            ApplicationName=Hex1b.Website, ClientEncoding=UTF8, Timezone=UTC, 
-            LastSuccessfulConnection=2024-12-16T14:23:45.123Z, 
-            ConnectionAttempts=147, FailedAttempts=47, AverageWaitTime=12453ms
+            connection timeout policies, or reviewing code for undisposed SqlConnection instances.
             """;
 
         try
@@ -104,8 +84,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
     {
         throw new TimeoutException(
             "Timeout expired. The timeout period elapsed prior to obtaining a connection from the pool. " +
-            "This may have occurred because all pooled connections were in use and max pool size was reached. " +
-            "Stack overflow in connection retry logic detected. Recursive retry attempt #47 exceeded maximum depth."
+            "This may have occurred because all pooled connections were in use and max pool size was reached."
         );
     }
 
@@ -118,25 +97,6 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
         return () =>
         {
             var ctx = new RootContext();
-            
-            // Check if global error should be triggered - this throws to the app-level rescue
-            if (state.TriggerGlobalError && !state.GlobalRescueState.HasError)
-            {
-                state.GlobalRescueState.SetError(CreateStressTestException(), RescueErrorPhase.Build);
-            }
-            
-            // If global error is active, show full-screen rescue fallback
-            if (state.GlobalRescueState.HasError)
-            {
-                var globalActions = new List<RescueAction>
-                {
-                    new("Restart Exhibit", state.ResetGlobal),
-                    new("View Logs", () => { }),
-                    new("Report Issue", () => { }),
-                    new("Ignore", () => { })
-                };
-                return new RescueFallbackWidget(state.GlobalRescueState, ShowDetails: true, Actions: globalActions);
-            }
 
             var widget = ctx.HSplitter(
                 ctx.VStack(left => [
@@ -148,6 +108,9 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     left.Text("error boundary that"),
                     left.Text("catches exceptions"),
                     left.Text("and shows fallback."),
+                    left.Text(""),
+                    left.Text($"Errors caught: {state.ErrorCount}"),
+                    left.Text($"Resets: {state.ResetCount}"),
                 ]),
                 BuildExampleContent(ctx, state),
                 leftWidth: 22
@@ -161,91 +124,112 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
     {
         return state.SelectedExampleId switch
         {
-            "global" => BuildGlobalRescueExample(ctx, state),
-            "local" => BuildLocalRescueExample(ctx, state),
-            _ => BuildGlobalRescueExample(ctx, state)
+            "basic" => BuildBasicRescueExample(ctx, state),
+            "custom-fallback" => BuildCustomFallbackExample(ctx, state),
+            "event-handlers" => BuildEventHandlersExample(ctx, state),
+            _ => BuildBasicRescueExample(ctx, state)
         };
     }
 
-    private static Hex1bWidget BuildGlobalRescueExample(RootContext ctx, RescueExampleState state)
+    private static Hex1bWidget BuildBasicRescueExample(RootContext ctx, RescueExampleState state)
     {
-        return ctx.Border(
-            ctx.VStack(v => [
-                v.Text("Global Rescue (Full Screen)"),
-                v.Text("════════════════════════════════════════"),
-                v.Text(""),
-                v.Text("This demonstrates the app-level rescue that"),
-                v.Text("replaces the ENTIRE screen when triggered."),
-                v.Text(""),
-                v.Text("The global rescue catches exceptions that"),
-                v.Text("escape from the widget builder, protecting"),
-                v.Text("the entire application from crashes."),
-                v.Text(""),
-                v.Text("Features demonstrated:"),
-                v.Text("  • Full-screen error display"),
-                v.Text("  • Long error message with scrolling"),
-                v.Text("  • Deep stack trace (15+ levels)"),
-                v.Text("  • Multiple action buttons"),
-                v.Text("  • Hardcoded colors (theme-safe)"),
-                v.Text(""),
-                v.Text("Press the button to trigger a catastrophic"),
-                v.Text("error that replaces this entire view:"),
-                v.Text(""),
-                ctx.Button("Trigger Global Rescue").OnClick(_ => { state.TriggerGlobalError = true; }),
-            ]),
-            "Global Rescue"
-        );
+        return ctx.Rescue(v => [
+            v.Border(b => [
+                b.VStack(inner => [
+                    inner.Text("Basic Rescue Example"),
+                    inner.Text("════════════════════════════════════════"),
+                    inner.Text(""),
+                    inner.Text("This demonstrates the basic Rescue widget."),
+                    inner.Text("When an error occurs, it shows a default"),
+                    inner.Text("fallback UI with the exception details."),
+                    inner.Text(""),
+                    inner.Text("Features:"),
+                    inner.Text("  • Catches exceptions from child widgets"),
+                    inner.Text("  • Shows error type, message, stack trace"),
+                    inner.Text("  • Provides a Retry button to recover"),
+                    inner.Text("  • Uses rescue theme (red colors)"),
+                    inner.Text(""),
+                    inner.Text("Press the button to trigger an error:"),
+                    inner.Text(""),
+                    inner.Button("Trigger Error").OnClick(_ => throw CreateStressTestException()),
+                ])
+            ], title: "Basic Rescue"),
+        ])
+        .OnRescue(e => state.ErrorCount++)
+        .OnReset(_ => state.ResetCount++);
     }
 
-    private static Hex1bWidget BuildLocalRescueExample(RootContext ctx, RescueExampleState state)
+    private static Hex1bWidget BuildCustomFallbackExample(RootContext ctx, RescueExampleState state)
     {
-        // Create actions for the local rescue widget
-        var localActions = new List<RescueAction>
-        {
-            new("Retry", state.ResetLocal),
-            new("Ignore", () => { })
-        };
-        
-        // If error was triggered, set it on the rescue state
-        if (state.TriggerLocalError && !state.LocalRescueState.HasError)
-        {
-            state.LocalRescueState.SetError(CreateStressTestException(), RescueErrorPhase.Render);
-        }
-        
-        // Normal content - show button to trigger error
-        var normalContent = ctx.Border(
-            ctx.VStack(v => [
-                v.Text("Local Rescue (Panel Only)"),
-                v.Text("════════════════════════════════════════"),
-                v.Text(""),
-                v.Text("This demonstrates a LOCAL rescue that only"),
-                v.Text("affects this panel - the sidebar remains"),
-                v.Text("visible and functional."),
-                v.Text(""),
-                v.Text("Local rescues are useful for:"),
-                v.Text("  • Isolating failures to specific areas"),
-                v.Text("  • Keeping navigation accessible"),
-                v.Text("  • Graceful degradation of features"),
-                v.Text(""),
-                v.Text("Features demonstrated:"),
-                v.Text("  • Contained error display"),
-                v.Text("  • Long error message with wrapping"),
-                v.Text("  • Deep stack trace (15+ levels)"),
-                v.Text("  • Action buttons for recovery"),
-                v.Text(""),
-                v.Text("Press the button to trigger an error"),
-                v.Text("confined to this panel:"),
-                v.Text(""),
-                ctx.Button("Trigger Local Rescue").OnClick(_ => { state.TriggerLocalError = true; }),
-            ]),
-            "Local Rescue"
-        );
-        
-        // Wrap in a RescueWidget - it will show fallback when state has error
-        return new RescueWidget(
-            child: normalContent,
-            state: state.LocalRescueState,
-            actions: localActions
-        );
+        return ctx.Rescue(v => [
+            v.Border(b => [
+                b.VStack(inner => [
+                    inner.Text("Custom Fallback Example"),
+                    inner.Text("════════════════════════════════════════"),
+                    inner.Text(""),
+                    inner.Text("This demonstrates a custom fallback UI."),
+                    inner.Text("Use WithFallback() to provide your own"),
+                    inner.Text("error display instead of the default."),
+                    inner.Text(""),
+                    inner.Text("The RescueContext gives you:"),
+                    inner.Text("  • Exception - the error that occurred"),
+                    inner.Text("  • ErrorPhase - when it happened"),
+                    inner.Text("  • Reset() - to retry the operation"),
+                    inner.Text(""),
+                    inner.Text("Press the button to trigger an error:"),
+                    inner.Text(""),
+                    inner.Button("Trigger Error").OnClick(_ => throw new InvalidOperationException("Something went wrong!")),
+                ])
+            ], title: "Custom Fallback"),
+        ])
+        .WithFallback(rescue => rescue.Border(b => [
+            b.VStack(inner => [
+                inner.Text("🔥 Custom Error Handler 🔥"),
+                inner.Text(""),
+                inner.Text($"Error Type: {rescue.Exception.GetType().Name}"),
+                inner.Text($"Phase: {rescue.ErrorPhase}"),
+                inner.Text(""),
+                inner.Text("Message:"),
+                inner.Text($"  {rescue.Exception.Message}"),
+                inner.Text(""),
+                inner.Button("🔄 Try Again").OnClick(_ => rescue.Reset()),
+            ])
+        ], title: "Oops!"))
+        .OnRescue(e => state.ErrorCount++)
+        .OnReset(_ => state.ResetCount++);
+    }
+
+    private static Hex1bWidget BuildEventHandlersExample(RootContext ctx, RescueExampleState state)
+    {
+        return ctx.Rescue(v => [
+            v.Border(b => [
+                b.VStack(inner => [
+                    inner.Text("Event Handlers Example"),
+                    inner.Text("════════════════════════════════════════"),
+                    inner.Text(""),
+                    inner.Text("This demonstrates OnRescue and OnReset."),
+                    inner.Text(""),
+                    inner.Text("OnRescue is called when an error occurs."),
+                    inner.Text("Use it for logging, telemetry, etc."),
+                    inner.Text(""),
+                    inner.Text("OnReset is called when user clicks Retry."),
+                    inner.Text("Use it to reset state, reconnect, etc."),
+                    inner.Text(""),
+                    inner.Text("Watch the counters in the sidebar!"),
+                    inner.Text(""),
+                    inner.Text("Press the button to trigger an error:"),
+                    inner.Text(""),
+                    inner.Button("Trigger Error").OnClick(_ => throw new Exception("Test error for event handlers")),
+                ])
+            ], title: "Event Handlers"),
+        ])
+        .OnRescue(e => {
+            state.ErrorCount++;
+            // In a real app: logger.LogError(e.Exception, "Error in {Phase}", e.Phase);
+        })
+        .OnReset(e => {
+            state.ResetCount++;
+            // In a real app: ResetApplicationState();
+        });
     }
 }

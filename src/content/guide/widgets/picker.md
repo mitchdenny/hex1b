@@ -267,8 +267,6 @@ Picker is implemented as a **composite widget**, meaning it's built from other H
 - **Theme integration**: Button and List theme elements apply naturally
 - **Focus management**: Focus flows correctly between button and popup list
 
-For developers interested in creating custom composite widgets, see the [Composite Widgets](/guide/composite-widgets) guide.
-
 ## Related Widgets
 
 - [ButtonWidget](/guide/widgets/button) - For single actions without selection

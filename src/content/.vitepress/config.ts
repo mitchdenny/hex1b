@@ -54,6 +54,7 @@ export default defineConfig({
             { text: 'Navigator', link: '/guide/widgets/navigator' },
             { text: 'Picker', link: '/guide/widgets/picker' },
             { text: 'Progress', link: '/guide/widgets/progress' },
+            { text: 'Rescue', link: '/guide/widgets/rescue' },
             { text: 'Scroll', link: '/guide/widgets/scroll' },
             { text: 'Splitter', link: '/guide/widgets/splitter' },
             { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },

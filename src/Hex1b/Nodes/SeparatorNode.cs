@@ -7,43 +7,10 @@ namespace Hex1b.Nodes;
 /// <summary>
 /// A node that draws a horizontal or vertical separator line.
 /// The orientation is either explicitly set or inferred from the parent layout axis.
+/// Customize appearance using <see cref="Theming.SeparatorTheme"/> via ThemePanel.
 /// </summary>
 public sealed class SeparatorNode : Hex1bNode
 {
-    private char _horizontalChar = '─';
-    /// <summary>
-    /// The character to use for horizontal separators.
-    /// </summary>
-    public char HorizontalChar 
-    { 
-        get => _horizontalChar; 
-        set 
-        {
-            if (_horizontalChar != value)
-            {
-                _horizontalChar = value;
-                MarkDirty();
-            }
-        }
-    }
-    
-    private char _verticalChar = '│';
-    /// <summary>
-    /// The character to use for vertical separators.
-    /// </summary>
-    public char VerticalChar 
-    { 
-        get => _verticalChar; 
-        set 
-        {
-            if (_verticalChar != value)
-            {
-                _verticalChar = value;
-                MarkDirty();
-            }
-        }
-    }
-    
     private LayoutAxis? _explicitAxis;
     /// <summary>
     /// Optional explicit axis. If set, overrides the inferred axis.
@@ -107,14 +74,21 @@ public sealed class SeparatorNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var fg = theme.GetGlobalForeground();
+        
+        // Get color: use separator theme color, fall back to global foreground
+        var separatorColor = theme.Get(SeparatorTheme.Color);
+        var fg = separatorColor.IsDefault ? theme.GetGlobalForeground() : separatorColor;
         var fgAnsi = fg.IsDefault ? "" : fg.ToForegroundAnsi();
         var reset = fg.IsDefault ? "" : theme.GetResetToGlobalCodes();
+        
+        // Get characters from theme
+        var horizontalChar = theme.Get(SeparatorTheme.HorizontalChar)[0];
+        var verticalChar = theme.Get(SeparatorTheme.VerticalChar)[0];
         
         if (IsHorizontal)
         {
             // Draw horizontal line
-            var line = new string(HorizontalChar, Bounds.Width);
+            var line = new string(horizontalChar, Bounds.Width);
             context.WriteClipped(Bounds.X, Bounds.Y, $"{fgAnsi}{line}{reset}");
         }
         else
@@ -122,7 +96,7 @@ public sealed class SeparatorNode : Hex1bNode
             // Draw vertical line
             for (int y = 0; y < Bounds.Height; y++)
             {
-                context.WriteClipped(Bounds.X, Bounds.Y + y, $"{fgAnsi}{VerticalChar}{reset}");
+                context.WriteClipped(Bounds.X, Bounds.Y + y, $"{fgAnsi}{verticalChar}{reset}");
             }
         }
     }

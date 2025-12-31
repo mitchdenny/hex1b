@@ -1,62 +1,400 @@
+using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Terminal;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
 
 /// <summary>
 /// A node that catches exceptions and displays a fallback when errors occur.
+/// Implements ILayoutProvider to ensure child content is clipped to bounds.
 /// </summary>
-public sealed class RescueNode : Hex1bNode
+public sealed class RescueNode : Hex1bNode, ILayoutProvider
 {
     /// <summary>
     /// The main child node (may throw during lifecycle methods).
     /// </summary>
     public Hex1bNode? Child { get; set; }
-    
+
     /// <summary>
     /// The fallback child node (shown when an error occurs).
     /// </summary>
     public Hex1bNode? FallbackChild { get; set; }
-    
+
     /// <summary>
-    /// The state for tracking error status.
+    /// The source widget for event args.
     /// </summary>
-    public RescueState State { get; set; } = new();
-    
+    public RescueWidget? SourceWidget { get; set; }
+
     /// <summary>
-    /// Optional custom fallback widget builder.
+    /// Whether an error has occurred.
     /// </summary>
-    public Func<RescueState, Hex1bWidget>? FallbackBuilder { get; set; }
-    
+    public bool HasError { get; private set; }
+
+    /// <summary>
+    /// The exception that was caught, if any.
+    /// </summary>
+    public Exception? Exception { get; private set; }
+
+    /// <summary>
+    /// The phase in which the error occurred.
+    /// </summary>
+    public RescueErrorPhase ErrorPhase { get; private set; }
+
     /// <summary>
     /// Whether to show detailed exception information.
     /// </summary>
     public bool ShowDetails { get; set; }
+
+    /// <summary>
+    /// Optional custom fallback widget builder.
+    /// </summary>
+    public Func<RescueContext, Hex1bWidget>? FallbackBuilder { get; set; }
+
+    /// <summary>
+    /// Handler called when an exception is caught.
+    /// </summary>
+    public Func<RescueEventArgs, Task>? RescueHandler { get; set; }
+
+    /// <summary>
+    /// Handler called after the rescue state is reset.
+    /// </summary>
+    public Func<RescueResetEventArgs, Task>? ResetHandler { get; set; }
+
+    /// <summary>
+    /// The focus ring for reconciling fallback children.
+    /// Set during reconciliation so EnsureFallbackNode can use it.
+    /// </summary>
+    internal FocusRing? FocusRing { get; set; }
+
+    #region ILayoutProvider Implementation
     
     /// <summary>
-    /// Actions available to the user in the fallback view.
+    /// The clip rectangle for child content (our bounds).
     /// </summary>
-    public IReadOnlyList<RescueAction> Actions { get; set; } = [];
+    public Rect ClipRect => Bounds;
+    
+    /// <summary>
+    /// The clip mode for the rescue node's content. Always clips to ensure
+    /// fallback content doesn't overflow.
+    /// </summary>
+    public ClipMode ClipMode => ClipMode.Clip;
+    
+    /// <inheritdoc />
+    public ILayoutProvider? ParentLayoutProvider { get; set; }
+
+    /// <inheritdoc />
+    public bool ShouldRenderAt(int x, int y) => LayoutProviderHelper.ShouldRenderAt(this, x, y);
+
+    /// <inheritdoc />
+    public (int adjustedX, string clippedText) ClipString(int x, int y, string text)
+        => LayoutProviderHelper.ClipString(this, x, y, text);
+    
+    #endregion
 
     /// <summary>
     /// Gets the active child (either main child or fallback, depending on error state).
     /// </summary>
-    private Hex1bNode? ActiveChild => State.HasError ? FallbackChild : Child;
+    private Hex1bNode? ActiveChild => HasError ? FallbackChild : Child;
+
+    /// <summary>
+    /// Captures an error and invokes the rescue handler.
+    /// </summary>
+    internal async Task CaptureErrorAsync(Exception ex, RescueErrorPhase phase)
+    {
+        HasError = true;
+        Exception = ex;
+        ErrorPhase = phase;
+
+        if (RescueHandler != null && SourceWidget != null)
+        {
+            var args = new RescueEventArgs(SourceWidget, this, ex, phase);
+            await RescueHandler(args);
+        }
+    }
+
+    /// <summary>
+    /// Resets the error state and invokes the reset handler.
+    /// Called when the user triggers a retry.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        var previousException = Exception;
+        var previousPhase = ErrorPhase;
+
+        // Clear internal state first
+        HasError = false;
+        Exception = null;
+        ErrorPhase = RescueErrorPhase.None;
+        
+        // Clear fallback child so it gets rebuilt if error occurs again
+        FallbackChild = null;
+        
+        // Mark dirty to trigger re-render with normal child
+        MarkDirty();
+
+        // Then invoke the user's reset handler with the previous error info
+        if (ResetHandler != null && SourceWidget != null && previousException != null)
+        {
+            var args = new RescueResetEventArgs(SourceWidget, this, previousException, previousPhase);
+            await ResetHandler(args);
+        }
+    }
+
+    /// <summary>
+    /// Synchronous reset for use in button callbacks.
+    /// </summary>
+    public void Reset()
+    {
+        // Fire and forget - the async handler will complete eventually
+        _ = ResetAsync();
+    }
+
+    /// <summary>
+    /// Builds the fallback widget tree.
+    /// </summary>
+    internal Hex1bWidget BuildFallbackWidget()
+    {
+        var context = new RescueContext(Exception!, ErrorPhase, Reset);
+
+        if (FallbackBuilder != null)
+        {
+            // User provided a custom fallback - wrap it in a theme panel
+            return new ThemePanelWidget(BuildRescueThemeMutator(), FallbackBuilder(context));
+        }
+
+        // Build the default fallback UI
+        return new ThemePanelWidget(BuildRescueThemeMutator(), BuildDefaultFallback(context));
+    }
+
+    /// <summary>
+    /// Creates a theme mutator that applies rescue styling.
+    /// </summary>
+    private Func<Hex1bTheme, Hex1bTheme> BuildRescueThemeMutator()
+    {
+        return theme => theme
+            // Global colors
+            .Set(GlobalTheme.ForegroundColor, theme.Get(RescueTheme.ForegroundColor))
+            .Set(GlobalTheme.BackgroundColor, theme.Get(RescueTheme.BackgroundColor))
+            // Border styling
+            .Set(BorderTheme.BorderColor, theme.Get(RescueTheme.BorderColor))
+            .Set(BorderTheme.TitleColor, theme.Get(RescueTheme.TitleColor))
+            .Set(BorderTheme.TopLeftCorner, theme.Get(RescueTheme.TopLeftCorner))
+            .Set(BorderTheme.TopRightCorner, theme.Get(RescueTheme.TopRightCorner))
+            .Set(BorderTheme.BottomLeftCorner, theme.Get(RescueTheme.BottomLeftCorner))
+            .Set(BorderTheme.BottomRightCorner, theme.Get(RescueTheme.BottomRightCorner))
+            .Set(BorderTheme.HorizontalLine, theme.Get(RescueTheme.HorizontalLine))
+            .Set(BorderTheme.VerticalLine, theme.Get(RescueTheme.VerticalLine))
+            // Separator styling
+            .Set(SeparatorTheme.HorizontalChar, theme.Get(RescueTheme.SeparatorHorizontalChar))
+            .Set(SeparatorTheme.VerticalChar, theme.Get(RescueTheme.SeparatorVerticalChar))
+            .Set(SeparatorTheme.Color, theme.Get(RescueTheme.SeparatorColor))
+            // Button styling
+            .Set(ButtonTheme.ForegroundColor, theme.Get(RescueTheme.ButtonForegroundColor))
+            .Set(ButtonTheme.BackgroundColor, theme.Get(RescueTheme.ButtonBackgroundColor))
+            .Set(ButtonTheme.FocusedForegroundColor, theme.Get(RescueTheme.ButtonFocusedForegroundColor))
+            .Set(ButtonTheme.FocusedBackgroundColor, theme.Get(RescueTheme.ButtonFocusedBackgroundColor));
+    }
+
+    /// <summary>
+    /// Builds the default fallback widget tree.
+    /// </summary>
+    private Hex1bWidget BuildDefaultFallback(RescueContext ctx)
+    {
+        var title = ShowDetails ? "Exception Details" : "Error";
+        
+        return ctx.Border(b => [
+            b.VStack(v => BuildFallbackContent(v, ctx)).Fill()
+        ], title: title);
+    }
+
+    /// <summary>
+    /// Builds the content for the fallback UI.
+    /// </summary>
+    private Hex1bWidget[] BuildFallbackContent(WidgetContext<VStackWidget> v, RescueContext ctx)
+    {
+        var widgets = new List<Hex1bWidget>();
+
+        // Header
+        widgets.Add(v.Text(ShowDetails ? "UNHANDLED EXCEPTION" : "APPLICATION ERROR"));
+
+        if (ShowDetails && ctx.Exception != null)
+        {
+            widgets.Add(v.Text($"Phase: {ctx.ErrorPhase}"));
+            widgets.Add(v.Text($"Type:  {ctx.Exception.GetType().FullName}").Ellipsis());
+        }
+
+        // Separator after header (uses theme for double-line style)
+        widgets.Add(v.Separator());
+
+        // Button row: Retry and Copy Details
+        widgets.Add(v.HStack(h => [
+            h.Button("Retry").OnClick(_ => ctx.Reset()),
+            h.Text(" "), // Spacer
+            h.Button("Copy Details").OnClick(e => e.Context.CopyToClipboard(FormatExceptionDetails(ctx)))
+        ]));
+
+        // Separator after button (uses theme for double-line style)
+        widgets.Add(v.Separator());
+
+        // Scrollable content area
+        widgets.Add(v.VScroll(content => BuildErrorContent(content, ctx)).Fill());
+
+        return [.. widgets];
+    }
+
+    /// <summary>
+    /// Formats the exception details as a plain text string for clipboard copying.
+    /// </summary>
+    private string FormatExceptionDetails(RescueContext ctx)
+    {
+        if (ctx.Exception == null)
+        {
+            return "No exception information available.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        
+        sb.AppendLine("=== EXCEPTION DETAILS ===");
+        sb.AppendLine();
+        sb.AppendLine($"Phase: {ctx.ErrorPhase}");
+        sb.AppendLine($"Type:  {ctx.Exception.GetType().FullName}");
+        sb.AppendLine();
+        sb.AppendLine("Message:");
+        sb.AppendLine(ctx.Exception.Message ?? "(no message)");
+        
+        if (ctx.Exception.StackTrace != null)
+        {
+            sb.AppendLine();
+            sb.AppendLine("Stack Trace:");
+            sb.AppendLine(ctx.Exception.StackTrace);
+        }
+        
+        if (ctx.Exception.InnerException != null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"=== INNER EXCEPTION: {ctx.Exception.InnerException.GetType().Name} ===");
+            sb.AppendLine();
+            sb.AppendLine("Message:");
+            sb.AppendLine(ctx.Exception.InnerException.Message ?? "(no message)");
+            
+            if (ctx.Exception.InnerException.StackTrace != null)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Stack Trace:");
+                sb.AppendLine(ctx.Exception.InnerException.StackTrace);
+            }
+        }
+        
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds the error details or friendly message content.
+    /// </summary>
+    private Hex1bWidget[] BuildErrorContent(WidgetContext<VStackWidget> v, RescueContext ctx)
+    {
+        if (ShowDetails && ctx.Exception != null)
+        {
+            return BuildDetailedErrorContent(v, ctx);
+        }
+        else
+        {
+            return BuildFriendlyErrorContent(v);
+        }
+    }
+
+    /// <summary>
+    /// Builds detailed error content with stack trace.
+    /// </summary>
+    private Hex1bWidget[] BuildDetailedErrorContent(WidgetContext<VStackWidget> v, RescueContext ctx)
+    {
+        var widgets = new List<Hex1bWidget>();
+
+        // Message section
+        widgets.Add(v.Text("Message:"));
+        widgets.Add(v.Text(""));
+        widgets.Add(v.Text("  " + (ctx.Exception!.Message ?? "(no message)")).Wrap());
+        widgets.Add(v.Text(""));
+
+        // Stack trace section
+        if (ctx.Exception.StackTrace != null)
+        {
+            widgets.Add(v.Text("Stack Trace:"));
+            widgets.Add(v.Text(""));
+
+            foreach (var line in ctx.Exception.StackTrace.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (!string.IsNullOrEmpty(trimmed))
+                {
+                    widgets.Add(v.Text("  " + trimmed).Wrap());
+                }
+            }
+        }
+
+        // Inner exception
+        if (ctx.Exception.InnerException != null)
+        {
+            widgets.Add(v.Text(""));
+            widgets.Add(v.Text($"Inner Exception: {ctx.Exception.InnerException.GetType().Name}"));
+            widgets.Add(v.Text(""));
+            widgets.Add(v.Text("  " + (ctx.Exception.InnerException.Message ?? "(no message)")).Wrap());
+
+            if (ctx.Exception.InnerException.StackTrace != null)
+            {
+                widgets.Add(v.Text(""));
+                widgets.Add(v.Text("Inner Stack Trace:"));
+                widgets.Add(v.Text(""));
+
+                foreach (var line in ctx.Exception.InnerException.StackTrace.Split('\n'))
+                {
+                    var trimmed = line.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                    {
+                        widgets.Add(v.Text("  " + trimmed).Wrap());
+                    }
+                }
+            }
+        }
+
+        return [.. widgets];
+    }
+
+    /// <summary>
+    /// Builds friendly error content for production.
+    /// </summary>
+    private Hex1bWidget[] BuildFriendlyErrorContent(WidgetContext<VStackWidget> v)
+    {
+        return [
+            v.Text(""),
+            v.Text("Something went wrong."),
+            v.Text(""),
+            v.Text("The application encountered an unexpected error."),
+            v.Text(""),
+            v.Text("Please try again or contact support if the"),
+            v.Text("problem persists."),
+            v.Text(""),
+            v.Text($"Error ID: {Guid.NewGuid():N}"[..36])
+        ];
+    }
 
     public override Size Measure(Constraints constraints)
     {
-        if (State.HasError)
+        if (HasError)
         {
             return FallbackChild?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
         }
-        
+
         try
         {
             return Child?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
         }
         catch (Exception ex)
         {
-            CaptureError(ex, RescueErrorPhase.Measure);
+            CaptureErrorAsync(ex, RescueErrorPhase.Measure).GetAwaiter().GetResult();
             EnsureFallbackNode();
             return FallbackChild?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
         }
@@ -65,20 +403,20 @@ public sealed class RescueNode : Hex1bNode
     public override void Arrange(Rect bounds)
     {
         base.Arrange(bounds);
-        
-        if (State.HasError)
+
+        if (HasError)
         {
             FallbackChild?.Arrange(bounds);
             return;
         }
-        
+
         try
         {
             Child?.Arrange(bounds);
         }
         catch (Exception ex)
         {
-            CaptureError(ex, RescueErrorPhase.Arrange);
+            CaptureErrorAsync(ex, RescueErrorPhase.Arrange).GetAwaiter().GetResult();
             EnsureFallbackNode();
             FallbackChild?.Arrange(bounds);
         }
@@ -86,78 +424,55 @@ public sealed class RescueNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        if (State.HasError)
-        {
-            FallbackChild?.Render(context);
-            return;
-        }
-        
+        // Set up clipping for rescue content
+        var previousLayout = context.CurrentLayoutProvider;
+        ParentLayoutProvider = previousLayout;
+        context.CurrentLayoutProvider = this;
+
         try
         {
-            Child?.Render(context);
-        }
-        catch (Exception ex)
-        {
-            CaptureError(ex, RescueErrorPhase.Render);
-            EnsureFallbackNode();
-            
-            // Re-measure and arrange the fallback, then render it
-            if (FallbackChild != null)
+            if (HasError)
             {
-                FallbackChild.Measure(new Constraints(0, Bounds.Width, 0, Bounds.Height));
-                FallbackChild.Arrange(Bounds);
-                FallbackChild.Render(context);
+                FallbackChild?.Render(context);
+                return;
+            }
+
+            try
+            {
+                Child?.Render(context);
+            }
+            catch (Exception ex)
+            {
+                CaptureErrorAsync(ex, RescueErrorPhase.Render).GetAwaiter().GetResult();
+                EnsureFallbackNode();
+
+                // Re-measure and arrange the fallback, then render it
+                if (FallbackChild != null)
+                {
+                    FallbackChild.Measure(new Constraints(0, Bounds.Width, 0, Bounds.Height));
+                    FallbackChild.Arrange(Bounds);
+                    FallbackChild.Render(context);
+                }
             }
         }
-    }
-
-    private void CaptureError(Exception ex, RescueErrorPhase phase)
-    {
-        State.HasError = true;
-        State.Exception = ex;
-        State.ErrorPhase = phase;
+        finally
+        {
+            context.CurrentLayoutProvider = previousLayout;
+            ParentLayoutProvider = null;
+        }
     }
 
     private void EnsureFallbackNode()
     {
         if (FallbackChild != null) return;
-        
-        // Build the fallback widget and create a node manually
-        var fallbackWidget = BuildFallback();
-        
-        // Simple reconciliation for the fallback (sync wait since this is error path)
-        var context = ReconcileContext.CreateRoot();
+
+        // Build the fallback widget and create a node
+        var fallbackWidget = BuildFallbackWidget();
+
+        // Use the stored FocusRing so focusable nodes get registered properly
+        var context = ReconcileContext.CreateRoot(FocusRing);
         FallbackChild = context.ReconcileChildAsync(null, fallbackWidget, this).GetAwaiter().GetResult();
     }
-
-    private Hex1bWidget BuildFallback()
-    {
-        if (FallbackBuilder != null)
-        {
-            return FallbackBuilder(State);
-        }
-        
-        return BuildDefaultFallback(State, ShowDetails, Actions);
-    }
-
-    /// <summary>
-    /// Builds the default fallback widget for displaying error information.
-    /// Uses RescueFallbackWidget with hardcoded colors to avoid theme-related failures.
-    /// </summary>
-    /// <param name="state">The rescue state containing error information.</param>
-    /// <param name="showDetails">Whether to show detailed exception information.</param>
-    /// <param name="actions">Optional actions available to the user.</param>
-    internal static Hex1bWidget BuildDefaultFallback(
-        RescueState state, 
-        bool showDetails = 
-#if DEBUG
-        true
-#else
-        false
-#endif
-        ,
-        IReadOnlyList<RescueAction>? actions = null
-    ) => new RescueFallbackWidget(state, showDetails, actions);
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
