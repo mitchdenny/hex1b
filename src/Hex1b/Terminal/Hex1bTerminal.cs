@@ -406,9 +406,22 @@ public sealed class Hex1bTerminal : IDisposable
                 }
                 else
                 {
-                    await workload.WriteInputEventAsync(
-                        new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None), ct);
-                    i++;
+                    // ESC followed by a printable character = Alt+key combination
+                    // For example: ESC f = Alt+F, ESC 1 = Alt+1
+                    var nextChar = message[i + 1];
+                    var altKeyEvent = ParseAltKeyInput(nextChar);
+                    if (altKeyEvent != null)
+                    {
+                        await workload.WriteInputEventAsync(altKeyEvent, ct);
+                        i += 2; // Consume both ESC and the following character
+                    }
+                    else
+                    {
+                        // Unknown escape sequence, just emit Escape
+                        await workload.WriteInputEventAsync(
+                            new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None), ct);
+                        i++;
+                    }
                 }
             }
             else if (char.IsHighSurrogate(message[i]) && i + 1 < message.Length && char.IsLowSurrogate(message[i + 1]))
@@ -1744,6 +1757,37 @@ public sealed class Hex1bTerminal : IDisposable
             _ when !char.IsControl(c) => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Parses an Alt+key combination (ESC followed by a character).
+    /// Returns null if the character cannot be an Alt+key combination.
+    /// </summary>
+    private static Hex1bKeyEvent? ParseAltKeyInput(char c)
+    {
+        // Alt+letter (lowercase: Alt+F sends ESC f)
+        if (c >= 'a' && c <= 'z')
+        {
+            return new Hex1bKeyEvent(
+                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'a'))), c, Hex1bModifiers.Alt);
+        }
+        
+        // Alt+letter (uppercase: Alt+Shift+F sends ESC F)
+        if (c >= 'A' && c <= 'Z')
+        {
+            return new Hex1bKeyEvent(
+                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Alt | Hex1bModifiers.Shift);
+        }
+        
+        // Alt+number (Alt+1 sends ESC 1)
+        if (c >= '0' && c <= '9')
+        {
+            return new Hex1bKeyEvent(
+                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.Alt);
+        }
+        
+        // Unknown - don't treat as Alt+key
+        return null;
     }
 
     private static (Hex1bKeyEvent? Event, int Consumed) ParseCsiSequence(string message, int start)
