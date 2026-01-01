@@ -60,6 +60,18 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         var currentPopupCount = popupWidgets.Count;
         var newPopupsAdded = currentPopupCount > previousPopupCount;
         
+        // Also check if the topmost popup changed (same count but different entry)
+        // This handles the case of replacing one popup with another via Pop() + PushAnchored()
+        var topmostPopupChanged = false;
+        var currentTopmostEntry = node.Popups.Entries.Count > 0 ? node.Popups.Entries[^1] : null;
+        if (currentTopmostEntry != null && node.LastTopmostPopupEntry != null && 
+            !ReferenceEquals(currentTopmostEntry, node.LastTopmostPopupEntry))
+        {
+            topmostPopupChanged = true;
+        }
+        // Update the tracked topmost entry for next reconcile
+        node.LastTopmostPopupEntry = currentTopmostEntry;
+        
         // Track children that will be removed (their bounds need clearing)
         for (int i = allChildren.Count; i < node.Children.Count; i++)
         {
@@ -100,14 +112,16 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         // This gives overlay content focus priority
         // We need to focus when:
         // 1. The ZStack node is newly created (and parent doesn't manage focus), OR
-        // 2. New popups were added (popups ALWAYS take focus, even if parent manages focus)
+        // 2. New popups were added (popups ALWAYS take focus, even if parent manages focus), OR
+        // 3. The topmost popup was replaced with a different one (e.g., navigating between menus)
         var shouldFocusTopmost = 
             (context.IsNew && !context.ParentManagesFocus()) || 
-            newPopupsAdded;
+            newPopupsAdded ||
+            topmostPopupChanged;
         
         // Debug: Track focus management state - only update when shouldFocusTopmost is true
         // to capture the moment focus is supposed to be set
-        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
+        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, topmostPopupChanged={topmostPopupChanged}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
         if (shouldFocusTopmost)
         {
             LastFocusDebug = debugInfo + " [FOCUS TRIGGERED]";

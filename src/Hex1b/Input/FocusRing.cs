@@ -131,6 +131,19 @@ public sealed class FocusRing
         
         return true;
     }
+    
+    /// <summary>
+    /// Focuses the first node in the ring that matches the predicate.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <returns>True if a matching node was found and focused, false otherwise.</returns>
+    public bool FocusWhere(Func<Hex1bNode, bool> predicate)
+    {
+        var node = _focusables.FirstOrDefault(predicate);
+        if (node == null) return false;
+        
+        return Focus(node);
+    }
 
     /// <summary>
     /// Ensures the first focusable has focus if nothing is currently focused.

@@ -82,7 +82,10 @@ public sealed class MenuItemNode : Hex1bNode
         bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
         bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
         bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
-        bindings.Key(Hex1bKey.LeftArrow).Action(CloseParentMenu, "Close menu");
+        
+        // Left/Right arrows navigate to adjacent menus in the menu bar
+        bindings.Key(Hex1bKey.LeftArrow).Action(NavigateToPreviousMenu, "Previous menu");
+        bindings.Key(Hex1bKey.RightArrow).Action(NavigateToNextMenu, "Next menu");
         
         // Activation
         if (ActivatedAction != null && !IsDisabled)
@@ -91,6 +94,97 @@ public sealed class MenuItemNode : Hex1bNode
             bindings.Key(Hex1bKey.Spacebar).Action(ActivatedAction, "Activate item");
             bindings.Mouse(MouseButton.Left).Action(ActivatedAction, "Click item");
         }
+    }
+    
+    /// <summary>
+    /// Navigates to the next menu in the menu bar, closing the current menu and opening the next.
+    /// </summary>
+    private Task NavigateToNextMenu(InputBindingActionContext ctx)
+    {
+        return NavigateToAdjacentMenu(ctx, direction: 1);
+    }
+    
+    /// <summary>
+    /// Navigates to the previous menu in the menu bar, closing the current menu and opening the previous.
+    /// </summary>
+    private Task NavigateToPreviousMenu(InputBindingActionContext ctx)
+    {
+        return NavigateToAdjacentMenu(ctx, direction: -1);
+    }
+    
+    /// <summary>
+    /// Navigates to an adjacent menu in the menu bar.
+    /// </summary>
+    /// <param name="ctx">The input binding action context.</param>
+    /// <param name="direction">1 for next, -1 for previous.</param>
+    private Task NavigateToAdjacentMenu(InputBindingActionContext ctx, int direction)
+    {
+        // Find the MenuPopupNode that contains this item
+        var popupNode = FindParentPopupNode();
+        if (popupNode == null)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Get the owning MenuNode and its MenuBarNode parent
+        var ownerNode = popupNode.OwnerNode;
+        if (ownerNode == null || ownerNode.Parent is not MenuBarNode menuBar)
+        {
+            // We're in a submenu (not a top-level menu), just close this popup
+            return CloseParentMenu(ctx);
+        }
+        
+        // Find the current menu index by label (MenuNodes may be recreated, so we match by label)
+        var currentIndex = -1;
+        for (int i = 0; i < menuBar.MenuNodes.Count; i++)
+        {
+            if (menuBar.MenuNodes[i].Label == ownerNode.Label)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+        
+        if (currentIndex < 0)
+        {
+            return CloseParentMenu(ctx);
+        }
+        
+        // Calculate target index with wraparound
+        var count = menuBar.MenuNodes.Count;
+        var targetIndex = (currentIndex + direction + count) % count;
+        var targetMenu = menuBar.MenuNodes[targetIndex];
+        
+        // Close the current popup and clear owner state
+        ctx.Popups.Pop();
+        ownerNode.IsOpen = false;
+        ownerNode.IsSelected = false;
+        
+        // Open the target menu
+        targetMenu.IsOpen = true;
+        targetMenu.IsSelected = true;
+        targetMenu.MarkDirty();
+        
+        ctx.Popups.PushAnchored(targetMenu, AnchorPosition.Below, 
+            () => new MenuPopupWidget(targetMenu), 
+            focusRestoreNode: targetMenu);
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Finds the parent MenuPopupNode in the node hierarchy.
+    /// </summary>
+    private MenuPopupNode? FindParentPopupNode()
+    {
+        var current = Parent;
+        while (current != null)
+        {
+            if (current is MenuPopupNode popup)
+                return popup;
+            current = current.Parent;
+        }
+        return null;
     }
     
     private Task CloseParentMenu(InputBindingActionContext ctx)

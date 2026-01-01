@@ -21,6 +21,12 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
     /// The popup stack for this ZStack. Content pushed here appears as overlay layers.
     /// </summary>
     public PopupStack Popups { get; } = new();
+    
+    /// <summary>
+    /// Tracks the topmost popup entry from the last reconcile cycle.
+    /// Used to detect when the popup was replaced (not just added/removed).
+    /// </summary>
+    internal PopupEntry? LastTopmostPopupEntry { get; set; }
 
     /// <summary>
     /// The clip mode for the ZStack's content. Defaults to Clip.

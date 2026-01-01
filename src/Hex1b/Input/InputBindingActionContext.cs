@@ -98,6 +98,13 @@ public sealed class InputBindingActionContext
     public bool Focus(Hex1bNode node) => _focusRing.Focus(node);
     
     /// <summary>
+    /// Focuses the first node in the ring that matches the predicate.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <returns>True if a matching node was found and focused, false otherwise.</returns>
+    public bool FocusWhere(Func<Hex1bNode, bool> predicate) => _focusRing.FocusWhere(predicate);
+    
+    /// <summary>
     /// Gets the popup stack for the nearest popup host (typically a ZStack) in the focused node's ancestry.
     /// Use this to push popups, menus, and dialogs from event handlers.
     /// The root ZStack automatically provides a PopupStack, so this is never null within a Hex1bApp.

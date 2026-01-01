@@ -211,6 +211,11 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     }
     
     /// <summary>
+    /// Tracks the OwnerNode label to detect when we need to rebuild children.
+    /// </summary>
+    private string? _lastOwnerLabel;
+    
+    /// <summary>
     /// Creates child nodes from the owner's menu children.
     /// Called during reconciliation to ensure children are available for focus ring.
     /// </summary>
@@ -218,8 +223,11 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     {
         if (OwnerNode == null) return;
         
-        // Guard against being called twice
-        if (ChildNodes.Count > 0) return;
+        // Skip if already built for the same owner (prevents double-creation)
+        if (_lastOwnerLabel == OwnerNode.Label && ChildNodes.Count > 0) return;
+        
+        // Remember which owner we built for
+        _lastOwnerLabel = OwnerNode.Label;
         
         // Simple reconciliation: create nodes for each child
         var newChildren = new List<Hex1bNode>();
