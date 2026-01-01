@@ -45,6 +45,15 @@ public sealed class KeyStepBuilder
     }
 
     /// <summary>
+    /// Adds Alt modifier to the current step.
+    /// </summary>
+    public KeyStepBuilder Alt()
+    {
+        _currentModifiers |= Hex1bModifiers.Alt;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the key for the current step.
     /// </summary>
     public KeyStepBuilder Key(Hex1bKey key)

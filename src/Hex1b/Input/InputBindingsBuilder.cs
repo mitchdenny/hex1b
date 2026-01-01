@@ -51,6 +51,11 @@ public sealed class InputBindingsBuilder
     public KeyStepBuilder Shift() => new KeyStepBuilder(this).Shift();
 
     /// <summary>
+    /// Starts building a key step with Alt modifier.
+    /// </summary>
+    public KeyStepBuilder Alt() => new KeyStepBuilder(this).Alt();
+
+    /// <summary>
     /// Starts building a key step with the given key (no modifiers).
     /// </summary>
     public KeyStepBuilder Key(Hex1bKey key) => new KeyStepBuilder(this).Key(key);

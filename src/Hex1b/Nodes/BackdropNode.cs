@@ -58,6 +58,18 @@ public sealed class BackdropNode : Hex1bNode
         get => _isFocused;
         set
         {
+            // If setting focus to true and we have focusable children,
+            // delegate focus to the first child instead
+            if (value && !_isFocused && Child != null)
+            {
+                var firstChildFocusable = Child.GetFocusableNodes().FirstOrDefault();
+                if (firstChildFocusable != null)
+                {
+                    firstChildFocusable.IsFocused = true;
+                    return; // Don't focus backdrop
+                }
+            }
+            
             if (_isFocused != value)
             {
                 _isFocused = value;
@@ -175,10 +187,14 @@ public sealed class BackdropNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // Return ourselves first (so we intercept clicks)
+        // Return ourselves first so HitTest can find us for click-away detection.
+        // When iterating in reverse (as HitTest does), children are checked first,
+        // and backdrop acts as the catch-all for clicks not on child content.
+        // Note: Our IsFocused setter delegates to children, so keyboard focus
+        // will go to children rather than the backdrop itself.
         yield return this;
         
-        // Then return child focusables (so they can be tabbed to)
+        // Then return child focusables for Tab navigation
         if (Child != null)
         {
             foreach (var focusable in Child.GetFocusableNodes())
