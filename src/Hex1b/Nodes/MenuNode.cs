@@ -136,9 +136,11 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         }
         else
         {
-            // When in a menu bar, Down arrow opens the menu (standard menu bar behavior)
-            // Right/Left arrow navigation is handled by MenuBarNode
+            // When in a menu bar (or any non-popup context), Down arrow opens the menu
+            // Left/Right navigate between menus without opening
             bindings.Key(Hex1bKey.DownArrow).Action(OpenMenu, "Open menu");
+            bindings.Key(Hex1bKey.LeftArrow).Action(FocusPreviousMenuInBar, "Previous menu");
+            bindings.Key(Hex1bKey.RightArrow).Action(FocusNextMenuInBar, "Next menu");
         }
     }
     
@@ -208,6 +210,76 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             focusRestoreNode: targetMenu);
         
         return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Focuses the previous menu in the menu bar without opening it.
+    /// </summary>
+    private Task FocusPreviousMenuInBar(InputBindingActionContext ctx)
+    {
+        return FocusAdjacentMenuInBar(ctx, direction: -1);
+    }
+    
+    /// <summary>
+    /// Focuses the next menu in the menu bar without opening it.
+    /// </summary>
+    private Task FocusNextMenuInBar(InputBindingActionContext ctx)
+    {
+        return FocusAdjacentMenuInBar(ctx, direction: 1);
+    }
+    
+    /// <summary>
+    /// Focuses an adjacent menu in the menu bar without opening it.
+    /// </summary>
+    private Task FocusAdjacentMenuInBar(InputBindingActionContext ctx, int direction)
+    {
+        // Find the MenuBarNode in parent hierarchy
+        var menuBar = FindParentMenuBar();
+        if (menuBar == null)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Find our index in the menu bar
+        var currentIndex = -1;
+        for (int i = 0; i < menuBar.MenuNodes.Count; i++)
+        {
+            if (menuBar.MenuNodes[i] == this)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+        
+        if (currentIndex < 0 || menuBar.MenuNodes.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Calculate target index with wraparound
+        var count = menuBar.MenuNodes.Count;
+        var targetIndex = (currentIndex + direction + count) % count;
+        var targetMenu = menuBar.MenuNodes[targetIndex];
+        
+        // Just move focus to the target menu (don't open it)
+        ctx.FocusWhere(node => node == targetMenu);
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Finds the MenuBarNode in the parent hierarchy.
+    /// </summary>
+    private MenuBarNode? FindParentMenuBar()
+    {
+        var current = Parent;
+        while (current != null)
+        {
+            if (current is MenuBarNode menuBar)
+                return menuBar;
+            current = current.Parent;
+        }
+        return null;
     }
     
     /// <summary>
@@ -316,16 +388,8 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     {
         var text = $" {Label} ";
         
-        // Use IsSelected or IsOpen for styling in menu bar, not IsFocused
-        // This prevents highlighting just because the menu bar has keyboard focus
-        if (IsSelected || IsOpen)
-        {
-            var fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
-            var bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}{resetToGlobal}";
-            WriteOutput(context, output);
-        }
-        else if (IsHovered)
+        // Show focused styling when: focused (keyboard nav), selected/open, or hovered
+        if (IsFocused || IsSelected || IsOpen || IsHovered)
         {
             var fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);

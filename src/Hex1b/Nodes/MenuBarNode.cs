@@ -184,9 +184,9 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
             var menu = Menus[i];
             var (_, accel, accelIndex) = MenuAccelerators[i];
             
-            // Try to reuse existing node
+            // Try to reuse existing node by matching on label (widgets are recreated each render)
             MenuNode node;
-            if (i < MenuNodes.Count && MenuNodes[i].SourceWidget == menu)
+            if (i < MenuNodes.Count && MenuNodes[i].Label == menu.Label)
             {
                 node = MenuNodes[i];
             }

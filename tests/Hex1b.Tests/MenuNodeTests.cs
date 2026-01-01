@@ -2,6 +2,7 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -352,5 +353,154 @@ public class MenuNodeTests
         // Assert
         Assert.Equal(InputResult.Handled, result);
         Assert.True(activated, "ActivatedAction should have been called");
+    }
+    
+    [Fact]
+    public void MenuNode_InMenuBar_ConfiguresLeftRightBindings()
+    {
+        // Arrange
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Parent = menuBar
+        };
+        menuBar.MenuNodes = [menuNode];
+        
+        // Act
+        var builder = new InputBindingsBuilder();
+        menuNode.ConfigureDefaultBindings(builder);
+        var bindings = builder.Build();
+        
+        // Assert - should have Left and Right arrow bindings
+        var leftBinding = bindings.FirstOrDefault(b => 
+            b.Steps.Count == 1 && 
+            b.Steps[0].Key == Hex1bKey.LeftArrow && 
+            b.Steps[0].Modifiers == Hex1bModifiers.None);
+        
+        var rightBinding = bindings.FirstOrDefault(b => 
+            b.Steps.Count == 1 && 
+            b.Steps[0].Key == Hex1bKey.RightArrow && 
+            b.Steps[0].Modifiers == Hex1bModifiers.None);
+        
+        var downBinding = bindings.FirstOrDefault(b => 
+            b.Steps.Count == 1 && 
+            b.Steps[0].Key == Hex1bKey.DownArrow && 
+            b.Steps[0].Modifiers == Hex1bModifiers.None);
+            
+        Assert.NotNull(leftBinding);
+        Assert.NotNull(rightBinding);
+        Assert.NotNull(downBinding);
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_RightArrow_FocusesNextMenu()
+    {
+        // Arrange - simulate the full tree with VStack -> MenuBar -> MenuNodes
+        var vstack = new VStackNode();
+        var menuBar = new MenuBarNode
+        {
+            Menus = [
+                new MenuWidget("File", []),
+                new MenuWidget("Edit", [])
+            ],
+            MenuAccelerators = [
+                (new MenuWidget("File", []), null, -1),
+                (new MenuWidget("Edit", []), null, -1)
+            ]
+        };
+        menuBar.Parent = vstack;
+        vstack.Children = [menuBar];
+        
+        // Measure to populate MenuNodes
+        menuBar.Measure(Constraints.Unbounded);
+        
+        // Verify MenuNodes are populated
+        Assert.Equal(2, menuBar.MenuNodes.Count);
+        
+        var menu1 = menuBar.MenuNodes[0];
+        var menu2 = menuBar.MenuNodes[1];
+        
+        // Verify Parent is set
+        Assert.Same(menuBar, menu1.Parent);
+        Assert.Same(menuBar, menu2.Parent);
+        
+        // Build focus ring from the vstack
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(vstack);
+        
+        // Verify both menus are focusable
+        Assert.Contains(menu1, focusRing.Focusables);
+        Assert.Contains(menu2, focusRing.Focusables);
+        
+        // Verify menu1 gets initial focus
+        focusRing.EnsureFocus();
+        Assert.True(menu1.IsFocused, "menu1 should be initially focused");
+        
+        // Verify bindings are configured correctly
+        var builder = new InputBindingsBuilder();
+        menu1.ConfigureDefaultBindings(builder);
+        var bindings = builder.Build();
+        
+        var rightBinding = bindings.FirstOrDefault(b => 
+            b.Steps.Count == 1 && 
+            b.Steps[0].Key == Hex1bKey.RightArrow);
+        Assert.NotNull(rightBinding);
+        
+        // Act - press right arrow via InputRouter
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None);
+        var state = new InputRouterState();
+        var result = await InputRouter.RouteInputAsync(vstack, keyEvent, focusRing, state);
+        
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(menu2.IsFocused, $"menu2 should be focused. Focused node: {focusRing.FocusedNode?.GetType().Name}");
+        Assert.False(menu1.IsFocused, "menu1 should not be focused");
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_LeftArrow_FocusesPreviousMenu()
+    {
+        // Arrange - simulate the full tree with VStack -> MenuBar -> MenuNodes
+        var vstack = new VStackNode();
+        var menuBar = new MenuBarNode
+        {
+            Menus = [
+                new MenuWidget("File", []),
+                new MenuWidget("Edit", [])
+            ],
+            MenuAccelerators = [
+                (new MenuWidget("File", []), null, -1),
+                (new MenuWidget("Edit", []), null, -1)
+            ]
+        };
+        menuBar.Parent = vstack;
+        vstack.Children = [menuBar];
+        
+        // Measure to populate MenuNodes
+        menuBar.Measure(Constraints.Unbounded);
+        
+        var menu1 = menuBar.MenuNodes[0];
+        var menu2 = menuBar.MenuNodes[1];
+        
+        // Build focus ring from the vstack
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(vstack);
+        
+        // Start with menu2 focused
+        focusRing.Focus(menu2);
+        Assert.True(menu2.IsFocused, "menu2 should be initially focused");
+        
+        // Act - press left arrow via InputRouter
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None);
+        var state = new InputRouterState();
+        var result = await InputRouter.RouteInputAsync(vstack, keyEvent, focusRing, state);
+        
+        // Assert
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(menu1.IsFocused, "menu1 should be focused");
+        Assert.False(menu2.IsFocused, "menu2 should not be focused");
     }
 }
