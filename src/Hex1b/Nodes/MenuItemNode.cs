@@ -80,7 +80,7 @@ public sealed class MenuItemNode : Hex1bNode
     {
         // Navigation within the parent menu popup
         bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
-        bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
+        bindings.Key(Hex1bKey.UpArrow).Action(HandleUpArrow, "Previous item");
         bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
         
         // Left/Right arrows navigate to adjacent menus in the menu bar
@@ -93,6 +93,48 @@ public sealed class MenuItemNode : Hex1bNode
             bindings.Key(Hex1bKey.Enter).Action(ActivatedAction, "Activate item");
             bindings.Key(Hex1bKey.Spacebar).Action(ActivatedAction, "Activate item");
             bindings.Mouse(MouseButton.Left).Action(ActivatedAction, "Click item");
+        }
+    }
+    
+    /// <summary>
+    /// Handles the Up arrow key. If on the first item in a menu from the MenuBar, closes the menu.
+    /// Otherwise, navigates to the previous item.
+    /// </summary>
+    private Task HandleUpArrow(InputBindingActionContext ctx)
+    {
+        // Check if we're the first focusable item in this popup
+        var popupNode = FindParentPopupNode();
+        if (popupNode != null)
+        {
+            // Find the first focusable item in this popup
+            var firstFocusable = popupNode.ChildNodes
+                .SelectMany(GetFocusableDescendants)
+                .FirstOrDefault();
+            
+            // If we're the first item and this is a top-level menu from MenuBar, close the menu
+            if (firstFocusable == this && popupNode.OwnerNode?.Parent is MenuBarNode)
+            {
+                return CloseParentMenu(ctx);
+            }
+        }
+        
+        // Otherwise, just navigate to previous
+        ctx.FocusPrevious();
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Gets all focusable descendants of a node, including the node itself.
+    /// </summary>
+    private static IEnumerable<Hex1bNode> GetFocusableDescendants(Hex1bNode node)
+    {
+        if (node.IsFocusable)
+            yield return node;
+        
+        foreach (var child in node.GetChildren())
+        {
+            foreach (var descendant in GetFocusableDescendants(child))
+                yield return descendant;
         }
     }
     

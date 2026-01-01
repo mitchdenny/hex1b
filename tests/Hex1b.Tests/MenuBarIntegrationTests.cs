@@ -524,6 +524,69 @@ public class MenuBarIntegrationTests
     }
     
     [Fact]
+    public async Task MenuItem_UpArrowOnFirstItem_ClosesMenu()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu (starts on New), press Up which should close menu
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu, focus is on "New" (first item)
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Up()     // On first item, Up should close the menu
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Menu should be closed, no action triggered
+        Assert.Equal("", lastAction);
+        Assert.False(terminal.CreateSnapshot().ContainsText("Open"));
+    }
+    
+    [Fact]
+    public async Task MenuItem_UpArrowOnNonFirstItem_NavigatesPrevious()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult(CreateTestMenuBar(ctx, a => lastAction = a)),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Open File menu, go down to Open, then Up to New, press Enter
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Enter()  // Open File menu
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Down()   // Move to Open
+            .Up()     // Move back to New - should not close
+            .Enter()  // Activate New
+            .WaitUntil(s => !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "menu to close")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - "New" should have been activated
+        Assert.Equal("File > New", lastAction);
+    }
+    
+    [Fact]
     public async Task MenuItem_AcceleratorKey_ActivatesItem()
     {
         // Arrange
