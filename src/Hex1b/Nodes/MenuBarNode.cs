@@ -64,13 +64,14 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
         
-        // Alt+Key accelerators for each menu
+        // Alt+Key accelerators for each menu - these are GLOBAL bindings
+        // so they work regardless of focus (e.g., from a TextBox)
         foreach (var (menu, accel, _) in MenuAccelerators)
         {
             if (accel.HasValue)
             {
                 var accelerator = accel.Value;
-                bindings.Alt().Key(CharToHex1bKey(accelerator)).Action(ctx => OpenMenuByAccelerator(ctx, accelerator), $"Open {menu.Label}");
+                bindings.Alt().Key(CharToHex1bKey(accelerator)).Global().Action(ctx => OpenMenuByAccelerator(ctx, accelerator), $"Open {menu.Label}");
             }
         }
     }

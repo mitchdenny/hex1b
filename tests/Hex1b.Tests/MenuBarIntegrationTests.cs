@@ -1578,4 +1578,97 @@ public class MenuBarIntegrationTests
     }
     
     #endregion
+    
+    #region Global Bindings
+    
+    [Fact]
+    public async Task MenuBar_AltF_WorksWhenTextBoxFocused()
+    {
+        // Arrange - This tests global bindings: menu accelerators should work
+        // even when focus is on a TextBox (not on the menu bar)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                ctx.MenuBar(m => [
+                    m.Menu("&File", m => [
+                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New"),
+                        m.MenuItem("&Open").OnActivated(e => lastAction = "File > Open")
+                    ]),
+                    m.Menu("&Edit", m => [
+                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo")
+                    ])
+                ]),
+                // A TextBox that can receive focus
+                ctx.TextBox("Type here...")
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Tab to the TextBox, then press Alt+F
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Type here"), TimeSpan.FromSeconds(2), "menu bar and textbox to render")
+            .Tab()  // Move focus to the TextBox
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(100), "focus to move")
+            .Alt().Key(Hex1bKey.F)  // Global accelerator should still open File menu
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - File menu should be open
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
+        Assert.True(snapshot.ContainsText("Open"), "File menu item 'Open' should be visible");
+    }
+    
+    [Fact]
+    public async Task MenuBar_AltE_WorksWhenButtonFocused()
+    {
+        // Arrange - Alt+E should open Edit menu even when a Button is focused
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        var lastAction = "";
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                ctx.MenuBar(m => [
+                    m.Menu("&File", m => [
+                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New")
+                    ]),
+                    m.Menu("&Edit", m => [
+                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo"),
+                        m.MenuItem("&Redo").OnActivated(e => lastAction = "Edit > Redo")
+                    ])
+                ]),
+                // A Button that can receive focus
+                ctx.Button("Click Me").OnClick(e => lastAction = "Button clicked")
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Tab to the Button, then press Alt+E
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Click Me"), TimeSpan.FromSeconds(2), "menu bar and button to render")
+            .Tab()  // Move focus to the Button
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(100), "focus to move")
+            .Alt().Key(Hex1bKey.E)  // Global accelerator should open Edit menu
+            .WaitUntil(s => s.ContainsText("Undo") && s.ContainsText("Redo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Edit menu should be open
+        var snapshot = terminal.CreateSnapshot();
+        Assert.True(snapshot.ContainsText("Undo"), "Edit menu item 'Undo' should be visible");
+        Assert.True(snapshot.ContainsText("Redo"), "Edit menu item 'Redo' should be visible");
+    }
+    
+    #endregion
 }

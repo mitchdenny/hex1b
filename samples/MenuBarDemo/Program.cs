@@ -8,6 +8,15 @@ var documentName = "Untitled";
 var isModified = false;
 var recentDocuments = new List<string> { "Report.md", "Notes.txt", "Config.json", "README.md" };
 
+// Input control state
+var searchText = "";
+var notesText = "Enter your notes here...";
+var toggleOptions = new[] { "Off", "On" };
+var autoSaveIndex = 0;
+var wordWrapIndex = 1;
+var fontSizes = new[] { "Small", "Medium", "Large", "Extra Large" };
+var selectedFontSize = 1; // Medium
+
 var presentation = new ConsolePresentationAdapter(enableMouse: true);
 var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
 
@@ -120,18 +129,68 @@ await using var app = new Hex1bApp(ctx =>
                 content.Text($"  Document: {documentName}{(isModified ? " *" : "")}"),
                 content.Text($"  Last Action: {lastAction}"),
                 content.Text(""),
-                content.Text("  Keyboard Navigation:"),
-                content.Text("  • Alt+F/E/V/H - Open menu by accelerator"),
-                content.Text("  • ↑/↓ - Navigate menu items"),
-                content.Text("  • → - Open submenu"),
-                content.Text("  • ← - Close submenu"),
-                content.Text("  • Enter/Space - Activate item"),
-                content.Text("  • Escape - Close menu"),
+                
+                // Search box
+                content.HStack(row => [
+                    row.Text("  Search: "),
+                    row.TextBox(searchText)
+                        .FixedWidth(30)
+                        .OnTextChanged(e => searchText = e.NewText)
+                ]).FixedHeight(1),
+                
                 content.Text(""),
-                content.Text("  Mouse:"),
-                content.Text("  • Click menu to open"),
-                content.Text("  • Click item to activate"),
-                content.Text("  • Click outside to close"),
+                
+                // Options row with toggles
+                content.HStack(row => [
+                    row.Text("  "),
+                    row.ToggleSwitch(toggleOptions, autoSaveIndex)
+                        .OnSelectionChanged(e => { autoSaveIndex = e.SelectedIndex; lastAction = $"Auto-save: {toggleOptions[e.SelectedIndex]}"; }),
+                    row.Text(" Auto-save   "),
+                    row.ToggleSwitch(toggleOptions, wordWrapIndex)
+                        .OnSelectionChanged(e => { wordWrapIndex = e.SelectedIndex; lastAction = $"Word wrap: {toggleOptions[e.SelectedIndex]}"; }),
+                    row.Text(" Word wrap")
+                ]).FixedHeight(1),
+                
+                content.Text(""),
+                
+                // Notes text area
+                content.HStack(row => [
+                    row.Text("  Notes: "),
+                    row.TextBox(notesText)
+                        .FixedWidth(40)
+                        .OnTextChanged(e => { notesText = e.NewText; isModified = true; })
+                ]).FixedHeight(1),
+                
+                content.Text(""),
+                
+                // Picker control
+                content.HStack(row => [
+                    row.Text("  Font Size: "),
+                    row.Picker(fontSizes, selectedFontSize)
+                        .OnSelectionChanged(e => { selectedFontSize = e.SelectedIndex; lastAction = $"Font size: {fontSizes[e.SelectedIndex]}"; })
+                ]).FixedHeight(1),
+                
+                content.Text(""),
+                
+                // Action buttons
+                content.HStack(row => [
+                    row.Text("  "),
+                    row.Button("Save").OnClick(_ => { 
+                        isModified = false; 
+                        lastAction = $"Saved: {documentName}"; 
+                    }),
+                    row.Text(" "),
+                    row.Button("Clear").OnClick(_ => { 
+                        searchText = "";
+                        notesText = "";
+                        lastAction = "Cleared all fields"; 
+                    }),
+                    row.Text(" "),
+                    row.Button("Exit").OnClick(e => e.Context.RequestStop())
+                ]).FixedHeight(1),
+                
+                content.Text(""),
+                content.Text("  Keyboard: Tab to navigate, Enter/Space to activate"),
             ]),
             title: "Main Content"
         ).Fill(),

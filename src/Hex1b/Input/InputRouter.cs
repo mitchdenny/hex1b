@@ -19,13 +19,14 @@ public static class InputRouter
     /// Routes a key event through the node tree using layered chord tries.
     /// 
     /// Algorithm:
-    /// 1. Build path from root to focused node
-    /// 2. If mid-chord, validate path matches and continue chord
-    /// 3. Build tries from each node's bindings (focused first, root last)
-    /// 4. Search layers in order - first match wins
-    /// 5. If internal node matched, start/continue chord
-    /// 6. If leaf matched, execute action
-    /// 7. If no match, fall through to HandleInput on focused node, then bubble up
+    /// 1. Check global bindings first (from entire tree, evaluated regardless of focus)
+    /// 2. Build path from root to focused node
+    /// 3. If mid-chord, validate path matches and continue chord
+    /// 4. Build tries from each node's bindings (focused first, root last)
+    /// 5. Search layers in order - first match wins
+    /// 6. If internal node matched, start/continue chord
+    /// 7. If leaf matched, execute action
+    /// 8. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
     public static async Task<InputResult> RouteInputAsync(
         Hex1bNode root, 
@@ -38,6 +39,14 @@ public static class InputRouter
     {
         // Create the action context for this input routing
         var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard);
+        
+        // Check global bindings first (evaluated regardless of focus)
+        // Global bindings are collected from the entire tree
+        var globalResult = await TryHandleGlobalBindingsAsync(root, keyEvent, actionContext, state);
+        if (globalResult == InputResult.Handled)
+        {
+            return InputResult.Handled;
+        }
         
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
@@ -342,6 +351,146 @@ public static class InputRouter
         if (children.Count > 0)
         {
             BuildPathWithBindings(children[0], path);
+        }
+    }
+    
+    /// <summary>
+    /// Tries to handle input via global bindings collected from the entire tree.
+    /// Global bindings are checked before focus-based routing.
+    /// </summary>
+    private static async Task<InputResult> TryHandleGlobalBindingsAsync(
+        Hex1bNode root,
+        Hex1bKeyEvent keyEvent,
+        InputBindingActionContext actionContext,
+        InputRouterState state)
+    {
+        // Collect all global bindings from the entire tree
+        var globalBindings = new List<InputBinding>();
+        CollectGlobalBindings(root, globalBindings);
+        
+        if (globalBindings.Count == 0)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        // Build a trie from global bindings and check for a match
+        var trie = ChordTrie.Build(globalBindings);
+        var result = trie.Lookup(keyEvent);
+        
+        if (!result.IsNoMatch)
+        {
+            if (result.IsLeaf)
+            {
+                // Global binding matched - execute and done
+                await result.ExecuteAsync(actionContext);
+                state.Reset();
+                return InputResult.Handled;
+            }
+            
+            if (result.HasChildren)
+            {
+                // Global chord started - but we don't support global chords yet
+                // For now, treat as handled to prevent the key from being processed elsewhere
+                // TODO: Add support for global chords if needed
+                return InputResult.Handled;
+            }
+        }
+        
+        return InputResult.NotHandled;
+    }
+    
+    /// <summary>
+    /// Gets all currently registered global bindings from the tree.
+    /// Useful for checking conflicts during accelerator assignment.
+    /// </summary>
+    /// <param name="root">The root node of the tree.</param>
+    /// <param name="excludeNode">Optional node to exclude from collection (to avoid self-conflict).</param>
+    /// <returns>List of global bindings.</returns>
+    public static IReadOnlyList<InputBinding> GetGlobalBindings(Hex1bNode root, Hex1bNode? excludeNode = null)
+    {
+        var bindings = new List<InputBinding>();
+        CollectGlobalBindingsExcluding(root, bindings, excludeNode);
+        return bindings;
+    }
+    
+    /// <summary>
+    /// Checks if a global binding with the given key step already exists.
+    /// </summary>
+    public static bool IsGlobalBindingRegistered(Hex1bNode root, Hex1bKey key, Hex1bModifiers modifiers, Hex1bNode? excludeNode = null)
+    {
+        var bindings = GetGlobalBindings(root, excludeNode);
+        return bindings.Any(b => b.FirstStep.Key == key && b.FirstStep.Modifiers == modifiers);
+    }
+    
+    /// <summary>
+    /// Recursively collects global bindings, optionally excluding a node.
+    /// </summary>
+    private static void CollectGlobalBindingsExcluding(Hex1bNode node, List<InputBinding> bindings, Hex1bNode? excludeNode)
+    {
+        if (ReferenceEquals(node, excludeNode))
+        {
+            // Skip this node and its children
+            return;
+        }
+        
+        var builder = node.BuildBindings();
+        var nodeBindings = builder.Build();
+        
+        foreach (var binding in nodeBindings)
+        {
+            if (binding.IsGlobal)
+            {
+                binding.OwnerNode = node;
+                bindings.Add(binding);
+            }
+        }
+        
+        // Recurse into children
+        foreach (var child in node.GetChildren())
+        {
+            CollectGlobalBindingsExcluding(child, bindings, excludeNode);
+        }
+    }
+    
+    /// <summary>
+    /// Recursively collects all global bindings from the node tree.
+    /// Throws on conflict for first key step.
+    /// </summary>
+    private static void CollectGlobalBindings(Hex1bNode node, List<InputBinding> bindings)
+    {
+        var builder = node.BuildBindings();
+        var nodeBindings = builder.Build();
+        
+        foreach (var binding in nodeBindings)
+        {
+            if (binding.IsGlobal)
+            {
+                binding.OwnerNode = node;
+                
+                // Check for conflict with existing bindings
+                var firstStep = binding.FirstStep;
+                foreach (var existing in bindings)
+                {
+                    if (existing.FirstStep.Key == firstStep.Key && 
+                        existing.FirstStep.Modifiers == firstStep.Modifiers)
+                    {
+                        var ownerName = existing.OwnerNode?.GetType().Name ?? "unknown";
+                        var newOwnerName = node.GetType().Name;
+                        throw new InvalidOperationException(
+                            $"Global binding conflict: {firstStep} is already registered by {ownerName} " +
+                            $"('{existing.Description}'). Cannot register it again from {newOwnerName} " +
+                            $"('{binding.Description}'). Use .DisableAccelerator() or .Accelerator() to resolve.");
+                    }
+                }
+                
+                bindings.Add(binding);
+            }
+        }
+        
+        // Recurse into children
+        foreach (var child in node.GetChildren())
+        {
+            CollectGlobalBindings(child, bindings);
         }
     }
 }

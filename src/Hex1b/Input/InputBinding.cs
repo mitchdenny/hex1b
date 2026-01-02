@@ -1,5 +1,7 @@
 namespace Hex1b.Input;
 
+using Hex1b.Nodes;
+
 /// <summary>
 /// Represents a key binding that matches a sequence of key steps and executes an action.
 /// Supports both single-key bindings and multi-step chords.
@@ -24,10 +26,21 @@ public sealed class InputBinding
     public string? Description { get; }
 
     /// <summary>
+    /// Whether this binding is global (evaluated regardless of focus).
+    /// Global bindings are checked before focus-based routing.
+    /// </summary>
+    public bool IsGlobal { get; }
+
+    /// <summary>
+    /// The node that owns this binding (for conflict detection and debugging).
+    /// </summary>
+    public Hex1bNode? OwnerNode { get; internal set; }
+
+    /// <summary>
     /// Creates an input binding with a simple action handler (no context).
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Action action, string? description = null)
-        : this(steps, _ => { action(); return Task.CompletedTask; }, description)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action action, string? description = null, bool isGlobal = false)
+        : this(steps, _ => { action(); return Task.CompletedTask; }, description, isGlobal)
     {
         ArgumentNullException.ThrowIfNull(action);
     }
@@ -35,8 +48,8 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with a synchronous context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Action<InputBindingActionContext> action, string? description = null)
-        : this(steps, ctx => { action(ctx); return Task.CompletedTask; }, description)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action<InputBindingActionContext> action, string? description = null, bool isGlobal = false)
+        : this(steps, ctx => { action(ctx); return Task.CompletedTask; }, description, isGlobal)
     {
         ArgumentNullException.ThrowIfNull(action);
     }
@@ -44,7 +57,7 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with an async context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Func<InputBindingActionContext, Task> handler, string? description = null)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Func<InputBindingActionContext, Task> handler, string? description = null, bool isGlobal = false)
     {
         if (steps.Count == 0)
             throw new ArgumentException("At least one key step is required.", nameof(steps));
@@ -52,6 +65,7 @@ public sealed class InputBinding
         Steps = steps;
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
+        IsGlobal = isGlobal;
     }
 
     /// <summary>
