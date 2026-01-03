@@ -57,10 +57,10 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         public ValueTask FlushAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
-        public ValueTask EnterTuiModeAsync(CancellationToken ct = default)
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
-        public ValueTask ExitTuiModeAsync(CancellationToken ct = default)
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
         public ValueTask DisposeAsync()

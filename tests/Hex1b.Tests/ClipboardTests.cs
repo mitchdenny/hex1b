@@ -60,8 +60,8 @@ public class ClipboardTests
         }
 
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
-        public ValueTask EnterTuiModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
-        public ValueTask ExitTuiModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         
         // Helper to trigger events (not used in this test but required by interface)

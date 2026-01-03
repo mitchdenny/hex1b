@@ -16,14 +16,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private readonly bool _enableMouse;
     private readonly CancellationTokenSource _disposeCts = new();
     private bool _disposed;
-    private bool _inTuiMode;
-
-    private const string EnterAlternateBuffer = "\x1b[?1049h";
-    private const string ExitAlternateBuffer = "\x1b[?1049l";
-    private const string ClearScreen = "\x1b[2J";
-    private const string MoveCursorHome = "\x1b[H";
-    private const string HideCursor = "\x1b[?25l";
-    private const string ShowCursor = "\x1b[?25h";
+    private bool _inRawMode;
 
     /// <summary>
     /// Creates a new console presentation adapter with raw mode support.
@@ -121,61 +114,32 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     }
 
     /// <inheritdoc />
-    public ValueTask EnterTuiModeAsync(CancellationToken ct = default)
+    public ValueTask EnterRawModeAsync(CancellationToken ct = default)
     {
-        if (_inTuiMode) return ValueTask.CompletedTask;
-        _inTuiMode = true;
+        if (_inRawMode) return ValueTask.CompletedTask;
+        _inRawMode = true;
 
-        // Enter raw mode first
+        // Enter raw mode for proper input capture
+        // No escape sequences - screen mode is controlled by the workload
         _driver.EnterRawMode();
-
-        // Send escape sequences for TUI mode
-        var escapes = new StringBuilder();
-        escapes.Append(EnterAlternateBuffer);
-        escapes.Append(HideCursor);
-        if (_enableMouse)
-        {
-            escapes.Append(MouseParser.EnableMouseTracking);
-        }
-        escapes.Append(ClearScreen);
-        escapes.Append(MoveCursorHome);
-
-        _driver.Write(Encoding.UTF8.GetBytes(escapes.ToString()));
-        _driver.Flush();
 
         return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    public ValueTask ExitTuiModeAsync(CancellationToken ct = default)
+    public ValueTask ExitRawModeAsync(CancellationToken ct = default)
     {
-        if (!_inTuiMode) return ValueTask.CompletedTask;
-        _inTuiMode = false;
+        if (!_inRawMode) return ValueTask.CompletedTask;
+        _inRawMode = false;
 
-        // First, disable mouse tracking to stop new events from being sent
-        if (_enableMouse)
+        // Drain any pending input before exiting raw mode
+        for (int i = 0; i < 3; i++)
         {
-            _driver.Write(Encoding.UTF8.GetBytes(MouseParser.DisableMouseTracking));
-            _driver.Flush();
-            
-            // Drain input multiple times with delays to catch any in-flight mouse events
-            // Mouse events can still be arriving from the terminal after we send disable
-            for (int i = 0; i < 3; i++)
-            {
-                Thread.Sleep(20);
-                _driver.DrainInput();
-            }
+            Thread.Sleep(20);
+            _driver.DrainInput();
         }
 
-        // Now send the rest of the exit sequences
-        var escapes = new StringBuilder();
-        escapes.Append(ShowCursor);
-        escapes.Append(ExitAlternateBuffer);
-
-        _driver.Write(Encoding.UTF8.GetBytes(escapes.ToString()));
-        _driver.Flush();
-
-        // Exit raw mode last
+        // Exit raw mode
         _driver.ExitRawMode();
 
         return ValueTask.CompletedTask;
@@ -189,9 +153,9 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 
         Disconnected?.Invoke();
 
-        if (_inTuiMode)
+        if (_inRawMode)
         {
-            await ExitTuiModeAsync();
+            await ExitRawModeAsync();
         }
 
         _disposeCts.Cancel();

@@ -234,11 +234,11 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     private void Start()
     {
-        // Enter TUI mode on presentation if present (enables raw mode for input capture)
+        // Enter raw mode on presentation if present (enables proper input capture)
         if (_presentation != null)
         {
-            // Fire and forget - EnterTuiModeAsync is typically synchronous for console
-            _ = _presentation.EnterTuiModeAsync();
+            // Fire and forget - EnterRawModeAsync is typically synchronous for console
+            _ = _presentation.EnterRawModeAsync();
         }
 
         // Start pumping presentation input → workload (if presentation exists)
@@ -2411,11 +2411,11 @@ public sealed class Hex1bTerminal : IDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        // Exit TUI mode before disposing
+        // Exit raw mode before disposing
         if (_presentation != null)
         {
-            // Fire and forget - ExitTuiModeAsync is typically synchronous for console
-            _ = _presentation.ExitTuiModeAsync();
+            // Fire and forget - ExitRawModeAsync is typically synchronous for console
+            _ = _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;
         }
 
@@ -2436,8 +2436,8 @@ public sealed class Hex1bTerminal : IDisposable
 
         if (_presentation != null)
         {
-            // Exit TUI mode before disposing
-            await _presentation.ExitTuiModeAsync();
+            // Exit raw mode before disposing
+            await _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;
             await _presentation.DisposeAsync();
         }
