@@ -246,7 +246,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         if (_fileStream == null)
         {
             _fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
-            _writer = new StreamWriter(_fileStream, Encoding.UTF8, leaveOpen: false);
+            // Use UTF-8 without BOM - asciinema player doesn't handle BOM
+            _writer = new StreamWriter(_fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: false);
         }
         await Task.CompletedTask;
     }

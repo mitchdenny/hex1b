@@ -1651,4 +1651,206 @@ public class Hex1bTerminalChildProcessTests
         
         return condition(); // One final check
     }
+    
+    /// <summary>
+    /// Diagnostic test that launches bash (with profile disabled), starts tmux,
+    /// splits the screen with CTRL-B %, and captures the terminal state for debugging.
+    /// This test is designed to capture the internal terminal state after a tmux split
+    /// to help diagnose rendering glitches.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unix")]
+    [Trait("Category", "StressTest")]
+    [Trait("Category", "Diagnostic")]
+    public async Task Diagnostic_TmuxSplitScreen_CapturesTerminalState()
+    {
+        if (!IsUnix) return; // Unix-only test
+        
+        // Check if tmux is available
+        var tmuxPath = await RunCommandAsync("which", ["tmux"]);
+        if (string.IsNullOrWhiteSpace(tmuxPath) || !File.Exists(tmuxPath.Trim()))
+        {
+            // Skip if tmux is not installed
+            return;
+        }
+        
+        // Setup temp file for asciinema recording
+        var castFile = Path.Combine(Path.GetTempPath(), $"tmux_split_diag_{Guid.NewGuid()}.cast");
+        
+        try
+        {
+            // Launch interactive bash without user profile for predictable prompt
+            await using var process = new Hex1bTerminalChildProcess(
+                "/bin/bash",
+                ["--norc", "--noprofile"],
+                inheritEnvironment: true,
+                initialWidth: 120,
+                initialHeight: 40
+            );
+            
+            await process.StartAsync();
+            
+            // Create terminal options with Asciinema recorder
+            var options = new Hex1bTerminalOptions
+            {
+                Width = 120,
+                Height = 40,
+                WorkloadAdapter = process,
+                PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
+            };
+            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            {
+                Title = "Tmux Split Screen Diagnostic",
+                CaptureInput = true
+            });
+            
+            // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
+            using var terminal = new Hex1bTerminal(options);
+            
+            // Step 1: Wait for initial bash prompt
+            var promptFound = await WaitForConditionAsync(
+                () => terminal.CreateSnapshot().ContainsText("$") || 
+                      terminal.CreateSnapshot().ContainsText("#") ||
+                      terminal.CreateSnapshot().ContainsText(">"),
+                TimeSpan.FromSeconds(10),
+                TestContext.Current.CancellationToken
+            );
+            
+            if (!promptFound)
+            {
+                TestCaptureHelper.Capture(terminal, "tmux-diag-01-prompt-timeout");
+                await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-diag-prompt-timeout", TestContext.Current.CancellationToken);
+                Assert.Fail("Timed out waiting for initial bash prompt.");
+            }
+            
+            TestCaptureHelper.Capture(terminal, "tmux-diag-01-initial-prompt");
+            
+            // Step 2: Start tmux with a new session
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("tmux new-session -s diag_test\n"));
+            
+            // Wait for tmux to fully initialize - look for the status bar or a fresh prompt
+            await Task.Delay(2000, TestContext.Current.CancellationToken);
+            
+            // Capture tmux state after launch
+            TestCaptureHelper.Capture(terminal, "tmux-diag-02-tmux-started");
+            
+            // Debug output
+            var tmuxSnapshot = terminal.CreateSnapshot();
+            var fullText = tmuxSnapshot.GetScreenText();
+            TestContext.Current.TestOutputHelper?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
+            
+            // Step 3: Split pane vertically with Ctrl+B %
+            // Ctrl+B is the tmux prefix key (ASCII 0x02)
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B (tmux prefix)
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("%")); // Vertical split
+            
+            // Wait for the split to render
+            await Task.Delay(1500, TestContext.Current.CancellationToken);
+            
+            // Capture the split state
+            TestCaptureHelper.Capture(terminal, "tmux-diag-03-after-split");
+            
+            // Debug output after split
+            var splitSnapshot = terminal.CreateSnapshot();
+            var splitText = splitSnapshot.GetScreenText();
+            TestContext.Current.TestOutputHelper?.WriteLine($"After split, screen content (first 500 chars): {splitText[..Math.Min(500, splitText.Length)]}");
+            
+            // Dump raw screen buffer info for debugging
+            var buffer = terminal.GetScreenBuffer();
+            var diagnostics = new StringBuilder();
+            diagnostics.AppendLine($"Screen buffer dimensions: {buffer.GetLength(1)}x{buffer.GetLength(0)} (WxH)");
+            
+            // Check for vertical split line (tmux typically uses │ or | characters)
+            int splitLineCol = -1;
+            for (int x = 0; x < buffer.GetLength(1); x++)
+            {
+                var ch = buffer[0, x].Character;
+                if (ch == "│" || ch == "|" || ch == "┃")
+                {
+                    splitLineCol = x;
+                    break;
+                }
+            }
+            diagnostics.AppendLine($"Split line detected at column: {splitLineCol}");
+            
+            // Sample some cells around the middle of the screen
+            int midY = buffer.GetLength(0) / 2;
+            int midX = buffer.GetLength(1) / 2;
+            diagnostics.AppendLine($"Sample cells around center ({midX}, {midY}):");
+            for (int dx = -5; dx <= 5; dx++)
+            {
+                int x = Math.Clamp(midX + dx, 0, buffer.GetLength(1) - 1);
+                var cell = buffer[midY, x];
+                diagnostics.AppendLine($"  [{midY},{x}]: '{cell.Character}' Fg={cell.Foreground} Bg={cell.Background} Seq={cell.Sequence}");
+            }
+            
+            TestContext.Current.TestOutputHelper?.WriteLine(diagnostics.ToString());
+            
+            // Step 4: Take additional snapshots after waiting
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-diag-04-stable");
+            
+            // Step 5: Send some text to the right pane (which is now focused)
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("echo 'Right pane'\n"));
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-diag-05-after-echo-right");
+            
+            // Step 6: Switch to left pane and send text
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("\x1b[D")); // Left arrow
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("echo 'Left pane'\n"));
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-diag-06-after-echo-left");
+            
+            // Final snapshot after some activity
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+            TestCaptureHelper.Capture(terminal, "tmux-diag-07-final");
+            
+            // Cleanup: Kill tmux session
+            await process.WriteInputAsync(new byte[] { 0x02 }); // Ctrl+B
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes(":")); // Command mode
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("kill-session\n"));
+            
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            
+            // Exit bash
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
+            
+            // Wait for process to exit
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(exitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill();
+            }
+            
+            // Flush and capture the Asciinema recording
+            await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-diag", TestContext.Current.CancellationToken);
+            
+            // This test is primarily for diagnostic capture, not assertions
+            // If we got this far, the capture was successful
+            Assert.True(true, "Diagnostic capture completed successfully");
+        }
+        finally
+        {
+            // Cleanup temp file
+            try { File.Delete(castFile); } catch { }
+            
+            // Kill any orphaned tmux sessions
+            try
+            {
+                await RunCommandAsync("tmux", ["kill-session", "-t", "diag_test"]);
+            }
+            catch { }
+        }
+    }
 }
