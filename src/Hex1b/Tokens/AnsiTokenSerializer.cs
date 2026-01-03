@@ -41,6 +41,19 @@ public static class AnsiTokenSerializer
             ClearScreenToken clear => SerializeClearScreen(clear),
             ClearLineToken clear => SerializeClearLine(clear),
             ScrollRegionToken scroll => SerializeScrollRegion(scroll),
+            ScrollUpToken su => su.Count == 1 ? "\x1b[S" : $"\x1b[{su.Count}S",
+            ScrollDownToken sd => sd.Count == 1 ? "\x1b[T" : $"\x1b[{sd.Count}T",
+            InsertLinesToken il => il.Count == 1 ? "\x1b[L" : $"\x1b[{il.Count}L",
+            DeleteLinesToken dl => dl.Count == 1 ? "\x1b[M" : $"\x1b[{dl.Count}M",
+            InsertCharacterToken ich => ich.Count == 1 ? "\x1b[@" : $"\x1b[{ich.Count}@",
+            DeleteCharacterToken dch => dch.Count == 1 ? "\x1b[P" : $"\x1b[{dch.Count}P",
+            EraseCharacterToken ech => ech.Count == 1 ? "\x1b[X" : $"\x1b[{ech.Count}X",
+            RepeatCharacterToken rep => rep.Count == 1 ? "\x1b[b" : $"\x1b[{rep.Count}b",
+            IndexToken => "\x1bD",
+            ReverseIndexToken => "\x1bM",
+            CharacterSetToken cs => $"\x1b{(cs.Target == 0 ? '(' : ')')}{cs.Charset}",
+            KeypadModeToken kp => kp.Application ? "\x1b=" : "\x1b>",
+            LeftRightMarginToken lrm => SerializeLeftRightMargin(lrm),
             SaveCursorToken save => save.UseDec ? "\x1b" + "7" : "\x1b[s",
             RestoreCursorToken restore => restore.UseDec ? "\x1b" + "8" : "\x1b[u",
             PrivateModeToken pm => SerializePrivateMode(pm),
@@ -51,6 +64,14 @@ public static class AnsiTokenSerializer
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
+    }
+
+    private static string SerializeLeftRightMargin(LeftRightMarginToken token)
+    {
+        // ESC [ left ; right s (DECSLRM - Set Left Right Margins)
+        // Note: We always include both parameters to distinguish from SCOSC (save cursor)
+        // which is ESC [ s with no parameters
+        return $"\x1b[{token.Left};{token.Right}s";
     }
 
     private static string SerializeControlCharacter(ControlCharacterToken token)
@@ -73,7 +94,14 @@ public static class AnsiTokenSerializer
     private static string SerializeCursorPosition(CursorPositionToken token)
     {
         // ESC [ row ; col H
-        // Optimize for common cases
+        // If OriginalParams is set, use it to preserve exact original syntax
+        if (token.OriginalParams is not null)
+        {
+            if (string.IsNullOrEmpty(token.OriginalParams))
+                return "\x1b[H";
+            return $"\x1b[{token.OriginalParams}H";
+        }
+        // Fall back to computed form
         if (token.Row == 1 && token.Column == 1)
             return "\x1b[H";
         if (token.Column == 1)
@@ -143,11 +171,20 @@ public static class AnsiTokenSerializer
 
     private static string SerializeOsc(OscToken token)
     {
-        // ESC ] command ; params ; payload BEL
-        // Use BEL as terminator for better compatibility
-        // Format: ESC ] command ; params ; payload BEL
-        // For hyperlinks (command=8), empty params means: ESC ] 8 ; ; url BEL
-        return $"\x1b]{token.Command};{token.Parameters};{token.Payload}\x07";
+        // ESC ] command ; payload ST
+        // ESC ] command ; params ; payload ST  (with parameters, e.g. hyperlinks)
+        // Preserve original terminator style (ESC \ vs BEL)
+        var terminator = token.UseEscBackslash ? "\x1b\\" : "\x07";
+        if (string.IsNullOrEmpty(token.Parameters))
+        {
+            // Simple form without parameters
+            return $"\x1b]{token.Command};{token.Payload}{terminator}";
+        }
+        else
+        {
+            // With parameters (e.g., hyperlinks: ESC ] 8 ; params ; url ST)
+            return $"\x1b]{token.Command};{token.Parameters};{token.Payload}{terminator}";
+        }
     }
 
     private static string SerializeDcs(DcsToken token)

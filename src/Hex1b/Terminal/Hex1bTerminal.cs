@@ -85,6 +85,11 @@ public sealed class Hex1bTerminal : IDisposable
     private int _scrollTop; // Top margin (0 = first row)
     private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
     
+    // Left/Right margins (DECSLRM) - 0-based indices
+    private int _marginLeft; // Left margin (0 = first column)
+    private int _marginRight; // Right margin (width-1 = last column), initialized in constructor
+    private bool _declrmm; // DECLRMM mode (mode 69): when true, CSI s sets left/right margins instead of saving cursor
+    
     // Deferred wrap (standard terminal behavior): when writing to the last column,
     // wrap is deferred until the next printable character. CR/LF clear the pending wrap.
     private bool _pendingWrap;
@@ -166,6 +171,7 @@ public sealed class Hex1bTerminal : IDisposable
         
         _screenBuffer = new TerminalCell[_height, _width];
         _scrollBottom = _height - 1; // Default scroll region is full screen
+        _marginRight = _width - 1; // Default left/right margins are full screen
         
         ClearBuffer();
 
@@ -374,6 +380,40 @@ public sealed class Hex1bTerminal : IDisposable
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
                 
+                // DEBUG: Log unrecognized sequences
+                foreach (var token in tokens)
+                {
+                    if (token is UnrecognizedSequenceToken unrec)
+                    {
+                        var escaped = string.Join("", unrec.Sequence.Select(c => c < 32 || c == 127 ? $"\\x{(int)c:X2}" : c.ToString()));
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} Unrecognized: {escaped}\n");
+                    }
+                    else if (token is ScrollRegionToken sr)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} ScrollRegion: Top={sr.Top}, Bottom={sr.Bottom}\n");
+                    }
+                    else if (token is CursorPositionToken cp)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} CursorPos: Row={cp.Row}, Col={cp.Column}\n");
+                    }
+                    else if (token is InsertLinesToken il)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} InsertLines: {il.Count}\n");
+                    }
+                    else if (token is DeleteLinesToken dl)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} DeleteLines: {dl.Count}\n");
+                    }
+                    else if (token is LeftRightMarginToken lrm)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} LeftRightMargin: Left={lrm.Left}, Right={lrm.Right}\n");
+                    }
+                    else if (token is PrivateModeToken pm)
+                    {
+                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} PrivateMode: Mode={pm.Mode}, Enable={pm.Enable}\n");
+                    }
+                }
+                
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
@@ -383,12 +423,21 @@ public sealed class Hex1bTerminal : IDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
-                    // Pass through presentation filters, serialize and send
-                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
-                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
-                    
-                    await _presentation.WriteOutputAsync(filteredBytes);
+                    // If there are no presentation filters, pass through original bytes directly
+                    // to preserve exact escape sequence syntax
+                    if (_presentationFilters.Count == 0)
+                    {
+                        var originalBytes = Encoding.UTF8.GetBytes(completeText);
+                        await _presentation.WriteOutputAsync(originalBytes);
+                    }
+                    else
+                    {
+                        // Pass through presentation filters, serialize and send
+                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
+                        await _presentation.WriteOutputAsync(filteredBytes);
+                    }
                 }
             }
         }
@@ -763,6 +812,11 @@ public sealed class Hex1bTerminal : IDisposable
             _height = newHeight;
             _cursorX = Math.Min(_cursorX, newWidth - 1);
             _cursorY = Math.Min(_cursorY, newHeight - 1);
+            
+            // Reset margins on resize - this matches xterm behavior
+            _marginRight = newWidth - 1;
+            if (_marginLeft > _marginRight)
+                _marginLeft = 0;
         }
     }
 
@@ -1028,7 +1082,41 @@ public sealed class Hex1bTerminal : IDisposable
                     _originMode = privateModeToken.Enable;
                     // Setting origin mode also moves cursor to home position (within scroll region if enabled)
                     _pendingWrap = false;
-                    _cursorX = 0;
+                    _cursorX = _marginLeft;
+                    _cursorY = _originMode ? _scrollTop : 0;
+                }
+                else if (privateModeToken.Mode == 69)
+                {
+                    // DECLRMM - Left Right Margin Mode
+                    _declrmm = privateModeToken.Enable;
+                    if (!_declrmm)
+                    {
+                        // When disabled, reset margins to full screen
+                        _marginLeft = 0;
+                        _marginRight = _width - 1;
+                    }
+                }
+                break;
+            
+            case LeftRightMarginToken lrmToken:
+                // DECSLRM - Set Left Right Margins
+                // Only effective when DECLRMM (mode 69) is enabled
+                if (_declrmm)
+                {
+                    if (lrmToken.Right == 0)
+                    {
+                        // Reset to full screen width
+                        _marginLeft = 0;
+                        _marginRight = _width - 1;
+                    }
+                    else
+                    {
+                        _marginLeft = Math.Clamp(lrmToken.Left - 1, 0, _width - 1);
+                        _marginRight = Math.Clamp(lrmToken.Right - 1, _marginLeft, _width - 1);
+                    }
+                    // DECSLRM also moves cursor to home position
+                    _pendingWrap = false;
+                    _cursorX = _marginLeft;
                     _cursorY = _originMode ? _scrollTop : 0;
                 }
                 break;
@@ -1134,6 +1222,15 @@ public sealed class Hex1bTerminal : IDisposable
                 else
                     _cursorY--;
                 break;
+            
+            case CharacterSetToken:
+                // Character set selection - we pass through to presentation
+                // but don't need to track state for buffer purposes
+                break;
+            
+            case KeypadModeToken:
+                // Keypad mode - presentation-only, no buffer state
+                break;
                 
             case UnrecognizedSequenceToken:
                 // Ignore unrecognized sequences
@@ -1157,7 +1254,8 @@ public sealed class Hex1bTerminal : IDisposable
             if (_pendingWrap)
             {
                 _pendingWrap = false;
-                _cursorX = 0;
+                // When DECLRMM is enabled, wrap to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
                 _cursorY++;
             }
             
@@ -1167,6 +1265,9 @@ public sealed class Hex1bTerminal : IDisposable
                 ScrollUp();
                 _cursorY = _height - 1;
             }
+            
+            // Determine effective right margin for wrapping
+            int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
             
             if (_cursorX < _width && _cursorY < _height)
             {
@@ -1196,9 +1297,9 @@ public sealed class Hex1bTerminal : IDisposable
                 // When cursor reaches or exceeds the right margin, set pending wrap
                 // instead of immediately wrapping. The wrap will happen when the next
                 // printable character is written (or never, if CR/LF comes first).
-                if (_cursorX >= _width)
+                if (_cursorX > effectiveRightMargin)
                 {
-                    _cursorX = _width - 1; // Cursor stays at last column
+                    _cursorX = effectiveRightMargin; // Cursor stays at last column within margin
                     _pendingWrap = true;
                 }
             }
@@ -1219,7 +1320,8 @@ public sealed class Hex1bTerminal : IDisposable
                 // happens in the PTY/TTY kernel driver for cooked mode apps.
                 if (_newlineMode)
                 {
-                    _cursorX = 0;
+                    // When DECLRMM is enabled, CR goes to left margin
+                    _cursorX = _declrmm ? _marginLeft : 0;
                 }
                 
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
@@ -1235,9 +1337,10 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case '\r':
-                // CR clears pending wrap - moving to column 0 cancels any pending wrap
+                // CR clears pending wrap - moving to left margin cancels any pending wrap
                 _pendingWrap = false;
-                _cursorX = 0;
+                // When DECLRMM is enabled, CR moves to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
                 break;
                 
             case '\t':
@@ -1301,18 +1404,22 @@ public sealed class Hex1bTerminal : IDisposable
 
     private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
     {
+        // When DECLRMM is enabled, clear operations respect left/right margins
+        int effectiveLeft = _declrmm ? _marginLeft : 0;
+        int effectiveRight = _declrmm ? _marginRight : _width - 1;
+        
         switch (mode)
         {
             case ClearMode.ToEnd:
-                for (int x = _cursorX; x < _width; x++)
+                for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.ToStart:
-                for (int x = 0; x <= _cursorX && x < _width; x++)
+                for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.All:
-                for (int x = 0; x < _width; x++)
+                for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
         }
@@ -1610,8 +1717,12 @@ public sealed class Hex1bTerminal : IDisposable
     private void ScrollUp()
     {
         // Scroll up within the scroll region
+        // When DECLRMM is enabled, only scroll within left/right margins
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
         // First, release Sixel data from the top row of the region (being scrolled off)
-        for (int x = 0; x < _width; x++)
+        for (int x = leftCol; x <= rightCol; x++)
         {
             _screenBuffer[_scrollTop, x].TrackedSixel?.Release();
         }
@@ -1619,14 +1730,14 @@ public sealed class Hex1bTerminal : IDisposable
         // Shift rows up within the scroll region
         for (int y = _scrollTop; y < _scrollBottom; y++)
         {
-            for (int x = 0; x < _width; x++)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[y, x] = _screenBuffer[y + 1, x];
             }
         }
         
-        // Clear the bottom row of the scroll region
-        for (int x = 0; x < _width; x++)
+        // Clear the bottom row of the scroll region (within margins)
+        for (int x = leftCol; x <= rightCol; x++)
         {
             _screenBuffer[_scrollBottom, x] = TerminalCell.Empty;
         }
@@ -1635,8 +1746,12 @@ public sealed class Hex1bTerminal : IDisposable
     private void ScrollDown()
     {
         // Scroll down within the scroll region
+        // When DECLRMM is enabled, only scroll within left/right margins
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
         // First, release Sixel data from the bottom row of the region (being scrolled off)
-        for (int x = 0; x < _width; x++)
+        for (int x = leftCol; x <= rightCol; x++)
         {
             _screenBuffer[_scrollBottom, x].TrackedSixel?.Release();
         }
@@ -1644,14 +1759,14 @@ public sealed class Hex1bTerminal : IDisposable
         // Shift rows down within the scroll region
         for (int y = _scrollBottom; y > _scrollTop; y--)
         {
-            for (int x = 0; x < _width; x++)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[y, x] = _screenBuffer[y - 1, x];
             }
         }
         
-        // Clear the top row of the scroll region
-        for (int x = 0; x < _width; x++)
+        // Clear the top row of the scroll region (within margins)
+        for (int x = leftCol; x <= rightCol; x++)
         {
             _screenBuffer[_scrollTop, x] = TerminalCell.Empty;
         }
@@ -1661,13 +1776,16 @@ public sealed class Hex1bTerminal : IDisposable
     {
         // Insert blank lines at cursor position within scroll region
         // Lines pushed off the bottom of the scroll region are lost
+        // When DECLRMM is enabled, only affect columns within left/right margins
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
         
         for (int i = 0; i < count; i++)
         {
             // Release Sixel data from the bottom row of scroll region (being pushed off)
-            for (int x = 0; x < _width; x++)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[bottom, x].TrackedSixel?.Release();
             }
@@ -1675,14 +1793,14 @@ public sealed class Hex1bTerminal : IDisposable
             // Shift lines down from cursor position to bottom of scroll region
             for (int y = bottom; y > _cursorY; y--)
             {
-                for (int x = 0; x < _width; x++)
+                for (int x = leftCol; x <= rightCol; x++)
                 {
                     _screenBuffer[y, x] = _screenBuffer[y - 1, x];
                 }
             }
             
-            // Clear the line at cursor position
-            for (int x = 0; x < _width; x++)
+            // Clear the line at cursor position (within margins)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[_cursorY, x] = TerminalCell.Empty;
             }
@@ -1693,13 +1811,16 @@ public sealed class Hex1bTerminal : IDisposable
     {
         // Delete lines at cursor position within scroll region
         // Blank lines are inserted at the bottom of the scroll region
+        // When DECLRMM is enabled, only affect columns within left/right margins
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
         
         for (int i = 0; i < count; i++)
         {
             // Release Sixel data from the line being deleted
-            for (int x = 0; x < _width; x++)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[_cursorY, x].TrackedSixel?.Release();
             }
@@ -1707,14 +1828,14 @@ public sealed class Hex1bTerminal : IDisposable
             // Shift lines up from cursor position to bottom of scroll region
             for (int y = _cursorY; y < bottom; y++)
             {
-                for (int x = 0; x < _width; x++)
+                for (int x = leftCol; x <= rightCol; x++)
                 {
                     _screenBuffer[y, x] = _screenBuffer[y + 1, x];
                 }
             }
             
-            // Clear the bottom line of the scroll region
-            for (int x = 0; x < _width; x++)
+            // Clear the bottom line of the scroll region (within margins)
+            for (int x = leftCol; x <= rightCol; x++)
             {
                 _screenBuffer[bottom, x] = TerminalCell.Empty;
             }
@@ -1724,16 +1845,18 @@ public sealed class Hex1bTerminal : IDisposable
     private void DeleteCharacters(int count)
     {
         // Delete n characters at cursor, shifting remaining characters left
-        // Blank characters are inserted at the right edge
-        count = Math.Min(count, _width - _cursorX);
+        // Blank characters are inserted at the right margin
+        // When DECLRMM is enabled, operations are bounded by left/right margins
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
         
-        for (int x = _cursorX; x < _width - count; x++)
+        for (int x = _cursorX; x < rightEdge - count; x++)
         {
             _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x + count];
         }
         
         // Fill the right edge with blanks
-        for (int x = _width - count; x < _width; x++)
+        for (int x = rightEdge - count; x < rightEdge; x++)
         {
             _screenBuffer[_cursorY, x] = TerminalCell.Empty;
         }
@@ -1742,17 +1865,19 @@ public sealed class Hex1bTerminal : IDisposable
     private void InsertCharacters(int count)
     {
         // Insert n blank characters at cursor, shifting existing characters right
-        // Characters pushed off the right edge are lost
-        count = Math.Min(count, _width - _cursorX);
+        // Characters pushed off the right margin are lost
+        // When DECLRMM is enabled, operations are bounded by left/right margins
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
         
         // Shift characters right
-        for (int x = _width - 1; x >= _cursorX + count; x--)
+        for (int x = rightEdge - 1; x >= _cursorX + count; x--)
         {
             _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x - count];
         }
         
         // Insert blanks at cursor position
-        for (int x = _cursorX; x < _cursorX + count && x < _width; x++)
+        for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
         {
             _screenBuffer[_cursorY, x] = TerminalCell.Empty;
         }
@@ -1761,7 +1886,9 @@ public sealed class Hex1bTerminal : IDisposable
     private void EraseCharacters(int count)
     {
         // Erase n characters from cursor without moving cursor or shifting
-        count = Math.Min(count, _width - _cursorX);
+        // When DECLRMM is enabled, operations are bounded by right margin
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
         
         for (int x = _cursorX; x < _cursorX + count; x++)
         {
@@ -1777,13 +1904,17 @@ public sealed class Hex1bTerminal : IDisposable
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
         
+        // Determine effective right margin for wrapping
+        int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
+        
         for (int i = 0; i < count; i++)
         {
             // Handle deferred wrap
             if (_pendingWrap)
             {
                 _pendingWrap = false;
-                _cursorX = 0;
+                // When DECLRMM is enabled, wrap to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
                 _cursorY++;
             }
             
@@ -1822,9 +1953,9 @@ public sealed class Hex1bTerminal : IDisposable
                 _cursorX += graphemeWidth;
                 
                 // Handle pending wrap at right margin
-                if (_cursorX >= _width)
+                if (_cursorX > effectiveRightMargin)
                 {
-                    _cursorX = _width - 1;
+                    _cursorX = effectiveRightMargin;
                     _pendingWrap = true;
                 }
             }
@@ -2534,7 +2665,10 @@ public sealed class Hex1bTerminal : IDisposable
 
     private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, CancellationToken ct = default)
     {
-        if (_presentationFilters.Count == 0) return appliedTokens.Select(at => at.Token).ToList();
+        if (_presentationFilters.Count == 0)
+        {
+            return appliedTokens.Select(at => at.Token).ToList();
+        }
         var elapsed = GetElapsed();
         var currentAppliedTokens = appliedTokens;
         IReadOnlyList<AnsiToken> resultTokens = appliedTokens.Select(at => at.Token).ToList();
@@ -2642,7 +2776,13 @@ public sealed class Hex1bTerminal : IDisposable
             case 'N': // SS2
             case 'O': // SS3
             case 'Z': // DECID
+            case '=': // DECKPAM (application keypad)
+            case '>': // DECKPNM (normal keypad)
                 return true; // Two-character sequences are complete
+            
+            case '(': // G0 character set designation (ESC ( X)
+            case ')': // G1 character set designation (ESC ) X)
+                return seq.Length >= 3; // Need 3 characters total
                 
             default:
                 // Unknown sequence type - assume complete

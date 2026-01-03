@@ -76,6 +76,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         if (_disposed) return ValueTask.CompletedTask;
 
         _driver.Write(data.Span);
+        _driver.Flush();
         return ValueTask.CompletedTask;
     }
 

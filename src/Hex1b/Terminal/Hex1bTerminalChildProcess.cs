@@ -47,6 +47,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private bool _exited;
     private int _exitCode;
     private bool _disposed;
+    private readonly TaskCompletionSource _startedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     
     // Platform-specific PTY handle (will be implemented per-platform)
     private IPtyHandle? _ptyHandle;
@@ -139,7 +140,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="InvalidOperationException">The process has already been started.</exception>
     /// <exception cref="PlatformNotSupportedException">The current platform is not supported.</exception>
-    public Task StartAsync(CancellationToken ct = default)
+    public async Task StartAsync(CancellationToken ct = default)
     {
         if (_started)
             throw new InvalidOperationException("Process has already been started.");
@@ -156,7 +157,10 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         var env = BuildEnvironment();
         
         // Start the process
-        return _ptyHandle.StartAsync(_fileName, _arguments, _workingDirectory, env, _width, _height, ct);
+        await _ptyHandle.StartAsync(_fileName, _arguments, _workingDirectory, env, _width, _height, ct);
+        
+        // Signal that the process has started (allows ReadOutputAsync to proceed)
+        _startedTcs.TrySetResult();
     }
     
     /// <summary>
@@ -196,7 +200,10 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <inheritdoc />
     public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
     {
-        if (!_started || _disposed || _ptyHandle == null)
+        // Wait for process to start (allows terminal to be created before process starts)
+        await _startedTcs.Task.WaitAsync(ct);
+        
+        if (_disposed || _ptyHandle == null)
             return ReadOnlyMemory<byte>.Empty;
         
         try

@@ -17,21 +17,28 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     // termios c_lflag bits (these are consistent across platforms)
     private const uint ICANON = 0x00000002;  // Canonical mode
     private const uint ECHO   = 0x00000008;  // Echo input
+    private const uint ECHONL = 0x00000040;  // Echo NL even if ECHO is off
     private const uint ISIG   = 0x00000001;  // Enable signals (INTR, QUIT, SUSP)
     private const uint IEXTEN = 0x00008000;  // Extended input processing
     
-    // termios c_iflag bits
-    private const uint IXON   = 0x00000400;  // Enable XON/XOFF flow control
-    private const uint ICRNL  = 0x00000100;  // Map CR to NL
+    // termios c_iflag bits - these match cfmakeraw
+    private const uint IGNBRK = 0x00000001;  // Ignore BREAK condition
     private const uint BRKINT = 0x00000002;  // Signal on break
+    private const uint PARMRK = 0x00000008;  // Mark parity errors
     private const uint INPCK  = 0x00000010;  // Parity checking
     private const uint ISTRIP = 0x00000020;  // Strip 8th bit
+    private const uint INLCR  = 0x00000040;  // Map NL to CR
+    private const uint IGNCR  = 0x00000080;  // Ignore CR
+    private const uint ICRNL  = 0x00000100;  // Map CR to NL
+    private const uint IXON   = 0x00000400;  // Enable XON/XOFF flow control
     
     // termios c_oflag bits
     private const uint OPOST  = 0x00000001;  // Post-process output
     
     // termios c_cflag bits
-    private const uint CS8    = 0x00000300;  // 8-bit chars
+    private const uint CSIZE  = 0x00000030;  // Character size mask
+    private const uint PARENB = 0x00000100;  // Enable parity
+    private const uint CS8    = 0x00000030;  // 8-bit chars
     
     // tcsetattr actions
     private const int TCSAFLUSH = 2;  // Flush and set
@@ -100,20 +107,9 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
             throw new InvalidOperationException($"tcgetattr failed with errno {errno}");
         }
         
-        // Copy and modify for raw mode
+        // Copy and use cfmakeraw() directly - this is the canonical way and matches SimplePty
         var rawTermios = (byte[])_originalTermios.Clone();
-        
-        // Disable canonical mode, echo, and signal processing in c_lflag
-        ModifyFlag(rawTermios, LFLAG_OFFSET, ICANON | ECHO | ISIG | IEXTEN, clear: true);
-        
-        // Disable various input processing in c_iflag
-        ModifyFlag(rawTermios, IFLAG_OFFSET, IXON | ICRNL | BRKINT | INPCK | ISTRIP, clear: true);
-        
-        // Disable output processing in c_oflag
-        ModifyFlag(rawTermios, OFLAG_OFFSET, OPOST, clear: true);
-        
-        // Set 8-bit characters in c_cflag
-        ModifyFlag(rawTermios, CFLAG_OFFSET, CS8, clear: false);
+        cfmakeraw(rawTermios);
         
         result = tcsetattr(STDIN_FILENO, TCSAFLUSH, rawTermios);
         if (result != 0)
@@ -243,8 +239,9 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public void Flush()
     {
-        // stdout is typically line-buffered or unbuffered when connected to a terminal
-        // fsync would be overkill here, and we're bypassing stdio buffering anyway
+        // Ensure all output is transmitted to the terminal
+        // This can help with synchronization issues where output appears delayed
+        tcdrain(STDOUT_FILENO);
     }
     
     public void DrainInput()
@@ -296,6 +293,12 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     [DllImport("libc", SetLastError = true)]
     private static extern int tcsetattr(int fd, int actions, byte[] termios);
+    
+    [DllImport("libc", SetLastError = true)]
+    private static extern int tcdrain(int fd);
+    
+    [DllImport("libc", SetLastError = true)]
+    private static extern void cfmakeraw(byte[] termios);
     
     // P/Invoke declarations for direct I/O
     [DllImport("libc", SetLastError = true)]

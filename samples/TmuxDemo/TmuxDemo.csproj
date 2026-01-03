@@ -13,8 +13,8 @@
 
   <!-- Copy native PTY library for Linux -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-    <None Include="..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so" 
-          Condition="Exists('..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so')"
+    <None Include="..\..\src\Hex1b\native\libptyspawn.so" 
+          Condition="Exists('..\..\src\Hex1b\native\libptyspawn.so')"
           CopyToOutputDirectory="PreserveNewest" 
           Link="libptyspawn.so" />
   </ItemGroup>

@@ -13,8 +13,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     private int _childPid = -1;
     private bool _disposed;
     private readonly byte[] _readBuffer = new byte[4096];
-    private string _slaveName = string.Empty;
-    private bool _useNativeSpawn = true;
+    private readonly byte[] _readFds = new byte[128];
     
     public int ProcessId => _childPid;
     
@@ -27,241 +26,42 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         int height,
         CancellationToken ct)
     {
-        // Check if native library is available
-        _useNativeSpawn = IsNativeLibraryAvailable();
-        
-        if (_useNativeSpawn)
+        // Check if native library is available - it's REQUIRED for proper PTY operation
+        if (!IsNativeLibraryAvailable())
         {
-            await StartWithNativeSpawnAsync(fileName, arguments, workingDirectory, environment, width, height, ct);
-        }
-        else
-        {
-            await StartWithFallbackAsync(fileName, arguments, workingDirectory, environment, width, height, ct);
-        }
-    }
-    
-    /// <summary>
-    /// Uses native library for proper PTY spawning with setsid/TIOCSCTTY.
-    /// This is required for tmux, screen, and other programs that need a proper controlling terminal.
-    /// </summary>
-    private async Task StartWithNativeSpawnAsync(
-        string fileName,
-        string[] arguments,
-        string? workingDirectory,
-        Dictionary<string, string> environment,
-        int width,
-        int height,
-        CancellationToken ct)
-    {
-        // Allocate buffer for slave name
-        var slaveNameBuffer = new byte[256];
-        
-        // Open PTY using native library (handles posix_openpt, grantpt, unlockpt, ptsname)
-        var result = pty_open(out _masterFd, slaveNameBuffer, slaveNameBuffer.Length, width, height);
-        if (result < 0)
-        {
-            throw new InvalidOperationException($"pty_open failed with error: {Marshal.GetLastWin32Error()}");
+            throw new InvalidOperationException(
+                "Native ptyspawn library not found. This library is required for proper PTY operation. " +
+                "Programs like tmux and screen require a proper controlling terminal which can only be " +
+                "established via the native library. Please ensure libptyspawn.so (Linux) or " +
+                "libptyspawn.dylib (macOS) is in the application directory or a standard library path.");
         }
         
-        // Extract slave name from buffer
-        int nullIndex = Array.IndexOf(slaveNameBuffer, (byte)0);
-        _slaveName = System.Text.Encoding.UTF8.GetString(slaveNameBuffer, 0, nullIndex >= 0 ? nullIndex : slaveNameBuffer.Length);
-        
-        // Make master non-blocking for async reads
-        SetNonBlocking(_masterFd);
-        
-        // Resolve executable path
         string resolvedPath = ResolveExecutablePath(fileName);
         
-        // Build argv array: [program, arg1, arg2, ..., NULL]
-        var argv = new string[arguments.Length + 2];
-        argv[0] = resolvedPath;
-        for (int i = 0; i < arguments.Length; i++)
-        {
-            argv[i + 1] = arguments[i];
-        }
-        // Last element is implicitly null for P/Invoke
-        
-        // Build envp array if environment was customized
-        string[]? envp = null;
-        if (environment.Count > 0)
-        {
-            // Get current environment and merge with custom
-            var envDict = new Dictionary<string, string>();
-            foreach (var entry in System.Environment.GetEnvironmentVariables())
-            {
-                if (entry is System.Collections.DictionaryEntry de)
-                {
-                    envDict[de.Key?.ToString() ?? ""] = de.Value?.ToString() ?? "";
-                }
-            }
-            foreach (var (key, value) in environment)
-            {
-                envDict[key] = value;
-            }
-            
-            envp = new string[envDict.Count + 1];
-            int i = 0;
-            foreach (var (key, value) in envDict)
-            {
-                envp[i++] = $"{key}={value}";
-            }
-            // Last element is implicitly null
-        }
-        
-        // Spawn the child process with proper PTY setup
-        result = pty_spawn(
+        var result = pty_forkpty_shell(
             resolvedPath,
-            argv,
-            envp,
-            _slaveName,
             workingDirectory ?? System.Environment.CurrentDirectory,
+            width,
+            height,
+            out _masterFd,
             out _childPid);
-        
+
         if (result < 0)
         {
-            Close(_masterFd);
-            _masterFd = -1;
-            throw new InvalidOperationException($"pty_spawn failed with error: {Marshal.GetLastWin32Error()}");
+            throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
         }
         
         // Small delay to let child process initialize
         await Task.Delay(50, ct);
     }
     
-    /// <summary>
-    /// Fallback to managed PTY setup when native library is not available.
-    /// Note: This won't work correctly with tmux/screen.
-    /// </summary>
-    private async Task StartWithFallbackAsync(
-        string fileName,
-        string[] arguments,
-        string? workingDirectory,
-        Dictionary<string, string> environment,
-        int width,
-        int height,
-        CancellationToken ct)
-    {
-        // Create a pseudo-terminal using posix_openpt
-        _masterFd = PosixOpenPt(O_RDWR | O_NOCTTY);
-        if (_masterFd < 0)
-        {
-            throw new InvalidOperationException($"posix_openpt failed with error: {Marshal.GetLastWin32Error()}");
-        }
-        
-        // Grant access to the slave
-        if (Grantpt(_masterFd) < 0)
-        {
-            Close(_masterFd);
-            throw new InvalidOperationException($"grantpt failed with error: {Marshal.GetLastWin32Error()}");
-        }
-        
-        // Unlock the slave
-        if (Unlockpt(_masterFd) < 0)
-        {
-            Close(_masterFd);
-            throw new InvalidOperationException($"unlockpt failed with error: {Marshal.GetLastWin32Error()}");
-        }
-        
-        // Get slave device name
-        var slaveNamePtr = Ptsname(_masterFd);
-        if (slaveNamePtr == IntPtr.Zero)
-        {
-            Close(_masterFd);
-            throw new InvalidOperationException($"ptsname failed with error: {Marshal.GetLastWin32Error()}");
-        }
-        _slaveName = Marshal.PtrToStringAnsi(slaveNamePtr)!;
-        
-        // Set terminal size
-        Resize(width, height);
-        
-        // Make master non-blocking
-        SetNonBlocking(_masterFd);
-        
-        // Build argument list for the process
-        var allArgs = new List<string> { fileName };
-        allArgs.AddRange(arguments);
-        
-        // Create a temporary script file to launch the process with PTY attached
-        var tempScriptPath = Path.Combine(Path.GetTempPath(), $"hex1b_pty_{System.Environment.ProcessId}_{Guid.NewGuid():N}.sh");
-        
-        // Build argument array variable assignments for proper escaping
-        var argAssignments = new System.Text.StringBuilder();
-        for (int i = 0; i < allArgs.Count; i++)
-        {
-            argAssignments.AppendLine($"args[{i}]={EscapeShellArg(allArgs[i])}");
-        }
-        
-        // Note: This fallback doesn't use setsid/TIOCSCTTY, so tmux won't work properly
-        var scriptContent = $@"#!/bin/bash
-# Redirect stdio to the slave PTY
-exec < ""{_slaveName}"" > ""{_slaveName}"" 2>&1
-
-# Build args array
-declare -a args
-{argAssignments}
-
-# Execute the command
-exec ""${{args[@]}}""
-";
-        await File.WriteAllTextAsync(tempScriptPath, scriptContent, ct);
-        
-        // Make the script executable
-        Chmod(tempScriptPath, 0x1ED); // 0755
-
-        var startInfo = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = "/bin/bash",
-            Arguments = tempScriptPath,
-            UseShellExecute = false,
-            RedirectStandardInput = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
-            CreateNoWindow = true,
-            WorkingDirectory = workingDirectory ?? System.Environment.CurrentDirectory
-        };
-        
-        // Set environment variables
-        foreach (var (key, value) in environment)
-        {
-            startInfo.Environment[key] = value;
-        }
-        
-        var process = System.Diagnostics.Process.Start(startInfo);
-        if (process == null)
-        {
-            Close(_masterFd);
-            throw new InvalidOperationException("Failed to start process");
-        }
-        
-        _childPid = process.Id;
-        
-        // Clean up temp script after a delay
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(1000);
-            try { File.Delete(tempScriptPath); } catch { }
-        }, CancellationToken.None);
-        
-        // Small delay to let the child set up
-        await Task.Delay(50, ct);
-    }
-    
-    private static string EscapeShellArg(string arg)
-    {
-        // Escape single quotes by replacing ' with '\''
-        return "'" + arg.Replace("'", "'\\''") + "'";
-    }
-    
     private static string ResolveExecutablePath(string fileName)
     {
-        // If it's an absolute or relative path, return as-is
         if (fileName.Contains('/'))
         {
             return Path.GetFullPath(fileName);
         }
         
-        // Search PATH
         var pathEnv = System.Environment.GetEnvironmentVariable("PATH") ?? "";
         foreach (var dir in pathEnv.Split(':'))
         {
@@ -272,7 +72,6 @@ exec ""${{args[@]}}""
             }
         }
         
-        // Not found in PATH, return as-is and let execve fail with proper error
         return fileName;
     }
     
@@ -280,9 +79,6 @@ exec ""${{args[@]}}""
     {
         try
         {
-            // Try to call a simple function to verify library is loaded
-            var buffer = new byte[256];
-            // Just check if the function exists - don't actually call it
             return NativeLibrary.TryLoad("ptyspawn", typeof(UnixPtyHandle).Assembly, null, out _);
         }
         catch
@@ -296,56 +92,49 @@ exec ""${{args[@]}}""
         if (_masterFd < 0 || _disposed)
             return ReadOnlyMemory<byte>.Empty;
         
-        // Use poll to wait for data with cancellation support
-        while (!ct.IsCancellationRequested)
+        try
         {
-            var pollResult = await PollReadableAsync(_masterFd, 100, ct);
-            
-            if (pollResult < 0)
+            return await Task.Run(() =>
             {
-                // Error or hangup - but try one more read to drain any remaining data
-                var finalBytes = Read(_masterFd, _readBuffer, _readBuffer.Length);
-                if (finalBytes > 0)
+                while (!ct.IsCancellationRequested)
                 {
-                    var finalResult = new byte[finalBytes];
-                    Array.Copy(_readBuffer, finalResult, finalBytes);
-                    return finalResult;
+                    Array.Clear(_readFds);
+                    FD_SET(_masterFd, _readFds);
+                    
+                    int result = select(_masterFd + 1, _readFds, IntPtr.Zero, IntPtr.Zero, 100);
+                    
+                    if (result < 0)
+                    {
+                        int errno = Marshal.GetLastPInvokeError();
+                        if (errno == 4) continue; // EINTR
+                        return ReadOnlyMemory<byte>.Empty;
+                    }
+                    
+                    if (result == 0)
+                    {
+                        if (!IsChildRunning(_childPid))
+                            return ReadOnlyMemory<byte>.Empty;
+                        continue;
+                    }
+                    
+                    if (FD_ISSET(_masterFd, _readFds))
+                    {
+                        nint bytesRead = read(_masterFd, _readBuffer, (nuint)_readBuffer.Length);
+                        if (bytesRead <= 0)
+                            return ReadOnlyMemory<byte>.Empty;
+                        
+                        var resultBuf = new byte[bytesRead];
+                        Array.Copy(_readBuffer, resultBuf, (int)bytesRead);
+                        return new ReadOnlyMemory<byte>(resultBuf);
+                    }
                 }
                 return ReadOnlyMemory<byte>.Empty;
-            }
-            
-            if (pollResult > 0)
-            {
-                // Data available
-                var bytesRead = Read(_masterFd, _readBuffer, _readBuffer.Length);
-                
-                if (bytesRead <= 0)
-                {
-                    // EOF or error
-                    return ReadOnlyMemory<byte>.Empty;
-                }
-                
-                var result = new byte[bytesRead];
-                Array.Copy(_readBuffer, result, bytesRead);
-                return result;
-            }
-            
-            // Timeout - check if child is still alive
-            if (_childPid > 0 && !IsChildRunning(_childPid))
-            {
-                // Child exited - try to read any remaining buffered data
-                var remainingBytes = Read(_masterFd, _readBuffer, _readBuffer.Length);
-                if (remainingBytes > 0)
-                {
-                    var remainingResult = new byte[remainingBytes];
-                    Array.Copy(_readBuffer, remainingResult, remainingBytes);
-                    return remainingResult;
-                }
-                return ReadOnlyMemory<byte>.Empty;
-            }
+            }, ct);
         }
-        
-        return ReadOnlyMemory<byte>.Empty;
+        catch (OperationCanceledException)
+        {
+            return ReadOnlyMemory<byte>.Empty;
+        }
     }
     
     public ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
@@ -353,18 +142,47 @@ exec ""${{args[@]}}""
         if (_masterFd < 0 || _disposed || data.IsEmpty)
             return ValueTask.CompletedTask;
         
-        var span = data.Span;
-        var buffer = new byte[span.Length];
-        span.CopyTo(buffer);
-        
-        var written = Write(_masterFd, buffer, buffer.Length);
-        
-        if (written < 0)
+        try
         {
-            // Write error - process may have exited
+            var buffer = data.ToArray();
+            nint remaining = buffer.Length;
+            nint offset = 0;
+            
+            while (remaining > 0)
+            {
+                nint written = write(_masterFd, buffer, offset, remaining);
+                if (written < 0)
+                {
+                    int errno = Marshal.GetLastPInvokeError();
+                    if (errno == 4) continue; // EINTR
+                    break;
+                }
+                offset += written;
+                remaining -= written;
+            }
+        }
+        catch
+        {
+            // Write error - ignore
         }
         
         return ValueTask.CompletedTask;
+    }
+    
+    private static void FD_SET(int fd, byte[] fdset)
+    {
+        int index = fd / 8;
+        int bit = fd % 8;
+        if (index < fdset.Length)
+            fdset[index] |= (byte)(1 << bit);
+    }
+    
+    private static bool FD_ISSET(int fd, byte[] fdset)
+    {
+        int index = fd / 8;
+        int bit = fd % 8;
+        if (index >= fdset.Length) return false;
+        return (fdset[index] & (1 << bit)) != 0;
     }
     
     public void Resize(int width, int height)
@@ -372,29 +190,19 @@ exec ""${{args[@]}}""
         if (_masterFd < 0 || _disposed)
             return;
         
-        var winsize = new WinSize
-        {
-            ws_row = (ushort)height,
-            ws_col = (ushort)width,
-            ws_xpixel = 0,
-            ws_ypixel = 0
-        };
-        
-        _ = Ioctl(_masterFd, TIOCSWINSZ, ref winsize);
+        _ = pty_resize(_masterFd, width, height);
     }
     
-    public void Kill(int signal)
+    public void Kill(int signal = 15)
     {
         if (_childPid > 0 && IsChildRunning(_childPid))
         {
-            // Use kill() syscall to send signal to child process
             _ = KillProcess(_childPid, signal);
         }
     }
     
     private static bool IsChildRunning(int pid)
     {
-        // kill(pid, 0) checks if process exists without sending a signal
         return KillProcess(pid, 0) == 0;
     }
     
@@ -403,36 +211,19 @@ exec ""${{args[@]}}""
         if (_childPid <= 0)
             return -1;
         
-        // Poll for child exit
         while (!ct.IsCancellationRequested)
         {
-            if (_useNativeSpawn)
+            int status;
+            int result = pty_wait(_childPid, 100, out status);
+            if (result == 0)
             {
-                // Use native pty_wait with timeout
-                int status;
-                int result = pty_wait(_childPid, 100, out status);
-                if (result == 0)
-                {
-                    // Child exited
-                    return status;
-                }
-                else if (result < 0)
-                {
-                    // Error
-                    return -1;
-                }
-                // result == 1 means timeout, continue polling
+                return status;
             }
-            else
+            else if (result < 0)
             {
-                // Fallback: poll with kill(0)
-                if (!IsChildRunning(_childPid))
-                {
-                    // Child exited - we don't have exit code in this case
-                    return 0;
-                }
-                await Task.Delay(100, ct);
+                return -1;
             }
+            await Task.Delay(10, ct);
         }
         
         return -1;
@@ -447,27 +238,20 @@ exec ""${{args[@]}}""
         
         if (_masterFd >= 0)
         {
-            Close(_masterFd);
+            close(_masterFd);
             _masterFd = -1;
         }
         
-        // Kill child if still running and wait for it to die
         if (_childPid > 0 && IsChildRunning(_childPid))
         {
-            // Send SIGKILL (can't be ignored)
             _ = KillProcess(_childPid, SIGKILL);
             
-            // Wait briefly for process to terminate (up to 100ms)
             for (int i = 0; i < 10 && IsChildRunning(_childPid); i++)
             {
                 Thread.Sleep(10);
             }
             
-            // Reap the zombie process if using native spawn
-            if (_useNativeSpawn)
-            {
-                _ = pty_wait(_childPid, 100, out _);
-            }
+            _ = pty_wait(_childPid, 100, out _);
         }
         
         return ValueTask.CompletedTask;
@@ -475,18 +259,16 @@ exec ""${{args[@]}}""
     
     // === P/Invoke declarations ===
     
-    // Native ptyspawn library functions
-    [LibraryImport("ptyspawn", EntryPoint = "pty_open", SetLastError = true)]
-    private static partial int pty_open(out int masterFd, byte[] slaveName, int slaveNameLen, int width, int height);
+    private const int SIGKILL = 9;
     
-    [LibraryImport("ptyspawn", EntryPoint = "pty_spawn", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int pty_spawn(
-        string path,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] argv,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[]? envp,
-        string slaveName,
+    [LibraryImport("ptyspawn", EntryPoint = "pty_forkpty_shell", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int pty_forkpty_shell(
+        string shellPath,
         string workingDir,
-        out int pid);
+        int width,
+        int height,
+        out int masterFd,
+        out int childPid);
     
     [LibraryImport("ptyspawn", EntryPoint = "pty_wait", SetLastError = true)]
     private static partial int pty_wait(int pid, int timeoutMs, out int status);
@@ -494,112 +276,46 @@ exec ""${{args[@]}}""
     [LibraryImport("ptyspawn", EntryPoint = "pty_resize", SetLastError = true)]
     private static partial int pty_resize(int masterFd, int width, int height);
     
-    private const int SIGTERM = 15;
-    private const int SIGKILL = 9;
-    
-    // TIOCSWINSZ value differs between Linux and macOS
-    private static readonly nuint TIOCSWINSZ = OperatingSystem.IsMacOS() 
-        ? 0x80087467  // macOS
-        : 0x5414;     // Linux
-    
-    // O_RDWR and O_NOCTTY values
-    private const int O_RDWR = 2;
-    private static readonly int O_NOCTTY = OperatingSystem.IsMacOS() ? 0x20000 : 0x100;
+    [LibraryImport("libc", EntryPoint = "select", SetLastError = true)]
+    private static partial int select(int nfds, byte[] readfds, IntPtr writefds, IntPtr exceptfds, ref Timeval timeout);
     
     [StructLayout(LayoutKind.Sequential)]
-    private struct WinSize
+    private struct Timeval
     {
-        public ushort ws_row;
-        public ushort ws_col;
-        public ushort ws_xpixel;
-        public ushort ws_ypixel;
+        public long tv_sec;
+        public long tv_usec;
     }
     
-    // PTY functions
-    [LibraryImport("libc", EntryPoint = "posix_openpt", SetLastError = true)]
-    private static partial int PosixOpenPt(int flags);
-    
-    [LibraryImport("libc", EntryPoint = "grantpt", SetLastError = true)]
-    private static partial int Grantpt(int fd);
-    
-    [LibraryImport("libc", EntryPoint = "unlockpt", SetLastError = true)]
-    private static partial int Unlockpt(int fd);
-    
-    [LibraryImport("libc", EntryPoint = "ptsname", SetLastError = true)]
-    private static partial IntPtr Ptsname(int fd);
+    private static int select(int nfds, byte[] readfds, IntPtr writefds, IntPtr exceptfds, int timeoutMs)
+    {
+        var tv = new Timeval
+        {
+            tv_sec = timeoutMs / 1000,
+            tv_usec = (timeoutMs % 1000) * 1000
+        };
+        return select(nfds, readfds, writefds, exceptfds, ref tv);
+    }
     
     [LibraryImport("libc", EntryPoint = "read", SetLastError = true)]
-    private static partial nint Read(int fd, byte[] buf, nint count);
+    private static partial nint read(int fd, byte[] buf, nuint count);
     
-    [LibraryImport("libc", EntryPoint = "write", SetLastError = true)]
-    private static partial nint Write(int fd, byte[] buf, nint count);
-    
-    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
-    private static partial int Close(int fd);
-    
-    [LibraryImport("libc", EntryPoint = "ioctl", SetLastError = true)]
-    private static partial int Ioctl(int fd, nuint request, ref WinSize winsize);
-    
-    [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
-    private static partial int KillProcess(int pid, int sig);
-    
-    [LibraryImport("libc", EntryPoint = "chmod", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int Chmod(string path, int mode);
-    
-    [LibraryImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-    private static partial int Fcntl(int fd, int cmd, int arg);
-    
-    [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)]
-    private static partial int Poll(ref PollFd fds, nuint nfds, int timeout);
-    
-    [StructLayout(LayoutKind.Sequential)]
-    private struct PollFd
+    private static nint write(int fd, byte[] buf, nint offset, nint count)
     {
-        public int fd;
-        public short events;
-        public short revents;
-    }
-    
-    private const short POLLIN = 0x0001;
-    private const short POLLHUP = 0x0010;
-    private const short POLLERR = 0x0008;
-    
-    private const int F_GETFL = 3;
-    private const int F_SETFL = 4;
-    private static readonly int O_NONBLOCK = OperatingSystem.IsMacOS() ? 0x0004 : 0x800;
-    
-    private static void SetNonBlocking(int fd)
-    {
-        var flags = Fcntl(fd, F_GETFL, 0);
-        if (flags >= 0)
+        unsafe
         {
-            _ = Fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+            fixed (byte* ptr = buf)
+            {
+                return writePtr(fd, ptr + offset, (nuint)count);
+            }
         }
     }
     
-    private static Task<int> PollReadableAsync(int fd, int timeoutMs, CancellationToken ct)
-    {
-        return Task.Run(() =>
-        {
-            var pollFd = new PollFd
-            {
-                fd = fd,
-                events = POLLIN,
-                revents = 0
-            };
-            
-            var result = Poll(ref pollFd, 1, timeoutMs);
-            
-            if (result < 0)
-                return -1;
-            
-            if ((pollFd.revents & POLLHUP) != 0 || (pollFd.revents & POLLERR) != 0)
-                return -1;
-            
-            if ((pollFd.revents & POLLIN) != 0)
-                return 1;
-            
-            return 0;  // Timeout
-        }, ct);
-    }
+    [LibraryImport("libc", EntryPoint = "write", SetLastError = true)]
+    private static unsafe partial nint writePtr(int fd, byte* buf, nuint count);
+    
+    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
+    private static partial int close(int fd);
+    
+    [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
+    private static partial int KillProcess(int pid, int sig);
 }

@@ -24,10 +24,10 @@ public static class AnsiTokenizer
         while (i < text.Length)
         {
             // Check for OSC sequence (ESC ] or 0x9D)
-            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload))
+            if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload, out var oscUseEscBackslash))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                tokens.Add(new OscToken(oscCommand, oscParams, oscPayload));
+                tokens.Add(new OscToken(oscCommand, oscParams, oscPayload, oscUseEscBackslash));
                 i += oscConsumed;
             }
             // Check for APC sequence (ESC _ or 0x9F) - used for frame boundaries
@@ -82,6 +82,34 @@ public static class AnsiTokenizer
             {
                 FlushTextToken(text, ref textStart, i, tokens);
                 tokens.Add(ReverseIndexToken.Instance);
+                i += 2;
+            }
+            // Check for G0 character set designation (ESC ( X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '(' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(0, text[i + 2]));
+                i += 3;
+            }
+            // Check for G1 character set designation (ESC ) X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == ')' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(1, text[i + 2]));
+                i += 3;
+            }
+            // Check for Application Keypad Mode (ESC =)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '=')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(KeypadModeToken.ApplicationMode);
+                i += 2;
+            }
+            // Check for Normal Keypad Mode (ESC >)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '>')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(KeypadModeToken.NormalMode);
                 i += 2;
             }
             // Check for control characters
@@ -228,8 +256,22 @@ public static class AnsiTokenizer
                 break;
 
             case 's':
-                // ANSI save cursor
-                tokens.Add(SaveCursorToken.Ansi);
+                // CSI s with no parameters = ANSI save cursor (SCOSC)
+                // CSI left ; right s = DECSLRM (Set Left Right Margins) when DECLRMM is enabled
+                // We emit LeftRightMarginToken when parameters are present; the terminal
+                // decides whether to interpret it based on DECLRMM state
+                if (string.IsNullOrEmpty(parameters))
+                {
+                    tokens.Add(SaveCursorToken.Ansi);
+                }
+                else
+                {
+                    // Parse as potential DECSLRM
+                    var marginParts = parameters.Split(';');
+                    var left = marginParts.Length > 0 && int.TryParse(marginParts[0], out var l) ? l : 1;
+                    var right = marginParts.Length > 1 && int.TryParse(marginParts[1], out var r) ? r : 0;
+                    tokens.Add(new LeftRightMarginToken(left, right));
+                }
                 break;
 
             case 'u':
@@ -332,7 +374,7 @@ public static class AnsiTokenizer
     {
         if (string.IsNullOrEmpty(parameters))
         {
-            tokens.Add(new CursorPositionToken(1, 1));
+            tokens.Add(new CursorPositionToken(1, 1, parameters));
             return;
         }
 
@@ -344,7 +386,7 @@ public static class AnsiTokenizer
         if (parts.Length >= 2 && int.TryParse(parts[1], out var c))
             col = c;
 
-        tokens.Add(new CursorPositionToken(row, col));
+        tokens.Add(new CursorPositionToken(row, col, parameters));
     }
 
     private static void ParseClearScreen(string parameters, List<AnsiToken> tokens)
@@ -435,12 +477,13 @@ public static class AnsiTokenizer
         }
     }
 
-    private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload)
+    private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload, out bool useEscBackslash)
     {
         consumed = 0;
         command = "";
         parameters = "";
         payload = "";
+        useEscBackslash = false;
 
         // Check for OSC start: ESC ] (0x1b 0x5d) or 0x9D
         bool isOscStart = false;
@@ -469,6 +512,7 @@ public static class AnsiTokenizer
             {
                 dataEnd = j;
                 stLength = 2; // ESC \
+                useEscBackslash = true;
                 break;
             }
             else if (text[j] == '\x07')
