@@ -311,7 +311,7 @@ public class MenuBarIntegrationTests
     }
     
     /// <summary>
-    /// Checks if a menu item is selected by verifying it has the focused background color (white).
+    /// Checks if a menu item is selected by verifying it has the focused background color (black).
     /// </summary>
     private static bool IsMenuItemSelected(IHex1bTerminalRegion snapshot, string itemText)
     {
@@ -320,16 +320,16 @@ public class MenuBarIntegrationTests
         if (positions.Count == 0)
             return false;
         
-        // Check the first occurrence - the first character should have white background
+        // Check the first occurrence - the first character should have black background (focused)
         var (line, column) = positions[0];
         var cell = snapshot.GetCell(column, line);
         
-        // The focused menu item should have white background (Hex1bColor.White = RGB 255,255,255)
+        // The focused menu item should have black background (MenuItemTheme.FocusedBackgroundColor = Hex1bColor.Black = RGB 0,0,0)
         if (cell.Background is not null)
         {
-            return cell.Background.Value.R == 255 && 
-                   cell.Background.Value.G == 255 && 
-                   cell.Background.Value.B == 255;
+            return cell.Background.Value.R == 0 && 
+                   cell.Background.Value.G == 0 && 
+                   cell.Background.Value.B == 0;
         }
         
         return false;
