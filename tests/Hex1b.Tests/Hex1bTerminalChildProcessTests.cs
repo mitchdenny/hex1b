@@ -511,7 +511,7 @@ public class Hex1bTerminalChildProcessTests
     /// application that uses advanced terminal features (Unicode, 256 color, cursor positioning).
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Stress test - run manually for visual validation")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     public async Task StressTest_MapsciiViaInteractiveBash()
@@ -747,7 +747,7 @@ public class Hex1bTerminalChildProcessTests
     /// braille graphs, cursor positioning).
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Stress test - run manually for visual validation")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     public async Task StressTest_BtopViaInteractiveBash()
@@ -882,7 +882,7 @@ public class Hex1bTerminalChildProcessTests
     /// Exercises cursor movement, Unicode art, and proper process termination handling.
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Stress test - run manually for visual validation")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     public async Task StressTest_SlSteamLocomotive()
@@ -1005,7 +1005,7 @@ public class Hex1bTerminalChildProcessTests
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// Requires Docker to be installed and running.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Stress test - run manually for visual validation")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     [Trait("Category", "Docker")]
@@ -1251,7 +1251,7 @@ public class Hex1bTerminalChildProcessTests
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// Requires: tmux, telnet (for mapscii), docker (for globe), and git.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Stress test - run manually for visual validation")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     [Trait("Category", "Docker")]

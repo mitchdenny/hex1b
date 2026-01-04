@@ -100,7 +100,7 @@ jobs:
           path: src/Hex1b/Terminal/runtimes/linux-arm64/native/libhex1binterop.so
 
   build-native-osx-x64:
-    runs-on: macos-13
+    runs-on: macos-15-large
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,7 +116,7 @@ jobs:
           path: src/Hex1b/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib
 
   build-native-osx-arm64:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
