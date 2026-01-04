@@ -99,21 +99,22 @@ jobs:
           name: native-linux-arm64
           path: src/Hex1b/Terminal/runtimes/linux-arm64/native/libhex1binterop.so
 
-  build-native-osx-x64:
-    runs-on: macos-15-large
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build native library
-        working-directory: src/Hex1b/Terminal/native
-        run: make
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-osx-x64
-          path: src/Hex1b/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib
+  # Disabled: macos-15-large (x64) runner has availability issues
+  # build-native-osx-x64:
+  #   runs-on: macos-15-large
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Build native library
+  #       working-directory: src/Hex1b/Terminal/native
+  #       run: make
+  #
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: native-osx-x64
+  #         path: src/Hex1b/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib
 
   build-native-osx-arm64:
     runs-on: macos-15
@@ -133,7 +134,7 @@ jobs:
 
   build-pr:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64]
+    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -199,7 +200,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64]
+    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -229,11 +230,7 @@ jobs:
           name: native-linux-arm64
           path: src/Hex1b/Terminal/runtimes/linux-arm64/native
 
-      - name: Download native library - osx-x64
-        uses: actions/download-artifact@v4
-        with:
-          name: native-osx-x64
-          path: src/Hex1b/Terminal/runtimes/osx-x64/native
+      # osx-x64 disabled due to runner availability issues
 
       - name: Download native library - osx-arm64
         uses: actions/download-artifact@v4
