@@ -341,7 +341,7 @@ public sealed class Hex1bTerminal : IDisposable
             // Normal shutdown
         }
     }
-
+    
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
         try
@@ -349,6 +349,7 @@ public sealed class Hex1bTerminal : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 var data = await _workload.ReadOutputAsync(ct);
+                
                 if (data.IsEmpty)
                 {
                     // Channel empty - this is a frame boundary
@@ -356,6 +357,14 @@ public sealed class Hex1bTerminal : IDisposable
                     
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);
+                    continue;
+                }
+                
+                // FAST PATH: If no filters are active, bypass all tokenization and pass bytes directly
+                // This is crucial for programs like tmux that are sensitive to output timing
+                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 && _presentation != null)
+                {
+                    await _presentation.WriteOutputAsync(data, ct);
                     continue;
                 }
 
@@ -379,40 +388,6 @@ public sealed class Hex1bTerminal : IDisposable
                 
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
-                
-                // DEBUG: Log unrecognized sequences
-                foreach (var token in tokens)
-                {
-                    if (token is UnrecognizedSequenceToken unrec)
-                    {
-                        var escaped = string.Join("", unrec.Sequence.Select(c => c < 32 || c == 127 ? $"\\x{(int)c:X2}" : c.ToString()));
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} Unrecognized: {escaped}\n");
-                    }
-                    else if (token is ScrollRegionToken sr)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} ScrollRegion: Top={sr.Top}, Bottom={sr.Bottom}\n");
-                    }
-                    else if (token is CursorPositionToken cp)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} CursorPos: Row={cp.Row}, Col={cp.Column}\n");
-                    }
-                    else if (token is InsertLinesToken il)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} InsertLines: {il.Count}\n");
-                    }
-                    else if (token is DeleteLinesToken dl)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} DeleteLines: {dl.Count}\n");
-                    }
-                    else if (token is LeftRightMarginToken lrm)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} LeftRightMargin: Left={lrm.Left}, Right={lrm.Right}\n");
-                    }
-                    else if (token is PrivateModeToken pm)
-                    {
-                        File.AppendAllText("/tmp/hex1b_unrecognized.log", $"{DateTime.Now:HH:mm:ss.fff} PrivateMode: Mode={pm.Mode}, Enable={pm.Enable}\n");
-                    }
-                }
                 
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);

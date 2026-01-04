@@ -3,7 +3,7 @@ using Hex1b.Terminal.Automation;
 
 if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
 {
-    Console.WriteLine("This demo requires Linux or macOS.");
+    await Console.Error.WriteLineAsync("This demo requires Linux or macOS.");
     return 1;
 }
 
@@ -19,7 +19,7 @@ if (File.Exists(castFile))
 
 try
 {
-    // Launch bash with profile disabled
+    // Launch bash
     await using var process = new Hex1bTerminalChildProcess(
         "/bin/bash",
         ["--norc", "--noprofile"],
@@ -49,13 +49,10 @@ try
     using var terminal = new Hex1bTerminal(terminalOptions);
     await process.StartAsync();
     
-    // Wait for user to exit
-    var cts = new CancellationTokenSource();
-    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-    
+    // Wait for process to exit
     try
     {
-        await process.WaitForExitAsync(cts.Token);
+        await process.WaitForExitAsync(CancellationToken.None);
     }
     catch (OperationCanceledException)
     {
@@ -66,9 +63,8 @@ try
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"Error: {ex.Message}");
+    await Console.Error.WriteLineAsync($"Error: {ex.Message}");
     return 1;
 }
 
 return 0;
-

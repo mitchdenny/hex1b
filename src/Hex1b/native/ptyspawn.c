@@ -40,11 +40,37 @@ int pty_forkpty_shell(const char *shell_path, const char *working_dir,
         .ws_ypixel = 0
     };
     
-    // Pass NULL for termios - let the PTY get default cooked mode settings
-    // This ensures echo is enabled and the shell works properly, even if
-    // the parent process is in raw mode
+    // Get default terminal settings, then disable OPOST (output processing).
+    // This prevents LF->CRLF conversion which interferes with cursor positioning.
+    // We keep ECHO and ICANON enabled so shells and tmux work properly.
+    struct termios termios;
+    memset(&termios, 0, sizeof(termios));
+    
+    // Start with sane defaults
+    termios.c_iflag = ICRNL | IXON;           // CR->NL on input, enable XON/XOFF
+    termios.c_oflag = 0;                       // DISABLE output processing (no OPOST/ONLCR)
+    termios.c_cflag = CS8 | CREAD | CLOCAL;   // 8-bit chars, enable receiver, ignore modem
+    termios.c_lflag = ECHO | ECHOE | ECHOK | ICANON | ISIG | IEXTEN;  // Normal input processing
+    
+    // Control characters
+    termios.c_cc[VEOF] = 4;     // Ctrl+D
+    termios.c_cc[VEOL] = 0;
+    termios.c_cc[VERASE] = 127; // Backspace
+    termios.c_cc[VINTR] = 3;    // Ctrl+C
+    termios.c_cc[VKILL] = 21;   // Ctrl+U
+    termios.c_cc[VMIN] = 1;
+    termios.c_cc[VQUIT] = 28;   // Ctrl+backslash
+    termios.c_cc[VSTART] = 17;  // Ctrl+Q
+    termios.c_cc[VSTOP] = 19;   // Ctrl+S
+    termios.c_cc[VSUSP] = 26;   // Ctrl+Z
+    termios.c_cc[VTIME] = 0;
+    
+    // Set baud rate (required on some systems)
+    cfsetispeed(&termios, B38400);
+    cfsetospeed(&termios, B38400);
+    
     int master;
-    pid_t pid = forkpty(&master, NULL, NULL, &ws);
+    pid_t pid = forkpty(&master, NULL, &termios, &ws);
     
     if (pid < 0) {
         return -1;
@@ -93,11 +119,34 @@ int pty_forkpty_spawn(const char *path, char *const argv[], char *const envp[],
         .ws_ypixel = 0
     };
     
-    // Pass NULL for termios - let the PTY get default cooked mode settings
-    // This ensures echo is enabled and the shell works properly, even if
-    // the parent process is in raw mode
+    // Get default terminal settings, then disable OPOST (output processing).
+    // This prevents LF->CRLF conversion which interferes with cursor positioning.
+    // We keep ECHO and ICANON enabled so shells and tmux work properly.
+    struct termios termios;
+    memset(&termios, 0, sizeof(termios));
+    
+    termios.c_iflag = ICRNL | IXON;
+    termios.c_oflag = 0;  // DISABLE output processing
+    termios.c_cflag = CS8 | CREAD | CLOCAL;
+    termios.c_lflag = ECHO | ECHOE | ECHOK | ICANON | ISIG | IEXTEN;
+    
+    termios.c_cc[VEOF] = 4;
+    termios.c_cc[VEOL] = 0;
+    termios.c_cc[VERASE] = 127;
+    termios.c_cc[VINTR] = 3;
+    termios.c_cc[VKILL] = 21;
+    termios.c_cc[VMIN] = 1;
+    termios.c_cc[VQUIT] = 28;
+    termios.c_cc[VSTART] = 17;
+    termios.c_cc[VSTOP] = 19;
+    termios.c_cc[VSUSP] = 26;
+    termios.c_cc[VTIME] = 0;
+    
+    cfsetispeed(&termios, B38400);
+    cfsetospeed(&termios, B38400);
+    
     int master;
-    pid_t pid = forkpty(&master, NULL, NULL, &ws);
+    pid_t pid = forkpty(&master, NULL, &termios, &ws);
     
     if (pid < 0) {
         return -1;

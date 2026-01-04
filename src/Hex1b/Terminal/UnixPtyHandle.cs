@@ -125,6 +125,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
                         
                         var resultBuf = new byte[bytesRead];
                         Array.Copy(_readBuffer, resultBuf, (int)bytesRead);
+                        
                         return new ReadOnlyMemory<byte>(resultBuf);
                     }
                 }

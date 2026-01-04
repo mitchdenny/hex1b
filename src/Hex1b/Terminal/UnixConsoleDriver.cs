@@ -98,7 +98,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     {
         if (_inRawMode) return;
         
-        // Get current termios settings
+        // Get current termios settings for stdin
         _originalTermios = new byte[TERMIOS_SIZE];
         var result = tcgetattr(STDIN_FILENO, _originalTermios);
         if (result != 0)
@@ -108,29 +108,42 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         }
         
         // Copy and use cfmakeraw() directly - this is the canonical way and matches SimplePty
+        // cfmakeraw() clears OPOST which disables output post-processing (no LF->CRLF conversion)
         var rawTermios = (byte[])_originalTermios.Clone();
         cfmakeraw(rawTermios);
         
+        // Apply to stdin (for input handling)
         result = tcsetattr(STDIN_FILENO, TCSAFLUSH, rawTermios);
         if (result != 0)
         {
             var errno = Marshal.GetLastPInvokeError();
-            throw new InvalidOperationException($"tcsetattr failed with errno {errno}");
+            throw new InvalidOperationException($"tcsetattr on STDIN failed with errno {errno}");
+        }
+        
+        // Also apply to stdout to ensure OPOST is disabled for output
+        // This ensures LF bytes pass through unchanged (no ONLCR conversion)
+        result = tcsetattr(STDOUT_FILENO, TCSAFLUSH, rawTermios);
+        if (result != 0)
+        {
+            var errno = Marshal.GetLastPInvokeError();
+            throw new InvalidOperationException($"tcsetattr on STDOUT failed with errno {errno}");
         }
         
         _inRawMode = true;
         
-        // Also disable Ctrl+C handling at .NET level
-        Console.TreatControlCAsInput = true;
+        // NOTE: Do NOT use Console.TreatControlCAsInput here!
+        // Setting this property corrupts the terminal state and breaks programs like tmux.
+        // cfmakeraw() already disables ISIG, so Ctrl+C comes through as raw 0x03 byte.
     }
     
     public void ExitRawMode()
     {
         if (!_inRawMode || _originalTermios == null) return;
         
+        // Restore original termios settings for both stdin and stdout
         tcsetattr(STDIN_FILENO, TCSAFLUSH, _originalTermios);
+        tcsetattr(STDOUT_FILENO, TCSAFLUSH, _originalTermios);
         _inRawMode = false;
-        Console.TreatControlCAsInput = false;
     }
     
     private static void ModifyFlag(byte[] termios, int offset, uint flag, bool clear)
@@ -239,9 +252,10 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public void Flush()
     {
-        // Ensure all output is transmitted to the terminal
-        // This can help with synchronization issues where output appears delayed
-        tcdrain(STDOUT_FILENO);
+        // NOTE: Previously called tcdrain() here, but this blocks until all output is transmitted
+        // which can cause timing issues with programs like tmux that expect immediate output.
+        // The write() syscall already handles buffering at the kernel level.
+        // tcdrain(STDOUT_FILENO);
     }
     
     public void DrainInput()

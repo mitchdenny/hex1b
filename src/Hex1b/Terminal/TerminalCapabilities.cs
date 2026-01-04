@@ -65,6 +65,18 @@ public record TerminalCapabilities
     public int CellPixelHeight { get; init; } = 20;
     
     /// <summary>
+    /// Default foreground color as RGB (0xRRGGBB).
+    /// Used when responding to OSC 10 color queries.
+    /// </summary>
+    public int DefaultForeground { get; init; } = 0xFFFFFF;
+    
+    /// <summary>
+    /// Default background color as RGB (0xRRGGBB).
+    /// Used when responding to OSC 11 color queries.
+    /// </summary>
+    public int DefaultBackground { get; init; } = 0x000000;
+    
+    /// <summary>
     /// Default capabilities for a modern terminal.
     /// </summary>
     public static TerminalCapabilities Modern => new()

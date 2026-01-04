@@ -99,7 +99,8 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
                 return ReadOnlyMemory<byte>.Empty;
             }
             
-            return buffer.AsMemory(0, bytesRead);
+            var result = buffer.AsMemory(0, bytesRead);
+            return result;
         }
         catch (OperationCanceledException)
         {
