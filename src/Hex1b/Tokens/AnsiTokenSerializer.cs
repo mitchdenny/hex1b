@@ -171,20 +171,23 @@ public static class AnsiTokenSerializer
 
     private static string SerializeOsc(OscToken token)
     {
-        // ESC ] command ; payload ST
-        // ESC ] command ; params ; payload ST  (with parameters, e.g. hyperlinks)
         // Preserve original terminator style (ESC \ vs BEL)
         var terminator = token.UseEscBackslash ? "\x1b\\" : "\x07";
-        if (string.IsNullOrEmpty(token.Parameters))
+
+        // OSC 8 (hyperlinks) uses format: ESC ] 8 ; params ; url ST (params can be empty, but semicolon required)
+        if (token.Command == "8")
         {
-            // Simple form without parameters
-            return $"\x1b]{token.Command};{token.Payload}{terminator}";
-        }
-        else
-        {
-            // With parameters (e.g., hyperlinks: ESC ] 8 ; params ; url ST)
             return $"\x1b]{token.Command};{token.Parameters};{token.Payload}{terminator}";
         }
+
+        // For other OSC commands with parameters, include them
+        if (!string.IsNullOrEmpty(token.Parameters))
+        {
+            return $"\x1b]{token.Command};{token.Parameters};{token.Payload}{terminator}";
+        }
+
+        // Standard form: ESC ] command ; payload ST
+        return $"\x1b]{token.Command};{token.Payload}{terminator}";
     }
 
     private static string SerializeDcs(DcsToken token)
