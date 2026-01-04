@@ -318,11 +318,15 @@ public sealed class Hex1bTerminal : IDisposable
                     break;
                 }
 
+                // Tokenize input the same way we tokenize output
+                var text = Encoding.UTF8.GetString(data.Span);
+                var tokens = AnsiTokenizer.Tokenize(text);
+                
                 // Notify presentation filters of input FROM presentation
-                await NotifyPresentationFiltersInputAsync(data);
+                await NotifyPresentationFiltersInputAsync(tokens);
 
                 // Notify workload filters of input going TO workload
-                await NotifyWorkloadFiltersInputAsync(data);
+                await NotifyWorkloadFiltersInputAsync(tokens);
 
                 // For Hex1bAppWorkloadAdapter, we parse input and send events directly
                 if (_workload is Hex1bAppWorkloadAdapter appWorkload)
@@ -2598,14 +2602,14 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+    private async ValueTask NotifyWorkloadFiltersInputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
             ct.ThrowIfCancellationRequested();
-            await filter.OnInputAsync(data, elapsed, ct);
+            await filter.OnInputAsync(tokens, elapsed, ct);
         }
     }
 
@@ -2658,14 +2662,14 @@ public sealed class Hex1bTerminal : IDisposable
         return resultTokens;
     }
 
-    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+    private async ValueTask NotifyPresentationFiltersInputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
             ct.ThrowIfCancellationRequested();
-            await filter.OnInputAsync(data, elapsed, ct);
+            await filter.OnInputAsync(tokens, elapsed, ct);
         }
     }
 
