@@ -592,6 +592,17 @@ public sealed class Hex1bTerminal : IDisposable
     
     private static AnsiToken? KeyEventToToken(Hex1bKeyEvent evt)
     {
+        // Check for Ctrl+letter combinations (emit as control character)
+        // Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control) && !evt.Modifiers.HasFlag(Hex1bModifiers.Alt))
+        {
+            var ctrlChar = GetControlCharacter(evt.Key);
+            if (ctrlChar != '\0')
+            {
+                return new ControlCharacterToken(ctrlChar);
+            }
+        }
+        
         // Check if it's an Alt+key combination (emit as unrecognized ESC+char sequence)
         if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt) && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
         {
@@ -683,6 +694,45 @@ public sealed class Hex1bTerminal : IDisposable
         if (modifiers.HasFlag(Hex1bModifiers.Control)) bits |= 4;
         
         return bits + 1; // xterm modifier encoding: bits + 1
+    }
+    
+    /// <summary>
+    /// Gets the control character for a Ctrl+key combination.
+    /// Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
+    /// </summary>
+    private static char GetControlCharacter(Hex1bKey key)
+    {
+        // Map letter keys to control characters
+        return key switch
+        {
+            Hex1bKey.A => '\x01',
+            Hex1bKey.B => '\x02',
+            Hex1bKey.C => '\x03',
+            Hex1bKey.D => '\x04',
+            Hex1bKey.E => '\x05',
+            Hex1bKey.F => '\x06',
+            Hex1bKey.G => '\x07',
+            Hex1bKey.H => '\x08',
+            Hex1bKey.I => '\x09', // Tab
+            Hex1bKey.J => '\x0A', // LF
+            Hex1bKey.K => '\x0B',
+            Hex1bKey.L => '\x0C',
+            Hex1bKey.M => '\x0D', // CR
+            Hex1bKey.N => '\x0E',
+            Hex1bKey.O => '\x0F',
+            Hex1bKey.P => '\x10',
+            Hex1bKey.Q => '\x11',
+            Hex1bKey.R => '\x12',
+            Hex1bKey.S => '\x13',
+            Hex1bKey.T => '\x14',
+            Hex1bKey.U => '\x15',
+            Hex1bKey.V => '\x16',
+            Hex1bKey.W => '\x17',
+            Hex1bKey.X => '\x18',
+            Hex1bKey.Y => '\x19',
+            Hex1bKey.Z => '\x1A',
+            _ => '\0'
+        };
     }
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
