@@ -541,6 +541,150 @@ public sealed class Hex1bTerminal : IDisposable
         return null;
     }
     
+    /// <summary>
+    /// Converts a Hex1b input event to ANSI tokens for serialization.
+    /// This is the inverse of TokenToEvent.
+    /// </summary>
+    private static IReadOnlyList<AnsiToken> EventToTokens(Hex1bEvent evt)
+    {
+        var token = EventToToken(evt);
+        return token != null ? [token] : [];
+    }
+    
+    /// <summary>
+    /// Converts a Hex1b input event to a single ANSI token.
+    /// Returns null if the event cannot be represented as a token.
+    /// </summary>
+    private static AnsiToken? EventToToken(Hex1bEvent evt)
+    {
+        return evt switch
+        {
+            Hex1bMouseEvent mouse => MouseEventToToken(mouse),
+            Hex1bKeyEvent key => KeyEventToToken(key),
+            _ => null
+        };
+    }
+    
+    private static SgrMouseToken MouseEventToToken(Hex1bMouseEvent evt)
+    {
+        // Encode button and modifiers into raw button code
+        int rawButton = evt.Button switch
+        {
+            MouseButton.Left => 0,
+            MouseButton.Middle => 1,
+            MouseButton.Right => 2,
+            MouseButton.None when evt.Action == MouseAction.Move => 35, // Motion with no button
+            MouseButton.ScrollUp => 64,
+            MouseButton.ScrollDown => 65,
+            _ => 0
+        };
+        
+        // Add modifier bits
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift)) rawButton |= 4;
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt)) rawButton |= 8;
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control)) rawButton |= 16;
+        
+        // Add motion bit for drag
+        if (evt.Action == MouseAction.Move || evt.Action == MouseAction.Drag) rawButton |= 32;
+        
+        return new SgrMouseToken(evt.Button, evt.Action, evt.X, evt.Y, evt.Modifiers, rawButton);
+    }
+    
+    private static AnsiToken? KeyEventToToken(Hex1bKeyEvent evt)
+    {
+        // Check if it's an Alt+key combination (emit as unrecognized ESC+char sequence)
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt) && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
+        {
+            var c = evt.Text;
+            if (!string.IsNullOrEmpty(c) && c.Length == 1)
+            {
+                return new UnrecognizedSequenceToken($"\x1b{c}");
+            }
+        }
+        
+        // Check for special keys that use SS3 sequences (F1-F4)
+        var ss3Char = evt.Key switch
+        {
+            Hex1bKey.F1 => 'P',
+            Hex1bKey.F2 => 'Q',
+            Hex1bKey.F3 => 'R',
+            Hex1bKey.F4 => 'S',
+            _ => '\0'
+        };
+        if (ss3Char != '\0' && evt.Modifiers == Hex1bModifiers.None)
+        {
+            return new Ss3Token(ss3Char);
+        }
+        
+        // Check for special keys that use CSI ~ sequences
+        var specialCode = evt.Key switch
+        {
+            Hex1bKey.Insert => 2,
+            Hex1bKey.Delete => 3,
+            Hex1bKey.PageUp => 5,
+            Hex1bKey.PageDown => 6,
+            Hex1bKey.F5 => 15,
+            Hex1bKey.F6 => 17,
+            Hex1bKey.F7 => 18,
+            Hex1bKey.F8 => 19,
+            Hex1bKey.F9 => 20,
+            Hex1bKey.F10 => 21,
+            Hex1bKey.F11 => 23,
+            Hex1bKey.F12 => 24,
+            _ => 0
+        };
+        if (specialCode != 0)
+        {
+            var modCode = EncodeModifiers(evt.Modifiers);
+            return new SpecialKeyToken(specialCode, modCode);
+        }
+        
+        // Arrow keys and Home/End use CSI sequences
+        var arrowDir = evt.Key switch
+        {
+            Hex1bKey.UpArrow => CursorMoveDirection.Up,
+            Hex1bKey.DownArrow => CursorMoveDirection.Down,
+            Hex1bKey.RightArrow => CursorMoveDirection.Forward,
+            Hex1bKey.LeftArrow => CursorMoveDirection.Back,
+            _ => (CursorMoveDirection?)null
+        };
+        if (arrowDir.HasValue)
+        {
+            return new CursorMoveToken(arrowDir.Value, 1);
+        }
+        
+        // Home/End in SS3 mode (common for many terminals)
+        if (evt.Key == Hex1bKey.Home) return new Ss3Token('H');
+        if (evt.Key == Hex1bKey.End) return new Ss3Token('F');
+        
+        // Control characters
+        if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
+        if (evt.Key == Hex1bKey.Tab) return new ControlCharacterToken('\t');
+        if (evt.Key == Hex1bKey.Escape) return new UnrecognizedSequenceToken("\x1b");
+        if (evt.Key == Hex1bKey.Backspace) return new ControlCharacterToken('\x7f');
+        
+        // Regular text
+        if (!string.IsNullOrEmpty(evt.Text))
+        {
+            return new TextToken(evt.Text);
+        }
+        
+        return null;
+    }
+    
+    private static int EncodeModifiers(Hex1bModifiers modifiers)
+    {
+        if (modifiers == Hex1bModifiers.None)
+            return 1; // No modifiers = 1 in xterm encoding
+        
+        int bits = 0;
+        if (modifiers.HasFlag(Hex1bModifiers.Shift)) bits |= 1;
+        if (modifiers.HasFlag(Hex1bModifiers.Alt)) bits |= 2;
+        if (modifiers.HasFlag(Hex1bModifiers.Control)) bits |= 4;
+        
+        return bits + 1; // xterm modifier encoding: bits + 1
+    }
+    
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
         try
@@ -923,7 +1067,50 @@ public sealed class Hex1bTerminal : IDisposable
     {
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {
+            // Direct event dispatch for Hex1bApp workloads
             appWorkload.TryWriteInputEvent(evt);
+        }
+        else
+        {
+            // Serialize event to ANSI bytes for child process workloads
+            var tokens = EventToTokens(evt);
+            if (tokens.Count > 0)
+            {
+                var serialized = AnsiTokenSerializer.Serialize(tokens);
+                var bytes = Encoding.UTF8.GetBytes(serialized);
+                // Fire and forget - synchronous API can't wait for async write
+                _ = _workload.WriteInputAsync(bytes, CancellationToken.None);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Sends an input event to the workload asynchronously.
+    /// For Hex1bApp workloads, this dispatches the event directly.
+    /// For child process workloads, this serializes the event to ANSI bytes.
+    /// </summary>
+    /// <param name="evt">The event to send.</param>
+    /// <param name="ct">Cancellation token.</param>
+    internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+    {
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            // Direct event dispatch for Hex1bApp workloads
+            await appWorkload.WriteInputEventAsync(evt, ct);
+        }
+        else
+        {
+            // Serialize event to ANSI bytes for child process workloads
+            var tokens = EventToTokens(evt);
+            if (tokens.Count > 0)
+            {
+                var serialized = AnsiTokenSerializer.Serialize(tokens);
+                var bytes = Encoding.UTF8.GetBytes(serialized);
+                await _workload.WriteInputAsync(bytes, ct);
+                
+                // Also notify filters of the input
+                await NotifyWorkloadFiltersInputAsync(tokens);
+            }
         }
     }
 
