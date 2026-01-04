@@ -56,6 +56,13 @@ public static class AnsiTokenizer
                 FlushTextToken(text, ref textStart, i, tokens);
                 i = ParseCsiSequence(text, i, tokens);
             }
+            // Check for SS3 sequence (ESC O) - function keys F1-F4 and arrow keys in application mode
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'O' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new Ss3Token(text[i + 2]));
+                i += 3;
+            }
             // Check for DEC save cursor (ESC 7)
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '7')
             {
@@ -175,16 +182,22 @@ public static class AnsiTokenizer
 
     private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens)
     {
-        // Find the command character (first letter after ESC [)
+        // Find the command character (first letter or ~ after ESC [)
         int end = start + 2;
+        
+        // Check for SGR mouse sequence (ESC [ <) - must be checked before private mode
+        if (end < text.Length && text[end] == '<')
+        {
+            return ParseSgrMouseSequence(text, start, tokens);
+        }
         
         // Check for private mode indicator (?)
         bool isPrivateMode = end < text.Length && text[end] == '?';
         if (isPrivateMode)
             end++;
 
-        // Read parameters until we hit a letter
-        while (end < text.Length && !char.IsLetter(text[end]))
+        // Read parameters until we hit a letter or ~ (for special keys like ESC [ 3 ~)
+        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~')
         {
             end++;
         }
@@ -353,6 +366,11 @@ public static class AnsiTokenizer
                 // Repeat Character (REP) - repeat last graphic character n times
                 tokens.Add(new RepeatCharacterToken(ParseMoveCount(parameters)));
                 break;
+                
+            case '~':
+                // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
+                ParseSpecialKey(parameters, tokens);
+                break;
 
             default:
                 // Unrecognized CSI sequence
@@ -361,6 +379,100 @@ public static class AnsiTokenizer
         }
 
         return end + 1;
+    }
+    
+    private static int ParseSgrMouseSequence(string text, int start, List<AnsiToken> tokens)
+    {
+        // SGR mouse format: ESC [ < Cb ; Cx ; Cy M (press) or ESC [ < Cb ; Cx ; Cy m (release)
+        // start points to ESC, start+2 points to '<'
+        int pos = start + 3; // Skip ESC [ <
+        
+        // Parse button code
+        int buttonEnd = pos;
+        while (buttonEnd < text.Length && text[buttonEnd] != ';')
+            buttonEnd++;
+        
+        if (buttonEnd >= text.Length || !int.TryParse(text[pos..buttonEnd], out var buttonCode))
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(buttonEnd + 1)]));
+            return buttonEnd + 1;
+        }
+        
+        // Parse X coordinate
+        int xStart = buttonEnd + 1;
+        int xEnd = xStart;
+        while (xEnd < text.Length && text[xEnd] != ';')
+            xEnd++;
+        
+        if (xEnd >= text.Length || !int.TryParse(text[xStart..xEnd], out var x))
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(xEnd + 1)]));
+            return xEnd + 1;
+        }
+        
+        // Parse Y coordinate and terminator
+        int yStart = xEnd + 1;
+        int yEnd = yStart;
+        while (yEnd < text.Length && text[yEnd] != 'M' && text[yEnd] != 'm')
+            yEnd++;
+        
+        if (yEnd >= text.Length || !int.TryParse(text[yStart..yEnd], out var y))
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(yEnd + 1)]));
+            return yEnd + 1;
+        }
+        
+        char terminator = text[yEnd];
+        
+        // Decode button and modifiers from buttonCode
+        var modifiers = Input.Hex1bModifiers.None;
+        if ((buttonCode & 4) != 0) modifiers |= Input.Hex1bModifiers.Shift;
+        if ((buttonCode & 8) != 0) modifiers |= Input.Hex1bModifiers.Alt;
+        if ((buttonCode & 16) != 0) modifiers |= Input.Hex1bModifiers.Control;
+        
+        var baseButton = buttonCode & ~(4 | 8 | 16 | 32); // Remove modifier and motion bits
+        var isMotion = (buttonCode & 32) != 0;
+        var isRelease = terminator == 'm';
+        
+        var button = baseButton switch
+        {
+            0 => Input.MouseButton.Left,
+            1 => Input.MouseButton.Middle,
+            2 => Input.MouseButton.Right,
+            3 => Input.MouseButton.None, // Release with no button
+            64 => Input.MouseButton.ScrollUp,
+            65 => Input.MouseButton.ScrollDown,
+            _ => Input.MouseButton.None
+        };
+        
+        var action = isRelease ? Input.MouseAction.Up 
+            : isMotion ? (button == Input.MouseButton.None ? Input.MouseAction.Move : Input.MouseAction.Drag)
+            : Input.MouseAction.Down;
+        
+        // Convert to 0-based coordinates
+        tokens.Add(new SgrMouseToken(button, action, x - 1, y - 1, modifiers, buttonCode));
+        
+        return yEnd + 1;
+    }
+    
+    private static void ParseSpecialKey(string parameters, List<AnsiToken> tokens)
+    {
+        // Format: n or n;m where n is key code and m is modifier
+        var parts = parameters.Split(';');
+        
+        if (parts.Length == 0 || !int.TryParse(parts[0], out var keyCode))
+        {
+            tokens.Add(new SpecialKeyToken(0, 1));
+            return;
+        }
+        
+        int modifiers = 1;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var m))
+        {
+            modifiers = m;
+        }
+        
+        tokens.Add(new SpecialKeyToken(keyCode, modifiers));
     }
     
     private static int ParseMoveCount(string parameters)

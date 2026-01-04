@@ -61,6 +61,9 @@ public static class AnsiTokenSerializer
             DcsToken dcs => SerializeDcs(dcs),
             FrameBeginToken => SerializeApc("HEX1BAPP:FRAME:BEGIN"),
             FrameEndToken => SerializeApc("HEX1BAPP:FRAME:END"),
+            Ss3Token ss3 => $"\x1bO{ss3.Character}",
+            SgrMouseToken mouse => SerializeSgrMouse(mouse),
+            SpecialKeyToken special => SerializeSpecialKey(special),
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
@@ -200,5 +203,22 @@ public static class AnsiTokenSerializer
     {
         // APC (Application Program Command): ESC _ content ESC \
         return $"\x1b_{content}\x1b\\";
+    }
+
+    private static string SerializeSgrMouse(SgrMouseToken token)
+    {
+        // SGR mouse format: ESC [ < Cb ; Cx ; Cy M (press) or ESC [ < Cb ; Cx ; Cy m (release)
+        // Use RawButtonCode to preserve exact encoding, or reconstruct from button/modifiers
+        var terminator = token.Action == Input.MouseAction.Up ? 'm' : 'M';
+        // 1-based coordinates for protocol
+        return $"\x1b[<{token.RawButtonCode};{token.X + 1};{token.Y + 1}{terminator}";
+    }
+
+    private static string SerializeSpecialKey(SpecialKeyToken token)
+    {
+        // Special key format: ESC [ n ~ or ESC [ n ; m ~
+        if (token.Modifiers == 1)
+            return $"\x1b[{token.KeyCode}~";
+        return $"\x1b[{token.KeyCode};{token.Modifiers}~";
     }
 }
