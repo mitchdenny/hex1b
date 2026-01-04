@@ -374,7 +374,7 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
     }
 
     /// <inheritdoc />
-    public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
+    public ValueTask OnInputAsync(IReadOnlyList<Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
     {
         // Input doesn't affect delta encoding
         return ValueTask.CompletedTask;

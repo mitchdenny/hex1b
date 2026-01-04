@@ -64,10 +64,15 @@ public interface IHex1bTerminalWorkloadFilter
     /// <summary>
     /// Called when input is being sent to the workload.
     /// </summary>
-    /// <param name="data">The raw input bytes.</param>
+    /// <remarks>
+    /// Input is tokenized the same way as output, enabling consistent handling of
+    /// ANSI escape sequences for keyboard input, mouse events, and other terminal input.
+    /// Use <see cref="AnsiTokenSerializer.Serialize(IEnumerable{AnsiToken})"/> to convert tokens back to bytes if needed.
+    /// </remarks>
+    /// <param name="tokens">The parsed ANSI tokens from the input.</param>
     /// <param name="elapsed">Time elapsed since session start.</param>
     /// <param name="ct">Cancellation token.</param>
-    ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default);
+    ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default);
 
     /// <summary>
     /// Called when the terminal is resized.

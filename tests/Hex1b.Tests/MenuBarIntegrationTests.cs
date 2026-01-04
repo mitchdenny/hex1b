@@ -311,7 +311,7 @@ public class MenuBarIntegrationTests
     }
     
     /// <summary>
-    /// Checks if a menu item is selected by verifying it has the focused background color (white).
+    /// Checks if a menu item is selected by verifying it has the focused background color (black).
     /// </summary>
     private static bool IsMenuItemSelected(IHex1bTerminalRegion snapshot, string itemText)
     {
@@ -320,16 +320,16 @@ public class MenuBarIntegrationTests
         if (positions.Count == 0)
             return false;
         
-        // Check the first occurrence - the first character should have white background
+        // Check the first occurrence - the first character should have black background (focused)
         var (line, column) = positions[0];
         var cell = snapshot.GetCell(column, line);
         
-        // The focused menu item should have white background (Hex1bColor.White = RGB 255,255,255)
+        // The focused menu item should have black background (MenuItemTheme.FocusedBackgroundColor = Hex1bColor.Black = RGB 0,0,0)
         if (cell.Background is not null)
         {
-            return cell.Background.Value.R == 255 && 
-                   cell.Background.Value.G == 255 && 
-                   cell.Background.Value.B == 255;
+            return cell.Background.Value.R == 0 && 
+                   cell.Background.Value.G == 0 && 
+                   cell.Background.Value.B == 0;
         }
         
         return false;
@@ -1588,17 +1588,16 @@ public class MenuBarIntegrationTests
         // even when focus is on a TextBox (not on the menu bar)
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var lastAction = "";
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
                 ctx.MenuBar(m => [
                     m.Menu("&File", m => [
-                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New"),
-                        m.MenuItem("&Open").OnActivated(e => lastAction = "File > Open")
+                        m.MenuItem("&New"),
+                        m.MenuItem("&Open")
                     ]),
                     m.Menu("&Edit", m => [
-                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo")
+                        m.MenuItem("&Undo")
                     ])
                 ]),
                 // A TextBox that can receive focus
@@ -1632,21 +1631,20 @@ public class MenuBarIntegrationTests
         // Arrange - Alt+E should open Edit menu even when a Button is focused
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 80, 24);
-        var lastAction = "";
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
                 ctx.MenuBar(m => [
                     m.Menu("&File", m => [
-                        m.MenuItem("&New").OnActivated(e => lastAction = "File > New")
+                        m.MenuItem("&New")
                     ]),
                     m.Menu("&Edit", m => [
-                        m.MenuItem("&Undo").OnActivated(e => lastAction = "Edit > Undo"),
-                        m.MenuItem("&Redo").OnActivated(e => lastAction = "Edit > Redo")
+                        m.MenuItem("&Undo"),
+                        m.MenuItem("&Redo")
                     ])
                 ]),
                 // A Button that can receive focus
-                ctx.Button("Click Me").OnClick(e => lastAction = "Button clicked")
+                ctx.Button("Click Me")
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

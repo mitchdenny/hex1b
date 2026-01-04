@@ -18,17 +18,9 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _disposeCts = new();
     private bool _disposed;
-    private bool _inTuiMode;
     private int _width;
     private int _height;
     private readonly bool _enableMouse;
-
-    private const string EnterAlternateBuffer = "\x1b[?1049h";
-    private const string ExitAlternateBuffer = "\x1b[?1049l";
-    private const string ClearScreen = "\x1b[2J";
-    private const string MoveCursorHome = "\x1b[H";
-    private const string HideCursor = "\x1b[?25l";
-    private const string ShowCursor = "\x1b[?25h";
 
     /// <summary>
     /// Creates a new WebSocket presentation adapter.
@@ -173,39 +165,17 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     }
 
     /// <inheritdoc />
-    public async ValueTask EnterTuiModeAsync(CancellationToken ct = default)
+    public ValueTask EnterRawModeAsync(CancellationToken ct = default)
     {
-        if (_inTuiMode) return;
-        _inTuiMode = true;
-
-        var escapes = new StringBuilder();
-        escapes.Append(EnterAlternateBuffer);
-        escapes.Append(HideCursor);
-        if (_enableMouse)
-        {
-            escapes.Append(MouseParser.EnableMouseTracking);
-        }
-        escapes.Append(ClearScreen);
-        escapes.Append(MoveCursorHome);
-
-        await WriteOutputAsync(Encoding.UTF8.GetBytes(escapes.ToString()), ct);
+        // WebSocket is already "raw" - browser handles the terminal emulation
+        // No escape sequences needed - screen mode is controlled by the workload
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    public async ValueTask ExitTuiModeAsync(CancellationToken ct = default)
+    public ValueTask ExitRawModeAsync(CancellationToken ct = default)
     {
-        if (!_inTuiMode) return;
-        _inTuiMode = false;
-
-        var escapes = new StringBuilder();
-        if (_enableMouse)
-        {
-            escapes.Append(MouseParser.DisableMouseTracking);
-        }
-        escapes.Append(ShowCursor);
-        escapes.Append(ExitAlternateBuffer);
-
-        await WriteOutputAsync(Encoding.UTF8.GetBytes(escapes.ToString()), ct);
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -215,11 +185,6 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         _disposed = true;
 
         Disconnected?.Invoke();
-
-        if (_inTuiMode)
-        {
-            await ExitTuiModeAsync();
-        }
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();

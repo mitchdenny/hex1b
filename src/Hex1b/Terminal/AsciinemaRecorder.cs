@@ -135,13 +135,13 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <inheritdoc />
-    async ValueTask IHex1bTerminalWorkloadFilter.OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct)
+    async ValueTask IHex1bTerminalWorkloadFilter.OnInputAsync(IReadOnlyList<Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct)
     {
         // Only record input if explicitly enabled (per Asciinema spec recommendation)
         if (!_options.CaptureInput) return;
-        if (data.IsEmpty) return;
+        if (tokens.Count == 0) return;
 
-        var text = Encoding.UTF8.GetString(data.Span);
+        var text = Tokens.AnsiTokenSerializer.Serialize(tokens);
         lock (_lock)
         {
             _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "i", text));
@@ -246,7 +246,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         if (_fileStream == null)
         {
             _fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
-            _writer = new StreamWriter(_fileStream, Encoding.UTF8, leaveOpen: false);
+            // Use UTF-8 without BOM - asciinema player doesn't handle BOM
+            _writer = new StreamWriter(_fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: false);
         }
         await Task.CompletedTask;
     }

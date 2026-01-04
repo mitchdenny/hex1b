@@ -82,18 +82,26 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     ValueTask FlushAsync(CancellationToken ct = default);
     
     /// <summary>
-    /// Enter TUI mode (alternate screen, raw input, hide cursor, etc.).
+    /// Enter raw mode for proper input capture.
     /// </summary>
     /// <remarks>
-    /// This sets up the terminal for full-screen TUI operation.
-    /// Call <see cref="ExitTuiModeAsync"/> to restore normal operation.
+    /// <para>
+    /// Raw mode enables character-by-character input without line buffering or echo.
+    /// This is required for terminal applications to receive individual keystrokes,
+    /// escape sequences, and mouse events.
+    /// </para>
+    /// <para>
+    /// This method does NOT send any escape sequences to the terminal.
+    /// Screen mode (normal vs alternate) is controlled by the workload via escape
+    /// sequences it sends through the terminal's output.
+    /// </para>
     /// </remarks>
     /// <param name="ct">Cancellation token.</param>
-    ValueTask EnterTuiModeAsync(CancellationToken ct = default);
+    ValueTask EnterRawModeAsync(CancellationToken ct = default);
     
     /// <summary>
-    /// Exit TUI mode and restore normal terminal operation.
+    /// Exit raw mode and restore normal terminal input handling.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
-    ValueTask ExitTuiModeAsync(CancellationToken ct = default);
+    ValueTask ExitRawModeAsync(CancellationToken ct = default);
 }

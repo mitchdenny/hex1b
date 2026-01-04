@@ -4,6 +4,7 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Terminal;
 using Hex1b.Terminal.Automation;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Time.Testing;
 
@@ -126,7 +127,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input by calling the filter directly (since we're headless)
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -158,7 +159,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync("hello"u8.ToArray(), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);

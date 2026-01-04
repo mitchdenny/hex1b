@@ -33,7 +33,9 @@ public class EmojiRenderingTests
 
         public void Write(string text)
         {
-            Terminal.ApplyTokens(AnsiTokenizer.Tokenize(text));
+            // Simulate PTY ONLCR translation: convert bare \n to \r\n
+            var translated = text.Replace("\n", "\r\n");
+            Terminal.ApplyTokens(AnsiTokenizer.Tokenize(translated));
         }
 
         public void Dispose()

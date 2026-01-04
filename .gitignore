@@ -482,3 +482,7 @@ $RECYCLE.BIN/
 *.swp
 src/content/dist/
 src/content/.vitepress/cache/
+
+# Intermediate native binaries for PTY interop
+src/Hex1b/Terminal/runtimes/linux-x64/native/*.so
+src/Hex1b/Terminal/native/*.o

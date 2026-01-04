@@ -20,4 +20,5 @@ namespace Hex1b.Tokens;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed record CursorPositionToken(int Row = 1, int Column = 1) : AnsiToken;
+/// <param name="OriginalParams">The original parameter string for exact serialization fidelity (e.g., "1;1" vs "").</param>
+public sealed record CursorPositionToken(int Row = 1, int Column = 1, string? OriginalParams = null) : AnsiToken;

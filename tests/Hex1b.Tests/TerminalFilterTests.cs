@@ -242,9 +242,9 @@ public class TerminalFilterTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
+        public ValueTask OnInputAsync(IReadOnlyList<Hex1b.Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
         {
-            InputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
+            InputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
             return ValueTask.CompletedTask;
         }
 
@@ -281,9 +281,9 @@ public class TerminalFilterTests
             return ValueTask.FromResult<IReadOnlyList<Hex1b.Tokens.AnsiToken>>(tokens);
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
+        public ValueTask OnInputAsync(IReadOnlyList<Hex1b.Tokens.AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
         {
-            InputChunks.Add(System.Text.Encoding.UTF8.GetString(data.Span));
+            InputChunks.Add(Hex1b.Tokens.AnsiTokenSerializer.Serialize(tokens));
             return ValueTask.CompletedTask;
         }
 
