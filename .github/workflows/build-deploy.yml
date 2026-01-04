@@ -164,12 +164,6 @@ jobs:
           name: native-linux-arm64
           path: src/Hex1b/Terminal/runtimes/linux-arm64/native
 
-      - name: Download native library - osx-x64
-        uses: actions/download-artifact@v4
-        with:
-          name: native-osx-x64
-          path: src/Hex1b/Terminal/runtimes/osx-x64/native
-
       - name: Download native library - osx-arm64
         uses: actions/download-artifact@v4
         with:
@@ -229,8 +223,6 @@ jobs:
         with:
           name: native-linux-arm64
           path: src/Hex1b/Terminal/runtimes/linux-arm64/native
-
-      # osx-x64 disabled due to runner availability issues
 
       - name: Download native library - osx-arm64
         uses: actions/download-artifact@v4
