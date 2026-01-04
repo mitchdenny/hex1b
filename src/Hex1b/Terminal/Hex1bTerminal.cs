@@ -328,10 +328,10 @@ public sealed class Hex1bTerminal : IDisposable
                 // Notify workload filters of input going TO workload
                 await NotifyWorkloadFiltersInputAsync(tokens);
 
-                // For Hex1bAppWorkloadAdapter, we parse input and send events directly
+                // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
                 if (_workload is Hex1bAppWorkloadAdapter appWorkload)
                 {
-                    await ParseAndDispatchInputAsync(data, appWorkload, ct);
+                    await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
                 }
                 else
                 {
@@ -344,6 +344,201 @@ public sealed class Hex1bTerminal : IDisposable
         {
             // Normal shutdown
         }
+    }
+    
+    /// <summary>
+    /// Dispatches tokenized input as high-level events to the Hex1bApp workload.
+    /// </summary>
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    {
+        foreach (var token in tokens)
+        {
+            ct.ThrowIfCancellationRequested();
+            
+            var evt = TokenToEvent(token);
+            if (evt != null)
+            {
+                await workload.WriteInputEventAsync(evt, ct);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Converts an ANSI token to a Hex1b input event.
+    /// Returns null if the token doesn't represent a user input event.
+    /// </summary>
+    private static Hex1bEvent? TokenToEvent(AnsiToken token)
+    {
+        return token switch
+        {
+            // Mouse events
+            SgrMouseToken mouse => new Hex1bMouseEvent(mouse.Button, mouse.Action, mouse.X, mouse.Y, mouse.Modifiers),
+            
+            // SS3 sequences (F1-F4, arrow keys in application mode)
+            Ss3Token ss3 => Ss3TokenToKeyEvent(ss3),
+            
+            // Special key sequences (Insert, Delete, PgUp/Dn, F5-F12)
+            SpecialKeyToken special => SpecialKeyTokenToKeyEvent(special),
+            
+            // Cursor movement (arrow keys in normal mode, interpreted as input)
+            CursorMoveToken move => CursorMoveTokenToKeyEvent(move),
+            
+            // Text (printable characters, emoji, etc.)
+            TextToken text => TextTokenToEvent(text),
+            
+            // Control characters (Enter, Tab, etc.)
+            ControlCharacterToken ctrl => ControlCharToKeyEvent(ctrl),
+            
+            // Unrecognized sequences may contain Alt+key combinations or bare Escape
+            UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
+            
+            // Other tokens don't represent user input
+            _ => null
+        };
+    }
+    
+    private static Hex1bKeyEvent? Ss3TokenToKeyEvent(Ss3Token token)
+    {
+        var key = token.Character switch
+        {
+            'A' => Hex1bKey.UpArrow,
+            'B' => Hex1bKey.DownArrow,
+            'C' => Hex1bKey.RightArrow,
+            'D' => Hex1bKey.LeftArrow,
+            'H' => Hex1bKey.Home,
+            'F' => Hex1bKey.End,
+            'P' => Hex1bKey.F1,
+            'Q' => Hex1bKey.F2,
+            'R' => Hex1bKey.F3,
+            'S' => Hex1bKey.F4,
+            _ => Hex1bKey.None
+        };
+        
+        return key == Hex1bKey.None ? null : new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None);
+    }
+    
+    private static Hex1bKeyEvent? SpecialKeyTokenToKeyEvent(SpecialKeyToken token)
+    {
+        var key = token.KeyCode switch
+        {
+            1 => Hex1bKey.Home,
+            2 => Hex1bKey.Insert,
+            3 => Hex1bKey.Delete,
+            4 => Hex1bKey.End,
+            5 => Hex1bKey.PageUp,
+            6 => Hex1bKey.PageDown,
+            7 => Hex1bKey.Home,   // rxvt
+            8 => Hex1bKey.End,    // rxvt
+            11 => Hex1bKey.F1,    // vt
+            12 => Hex1bKey.F2,    // vt
+            13 => Hex1bKey.F3,    // vt
+            14 => Hex1bKey.F4,    // vt
+            15 => Hex1bKey.F5,
+            17 => Hex1bKey.F6,
+            18 => Hex1bKey.F7,
+            19 => Hex1bKey.F8,
+            20 => Hex1bKey.F9,
+            21 => Hex1bKey.F10,
+            23 => Hex1bKey.F11,
+            24 => Hex1bKey.F12,
+            _ => Hex1bKey.None
+        };
+        
+        if (key == Hex1bKey.None)
+            return null;
+        
+        // Decode modifiers from the modifier code
+        var modifiers = Hex1bModifiers.None;
+        if (token.Modifiers >= 2)
+        {
+            var modifierBits = token.Modifiers - 1;
+            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
+            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
+            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
+        }
+        
+        return new Hex1bKeyEvent(key, '\0', modifiers);
+    }
+    
+    private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
+    {
+        // When received as input (not output), cursor move tokens represent arrow keys
+        var key = token.Direction switch
+        {
+            CursorMoveDirection.Up => Hex1bKey.UpArrow,
+            CursorMoveDirection.Down => Hex1bKey.DownArrow,
+            CursorMoveDirection.Forward => Hex1bKey.RightArrow,
+            CursorMoveDirection.Back => Hex1bKey.LeftArrow,
+            _ => Hex1bKey.None
+        };
+        
+        return key == Hex1bKey.None ? null : new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None);
+    }
+    
+    private static Hex1bEvent? TextTokenToEvent(TextToken token)
+    {
+        var text = token.Text;
+        if (string.IsNullOrEmpty(text))
+            return null;
+        
+        // Single character - try to parse as a key
+        if (text.Length == 1)
+        {
+            return ParseKeyInput(text[0]);
+        }
+        
+        // Multi-character (emoji, surrogate pairs, etc.) - emit as text event
+        return Hex1bKeyEvent.FromText(text);
+    }
+    
+    private static Hex1bKeyEvent? ControlCharToKeyEvent(ControlCharacterToken token)
+    {
+        return token.Character switch
+        {
+            '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
+            '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
+            _ => null
+        };
+    }
+    
+    private static Hex1bKeyEvent? UnrecognizedToKeyEvent(UnrecognizedSequenceToken token)
+    {
+        var seq = token.Sequence;
+        
+        // Bare Escape
+        if (seq == "\x1b")
+        {
+            return new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None);
+        }
+        
+        // Alt+key combination: ESC followed by a character
+        if (seq.Length == 2 && seq[0] == '\x1b')
+        {
+            var c = seq[1];
+            
+            // Alt+letter (lowercase)
+            if (c >= 'a' && c <= 'z')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'a'))), c, Hex1bModifiers.Alt);
+            }
+            
+            // Alt+letter (uppercase = Alt+Shift)
+            if (c >= 'A' && c <= 'Z')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Alt | Hex1bModifiers.Shift);
+            }
+            
+            // Alt+number
+            if (c >= '0' && c <= '9')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.Alt);
+            }
+        }
+        
+        return null;
     }
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
