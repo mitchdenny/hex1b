@@ -11,12 +11,4 @@
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
   </ItemGroup>
 
-  <!-- Copy native PTY library for Linux -->
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-    <None Include="..\..\src\Hex1b\native\libptyspawn.so" 
-          Condition="Exists('..\..\src\Hex1b\native\libptyspawn.so')"
-          CopyToOutputDirectory="PreserveNewest" 
-          Link="libptyspawn.so" />
-  </ItemGroup>
-
 </Project>

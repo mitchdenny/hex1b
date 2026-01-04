@@ -30,10 +30,10 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         if (!IsNativeLibraryAvailable())
         {
             throw new InvalidOperationException(
-                "Native ptyspawn library not found. This library is required for proper PTY operation. " +
+                "Native hex1binterop library not found. This library is required for proper PTY operation. " +
                 "Programs like tmux and screen require a proper controlling terminal which can only be " +
-                "established via the native library. Please ensure libptyspawn.so (Linux) or " +
-                "libptyspawn.dylib (macOS) is in the application directory or a standard library path.");
+                "established via the native library. Please ensure libhex1binterop.so (Linux) or " +
+                "libhex1binterop.dylib (macOS) is in the application directory or a standard library path.");
         }
         
         string resolvedPath = ResolveExecutablePath(fileName);
@@ -79,7 +79,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     {
         try
         {
-            return NativeLibrary.TryLoad("ptyspawn", typeof(UnixPtyHandle).Assembly, null, out _);
+            return NativeLibrary.TryLoad("hex1binterop", typeof(UnixPtyHandle).Assembly, null, out _);
         }
         catch
         {
@@ -262,7 +262,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     
     private const int SIGKILL = 9;
     
-    [LibraryImport("ptyspawn", EntryPoint = "pty_forkpty_shell", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_shell", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static partial int pty_forkpty_shell(
         string shellPath,
         string workingDir,
@@ -271,10 +271,10 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         out int masterFd,
         out int childPid);
     
-    [LibraryImport("ptyspawn", EntryPoint = "pty_wait", SetLastError = true)]
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_wait", SetLastError = true)]
     private static partial int pty_wait(int pid, int timeoutMs, out int status);
     
-    [LibraryImport("ptyspawn", EntryPoint = "pty_resize", SetLastError = true)]
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_resize", SetLastError = true)]
     private static partial int pty_resize(int masterFd, int width, int height);
     
     [LibraryImport("libc", EntryPoint = "select", SetLastError = true)]

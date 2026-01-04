@@ -8,16 +8,14 @@ The child process system allows Hex1b to spawn and manage interactive terminal a
 
 ## Key Components
 
-### 1. Native PTY Library (`src/Hex1b/native/ptyspawn.c`)
+### 1. Native Interop Library (`src/Hex1b/Terminal/native/hex1binterop.c`)
 
 A native C library that handles low-level PTY operations. Required because .NET doesn't expose the necessary PTY APIs.
 
 **Key Functions:**
-- `pty_forkpty_shell()` - Simple shell spawning using `forkpty()`
-- `pty_forkpty_spawn()` - Full spawn with arguments and environment
-- `pty_open()` / `pty_spawn()` - Two-step PTY creation (legacy)
-- `pty_resize()` - Resize the PTY window
-- `pty_wait()` - Wait for child with timeout
+- `hex1b_forkpty_shell()` - Simple shell spawning using `forkpty()`
+- `hex1b_resize()` - Resize the PTY window
+- `hex1b_wait()` - Wait for child with timeout
 
 **Important Design Decision:**
 The `forkpty()` calls pass `NULL` for the termios parameter instead of copying the parent's termios. This ensures the PTY gets default "cooked mode" settings with echo enabled, even if the parent process has already entered raw mode.
@@ -29,11 +27,8 @@ pid_t pid = forkpty(&master, NULL, NULL, &ws);
 
 **Build Commands:**
 ```bash
-# Linux
-gcc -shared -fPIC -o libptyspawn.so ptyspawn.c -lutil
-
-# macOS
-clang -shared -fPIC -o libptyspawn.dylib ptyspawn.c
+# Build for current platform using Makefile
+cd src/Hex1b/Terminal/native && make
 ```
 
 ### 2. UnixPtyHandle (`src/Hex1b/Terminal/UnixPtyHandle.cs`)
@@ -140,19 +135,14 @@ The terminal emulator that bridges presentation (user's console) and workload (c
        └── _presentation.EnterRawModeAsync()  ← Console now in raw mode (no echo)
    
 2. process.StartAsync()
-   └── pty_forkpty_shell()  ← PTY spawned with default termios (HAS echo)
+   └── hex1b_forkpty_shell()  ← PTY spawned with default termios (HAS echo)
 ```
 
 This is why the native library must NOT copy the parent's termios - the parent is already in raw mode with echo disabled.
 
 ## Known Issues / Future Work
 
-### Tmux Vertical Split Rendering
-Tmux vertical splits (created with `Ctrl+B %`) briefly appear then disappear. The data IS arriving (vertical line appears momentarily), but something causes it to be overwritten.
-
-**Hypothesis:** The tokenize → serialize round-trip may be losing or transforming something. The vertical bar character `│` (U+2502) arrives correctly but the surrounding positioning/cursor movement sequences may be getting misinterpreted.
-
-**Debug approach:** Compare raw PTY output against what gets serialized back to the console.
+Tmux now works correctly, including vertical splits. The fix was to remove `Console.TreatControlCAsInput = true` from the console driver, as this was corrupting terminal state.
 
 ### Mouse Support
 Currently keyboard-only. Mouse events would need to be:
@@ -174,7 +164,7 @@ This spawns a bash shell with a custom prompt. Type `tmux` to test tmux function
 
 | File | Purpose |
 |------|---------|
-| `src/Hex1b/native/ptyspawn.c` | Native PTY library |
+| `src/Hex1b/Terminal/native/hex1binterop.c` | Native interop library |
 | `src/Hex1b/Terminal/UnixPtyHandle.cs` | C# PTY wrapper |
 | `src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs` | High-level child process API |
 | `src/Hex1b/Terminal/Hex1bTerminal.cs` | Terminal emulator with I/O pumps |

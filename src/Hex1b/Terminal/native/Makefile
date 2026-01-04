@@ -1,4 +1,4 @@
-# Makefile for libptyspawn - Native PTY spawner library
+# Makefile for libhex1binterop - Native interop library for Hex1b
 #
 # Builds for the current platform:
 #   make           - Build for current platform
@@ -15,12 +15,12 @@ UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
 ifeq ($(UNAME_S),Darwin)
-    TARGET = libptyspawn.dylib
-    LDFLAGS += -dynamiclib -install_name @rpath/libptyspawn.dylib
+    TARGET = libhex1binterop.dylib
+    LDFLAGS += -dynamiclib -install_name @rpath/libhex1binterop.dylib
     # macOS needs util library for PTY functions
     LDFLAGS += -lutil
 else
-    TARGET = libptyspawn.so
+    TARGET = libhex1binterop.so
     LDFLAGS += -lpthread -lutil
 endif
 
@@ -39,7 +39,7 @@ else
     endif
 endif
 
-SOURCES = pty_spawn.c
+SOURCES = hex1binterop.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # Output to runtimes directory structure for NuGet packaging

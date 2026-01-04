@@ -25,12 +25,12 @@
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
   </ItemGroup>
 
-  <!-- Copy native PTY library from Hex1b project for testing -->
+  <!-- Copy native library from Hex1b project for testing -->
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-    <None Include="..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so" 
-          Condition="Exists('..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libptyspawn.so')"
+    <None Include="..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libhex1binterop.so" 
+          Condition="Exists('..\..\src\Hex1b\Terminal\runtimes\linux-x64\native\libhex1binterop.so')"
           CopyToOutputDirectory="PreserveNewest" 
-          Link="libptyspawn.so" />
+          Link="libhex1binterop.so" />
   </ItemGroup>
 
   <ItemGroup>
