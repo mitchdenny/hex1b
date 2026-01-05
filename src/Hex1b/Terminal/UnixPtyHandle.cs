@@ -38,17 +38,38 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         
         string resolvedPath = ResolveExecutablePath(fileName);
         
-        var result = pty_forkpty_shell(
-            resolvedPath,
-            workingDirectory ?? System.Environment.CurrentDirectory,
-            width,
-            height,
-            out _masterFd,
-            out _childPid);
-
-        if (result < 0)
+        // The native pty_forkpty_shell inherits the parent's environment.
+        // We need to temporarily set HEX1B_NESTING_LEVEL so the child inherits the correct value,
+        // then restore the original value after fork.
+        // Note: This is not thread-safe, but acceptable for this diagnostic variable.
+        const string nestingLevelKey = "HEX1B_NESTING_LEVEL";
+        string? originalNestingLevel = System.Environment.GetEnvironmentVariable(nestingLevelKey);
+        
+        try
         {
-            throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+            // Set the nesting level from the environment dictionary (which has the incremented value)
+            if (environment.TryGetValue(nestingLevelKey, out var newNestingLevel))
+            {
+                System.Environment.SetEnvironmentVariable(nestingLevelKey, newNestingLevel);
+            }
+            
+            var result = pty_forkpty_shell(
+                resolvedPath,
+                workingDirectory ?? System.Environment.CurrentDirectory,
+                width,
+                height,
+                out _masterFd,
+                out _childPid);
+
+            if (result < 0)
+            {
+                throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+            }
+        }
+        finally
+        {
+            // Restore the original nesting level in the parent process
+            System.Environment.SetEnvironmentVariable(nestingLevelKey, originalNestingLevel);
         }
         
         // Small delay to let child process initialize

@@ -32,9 +32,6 @@ try
         WorkloadAdapter = process
     };
     
-    // Add rendering optimization filter - only sends changed cells to the terminal
-    terminalOptions.AddHex1bAppRenderOptimization();
-
     using var terminal = new Hex1bTerminal(terminalOptions);
     await process.StartAsync();
 

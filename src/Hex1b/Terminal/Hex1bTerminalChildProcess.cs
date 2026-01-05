@@ -280,7 +280,18 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             env["TERM"] = "xterm-256color";
         }
         
-        // Apply custom environment
+        // Set HEX1B_NESTING_LEVEL to track nested terminal depth
+        // If already set, increment it; otherwise set to 1
+        const string nestingLevelKey = "HEX1B_NESTING_LEVEL";
+        int nestingLevel = 1;
+        if (env.TryGetValue(nestingLevelKey, out var existingLevel) && 
+            int.TryParse(existingLevel, out var parsedLevel))
+        {
+            nestingLevel = parsedLevel + 1;
+        }
+        env[nestingLevelKey] = nestingLevel.ToString();
+        
+        // Apply custom environment (can override nesting level if explicitly set)
         if (_environment != null)
         {
             foreach (var (key, value) in _environment)

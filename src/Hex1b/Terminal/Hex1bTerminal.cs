@@ -1586,32 +1586,32 @@ public sealed class Hex1bTerminal : IDisposable
                 
             case ScrollUpToken scrollUpToken:
                 for (int i = 0; i < scrollUpToken.Count; i++)
-                    ScrollUp();
+                    ScrollUp(impacts);
                 break;
                 
             case ScrollDownToken scrollDownToken:
                 for (int i = 0; i < scrollDownToken.Count; i++)
-                    ScrollDown();
+                    ScrollDown(impacts);
                 break;
                 
             case InsertLinesToken insertLinesToken:
-                InsertLines(insertLinesToken.Count);
+                InsertLines(insertLinesToken.Count, impacts);
                 break;
                 
             case DeleteLinesToken deleteLinesToken:
-                DeleteLines(deleteLinesToken.Count);
+                DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
             case DeleteCharacterToken deleteCharToken:
-                DeleteCharacters(deleteCharToken.Count);
+                DeleteCharacters(deleteCharToken.Count, impacts);
                 break;
                 
             case InsertCharacterToken insertCharToken:
-                InsertCharacters(insertCharToken.Count);
+                InsertCharacters(insertCharToken.Count, impacts);
                 break;
                 
             case EraseCharacterToken eraseCharToken:
-                EraseCharacters(eraseCharToken.Count);
+                EraseCharacters(eraseCharToken.Count, impacts);
                 break;
                 
             case RepeatCharacterToken repeatToken:
@@ -1621,7 +1621,7 @@ public sealed class Hex1bTerminal : IDisposable
             case IndexToken:
                 // Move cursor down one line, scroll if at bottom of scroll region
                 if (_cursorY >= _scrollBottom)
-                    ScrollUp();
+                    ScrollUp(impacts);
                 else
                     _cursorY++;
                 break;
@@ -1629,7 +1629,7 @@ public sealed class Hex1bTerminal : IDisposable
             case ReverseIndexToken:
                 // Move cursor up one line, scroll if at top of scroll region
                 if (_cursorY <= _scrollTop)
-                    ScrollDown();
+                    ScrollDown(impacts);
                 else
                     _cursorY--;
                 break;
@@ -2125,7 +2125,7 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ScrollUp()
+    private void ScrollUp(List<CellImpact>? impacts = null)
     {
         // Scroll up within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
@@ -2139,22 +2139,24 @@ public sealed class Hex1bTerminal : IDisposable
         }
         
         // Shift rows up within the scroll region
+        // All affected cells need to be recorded as impacts
         for (int y = _scrollTop; y < _scrollBottom; y++)
         {
             for (int x = leftCol; x <= rightCol; x++)
             {
-                _screenBuffer[y, x] = _screenBuffer[y + 1, x];
+                var cellFromBelow = _screenBuffer[y + 1, x];
+                SetCell(y, x, cellFromBelow, impacts);
             }
         }
         
         // Clear the bottom row of the scroll region (within margins)
         for (int x = leftCol; x <= rightCol; x++)
         {
-            _screenBuffer[_scrollBottom, x] = TerminalCell.Empty;
+            SetCell(_scrollBottom, x, TerminalCell.Empty, impacts);
         }
     }
     
-    private void ScrollDown()
+    private void ScrollDown(List<CellImpact>? impacts = null)
     {
         // Scroll down within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
@@ -2168,22 +2170,24 @@ public sealed class Hex1bTerminal : IDisposable
         }
         
         // Shift rows down within the scroll region
+        // All affected cells need to be recorded as impacts
         for (int y = _scrollBottom; y > _scrollTop; y--)
         {
             for (int x = leftCol; x <= rightCol; x++)
             {
-                _screenBuffer[y, x] = _screenBuffer[y - 1, x];
+                var cellFromAbove = _screenBuffer[y - 1, x];
+                SetCell(y, x, cellFromAbove, impacts);
             }
         }
         
         // Clear the top row of the scroll region (within margins)
         for (int x = leftCol; x <= rightCol; x++)
         {
-            _screenBuffer[_scrollTop, x] = TerminalCell.Empty;
+            SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
         }
     }
     
-    private void InsertLines(int count)
+    private void InsertLines(int count, List<CellImpact>? impacts = null)
     {
         // Insert blank lines at cursor position within scroll region
         // Lines pushed off the bottom of the scroll region are lost
@@ -2206,19 +2210,20 @@ public sealed class Hex1bTerminal : IDisposable
             {
                 for (int x = leftCol; x <= rightCol; x++)
                 {
-                    _screenBuffer[y, x] = _screenBuffer[y - 1, x];
+                    var cellFromAbove = _screenBuffer[y - 1, x];
+                    SetCell(y, x, cellFromAbove, impacts);
                 }
             }
             
             // Clear the line at cursor position (within margins)
             for (int x = leftCol; x <= rightCol; x++)
             {
-                _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+                SetCell(_cursorY, x, TerminalCell.Empty, impacts);
             }
         }
     }
     
-    private void DeleteLines(int count)
+    private void DeleteLines(int count, List<CellImpact>? impacts = null)
     {
         // Delete lines at cursor position within scroll region
         // Blank lines are inserted at the bottom of the scroll region
@@ -2241,19 +2246,20 @@ public sealed class Hex1bTerminal : IDisposable
             {
                 for (int x = leftCol; x <= rightCol; x++)
                 {
-                    _screenBuffer[y, x] = _screenBuffer[y + 1, x];
+                    var cellFromBelow = _screenBuffer[y + 1, x];
+                    SetCell(y, x, cellFromBelow, impacts);
                 }
             }
             
             // Clear the bottom line of the scroll region (within margins)
             for (int x = leftCol; x <= rightCol; x++)
             {
-                _screenBuffer[bottom, x] = TerminalCell.Empty;
+                SetCell(bottom, x, TerminalCell.Empty, impacts);
             }
         }
     }
     
-    private void DeleteCharacters(int count)
+    private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
     {
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin
@@ -2263,17 +2269,18 @@ public sealed class Hex1bTerminal : IDisposable
         
         for (int x = _cursorX; x < rightEdge - count; x++)
         {
-            _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x + count];
+            var cellFromRight = _screenBuffer[_cursorY, x + count];
+            SetCell(_cursorY, x, cellFromRight, impacts);
         }
         
         // Fill the right edge with blanks
         for (int x = rightEdge - count; x < rightEdge; x++)
         {
-            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
     }
     
-    private void InsertCharacters(int count)
+    private void InsertCharacters(int count, List<CellImpact>? impacts = null)
     {
         // Insert n blank characters at cursor, shifting existing characters right
         // Characters pushed off the right margin are lost
@@ -2284,17 +2291,18 @@ public sealed class Hex1bTerminal : IDisposable
         // Shift characters right
         for (int x = rightEdge - 1; x >= _cursorX + count; x--)
         {
-            _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x - count];
+            var cellFromLeft = _screenBuffer[_cursorY, x - count];
+            SetCell(_cursorY, x, cellFromLeft, impacts);
         }
         
         // Insert blanks at cursor position
         for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
         {
-            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
     }
     
-    private void EraseCharacters(int count)
+    private void EraseCharacters(int count, List<CellImpact>? impacts = null)
     {
         // Erase n characters from cursor without moving cursor or shifting
         // When DECLRMM is enabled, operations are bounded by right margin
@@ -2303,7 +2311,7 @@ public sealed class Hex1bTerminal : IDisposable
         
         for (int x = _cursorX; x < _cursorX + count; x++)
         {
-            _screenBuffer[_cursorY, x] = TerminalCell.Empty;
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
         }
     }
     
