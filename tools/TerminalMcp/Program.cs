@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
+using TerminalMcp;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -11,6 +12,9 @@ builder.Logging.AddConsole(consoleLogOptions =>
 {
     consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
 });
+
+// Register the terminal session manager as a singleton
+builder.Services.AddSingleton<TerminalSessionManager>();
 
 builder.Services
     .AddMcpServer()
