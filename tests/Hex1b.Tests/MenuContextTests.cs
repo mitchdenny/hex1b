@@ -98,8 +98,7 @@ public class MenuContextTests
     public void MenuItem_OnActivated_SetsHandler()
     {
         var ctx = new MenuContext();
-        var called = false;
-        var item = ctx.MenuItem("Open").OnActivated(e => called = true);
+        var item = ctx.MenuItem("Open").OnActivated(_ => { });
         
         Assert.NotNull(item.ActivatedHandler);
     }

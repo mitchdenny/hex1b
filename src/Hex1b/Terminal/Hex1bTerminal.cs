@@ -78,6 +78,34 @@ public sealed class Hex1bTerminal : IDisposable
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
+    private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
+    private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
+    
+    // Scroll region (DECSTBM) - 0-based indices
+    private int _scrollTop; // Top margin (0 = first row)
+    private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
+    
+    // Left/Right margins (DECSLRM) - 0-based indices
+    private int _marginLeft; // Left margin (0 = first column)
+    private int _marginRight; // Right margin (width-1 = last column), initialized in constructor
+    private bool _declrmm; // DECLRMM mode (mode 69): when true, CSI s sets left/right margins instead of saving cursor
+    
+    // Deferred wrap (standard terminal behavior): when writing to the last column,
+    // wrap is deferred until the next printable character. CR/LF clear the pending wrap.
+    private bool _pendingWrap;
+    
+    // Line Feed/New Line Mode (LNM, DEC mode 20): when true, LF also performs CR.
+    // Real terminal emulators (xterm, etc.) have this OFF by default.
+    // The ONLCR translation (LF→CRLF) happens in the PTY/TTY kernel driver, not the terminal.
+    // Full-screen apps like vim/mapscii disable ONLCR and send explicit \r\n.
+    private bool _newlineMode = false;
+    
+    // Origin Mode (DECOM, DEC mode 6): when true, cursor positions are relative to scroll region.
+    // When false (default), cursor positions are absolute (relative to full screen).
+    private bool _originMode = false;
+    
+    // Last printed character for CSI b (REP - repeat) command
+    private TerminalCell _lastPrintedCell = TerminalCell.Empty;
 
 
 
@@ -142,6 +170,8 @@ public sealed class Hex1bTerminal : IDisposable
         _ = _workload.ResizeAsync(_width, _height);
         
         _screenBuffer = new TerminalCell[_height, _width];
+        _scrollBottom = _height - 1; // Default scroll region is full screen
+        _marginRight = _width - 1; // Default left/right margins are full screen
         
         ClearBuffer();
 
@@ -210,11 +240,11 @@ public sealed class Hex1bTerminal : IDisposable
     /// </summary>
     private void Start()
     {
-        // Enter TUI mode on presentation if present (enables raw mode for input capture)
+        // Enter raw mode on presentation if present (enables proper input capture)
         if (_presentation != null)
         {
-            // Fire and forget - EnterTuiModeAsync is typically synchronous for console
-            _ = _presentation.EnterTuiModeAsync();
+            // Fire and forget - EnterRawModeAsync is typically synchronous for console
+            _ = _presentation.EnterRawModeAsync();
         }
 
         // Start pumping presentation input → workload (if presentation exists)
@@ -288,16 +318,20 @@ public sealed class Hex1bTerminal : IDisposable
                     break;
                 }
 
+                // Tokenize input the same way we tokenize output
+                var text = Encoding.UTF8.GetString(data.Span);
+                var tokens = AnsiTokenizer.Tokenize(text);
+                
                 // Notify presentation filters of input FROM presentation
-                await NotifyPresentationFiltersInputAsync(data);
+                await NotifyPresentationFiltersInputAsync(tokens);
 
                 // Notify workload filters of input going TO workload
-                await NotifyWorkloadFiltersInputAsync(data);
+                await NotifyWorkloadFiltersInputAsync(tokens);
 
-                // For Hex1bAppWorkloadAdapter, we parse input and send events directly
+                // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
                 if (_workload is Hex1bAppWorkloadAdapter appWorkload)
                 {
-                    await ParseAndDispatchInputAsync(data, appWorkload, ct);
+                    await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
                 }
                 else
                 {
@@ -311,7 +345,396 @@ public sealed class Hex1bTerminal : IDisposable
             // Normal shutdown
         }
     }
-
+    
+    /// <summary>
+    /// Dispatches tokenized input as high-level events to the Hex1bApp workload.
+    /// </summary>
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    {
+        foreach (var token in tokens)
+        {
+            ct.ThrowIfCancellationRequested();
+            
+            var evt = TokenToEvent(token);
+            if (evt != null)
+            {
+                await workload.WriteInputEventAsync(evt, ct);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Converts an ANSI token to a Hex1b input event.
+    /// Returns null if the token doesn't represent a user input event.
+    /// </summary>
+    private static Hex1bEvent? TokenToEvent(AnsiToken token)
+    {
+        return token switch
+        {
+            // Mouse events
+            SgrMouseToken mouse => new Hex1bMouseEvent(mouse.Button, mouse.Action, mouse.X, mouse.Y, mouse.Modifiers),
+            
+            // SS3 sequences (F1-F4, arrow keys in application mode)
+            Ss3Token ss3 => Ss3TokenToKeyEvent(ss3),
+            
+            // Special key sequences (Insert, Delete, PgUp/Dn, F5-F12)
+            SpecialKeyToken special => SpecialKeyTokenToKeyEvent(special),
+            
+            // Cursor movement (arrow keys in normal mode, interpreted as input)
+            CursorMoveToken move => CursorMoveTokenToKeyEvent(move),
+            
+            // Text (printable characters, emoji, etc.)
+            TextToken text => TextTokenToEvent(text),
+            
+            // Control characters (Enter, Tab, etc.)
+            ControlCharacterToken ctrl => ControlCharToKeyEvent(ctrl),
+            
+            // Unrecognized sequences may contain Alt+key combinations or bare Escape
+            UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
+            
+            // Other tokens don't represent user input
+            _ => null
+        };
+    }
+    
+    private static Hex1bKeyEvent? Ss3TokenToKeyEvent(Ss3Token token)
+    {
+        var key = token.Character switch
+        {
+            'A' => Hex1bKey.UpArrow,
+            'B' => Hex1bKey.DownArrow,
+            'C' => Hex1bKey.RightArrow,
+            'D' => Hex1bKey.LeftArrow,
+            'H' => Hex1bKey.Home,
+            'F' => Hex1bKey.End,
+            'P' => Hex1bKey.F1,
+            'Q' => Hex1bKey.F2,
+            'R' => Hex1bKey.F3,
+            'S' => Hex1bKey.F4,
+            _ => Hex1bKey.None
+        };
+        
+        return key == Hex1bKey.None ? null : new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None);
+    }
+    
+    private static Hex1bKeyEvent? SpecialKeyTokenToKeyEvent(SpecialKeyToken token)
+    {
+        var key = token.KeyCode switch
+        {
+            1 => Hex1bKey.Home,
+            2 => Hex1bKey.Insert,
+            3 => Hex1bKey.Delete,
+            4 => Hex1bKey.End,
+            5 => Hex1bKey.PageUp,
+            6 => Hex1bKey.PageDown,
+            7 => Hex1bKey.Home,   // rxvt
+            8 => Hex1bKey.End,    // rxvt
+            11 => Hex1bKey.F1,    // vt
+            12 => Hex1bKey.F2,    // vt
+            13 => Hex1bKey.F3,    // vt
+            14 => Hex1bKey.F4,    // vt
+            15 => Hex1bKey.F5,
+            17 => Hex1bKey.F6,
+            18 => Hex1bKey.F7,
+            19 => Hex1bKey.F8,
+            20 => Hex1bKey.F9,
+            21 => Hex1bKey.F10,
+            23 => Hex1bKey.F11,
+            24 => Hex1bKey.F12,
+            _ => Hex1bKey.None
+        };
+        
+        if (key == Hex1bKey.None)
+            return null;
+        
+        // Decode modifiers from the modifier code
+        var modifiers = Hex1bModifiers.None;
+        if (token.Modifiers >= 2)
+        {
+            var modifierBits = token.Modifiers - 1;
+            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
+            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
+            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
+        }
+        
+        return new Hex1bKeyEvent(key, '\0', modifiers);
+    }
+    
+    private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
+    {
+        // When received as input (not output), cursor move tokens represent arrow keys
+        var key = token.Direction switch
+        {
+            CursorMoveDirection.Up => Hex1bKey.UpArrow,
+            CursorMoveDirection.Down => Hex1bKey.DownArrow,
+            CursorMoveDirection.Forward => Hex1bKey.RightArrow,
+            CursorMoveDirection.Back => Hex1bKey.LeftArrow,
+            _ => Hex1bKey.None
+        };
+        
+        return key == Hex1bKey.None ? null : new Hex1bKeyEvent(key, '\0', Hex1bModifiers.None);
+    }
+    
+    private static Hex1bEvent? TextTokenToEvent(TextToken token)
+    {
+        var text = token.Text;
+        if (string.IsNullOrEmpty(text))
+            return null;
+        
+        // Single character - try to parse as a key
+        if (text.Length == 1)
+        {
+            return ParseKeyInput(text[0]);
+        }
+        
+        // Multi-character (emoji, surrogate pairs, etc.) - emit as text event
+        return Hex1bKeyEvent.FromText(text);
+    }
+    
+    private static Hex1bKeyEvent? ControlCharToKeyEvent(ControlCharacterToken token)
+    {
+        return token.Character switch
+        {
+            '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
+            '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
+            _ => null
+        };
+    }
+    
+    private static Hex1bKeyEvent? UnrecognizedToKeyEvent(UnrecognizedSequenceToken token)
+    {
+        var seq = token.Sequence;
+        
+        // Bare Escape
+        if (seq == "\x1b")
+        {
+            return new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None);
+        }
+        
+        // Alt+key combination: ESC followed by a character
+        if (seq.Length == 2 && seq[0] == '\x1b')
+        {
+            var c = seq[1];
+            
+            // Alt+letter (lowercase)
+            if (c >= 'a' && c <= 'z')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'a'))), c, Hex1bModifiers.Alt);
+            }
+            
+            // Alt+letter (uppercase = Alt+Shift)
+            if (c >= 'A' && c <= 'Z')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Alt | Hex1bModifiers.Shift);
+            }
+            
+            // Alt+number
+            if (c >= '0' && c <= '9')
+            {
+                return new Hex1bKeyEvent(
+                    KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.Alt);
+            }
+        }
+        
+        return null;
+    }
+    
+    /// <summary>
+    /// Converts a Hex1b input event to ANSI tokens for serialization.
+    /// This is the inverse of TokenToEvent.
+    /// </summary>
+    private static IReadOnlyList<AnsiToken> EventToTokens(Hex1bEvent evt)
+    {
+        var token = EventToToken(evt);
+        return token != null ? [token] : [];
+    }
+    
+    /// <summary>
+    /// Converts a Hex1b input event to a single ANSI token.
+    /// Returns null if the event cannot be represented as a token.
+    /// </summary>
+    private static AnsiToken? EventToToken(Hex1bEvent evt)
+    {
+        return evt switch
+        {
+            Hex1bMouseEvent mouse => MouseEventToToken(mouse),
+            Hex1bKeyEvent key => KeyEventToToken(key),
+            _ => null
+        };
+    }
+    
+    private static SgrMouseToken MouseEventToToken(Hex1bMouseEvent evt)
+    {
+        // Encode button and modifiers into raw button code
+        int rawButton = evt.Button switch
+        {
+            MouseButton.Left => 0,
+            MouseButton.Middle => 1,
+            MouseButton.Right => 2,
+            MouseButton.None when evt.Action == MouseAction.Move => 35, // Motion with no button
+            MouseButton.ScrollUp => 64,
+            MouseButton.ScrollDown => 65,
+            _ => 0
+        };
+        
+        // Add modifier bits
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift)) rawButton |= 4;
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt)) rawButton |= 8;
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control)) rawButton |= 16;
+        
+        // Add motion bit for drag
+        if (evt.Action == MouseAction.Move || evt.Action == MouseAction.Drag) rawButton |= 32;
+        
+        return new SgrMouseToken(evt.Button, evt.Action, evt.X, evt.Y, evt.Modifiers, rawButton);
+    }
+    
+    private static AnsiToken? KeyEventToToken(Hex1bKeyEvent evt)
+    {
+        // Check for Ctrl+letter combinations (emit as control character)
+        // Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Control) && !evt.Modifiers.HasFlag(Hex1bModifiers.Alt))
+        {
+            var ctrlChar = GetControlCharacter(evt.Key);
+            if (ctrlChar != '\0')
+            {
+                return new ControlCharacterToken(ctrlChar);
+            }
+        }
+        
+        // Check if it's an Alt+key combination (emit as unrecognized ESC+char sequence)
+        if (evt.Modifiers.HasFlag(Hex1bModifiers.Alt) && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
+        {
+            var c = evt.Text;
+            if (!string.IsNullOrEmpty(c) && c.Length == 1)
+            {
+                return new UnrecognizedSequenceToken($"\x1b{c}");
+            }
+        }
+        
+        // Check for special keys that use SS3 sequences (F1-F4)
+        var ss3Char = evt.Key switch
+        {
+            Hex1bKey.F1 => 'P',
+            Hex1bKey.F2 => 'Q',
+            Hex1bKey.F3 => 'R',
+            Hex1bKey.F4 => 'S',
+            _ => '\0'
+        };
+        if (ss3Char != '\0' && evt.Modifiers == Hex1bModifiers.None)
+        {
+            return new Ss3Token(ss3Char);
+        }
+        
+        // Check for special keys that use CSI ~ sequences
+        var specialCode = evt.Key switch
+        {
+            Hex1bKey.Insert => 2,
+            Hex1bKey.Delete => 3,
+            Hex1bKey.PageUp => 5,
+            Hex1bKey.PageDown => 6,
+            Hex1bKey.F5 => 15,
+            Hex1bKey.F6 => 17,
+            Hex1bKey.F7 => 18,
+            Hex1bKey.F8 => 19,
+            Hex1bKey.F9 => 20,
+            Hex1bKey.F10 => 21,
+            Hex1bKey.F11 => 23,
+            Hex1bKey.F12 => 24,
+            _ => 0
+        };
+        if (specialCode != 0)
+        {
+            var modCode = EncodeModifiers(evt.Modifiers);
+            return new SpecialKeyToken(specialCode, modCode);
+        }
+        
+        // Arrow keys and Home/End use CSI sequences
+        var arrowDir = evt.Key switch
+        {
+            Hex1bKey.UpArrow => CursorMoveDirection.Up,
+            Hex1bKey.DownArrow => CursorMoveDirection.Down,
+            Hex1bKey.RightArrow => CursorMoveDirection.Forward,
+            Hex1bKey.LeftArrow => CursorMoveDirection.Back,
+            _ => (CursorMoveDirection?)null
+        };
+        if (arrowDir.HasValue)
+        {
+            return new CursorMoveToken(arrowDir.Value, 1);
+        }
+        
+        // Home/End in SS3 mode (common for many terminals)
+        if (evt.Key == Hex1bKey.Home) return new Ss3Token('H');
+        if (evt.Key == Hex1bKey.End) return new Ss3Token('F');
+        
+        // Control characters
+        if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
+        if (evt.Key == Hex1bKey.Tab) return new ControlCharacterToken('\t');
+        if (evt.Key == Hex1bKey.Escape) return new UnrecognizedSequenceToken("\x1b");
+        if (evt.Key == Hex1bKey.Backspace) return new ControlCharacterToken('\x7f');
+        
+        // Regular text
+        if (!string.IsNullOrEmpty(evt.Text))
+        {
+            return new TextToken(evt.Text);
+        }
+        
+        return null;
+    }
+    
+    private static int EncodeModifiers(Hex1bModifiers modifiers)
+    {
+        if (modifiers == Hex1bModifiers.None)
+            return 1; // No modifiers = 1 in xterm encoding
+        
+        int bits = 0;
+        if (modifiers.HasFlag(Hex1bModifiers.Shift)) bits |= 1;
+        if (modifiers.HasFlag(Hex1bModifiers.Alt)) bits |= 2;
+        if (modifiers.HasFlag(Hex1bModifiers.Control)) bits |= 4;
+        
+        return bits + 1; // xterm modifier encoding: bits + 1
+    }
+    
+    /// <summary>
+    /// Gets the control character for a Ctrl+key combination.
+    /// Ctrl+A = 0x01, Ctrl+B = 0x02, ..., Ctrl+Z = 0x1A
+    /// </summary>
+    private static char GetControlCharacter(Hex1bKey key)
+    {
+        // Map letter keys to control characters
+        return key switch
+        {
+            Hex1bKey.A => '\x01',
+            Hex1bKey.B => '\x02',
+            Hex1bKey.C => '\x03',
+            Hex1bKey.D => '\x04',
+            Hex1bKey.E => '\x05',
+            Hex1bKey.F => '\x06',
+            Hex1bKey.G => '\x07',
+            Hex1bKey.H => '\x08',
+            Hex1bKey.I => '\x09', // Tab
+            Hex1bKey.J => '\x0A', // LF
+            Hex1bKey.K => '\x0B',
+            Hex1bKey.L => '\x0C',
+            Hex1bKey.M => '\x0D', // CR
+            Hex1bKey.N => '\x0E',
+            Hex1bKey.O => '\x0F',
+            Hex1bKey.P => '\x10',
+            Hex1bKey.Q => '\x11',
+            Hex1bKey.R => '\x12',
+            Hex1bKey.S => '\x13',
+            Hex1bKey.T => '\x14',
+            Hex1bKey.U => '\x15',
+            Hex1bKey.V => '\x16',
+            Hex1bKey.W => '\x17',
+            Hex1bKey.X => '\x18',
+            Hex1bKey.Y => '\x19',
+            Hex1bKey.Z => '\x1A',
+            _ => '\0'
+        };
+    }
+    
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
         try
@@ -319,6 +742,7 @@ public sealed class Hex1bTerminal : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 var data = await _workload.ReadOutputAsync(ct);
+                
                 if (data.IsEmpty)
                 {
                     // Channel empty - this is a frame boundary
@@ -328,10 +752,35 @@ public sealed class Hex1bTerminal : IDisposable
                     await Task.Delay(10, ct);
                     continue;
                 }
+                
+                // FAST PATH: If no filters are active, bypass all tokenization and pass bytes directly
+                // This is crucial for programs like tmux that are sensitive to output timing
+                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 && _presentation != null)
+                {
+                    await _presentation.WriteOutputAsync(data, ct);
+                    continue;
+                }
 
+                // Decode UTF-8 using the stateful decoder which handles incomplete sequences
+                // across read boundaries (e.g., braille characters split across reads)
+                var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
+                var chars = new char[charCount];
+                _utf8Decoder.GetChars(data.Span, chars, flush: false);
+                var decodedText = new string(chars);
+                
+                // Prepend any buffered incomplete escape sequence from previous read
+                var text = _incompleteSequenceBuffer + decodedText;
+                _incompleteSequenceBuffer = "";
+                
+                // Check if text ends with an incomplete escape sequence and buffer it
+                var (completeText, incomplete) = ExtractIncompleteEscapeSequence(text);
+                _incompleteSequenceBuffer = incomplete;
+                
+                if (string.IsNullOrEmpty(completeText))
+                    continue; // All content is incomplete, wait for more data
+                
                 // Tokenize once, use for all processing
-                var text = Encoding.UTF8.GetString(data.Span);
-                var tokens = AnsiTokenizer.Tokenize(text);
+                var tokens = AnsiTokenizer.Tokenize(completeText);
                 
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
@@ -342,12 +791,21 @@ public sealed class Hex1bTerminal : IDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
-                    // Pass through presentation filters, serialize and send
-                    var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
-                    var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                    var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
-                    
-                    await _presentation.WriteOutputAsync(filteredBytes);
+                    // If there are no presentation filters, pass through original bytes directly
+                    // to preserve exact escape sequence syntax
+                    if (_presentationFilters.Count == 0)
+                    {
+                        var originalBytes = Encoding.UTF8.GetBytes(completeText);
+                        await _presentation.WriteOutputAsync(originalBytes);
+                    }
+                    else
+                    {
+                        // Pass through presentation filters, serialize and send
+                        var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
+                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
+                        await _presentation.WriteOutputAsync(filteredBytes);
+                    }
                 }
             }
         }
@@ -659,7 +1117,50 @@ public sealed class Hex1bTerminal : IDisposable
     {
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {
+            // Direct event dispatch for Hex1bApp workloads
             appWorkload.TryWriteInputEvent(evt);
+        }
+        else
+        {
+            // Serialize event to ANSI bytes for child process workloads
+            var tokens = EventToTokens(evt);
+            if (tokens.Count > 0)
+            {
+                var serialized = AnsiTokenSerializer.Serialize(tokens);
+                var bytes = Encoding.UTF8.GetBytes(serialized);
+                // Fire and forget - synchronous API can't wait for async write
+                _ = _workload.WriteInputAsync(bytes, CancellationToken.None);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Sends an input event to the workload asynchronously.
+    /// For Hex1bApp workloads, this dispatches the event directly.
+    /// For child process workloads, this serializes the event to ANSI bytes.
+    /// </summary>
+    /// <param name="evt">The event to send.</param>
+    /// <param name="ct">Cancellation token.</param>
+    internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+    {
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            // Direct event dispatch for Hex1bApp workloads
+            await appWorkload.WriteInputEventAsync(evt, ct);
+        }
+        else
+        {
+            // Serialize event to ANSI bytes for child process workloads
+            var tokens = EventToTokens(evt);
+            if (tokens.Count > 0)
+            {
+                var serialized = AnsiTokenSerializer.Serialize(tokens);
+                var bytes = Encoding.UTF8.GetBytes(serialized);
+                await _workload.WriteInputAsync(bytes, ct);
+                
+                // Also notify filters of the input
+                await NotifyWorkloadFiltersInputAsync(tokens);
+            }
         }
     }
 
@@ -722,6 +1223,11 @@ public sealed class Hex1bTerminal : IDisposable
             _height = newHeight;
             _cursorX = Math.Min(_cursorX, newWidth - 1);
             _cursorY = Math.Min(_cursorY, newHeight - 1);
+            
+            // Reset margins on resize - this matches xterm behavior
+            _marginRight = newWidth - 1;
+            if (_marginLeft > _marginRight)
+                _marginLeft = 0;
         }
     }
 
@@ -950,8 +1456,19 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case CursorPositionToken cursorToken:
-                _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
-                _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                _pendingWrap = false; // Explicit cursor movement clears pending wrap
+                if (_originMode)
+                {
+                    // Origin mode: positions are relative to scroll region
+                    _cursorY = Math.Clamp(_scrollTop + cursorToken.Row - 1, _scrollTop, _scrollBottom);
+                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                }
+                else
+                {
+                    // Normal mode: positions are absolute
+                    _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                }
                 break;
                 
             case ClearScreenToken clearToken:
@@ -970,6 +1487,49 @@ public sealed class Hex1bTerminal : IDisposable
                     else
                         DoExitAlternateScreen();
                 }
+                else if (privateModeToken.Mode == 6)
+                {
+                    // DECOM - Origin Mode
+                    _originMode = privateModeToken.Enable;
+                    // Setting origin mode also moves cursor to home position (within scroll region if enabled)
+                    _pendingWrap = false;
+                    _cursorX = _marginLeft;
+                    _cursorY = _originMode ? _scrollTop : 0;
+                }
+                else if (privateModeToken.Mode == 69)
+                {
+                    // DECLRMM - Left Right Margin Mode
+                    _declrmm = privateModeToken.Enable;
+                    if (!_declrmm)
+                    {
+                        // When disabled, reset margins to full screen
+                        _marginLeft = 0;
+                        _marginRight = _width - 1;
+                    }
+                }
+                break;
+            
+            case LeftRightMarginToken lrmToken:
+                // DECSLRM - Set Left Right Margins
+                // Only effective when DECLRMM (mode 69) is enabled
+                if (_declrmm)
+                {
+                    if (lrmToken.Right == 0)
+                    {
+                        // Reset to full screen width
+                        _marginLeft = 0;
+                        _marginRight = _width - 1;
+                    }
+                    else
+                    {
+                        _marginLeft = Math.Clamp(lrmToken.Left - 1, 0, _width - 1);
+                        _marginRight = Math.Clamp(lrmToken.Right - 1, _marginLeft, _width - 1);
+                    }
+                    // DECSLRM also moves cursor to home position
+                    _pendingWrap = false;
+                    _cursorX = _marginLeft;
+                    _cursorY = _originMode ? _scrollTop : 0;
+                }
                 break;
                 
             case OscToken oscToken:
@@ -981,8 +1541,23 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case ScrollRegionToken scrollRegionToken:
-                // Store scroll region for future scroll operations
-                // Not yet implemented in ProcessOutput either
+                // Store scroll region for future scroll operations (DECSTBM)
+                // Top and Bottom are 1-based; we store as 0-based
+                if (scrollRegionToken.Bottom == 0)
+                {
+                    // Reset to full screen
+                    _scrollTop = 0;
+                    _scrollBottom = _height - 1;
+                }
+                else
+                {
+                    _scrollTop = Math.Clamp(scrollRegionToken.Top - 1, 0, _height - 1);
+                    _scrollBottom = Math.Clamp(scrollRegionToken.Bottom - 1, _scrollTop, _height - 1);
+                }
+                // DECSTBM also moves cursor to home position (1,1)
+                _pendingWrap = false; // Cursor movement clears pending wrap
+                _cursorX = 0;
+                _cursorY = 0;
                 break;
                 
             case SaveCursorToken:
@@ -991,12 +1566,81 @@ public sealed class Hex1bTerminal : IDisposable
                 break;
                 
             case RestoreCursorToken:
+                _pendingWrap = false; // Cursor restore clears pending wrap
                 _cursorX = _savedCursorX;
                 _cursorY = _savedCursorY;
                 break;
                 
             case CursorShapeToken:
                 // Cursor shape is presentation-only, no buffer state to update
+                break;
+                
+            case CursorMoveToken moveToken:
+                ApplyCursorMove(moveToken);
+                break;
+                
+            case CursorColumnToken columnToken:
+                _pendingWrap = false; // Explicit column movement clears pending wrap
+                _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
+                break;
+                
+            case ScrollUpToken scrollUpToken:
+                for (int i = 0; i < scrollUpToken.Count; i++)
+                    ScrollUp(impacts);
+                break;
+                
+            case ScrollDownToken scrollDownToken:
+                for (int i = 0; i < scrollDownToken.Count; i++)
+                    ScrollDown(impacts);
+                break;
+                
+            case InsertLinesToken insertLinesToken:
+                InsertLines(insertLinesToken.Count, impacts);
+                break;
+                
+            case DeleteLinesToken deleteLinesToken:
+                DeleteLines(deleteLinesToken.Count, impacts);
+                break;
+                
+            case DeleteCharacterToken deleteCharToken:
+                DeleteCharacters(deleteCharToken.Count, impacts);
+                break;
+                
+            case InsertCharacterToken insertCharToken:
+                InsertCharacters(insertCharToken.Count, impacts);
+                break;
+                
+            case EraseCharacterToken eraseCharToken:
+                EraseCharacters(eraseCharToken.Count, impacts);
+                break;
+                
+            case RepeatCharacterToken repeatToken:
+                RepeatLastCharacter(repeatToken.Count, impacts);
+                break;
+                
+            case IndexToken:
+                // Move cursor down one line, scroll if at bottom of scroll region
+                if (_cursorY >= _scrollBottom)
+                    ScrollUp(impacts);
+                else
+                    _cursorY++;
+                break;
+                
+            case ReverseIndexToken:
+                // Move cursor up one line, scroll if at top of scroll region
+                if (_cursorY <= _scrollTop)
+                    ScrollDown(impacts);
+                else
+                    _cursorY--;
+                break;
+            
+            case CharacterSetToken:
+                // Character set selection - we pass through to presentation
+                // but don't need to track state for buffer purposes
+                break;
+            
+            case KeypadModeToken:
+                // Keypad mode - presentation-only, no buffer state
                 break;
                 
             case UnrecognizedSequenceToken:
@@ -1015,12 +1659,26 @@ public sealed class Hex1bTerminal : IDisposable
             var grapheme = GetGraphemeAt(text, i);
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
             
+            // Deferred wrap: If a wrap was pending from a previous character, perform it now
+            // This is standard VT100/xterm behavior - wrap only happens when the NEXT
+            // printable character is written, not when cursor reaches the margin.
+            if (_pendingWrap)
+            {
+                _pendingWrap = false;
+                // When DECLRMM is enabled, wrap to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
+                _cursorY++;
+            }
+            
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
             {
                 ScrollUp();
                 _cursorY = _height - 1;
             }
+            
+            // Determine effective right margin for wrapping
+            int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
             
             if (_cursorX < _width && _cursorY < _height)
             {
@@ -1029,9 +1687,13 @@ public sealed class Hex1bTerminal : IDisposable
                 
                 _currentHyperlink?.AddRef();
                 
-                SetCell(_cursorY, _cursorX, new TerminalCell(
+                var cell = new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink);
+                SetCell(_cursorY, _cursorX, cell, impacts);
+                
+                // Save last printed cell for CSI b (REP) command
+                _lastPrintedCell = cell;
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
@@ -1042,10 +1704,14 @@ public sealed class Hex1bTerminal : IDisposable
                 }
                 
                 _cursorX += graphemeWidth;
-                if (_cursorX >= _width)
+                
+                // When cursor reaches or exceeds the right margin, set pending wrap
+                // instead of immediately wrapping. The wrap will happen when the next
+                // printable character is written (or never, if CR/LF comes first).
+                if (_cursorX > effectiveRightMargin)
                 {
-                    _cursorX = 0;
-                    _cursorY++;
+                    _cursorX = effectiveRightMargin; // Cursor stays at last column within margin
+                    _pendingWrap = true;
                 }
             }
             i += grapheme.Length;
@@ -1057,22 +1723,75 @@ public sealed class Hex1bTerminal : IDisposable
         switch (token.Character)
         {
             case '\n':
-                _cursorY++;
-                _cursorX = 0;
-                if (_cursorY >= _height)
+                // LF clears pending wrap - the wrap is "consumed" by the line feed
+                _pendingWrap = false;
+                
+                // LNM (DEC mode 20): when enabled, LF also performs CR.
+                // This is typically OFF in terminal emulators - the ONLCR translation
+                // happens in the PTY/TTY kernel driver for cooked mode apps.
+                if (_newlineMode)
+                {
+                    // When DECLRMM is enabled, CR goes to left margin
+                    _cursorX = _declrmm ? _marginLeft : 0;
+                }
+                
+                // LF moves cursor down. If at bottom of scroll region, scroll up.
+                if (_cursorY >= _scrollBottom)
                 {
                     ScrollUp();
-                    _cursorY = _height - 1;
+                    // Cursor stays at _scrollBottom
+                }
+                else if (_cursorY < _height - 1)
+                {
+                    _cursorY++;
                 }
                 break;
                 
             case '\r':
-                _cursorX = 0;
+                // CR clears pending wrap - moving to left margin cancels any pending wrap
+                _pendingWrap = false;
+                // When DECLRMM is enabled, CR moves to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
                 break;
                 
             case '\t':
                 // Move to next tab stop (every 8 columns)
                 _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+        }
+    }
+
+    private void ApplyCursorMove(CursorMoveToken token)
+    {
+        // Any explicit cursor movement clears pending wrap
+        _pendingWrap = false;
+        
+        switch (token.Direction)
+        {
+            case CursorMoveDirection.Up:
+                _cursorY = Math.Max(0, _cursorY - token.Count);
+                break;
+                
+            case CursorMoveDirection.Down:
+                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                break;
+                
+            case CursorMoveDirection.Forward:
+                _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
+                break;
+                
+            case CursorMoveDirection.Back:
+                _cursorX = Math.Max(0, _cursorX - token.Count);
+                break;
+                
+            case CursorMoveDirection.NextLine:
+                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                _cursorX = 0;
+                break;
+                
+            case CursorMoveDirection.PreviousLine:
+                _cursorY = Math.Max(0, _cursorY - token.Count);
+                _cursorX = 0;
                 break;
         }
     }
@@ -1096,18 +1815,22 @@ public sealed class Hex1bTerminal : IDisposable
 
     private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
     {
+        // When DECLRMM is enabled, clear operations respect left/right margins
+        int effectiveLeft = _declrmm ? _marginLeft : 0;
+        int effectiveRight = _declrmm ? _marginRight : _width - 1;
+        
         switch (mode)
         {
             case ClearMode.ToEnd:
-                for (int x = _cursorX; x < _width; x++)
+                for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.ToStart:
-                for (int x = 0; x <= _cursorX && x < _width; x++)
+                for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
             case ClearMode.All:
-                for (int x = 0; x < _width; x++)
+                for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
                 break;
         }
@@ -1267,8 +1990,14 @@ public sealed class Hex1bTerminal : IDisposable
                 case >= 30 and <= 37:
                     _currentForeground = StandardColorFromCode(code - 30);
                     break;
+                case 39: // Default foreground color
+                    _currentForeground = null;
+                    break;
                 case >= 40 and <= 47:
                     _currentBackground = StandardColorFromCode(code - 40);
+                    break;
+                case 49: // Default background color
+                    _currentBackground = null;
                     break;
                 case >= 90 and <= 97:
                     _currentForeground = BrightColorFromCode(code - 90);
@@ -1396,27 +2125,259 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private void ScrollUp()
+    private void ScrollUp(List<CellImpact>? impacts = null)
     {
-        // First, release Sixel data from the top row (being scrolled off)
-        for (int x = 0; x < _width; x++)
+        // Scroll up within the scroll region
+        // When DECLRMM is enabled, only scroll within left/right margins
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
+        // First, release Sixel data from the top row of the region (being scrolled off)
+        for (int x = leftCol; x <= rightCol; x++)
         {
-            _screenBuffer[0, x].TrackedSixel?.Release();
+            _screenBuffer[_scrollTop, x].TrackedSixel?.Release();
         }
         
-        // Shift all rows up (tracked object refs move with them, no AddRef/Release needed)
-        for (int y = 0; y < _height - 1; y++)
+        // Shift rows up within the scroll region
+        // All affected cells need to be recorded as impacts
+        for (int y = _scrollTop; y < _scrollBottom; y++)
         {
-            for (int x = 0; x < _width; x++)
+            for (int x = leftCol; x <= rightCol; x++)
             {
-                _screenBuffer[y, x] = _screenBuffer[y + 1, x];
+                var cellFromBelow = _screenBuffer[y + 1, x];
+                SetCell(y, x, cellFromBelow, impacts);
             }
         }
         
-        // Clear the bottom row (no tracked objects to release - they moved up)
-        for (int x = 0; x < _width; x++)
+        // Clear the bottom row of the scroll region (within margins)
+        for (int x = leftCol; x <= rightCol; x++)
         {
-            _screenBuffer[_height - 1, x] = TerminalCell.Empty;
+            SetCell(_scrollBottom, x, TerminalCell.Empty, impacts);
+        }
+    }
+    
+    private void ScrollDown(List<CellImpact>? impacts = null)
+    {
+        // Scroll down within the scroll region
+        // When DECLRMM is enabled, only scroll within left/right margins
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
+        // First, release Sixel data from the bottom row of the region (being scrolled off)
+        for (int x = leftCol; x <= rightCol; x++)
+        {
+            _screenBuffer[_scrollBottom, x].TrackedSixel?.Release();
+        }
+        
+        // Shift rows down within the scroll region
+        // All affected cells need to be recorded as impacts
+        for (int y = _scrollBottom; y > _scrollTop; y--)
+        {
+            for (int x = leftCol; x <= rightCol; x++)
+            {
+                var cellFromAbove = _screenBuffer[y - 1, x];
+                SetCell(y, x, cellFromAbove, impacts);
+            }
+        }
+        
+        // Clear the top row of the scroll region (within margins)
+        for (int x = leftCol; x <= rightCol; x++)
+        {
+            SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
+        }
+    }
+    
+    private void InsertLines(int count, List<CellImpact>? impacts = null)
+    {
+        // Insert blank lines at cursor position within scroll region
+        // Lines pushed off the bottom of the scroll region are lost
+        // When DECLRMM is enabled, only affect columns within left/right margins
+        var bottom = _scrollBottom;
+        count = Math.Min(count, bottom - _cursorY + 1);
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Release Sixel data from the bottom row of scroll region (being pushed off)
+            for (int x = leftCol; x <= rightCol; x++)
+            {
+                _screenBuffer[bottom, x].TrackedSixel?.Release();
+            }
+            
+            // Shift lines down from cursor position to bottom of scroll region
+            for (int y = bottom; y > _cursorY; y--)
+            {
+                for (int x = leftCol; x <= rightCol; x++)
+                {
+                    var cellFromAbove = _screenBuffer[y - 1, x];
+                    SetCell(y, x, cellFromAbove, impacts);
+                }
+            }
+            
+            // Clear the line at cursor position (within margins)
+            for (int x = leftCol; x <= rightCol; x++)
+            {
+                SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            }
+        }
+    }
+    
+    private void DeleteLines(int count, List<CellImpact>? impacts = null)
+    {
+        // Delete lines at cursor position within scroll region
+        // Blank lines are inserted at the bottom of the scroll region
+        // When DECLRMM is enabled, only affect columns within left/right margins
+        var bottom = _scrollBottom;
+        count = Math.Min(count, bottom - _cursorY + 1);
+        int leftCol = _declrmm ? _marginLeft : 0;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Release Sixel data from the line being deleted
+            for (int x = leftCol; x <= rightCol; x++)
+            {
+                _screenBuffer[_cursorY, x].TrackedSixel?.Release();
+            }
+            
+            // Shift lines up from cursor position to bottom of scroll region
+            for (int y = _cursorY; y < bottom; y++)
+            {
+                for (int x = leftCol; x <= rightCol; x++)
+                {
+                    var cellFromBelow = _screenBuffer[y + 1, x];
+                    SetCell(y, x, cellFromBelow, impacts);
+                }
+            }
+            
+            // Clear the bottom line of the scroll region (within margins)
+            for (int x = leftCol; x <= rightCol; x++)
+            {
+                SetCell(bottom, x, TerminalCell.Empty, impacts);
+            }
+        }
+    }
+    
+    private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
+    {
+        // Delete n characters at cursor, shifting remaining characters left
+        // Blank characters are inserted at the right margin
+        // When DECLRMM is enabled, operations are bounded by left/right margins
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
+        
+        for (int x = _cursorX; x < rightEdge - count; x++)
+        {
+            var cellFromRight = _screenBuffer[_cursorY, x + count];
+            SetCell(_cursorY, x, cellFromRight, impacts);
+        }
+        
+        // Fill the right edge with blanks
+        for (int x = rightEdge - count; x < rightEdge; x++)
+        {
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+        }
+    }
+    
+    private void InsertCharacters(int count, List<CellImpact>? impacts = null)
+    {
+        // Insert n blank characters at cursor, shifting existing characters right
+        // Characters pushed off the right margin are lost
+        // When DECLRMM is enabled, operations are bounded by left/right margins
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
+        
+        // Shift characters right
+        for (int x = rightEdge - 1; x >= _cursorX + count; x--)
+        {
+            var cellFromLeft = _screenBuffer[_cursorY, x - count];
+            SetCell(_cursorY, x, cellFromLeft, impacts);
+        }
+        
+        // Insert blanks at cursor position
+        for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
+        {
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+        }
+    }
+    
+    private void EraseCharacters(int count, List<CellImpact>? impacts = null)
+    {
+        // Erase n characters from cursor without moving cursor or shifting
+        // When DECLRMM is enabled, operations are bounded by right margin
+        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        count = Math.Min(count, rightEdge - _cursorX);
+        
+        for (int x = _cursorX; x < _cursorX + count; x++)
+        {
+            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+        }
+    }
+    
+    private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
+    {
+        // Repeat the last printed graphic character n times
+        if (string.IsNullOrEmpty(_lastPrintedCell.Character))
+            return;
+            
+        var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
+        
+        // Determine effective right margin for wrapping
+        int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
+        
+        for (int i = 0; i < count; i++)
+        {
+            // Handle deferred wrap
+            if (_pendingWrap)
+            {
+                _pendingWrap = false;
+                // When DECLRMM is enabled, wrap to left margin, not column 0
+                _cursorX = _declrmm ? _marginLeft : 0;
+                _cursorY++;
+            }
+            
+            // Scroll if needed
+            if (_cursorY >= _height)
+            {
+                ScrollUp();
+                _cursorY = _height - 1;
+            }
+            
+            if (_cursorX < _width && _cursorY < _height)
+            {
+                var sequence = ++_writeSequence;
+                var writtenAt = _timeProvider.GetUtcNow();
+                
+                // Create a new cell with the same visual properties but new timing
+                var cell = new TerminalCell(
+                    _lastPrintedCell.Character, 
+                    _lastPrintedCell.Foreground, 
+                    _lastPrintedCell.Background, 
+                    _lastPrintedCell.Attributes,
+                    sequence, 
+                    writtenAt, 
+                    TrackedSixel: null, 
+                    TrackedHyperlink: null);
+                SetCell(_cursorY, _cursorX, cell, impacts);
+                
+                // Handle wide characters
+                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
+                {
+                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
+                        "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
+                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null), impacts);
+                }
+                
+                _cursorX += graphemeWidth;
+                
+                // Handle pending wrap at right margin
+                if (_cursorX > effectiveRightMargin)
+                {
+                    _cursorX = effectiveRightMargin;
+                    _pendingWrap = true;
+                }
+            }
         }
     }
 
@@ -2000,11 +2961,11 @@ public sealed class Hex1bTerminal : IDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        // Exit TUI mode before disposing
+        // Exit raw mode before disposing
         if (_presentation != null)
         {
-            // Fire and forget - ExitTuiModeAsync is typically synchronous for console
-            _ = _presentation.ExitTuiModeAsync();
+            // Fire and forget - ExitRawModeAsync is typically synchronous for console
+            _ = _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;
         }
 
@@ -2025,8 +2986,8 @@ public sealed class Hex1bTerminal : IDisposable
 
         if (_presentation != null)
         {
-            // Exit TUI mode before disposing
-            await _presentation.ExitTuiModeAsync();
+            // Exit raw mode before disposing
+            await _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;
             await _presentation.DisposeAsync();
         }
@@ -2081,14 +3042,14 @@ public sealed class Hex1bTerminal : IDisposable
         }
     }
 
-    private async ValueTask NotifyWorkloadFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+    private async ValueTask NotifyWorkloadFiltersInputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
     {
         if (_workloadFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _workloadFilters)
         {
             ct.ThrowIfCancellationRequested();
-            await filter.OnInputAsync(data, elapsed, ct);
+            await filter.OnInputAsync(tokens, elapsed, ct);
         }
     }
 
@@ -2123,7 +3084,10 @@ public sealed class Hex1bTerminal : IDisposable
 
     private async ValueTask<IReadOnlyList<AnsiToken>> NotifyPresentationFiltersOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, CancellationToken ct = default)
     {
-        if (_presentationFilters.Count == 0) return appliedTokens.Select(at => at.Token).ToList();
+        if (_presentationFilters.Count == 0)
+        {
+            return appliedTokens.Select(at => at.Token).ToList();
+        }
         var elapsed = GetElapsed();
         var currentAppliedTokens = appliedTokens;
         IReadOnlyList<AnsiToken> resultTokens = appliedTokens.Select(at => at.Token).ToList();
@@ -2138,14 +3102,14 @@ public sealed class Hex1bTerminal : IDisposable
         return resultTokens;
     }
 
-    private async ValueTask NotifyPresentationFiltersInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+    private async ValueTask NotifyPresentationFiltersInputAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct = default)
     {
         if (_presentationFilters.Count == 0) return;
         var elapsed = GetElapsed();
         foreach (var filter in _presentationFilters)
         {
             ct.ThrowIfCancellationRequested();
-            await filter.OnInputAsync(data, elapsed, ct);
+            await filter.OnInputAsync(tokens, elapsed, ct);
         }
     }
 
@@ -2157,6 +3121,91 @@ public sealed class Hex1bTerminal : IDisposable
         {
             ct.ThrowIfCancellationRequested();
             await filter.OnResizeAsync(width, height, elapsed, ct);
+        }
+    }
+    
+    /// <summary>
+    /// Extracts any incomplete escape sequence from the end of the text.
+    /// Returns (completeText, incompleteSequence) where incompleteSequence
+    /// should be prepended to the next chunk of data.
+    /// </summary>
+    private static (string completeText, string incompleteSequence) ExtractIncompleteEscapeSequence(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return (text, "");
+        
+        // Find the last ESC character
+        int lastEsc = text.LastIndexOf('\x1b');
+        if (lastEsc < 0)
+            return (text, ""); // No escape sequences
+        
+        // Check if the sequence starting at lastEsc is complete
+        var potentialSequence = text[lastEsc..];
+        
+        if (IsCompleteEscapeSequence(potentialSequence))
+            return (text, ""); // The sequence is complete
+        
+        // The sequence is incomplete - split it off
+        return (text[..lastEsc], potentialSequence);
+    }
+    
+    /// <summary>
+    /// Determines if an escape sequence is complete.
+    /// </summary>
+    private static bool IsCompleteEscapeSequence(string seq)
+    {
+        if (seq.Length < 2)
+            return false; // Just ESC, need more
+        
+        var second = seq[1];
+        
+        switch (second)
+        {
+            case '[': // CSI sequence
+                // Need a letter to terminate (but not 'O' which could be SS3)
+                for (int i = 2; i < seq.Length; i++)
+                {
+                    var c = seq[i];
+                    // CSI sequences end with a letter (@ through ~, i.e., 0x40-0x7E)
+                    if (c >= '@' && c <= '~')
+                        return true;
+                }
+                return false; // No terminator found
+                
+            case ']': // OSC sequence
+                // Terminated by ST (ESC \) or BEL (\x07)
+                if (seq.Contains('\x07'))
+                    return true;
+                if (seq.Contains("\x1b\\"))
+                    return true;
+                return false;
+                
+            case 'P': // DCS sequence
+            case '_': // APC sequence
+                // Terminated by ST (ESC \)
+                return seq.Contains("\x1b\\");
+                
+            case '7': // DECSC
+            case '8': // DECRC
+            case 'c': // RIS
+            case 'D': // IND
+            case 'E': // NEL
+            case 'H': // HTS
+            case 'M': // RI
+            case 'N': // SS2
+            case 'O': // SS3
+            case 'Z': // DECID
+            case '=': // DECKPAM (application keypad)
+            case '>': // DECKPNM (normal keypad)
+                return true; // Two-character sequences are complete
+            
+            case '(': // G0 character set designation (ESC ( X)
+            case ')': // G1 character set designation (ESC ) X)
+                return seq.Length >= 3; // Need 3 characters total
+                
+            default:
+                // Unknown sequence type - assume complete
+                return true;
         }
     }
 }

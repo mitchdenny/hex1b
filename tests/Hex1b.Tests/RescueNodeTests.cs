@@ -411,9 +411,8 @@ public class RescueNodeTests
     public void RescueContext_ExposesExceptionInfo()
     {
         var exception = new ArgumentException("Test arg");
-        var resetCalled = false;
 
-        var ctx = new RescueContext(exception, RescueErrorPhase.Arrange, () => resetCalled = true);
+        var ctx = new RescueContext(exception, RescueErrorPhase.Arrange, () => { });
 
         Assert.Same(exception, ctx.Exception);
         Assert.Equal(RescueErrorPhase.Arrange, ctx.ErrorPhase);

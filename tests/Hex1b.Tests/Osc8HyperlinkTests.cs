@@ -199,8 +199,9 @@ public class Osc8HyperlinkTests
         using var terminal = new Hex1bTerminal(workload, 80, 24);
         
         // Start hyperlink and write across multiple lines
+        // Use \r\n for proper line ending (LF only moves down, CR returns to col 0)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\"));
-        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Line 1\n"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("Line 1\r\n"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("Line 2"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         

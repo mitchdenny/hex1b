@@ -57,10 +57,10 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         public ValueTask FlushAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
-        public ValueTask EnterTuiModeAsync(CancellationToken ct = default)
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
-        public ValueTask ExitTuiModeAsync(CancellationToken ct = default)
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
         public ValueTask DisposeAsync()
@@ -240,7 +240,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
             return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens);
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
         public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
@@ -675,7 +675,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
             return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens);
         }
 
-        public ValueTask OnInputAsync(ReadOnlyMemory<byte> data, TimeSpan elapsed, CancellationToken ct = default)
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
         public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)

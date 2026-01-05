@@ -51,7 +51,8 @@ public class Hex1bTerminalTests
 
         using var terminal = new Hex1bTerminal(workload, 20, 5);
         
-        workload.Write("Line1\nLine2\nLine3");
+        // Use \r\n (CRLF) - real terminals expect ONLCR translation to happen in PTY layer
+        workload.Write("Line1\r\nLine2\r\nLine3");
         
         Assert.Equal("Line1", terminal.CreateSnapshot().GetLineTrimmed(0));
         Assert.Equal("Line2", terminal.CreateSnapshot().GetLineTrimmed(1));
@@ -158,13 +159,14 @@ public class Hex1bTerminalTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 40, 10);
-        workload.Write("Hello World\nHello Again");
+        // Use \r\n - terminal emulator expects explicit CR before LF
+        workload.Write("Hello World\r\nHello Again");
         
         var results = terminal.CreateSnapshot().FindText("Hello");
         
         Assert.Equal(2, results.Count);
-        Assert.Equal((0, 0), results[0]);
-        Assert.Equal((1, 0), results[1]);
+        Assert.Equal((0, 0), results[0]); // (Line, Column) = row 0, col 0
+        Assert.Equal((1, 0), results[1]); // (Line, Column) = row 1, col 0
     }
 
     [Fact]
@@ -173,7 +175,8 @@ public class Hex1bTerminalTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = new Hex1bTerminal(workload, 40, 10);
-        workload.Write("Line 1\n\nLine 3");
+        // Use \r\n for proper line endings
+        workload.Write("Line 1\r\n\r\nLine 3");
         
         var lines = terminal.CreateSnapshot().GetNonEmptyLines().ToList();
         

@@ -134,9 +134,8 @@ public class PickerNodeTests
     public async Task PickerWidget_OnSelectionChanged_SetsHandler()
     {
         // Arrange
-        var handlerCalled = false;
         var widget = new PickerWidget(["Apple", "Banana", "Cherry"])
-            .OnSelectionChanged(e => handlerCalled = true);
+            .OnSelectionChanged(_ => { });
         var context = ReconcileContext.CreateRoot();
         
         // Act

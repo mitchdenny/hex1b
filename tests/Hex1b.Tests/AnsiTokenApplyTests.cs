@@ -71,7 +71,8 @@ public class AnsiTokenApplyTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = new Hex1bTerminal(workload, 20, 5);
-        var tokens = new AnsiToken[] { new TextToken("A"), ControlCharacterToken.LineFeed, new TextToken("B") };
+        // LF only moves down, CR returns to column 0 (strict VT100 behavior)
+        var tokens = new AnsiToken[] { new TextToken("A"), ControlCharacterToken.CarriageReturn, ControlCharacterToken.LineFeed, new TextToken("B") };
 
         // Act
         terminal.ApplyTokens(tokens);

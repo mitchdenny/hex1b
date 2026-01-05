@@ -96,8 +96,8 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     event Action? Disconnected;
     
     // Lifecycle
-    ValueTask EnterTuiModeAsync(CancellationToken ct = default);
-    ValueTask ExitTuiModeAsync(CancellationToken ct = default);
+    ValueTask EnterRawModeAsync(CancellationToken ct = default);
+    ValueTask ExitRawModeAsync(CancellationToken ct = default);
     ValueTask FlushAsync(CancellationToken ct = default);
 }
 ```

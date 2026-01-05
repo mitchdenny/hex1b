@@ -324,7 +324,7 @@ public class AnsiTokenSerializerTests
     {
         var token = new OscToken("0", "", "My Window Title");
         var result = AnsiTokenSerializer.Serialize(token);
-        Assert.Equal("\x1b]0;;My Window Title\x07", result);
+        Assert.Equal("\x1b]0;My Window Title\x07", result);
     }
 
     #endregion

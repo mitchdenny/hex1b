@@ -830,4 +830,28 @@ public class AnsiTokenizerTests
     }
 
     #endregion
+
+    #region DECSLRM Tests
+
+    [Fact]
+    public void Tokenize_DECSLRM_WithParameters_ReturnsLeftRightMarginToken()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b[91;178s");
+
+        var token = Assert.Single(result);
+        var lrmToken = Assert.IsType<LeftRightMarginToken>(token);
+        Assert.Equal(91, lrmToken.Left);
+        Assert.Equal(178, lrmToken.Right);
+    }
+
+    [Fact]
+    public void Tokenize_SaveCursor_WithNoParameters_ReturnsSaveCursorToken()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b[s");
+
+        var token = Assert.Single(result);
+        Assert.IsType<SaveCursorToken>(token);
+    }
+
+    #endregion
 }

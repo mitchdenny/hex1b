@@ -435,7 +435,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Step 2.5: Wrap in root ZStack for popup support
         // This ensures ctx.Popups is always available from any event handler
-        widgetTree = new ZStackWidget([widgetTree]);
+        // Note: widgetTree is always non-null here - either from _rootComponent or RescueWidget wrapping
+        widgetTree = new ZStackWidget([widgetTree!]);
 
         // Step 3: Reconcile - update the node tree to match the widget tree
         _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
