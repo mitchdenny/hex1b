@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using SkiaSharp;
+using Svg.Skia;
 
 namespace TerminalMcp.Tools;
 
@@ -55,12 +57,12 @@ public class CaptureTools(TerminalSessionManager sessionManager)
     }
 
     /// <summary>
-    /// Captures the current terminal screen as SVG.
+    /// Captures the current terminal screen as SVG and PNG.
     /// </summary>
-    [McpServerTool, Description("Capture the current terminal screen as an SVG image. Optionally save to a file.")]
+    [McpServerTool, Description("Capture the current terminal screen as an SVG image and save to a file. Also generates a PNG version.")]
     public CaptureScreenshotResult CaptureTerminalScreenshot(
         [Description("The session ID returned by start_terminal")] string sessionId,
-        [Description("Optional file path to save the SVG. If not provided, SVG content is returned in the response.")] string? savePath = null)
+        [Description("File path to save the SVG (required). A PNG with the same name will also be generated.")] string savePath)
     {
         var session = sessionManager.GetSession(sessionId);
         if (session == null)
@@ -73,26 +75,84 @@ public class CaptureTools(TerminalSessionManager sessionManager)
             };
         }
 
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            return new CaptureScreenshotResult
+            {
+                Success = false,
+                SessionId = sessionId,
+                Message = "savePath is required. Please provide a file path to save the screenshot."
+            };
+        }
+
         try
         {
             var svg = session.CaptureSvg();
 
-            if (!string.IsNullOrEmpty(savePath))
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(savePath);
+            if (!string.IsNullOrEmpty(directory))
             {
-                // Ensure directory exists
-                var directory = Path.GetDirectoryName(savePath);
-                if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+            }
+
+            // Ensure .svg extension
+            if (!savePath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                savePath += ".svg";
+            }
+
+            // Save SVG
+            File.WriteAllText(savePath, svg);
+
+            // Generate PNG path
+            var pngPath = Path.ChangeExtension(savePath, ".png");
+
+            // Convert SVG to PNG using Svg.Skia
+            try
+            {
+                using var svgDoc = new SKSvg();
+                svgDoc.FromSvg(svg);
+
+                if (svgDoc.Picture != null)
                 {
-                    Directory.CreateDirectory(directory);
+                    var bounds = svgDoc.Picture.CullRect;
+                    var width = (int)Math.Ceiling(bounds.Width);
+                    var height = (int)Math.Ceiling(bounds.Height);
+
+                    if (width > 0 && height > 0)
+                    {
+                        using var bitmap = new SKBitmap(width, height);
+                        using var canvas = new SKCanvas(bitmap);
+                        canvas.Clear(SKColors.Black);
+                        canvas.DrawPicture(svgDoc.Picture);
+
+                        using var image = SKImage.FromBitmap(bitmap);
+                        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                        using var stream = File.OpenWrite(pngPath);
+                        data.SaveTo(stream);
+
+                        return new CaptureScreenshotResult
+                        {
+                            Success = true,
+                            SessionId = sessionId,
+                            Message = $"Screenshot saved to {savePath} and {pngPath}",
+                            SavedPath = savePath,
+                            PngPath = pngPath,
+                            Width = session.Width,
+                            Height = session.Height,
+                            HasExited = session.HasExited,
+                            ExitCode = session.HasExited ? session.ExitCode : null
+                        };
+                    }
                 }
 
-                File.WriteAllText(savePath, svg);
-
+                // If SVG parsing failed, still return success for the SVG
                 return new CaptureScreenshotResult
                 {
                     Success = true,
                     SessionId = sessionId,
-                    Message = $"Screenshot saved to {savePath}",
+                    Message = $"Screenshot saved to {savePath} (PNG conversion failed: empty SVG)",
                     SavedPath = savePath,
                     Width = session.Width,
                     Height = session.Height,
@@ -100,18 +160,21 @@ public class CaptureTools(TerminalSessionManager sessionManager)
                     ExitCode = session.HasExited ? session.ExitCode : null
                 };
             }
-
-            return new CaptureScreenshotResult
+            catch (Exception pngEx)
             {
-                Success = true,
-                SessionId = sessionId,
-                Message = "Terminal screenshot captured.",
-                SvgContent = svg,
-                Width = session.Width,
-                Height = session.Height,
-                HasExited = session.HasExited,
-                ExitCode = session.HasExited ? session.ExitCode : null
-            };
+                // SVG was saved, but PNG conversion failed
+                return new CaptureScreenshotResult
+                {
+                    Success = true,
+                    SessionId = sessionId,
+                    Message = $"Screenshot saved to {savePath} (PNG conversion failed: {pngEx.Message})",
+                    SavedPath = savePath,
+                    Width = session.Width,
+                    Height = session.Height,
+                    HasExited = session.HasExited,
+                    ExitCode = session.HasExited ? session.ExitCode : null
+                };
+            }
         }
         catch (Exception ex)
         {

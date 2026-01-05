@@ -282,7 +282,7 @@ mcp_terminal-mcp_wait_for_terminal_text text="Expected UI text" timeoutSeconds=1
 
 # 7. Capture and verify the visual output (ALWAYS use both)
 mcp_terminal-mcp_capture_terminal_text      # For text-based verification
-mcp_terminal-mcp_capture_terminal_screenshot # For visual analysis (colors, layout, styling)
+mcp_terminal-mcp_capture_terminal_screenshot savePath="/path/to/hex1b/.doc-tester-workspace/screenshots/test-name-step1.svg"
 
 # 8. Interact with the TUI (type, navigate, etc.)
 mcp_terminal-mcp_send_terminal_input text="Hello"
@@ -291,7 +291,7 @@ mcp_terminal-mcp_send_terminal_key key="Enter"
 
 # 9. Verify the result after interaction (ALWAYS use both)
 mcp_terminal-mcp_capture_terminal_text      # Text verification
-mcp_terminal-mcp_capture_terminal_screenshot # Visual analysis
+mcp_terminal-mcp_capture_terminal_screenshot savePath="/path/to/hex1b/.doc-tester-workspace/screenshots/test-name-step2.svg"
 
 # 10. Exit the TUI (Ctrl+C) and clean up
 mcp_terminal-mcp_send_terminal_key key="c" modifiers=["Ctrl"]
@@ -592,7 +592,7 @@ wait_for_terminal_text text="Expected text" timeoutSeconds=10
 
 # Capture and verify output (ALWAYS use both for TUI apps)
 capture_terminal_text      # Text-based verification
-capture_terminal_screenshot # Visual analysis (colors, borders, layout)
+capture_terminal_screenshot savePath="/path/to/hex1b/.doc-tester-workspace/screenshots/example-name.svg"
 
 # Interact with the TUI if needed
 send_terminal_key key="Tab"
@@ -828,7 +828,7 @@ Use `bash` on Linux/macOS and `pwsh` on Windows.
 | `send_terminal_key` | Send special keys (Enter, Tab, arrows, F1-F12) |
 | `resize_terminal` | Resize the terminal dimensions |
 | `capture_terminal_text` | Get the screen buffer as plain text |
-| `capture_terminal_screenshot` | Get the screen as an SVG image |
+| `capture_terminal_screenshot` | Save the screen as SVG and PNG (requires `savePath`) |
 | `wait_for_terminal_text` | Wait for specific text to appear |
 
 ### Interactive Shell Workflow
@@ -894,17 +894,37 @@ For Hex1b TUI applications:
 7. **Interact** with the TUI using input tools
 8. **Exit and clean up** the session
 
+### Screenshot Directory
+
+All terminal screenshots should be saved to `.doc-tester-workspace/screenshots/` with descriptive filenames:
+
+```
+.doc-tester-workspace/
+├── screenshots/
+│   ├── button-basic-initial.svg
+│   ├── button-basic-initial.png
+│   ├── button-basic-after-click.svg
+│   ├── button-basic-after-click.png
+│   ├── textbox-typing.svg
+│   ├── textbox-typing.png
+│   └── ...
+└── DocTest/
+    └── ...
+```
+
+Use filenames that identify the test and step, e.g., `widget-example-step.svg`. Both SVG and PNG files are generated automatically.
+
 ### Comparing Output to Documentation
 
 When documentation shows expected output:
 
 1. **ALWAYS capture both** text AND screenshot for TUI apps
 2. Use `capture_terminal_text` for text-based verification
-3. Use `capture_terminal_screenshot` for visual analysis (colors, borders, focus states, layout)
+3. Use `capture_terminal_screenshot` with `savePath` to save for inspection (e.g., `savePath=".doc-tester-workspace/screenshots/test-name.svg"`)
 4. Compare against documentation claims
 5. Report discrepancies as documentation issues
 
-⚠️ **IMPORTANT**: TUI apps have visual elements (colors, borders, styling) that cannot be assessed from plain text alone. Always generate the screenshot to support complete analysis of the rendered output.
+⚠️ **IMPORTANT**: TUI apps have visual elements (colors, borders, styling) that cannot be assessed from plain text alone. Always save the screenshot for inspection. Screenshots are preserved (not deleted) so you can review them after testing.
 
 ### Limitations
 
@@ -1122,6 +1142,69 @@ When the docs are correct but the library doesn't work as documented:
 - Incorrect architecture descriptions
 - Misleading performance claims
 - Wrong default values documented
+
+## Documentation Style Guide
+
+When testing documentation, verify that code examples follow these style conventions. **Violations of these rules should be reported as bugs.**
+
+### Hex1bApp Callback Pattern
+
+**Prefer synchronous callbacks** for `Hex1bApp` unless the example specifically requires async behavior:
+
+✅ **Correct** - Use the synchronous overload:
+```csharp
+var app = new Hex1bApp(ctx => ctx.VStack(v => [
+    v.Text("Hello"),
+    v.Button("Click me")
+]));
+```
+
+❌ **Incorrect** - Don't use `Task.FromResult` unless async is required:
+```csharp
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+    ctx.VStack(v => [
+        v.Text("Hello"),
+        v.Button("Click me")
+    ])
+));
+```
+
+**When async IS required:**
+- The builder function needs to `await` something
+- The example is demonstrating async patterns specifically
+
+### Other Style Rules
+
+| Rule | Correct | Incorrect |
+|------|---------|-----------|
+| Use collection expressions | `v => [v.Text("A"), v.Text("B")]` | `v => new[] { v.Text("A"), v.Text("B") }` |
+| Prefer `var` | `var app = new Hex1bApp(...)` | `Hex1bApp app = new Hex1bApp(...)` |
+| Include required `using` statements | Always show imports | Omit imports |
+| Use file-scoped classes for state | `class MyState { ... }` at end | Inline anonymous types |
+
+### Reporting Style Violations
+
+When a code example violates style rules:
+
+1. **Mark as a bug** in the test report
+2. **Specify the rule violated**
+3. **Show the correct version**
+
+Example report entry:
+```markdown
+### Bug: Style Violation - Unnecessary async callback
+
+**Location:** /guide/widgets/button - Basic Usage example
+**Rule:** Prefer synchronous Hex1bApp callbacks
+**Current:**
+\`\`\`csharp
+var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(ctx.Button("Click")));
+\`\`\`
+**Should be:**
+\`\`\`csharp
+var app = new Hex1bApp(ctx => ctx.Button("Click"));
+\`\`\`
+```
 
 ## Evolving This Skill
 

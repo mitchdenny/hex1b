@@ -143,13 +143,13 @@ public class CaptureScreenshotResult
     [JsonPropertyName("message")]
     public required string Message { get; init; }
 
-    [JsonPropertyName("svgContent")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SvgContent { get; init; }
-
     [JsonPropertyName("savedPath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SavedPath { get; init; }
+
+    [JsonPropertyName("pngPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PngPath { get; init; }
 
     [JsonPropertyName("width")]
     public int Width { get; init; }
