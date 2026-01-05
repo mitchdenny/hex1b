@@ -978,6 +978,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it
+        // The terminal handles writing mouse disable sequences directly to the console
         _ownedTerminal?.Dispose();
         
         // Dispose the adapter
@@ -993,6 +994,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it
+        // The terminal handles writing mouse disable sequences directly to the console
         if (_ownedTerminal != null)
         {
             await _ownedTerminal.DisposeAsync();

@@ -366,6 +366,11 @@ public static class AnsiTokenizer
                 // Repeat Character (REP) - repeat last graphic character n times
                 tokens.Add(new RepeatCharacterToken(ParseMoveCount(parameters)));
                 break;
+            
+            case 'Z':
+                // Backtab (CBT) - Shift+Tab
+                tokens.Add(BackTabToken.Instance);
+                break;
                 
             case '~':
                 // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
