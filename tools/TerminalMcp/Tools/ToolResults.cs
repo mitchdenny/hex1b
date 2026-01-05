@@ -147,10 +147,6 @@ public class CaptureScreenshotResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SavedPath { get; init; }
 
-    [JsonPropertyName("pngPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? PngPath { get; init; }
-
     [JsonPropertyName("width")]
     public int Width { get; init; }
 

@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
-using SkiaSharp;
-using Svg.Skia;
 
 namespace TerminalMcp.Tools;
 
@@ -57,12 +55,12 @@ public class CaptureTools(TerminalSessionManager sessionManager)
     }
 
     /// <summary>
-    /// Captures the current terminal screen as SVG and PNG.
+    /// Captures the current terminal screen as an SVG image.
     /// </summary>
-    [McpServerTool, Description("Capture the current terminal screen as an SVG image and save to a file. Also generates a PNG version.")]
+    [McpServerTool, Description("Capture the current terminal screen as an SVG image and save to a file.")]
     public CaptureScreenshotResult CaptureTerminalScreenshot(
         [Description("The session ID returned by start_terminal")] string sessionId,
-        [Description("File path to save the SVG (required). A PNG with the same name will also be generated.")] string savePath)
+        [Description("File path to save the SVG screenshot (required).")] string savePath)
     {
         var session = sessionManager.GetSession(sessionId);
         if (session == null)
@@ -99,82 +97,23 @@ public class CaptureTools(TerminalSessionManager sessionManager)
             // Ensure .svg extension
             if (!savePath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
             {
-                savePath += ".svg";
+                savePath = Path.ChangeExtension(savePath, ".svg");
             }
 
             // Save SVG
             File.WriteAllText(savePath, svg);
 
-            // Generate PNG path
-            var pngPath = Path.ChangeExtension(savePath, ".png");
-
-            // Convert SVG to PNG using Svg.Skia
-            try
+            return new CaptureScreenshotResult
             {
-                using var svgDoc = new SKSvg();
-                svgDoc.FromSvg(svg);
-
-                if (svgDoc.Picture != null)
-                {
-                    var bounds = svgDoc.Picture.CullRect;
-                    var width = (int)Math.Ceiling(bounds.Width);
-                    var height = (int)Math.Ceiling(bounds.Height);
-
-                    if (width > 0 && height > 0)
-                    {
-                        using var bitmap = new SKBitmap(width, height);
-                        using var canvas = new SKCanvas(bitmap);
-                        canvas.Clear(SKColors.Black);
-                        canvas.DrawPicture(svgDoc.Picture);
-
-                        using var image = SKImage.FromBitmap(bitmap);
-                        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                        using var stream = File.OpenWrite(pngPath);
-                        data.SaveTo(stream);
-
-                        return new CaptureScreenshotResult
-                        {
-                            Success = true,
-                            SessionId = sessionId,
-                            Message = $"Screenshot saved to {savePath} and {pngPath}",
-                            SavedPath = savePath,
-                            PngPath = pngPath,
-                            Width = session.Width,
-                            Height = session.Height,
-                            HasExited = session.HasExited,
-                            ExitCode = session.HasExited ? session.ExitCode : null
-                        };
-                    }
-                }
-
-                // If SVG parsing failed, still return success for the SVG
-                return new CaptureScreenshotResult
-                {
-                    Success = true,
-                    SessionId = sessionId,
-                    Message = $"Screenshot saved to {savePath} (PNG conversion failed: empty SVG)",
-                    SavedPath = savePath,
-                    Width = session.Width,
-                    Height = session.Height,
-                    HasExited = session.HasExited,
-                    ExitCode = session.HasExited ? session.ExitCode : null
-                };
-            }
-            catch (Exception pngEx)
-            {
-                // SVG was saved, but PNG conversion failed
-                return new CaptureScreenshotResult
-                {
-                    Success = true,
-                    SessionId = sessionId,
-                    Message = $"Screenshot saved to {savePath} (PNG conversion failed: {pngEx.Message})",
-                    SavedPath = savePath,
-                    Width = session.Width,
-                    Height = session.Height,
-                    HasExited = session.HasExited,
-                    ExitCode = session.HasExited ? session.ExitCode : null
-                };
-            }
+                Success = true,
+                SessionId = sessionId,
+                Message = $"Screenshot saved to {savePath}",
+                SavedPath = savePath,
+                Width = session.Width,
+                Height = session.Height,
+                HasExited = session.HasExited,
+                ExitCode = session.HasExited ? session.ExitCode : null
+            };
         }
         catch (Exception ex)
         {
