@@ -12,8 +12,8 @@ public sealed class TerminalSession : IAsyncDisposable
 {
     private readonly Hex1bTerminalChildProcess _process;
     private readonly Hex1bTerminal _terminal;
+    private readonly CapturingPresentationAdapter _presentation;
     private readonly CancellationTokenSource _cts = new();
-    private readonly Task _outputPumpTask;
     private bool _disposed;
     private int _width;
     private int _height;
@@ -72,6 +72,7 @@ public sealed class TerminalSession : IAsyncDisposable
         string id,
         Hex1bTerminalChildProcess process,
         Hex1bTerminal terminal,
+        CapturingPresentationAdapter presentation,
         string command,
         IReadOnlyList<string> arguments,
         string? workingDirectory,
@@ -81,15 +82,13 @@ public sealed class TerminalSession : IAsyncDisposable
         Id = id;
         _process = process;
         _terminal = terminal;
+        _presentation = presentation;
         _width = width;
         _height = height;
         Command = command;
         Arguments = arguments;
         WorkingDirectory = workingDirectory;
         StartedAt = DateTimeOffset.UtcNow;
-
-        // Start pumping output from process to terminal
-        _outputPumpTask = PumpOutputAsync(_cts.Token);
     }
 
     /// <summary>
@@ -124,13 +123,22 @@ public sealed class TerminalSession : IAsyncDisposable
             initialWidth: width,
             initialHeight: height);
 
-        // Create the virtual terminal that processes the output
-        var terminal = new Hex1bTerminal(process, width, height);
+        // Create a capturing presentation adapter so the terminal's output pump runs
+        var presentation = new CapturingPresentationAdapter(width, height);
+
+        // Create the virtual terminal with presentation adapter to enable output pumping
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = process,
+            Width = width,
+            Height = height
+        });
 
         // Start the process
         await process.StartAsync(ct);
 
-        return new TerminalSession(id, process, terminal, command, arguments, workingDirectory, width, height);
+        return new TerminalSession(id, process, terminal, presentation, command, arguments, workingDirectory, width, height);
     }
 
     /// <summary>
@@ -255,23 +263,6 @@ public sealed class TerminalSession : IAsyncDisposable
         }
     }
 
-    private async Task PumpOutputAsync(CancellationToken ct)
-    {
-        try
-        {
-            while (!ct.IsCancellationRequested && !_process.HasExited)
-            {
-                // The terminal automatically pumps output when reading from the workload adapter
-                // We just need to keep the pump running
-                await Task.Delay(50, ct);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal cancellation
-        }
-    }
-
     private static byte[] TranslateKey(string key, string[]? modifiers)
     {
         var hasCtrl = modifiers?.Contains("Ctrl", StringComparer.OrdinalIgnoreCase) ?? false;
@@ -322,32 +313,16 @@ public sealed class TerminalSession : IAsyncDisposable
 
         _disposed = true;
 
-        // Cancel the output pump
-        await _cts.CancelAsync();
-
-        try
-        {
-            // Wait briefly for pump to finish
-            await _outputPumpTask.WaitAsync(TimeSpan.FromSeconds(1));
-        }
-        catch (TimeoutException)
-        {
-            // Ignore
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
-        }
-
         // Kill the process if still running
         if (!_process.HasExited)
         {
             _process.Kill();
         }
 
-        // Dispose process and terminal
+        // Dispose process, terminal, and presentation adapter
         await _process.DisposeAsync();
         _terminal.Dispose();
+        await _presentation.DisposeAsync();
         _cts.Dispose();
     }
 }

@@ -753,14 +753,6 @@ public sealed class Hex1bTerminal : IDisposable
                     continue;
                 }
                 
-                // FAST PATH: If no filters are active, bypass all tokenization and pass bytes directly
-                // This is crucial for programs like tmux that are sensitive to output timing
-                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 && _presentation != null)
-                {
-                    await _presentation.WriteOutputAsync(data, ct);
-                    continue;
-                }
-
                 // Decode UTF-8 using the stateful decoder which handles incomplete sequences
                 // across read boundaries (e.g., braille characters split across reads)
                 var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
@@ -781,6 +773,21 @@ public sealed class Hex1bTerminal : IDisposable
                 
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
+                
+                // FAST PATH: If no filters are active, apply tokens to buffer and forward bytes directly
+                // This is crucial for programs like tmux that are sensitive to output timing
+                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0)
+                {
+                    // Still apply tokens to internal buffer so CreateSnapshot() works
+                    ApplyTokens(tokens);
+                    
+                    // Forward raw bytes to presentation if present
+                    if (_presentation != null)
+                    {
+                        await _presentation.WriteOutputAsync(data, ct);
+                    }
+                    continue;
+                }
                 
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
