@@ -2964,9 +2964,16 @@ public sealed class Hex1bTerminal : IDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        // Exit raw mode before disposing
         if (_presentation != null)
         {
+            // Write mouse disable sequences and screen restore DIRECTLY to presentation
+            // This ensures they're written before raw mode is exited, avoiding race conditions
+            var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[?25h" +   // Show cursor
+                "\x1b[?1049l";  // Exit alternate screen
+            _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
+            _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
+            
             // Fire and forget - ExitRawModeAsync is typically synchronous for console
             _ = _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;
@@ -2989,6 +2996,15 @@ public sealed class Hex1bTerminal : IDisposable
 
         if (_presentation != null)
         {
+            // Write mouse disable sequences and screen restore DIRECTLY to presentation
+            // This ensures they're written before raw mode is exited, avoiding race conditions
+            // where mouse events could leak to the shell after app exit
+            var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[?25h" +   // Show cursor
+                "\x1b[?1049l";  // Exit alternate screen
+            await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
+            await _presentation.FlushAsync();
+            
             // Exit raw mode before disposing
             await _presentation.ExitRawModeAsync();
             _presentation.Resized -= OnPresentationResized;

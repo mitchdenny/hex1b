@@ -396,10 +396,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         if (_disposed) return;
         _disposed = true;
 
-        if (_inTuiMode)
-        {
-            ExitTuiMode();
-        }
+        // Note: ExitTuiMode is NOT called here because Hex1bTerminal handles
+        // writing mouse-disable and screen-restore sequences directly to the
+        // presentation layer during its disposal to avoid race conditions.
 
         _outputChannel.Writer.TryComplete();
         _inputChannel.Writer.TryComplete();
