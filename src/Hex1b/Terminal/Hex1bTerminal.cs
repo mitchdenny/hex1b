@@ -383,6 +383,9 @@ public sealed class Hex1bTerminal : IDisposable
             // Cursor movement (arrow keys in normal mode, interpreted as input)
             CursorMoveToken move => CursorMoveTokenToKeyEvent(move),
             
+            // Backtab (Shift+Tab) - CSI Z
+            BackTabToken => new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift),
+            
             // Text (printable characters, emoji, etc.)
             TextToken text => TextTokenToEvent(text),
             

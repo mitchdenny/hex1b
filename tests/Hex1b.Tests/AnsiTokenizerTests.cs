@@ -636,11 +636,22 @@ public class AnsiTokenizerTests
     [Fact]
     public void Tokenize_UnknownCsiCommand_ReturnsUnrecognizedToken()
     {
-        var result = AnsiTokenizer.Tokenize("\x1b[5Z");
+        // Use CSI W which is not a standard command
+        var result = AnsiTokenizer.Tokenize("\x1b[5W");
 
         var token = Assert.Single(result);
         var unrecToken = Assert.IsType<UnrecognizedSequenceToken>(token);
-        Assert.Equal("\x1b[5Z", unrecToken.Sequence);
+        Assert.Equal("\x1b[5W", unrecToken.Sequence);
+    }
+    
+    [Fact]
+    public void Tokenize_BackTab_ReturnsBackTabToken()
+    {
+        // CSI Z is Shift+Tab (Backtab)
+        var result = AnsiTokenizer.Tokenize("\x1b[Z");
+
+        var token = Assert.Single(result);
+        Assert.Same(BackTabToken.Instance, token);
     }
 
     #endregion

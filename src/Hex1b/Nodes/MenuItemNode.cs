@@ -396,7 +396,10 @@ public sealed class MenuItemNode : Hex1bNode
         var after = text[(accelIndex + 1)..];
         
         var normalCodes = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}";
-        var accelCodes = $"{accelFg.ToForegroundAnsi()}{accelBg.ToBackgroundAnsi()}";
+        
+        // When accelBg is default, inherit the normal background color
+        var effectiveAccelBg = accelBg.IsDefault ? bg : accelBg;
+        var accelCodes = $"{accelFg.ToForegroundAnsi()}{effectiveAccelBg.ToBackgroundAnsi()}";
         if (accelUnderline)
         {
             accelCodes += "\x1b[4m"; // Underline on
