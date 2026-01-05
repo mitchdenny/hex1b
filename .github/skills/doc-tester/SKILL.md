@@ -229,22 +229,85 @@ For each documentation page:
 For each code example shown in the documentation:
 
 1. **Copy the code exactly** as shown in the browser (from snapshot)
-2. **Create a test project** using the local package
-3. **Paste and run** the code - does it compile?
-4. **Observe the result** - does it match what the docs describe?
+2. **Create a test project** in the workspace directory
+3. **Build the code** - does it compile without errors?
+4. **Run and observe** using TerminalMcp - does it match what the docs describe?
+
+#### Step 1: Create Test Project in Workspace
+
+Use the `.doc-tester-workspace/` directory in the repository root (this is gitignored):
 
 ```bash
-# Create temp test project
-TEMP_DIR=$(mktemp -d)
-cd "$TEMP_DIR"
-dotnet new console -n DocTest
-cp /path/to/hex1b/.doc-tester-packages/NuGet.config DocTest/
+# Create test project in the workspace (not /tmp!)
+cd /path/to/hex1b
+mkdir -p .doc-tester-workspace
+cd .doc-tester-workspace
+dotnet new console -n DocTest --force
+cp ../.doc-tester-packages/NuGet.config DocTest/
 cd DocTest
 dotnet add package Hex1b --version 1.0.0-local.XXXXXX
 
-# Paste the code example and run
-dotnet run
+# Paste the code example into Program.cs and build
+dotnet build
 ```
+
+#### Step 2: Run with TerminalMcp Interactive Shell
+
+⚠️ **CRITICAL: Use an interactive shell, not direct command execution**
+
+After building successfully, use TerminalMcp with an interactive shell to run and validate:
+
+```
+# 1. Activate terminal tools
+activate_terminal_session_control_tools
+activate_terminal_interaction_tools
+
+# 2. Start an interactive bash shell (use start_pwsh_terminal on Windows)
+mcp_terminal-mcp_start_bash_terminal workingDirectory="/path/to/hex1b"
+
+# 3. Wait for shell prompt
+mcp_terminal-mcp_wait_for_terminal_text text="$" timeoutSeconds=5
+
+# 4. Navigate to the test project
+mcp_terminal-mcp_send_terminal_input text="cd .doc-tester-workspace/DocTest"
+mcp_terminal-mcp_send_terminal_key key="Enter"
+mcp_terminal-mcp_wait_for_terminal_text text="$" timeoutSeconds=5
+
+# 5. Run the TUI application
+mcp_terminal-mcp_send_terminal_input text="dotnet run"
+mcp_terminal-mcp_send_terminal_key key="Enter"
+
+# 6. Wait for the TUI to render
+mcp_terminal-mcp_wait_for_terminal_text text="Expected UI text" timeoutSeconds=15
+
+# 7. Capture and verify the visual output (ALWAYS use both)
+mcp_terminal-mcp_capture_terminal_text      # For text-based verification
+mcp_terminal-mcp_capture_terminal_screenshot # For visual analysis (colors, layout, styling)
+
+# 8. Interact with the TUI (type, navigate, etc.)
+mcp_terminal-mcp_send_terminal_input text="Hello"
+mcp_terminal-mcp_send_terminal_key key="Tab"
+mcp_terminal-mcp_send_terminal_key key="Enter"
+
+# 9. Verify the result after interaction (ALWAYS use both)
+mcp_terminal-mcp_capture_terminal_text      # Text verification
+mcp_terminal-mcp_capture_terminal_screenshot # Visual analysis
+
+# 10. Exit the TUI (Ctrl+C) and clean up
+mcp_terminal-mcp_send_terminal_key key="c" modifiers=["Ctrl"]
+mcp_terminal-mcp_stop_terminal sessionId="..."
+mcp_terminal-mcp_remove_session sessionId="..."
+```
+
+**Why TerminalMcp?** Standard `dotnet run` cannot capture TUI visual output. TerminalMcp provides a virtual terminal that captures the screen buffer, allowing you to verify:
+- The UI renders correctly (use `capture_terminal_screenshot` for visual analysis)
+- Text appears where expected (use `capture_terminal_text` for verification)
+- Interactions (typing, Tab navigation) work as documented
+- Focus states and styling change appropriately (visible in screenshots)
+
+⚠️ **CRITICAL**: Always use BOTH `capture_terminal_text` AND `capture_terminal_screenshot` when testing TUI apps. Text capture verifies content, but screenshots reveal visual elements (colors, borders, focus indicators) that text alone cannot assess.
+
+**Why interactive shell?** Starting `dotnet run` directly can fail because the PTY isn't properly initialized. Starting a shell first ensures proper environment and terminal setup.
 
 ### Phase 3: Test Interactive Demos (Playwright)
 
@@ -471,26 +534,28 @@ The `build-local-package.sh` script in this skill directory handles package crea
 
 When validating code examples from documentation:
 
-#### Step 1: Create a Temporary Test Project
+#### Step 1: Create a Test Project in the Workspace
+
+Test projects are created in `.doc-tester-workspace/` within the hex1b repository. This directory is gitignored.
 
 ```bash
-# Create temp directory for test project
-cd /tmp
-mkdir -p hex1b-doc-test
-cd hex1b-doc-test
+# Navigate to the hex1b repo root
+cd /path/to/hex1b
+
+# Create test project directory (name it descriptively for the test)
+mkdir -p .doc-tester-workspace/DocTest
+cd .doc-tester-workspace/DocTest
 
 # Create new console project
-dotnet new console -n DocTest -o DocTest --force
+dotnet new console --force
 
 # Copy the local NuGet.config (contains absolute path to packages)
-cp /path/to/hex1b/.doc-tester-packages/NuGet.config DocTest/
+cp ../../.doc-tester-packages/NuGet.config .
 ```
 
 #### Step 2: Add Local Package Reference
 
 ```bash
-cd DocTest
-
 # Add the local Hex1b package (use version from build script output)
 # The NuGet.config uses an absolute path, so no need to copy the .nupkg file
 dotnet add package Hex1b --version 1.0.0-local.20260105120000
@@ -504,40 +569,50 @@ cat > Program.cs << 'EOF'
 // Paste code example from documentation here
 EOF
 
-# Build and run
+# Build to verify it compiles
 dotnet build
-dotnet run
 ```
 
-#### Step 4: Compare Behavior
+#### Step 4: Run as TUI App with TerminalMcp
 
-- Does it compile without errors?
-- Does it run without exceptions?
-- Does the output/behavior match what documentation describes?
-
-**For TUI apps, use TerminalMcp:**
-
-Hex1b applications are TUI (Terminal User Interface) apps that take over the terminal. Use the TerminalMcp server to run and observe them:
+Hex1b applications are TUI (Terminal User Interface) apps that take over the terminal. Use the TerminalMcp server with an interactive shell:
 
 ```
-# Start the app in TerminalMcp
-start_terminal command="dotnet" arguments=["run"] workingDirectory="/tmp/DocTest"
+# Start an interactive shell (use start_pwsh_terminal on Windows)
+start_bash_terminal workingDirectory="/path/to/hex1b"
 
-# Wait for it to start
+# Wait for shell prompt
+wait_for_terminal_text text="$" timeoutSeconds=5
+
+# Navigate to test project and run
+send_terminal_input text="cd .doc-tester-workspace/DocTest && dotnet run\n"
+
+# Wait for the TUI to render
 wait_for_terminal_text text="Expected text" timeoutSeconds=10
 
-# Capture and verify output
-capture_terminal_text
+# Capture and verify output (ALWAYS use both for TUI apps)
+capture_terminal_text      # Text-based verification
+capture_terminal_screenshot # Visual analysis (colors, borders, layout)
 
-# Interact if needed
+# Interact with the TUI if needed
 send_terminal_key key="Tab"
 send_terminal_input text="test"
 
-# Clean up
+# Exit the TUI (Ctrl+C or Escape depending on the app)
+send_terminal_key key="Escape"
+
+# Clean up the session
 remove_session sessionId="..."
 ```
 
 See the [TerminalMcp Server](#terminalmcp-server) section for full details.
+
+#### Step 5: Compare Behavior
+
+- Does it compile without errors?
+- Does it run without exceptions?
+- Does the output/behavior match what documentation describes?
+- Do keyboard interactions work as documented?
 
 ### Automated Example Testing
 
@@ -547,20 +622,28 @@ For testing multiple examples efficiently, use this pattern:
 #!/bin/bash
 # test-examples.sh
 
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 EXAMPLES_DIR="$1"
 PACKAGE_VERSION="$2"
-NUGET_CONFIG="/path/to/hex1b/.doc-tester-packages/NuGet.config"
+NUGET_CONFIG="$REPO_ROOT/.doc-tester-packages/NuGet.config"
+WORKSPACE="$REPO_ROOT/.doc-tester-workspace"
+
+# Ensure workspace exists
+mkdir -p "$WORKSPACE"
 
 for example in "$EXAMPLES_DIR"/*.cs; do
     name=$(basename "$example" .cs)
-    temp_dir=$(mktemp -d)
+    test_dir="$WORKSPACE/test-$name"
     
     echo "Testing: $name"
     
-    cd "$temp_dir"
-    dotnet new console -n Test --force > /dev/null
-    cp "$NUGET_CONFIG" Test/
-    cd Test
+    # Clean up any previous test
+    rm -rf "$test_dir"
+    mkdir -p "$test_dir"
+    cd "$test_dir"
+    
+    dotnet new console --force > /dev/null
+    cp "$NUGET_CONFIG" .
     dotnet add package Hex1b --version "$PACKAGE_VERSION" > /dev/null 2>&1
     cp "$example" Program.cs
     
@@ -569,9 +652,9 @@ for example in "$EXAMPLES_DIR"/*.cs; do
     else
         echo "  ✗ $name: Build failed"
     fi
-    
-    rm -rf "$temp_dir"
 done
+
+echo "Test projects preserved in $WORKSPACE for inspection"
 ```
 
 ### NuGet.config Template
@@ -709,66 +792,119 @@ Use TerminalMcp when you need to:
 
 TerminalMcp solves the limitation that TUI apps take over the terminal and can't be easily observed through standard tooling.
 
+### Supported Shells
+
+TerminalMcp works by starting an **interactive shell** and then sending commands to it like a user would. The supported shells are:
+
+| Shell | OS | Preferred For |
+|-------|-----|---------------|
+| `bash` | Linux, macOS | Linux and macOS systems |
+| `pwsh` (PowerShell) | Windows, Linux, macOS | Windows systems |
+
+**Detecting Available Shells:**
+
+Before starting a terminal session, check which shells are available:
+
+```bash
+# On Linux/macOS - check for bash
+which bash
+
+# Check for PowerShell (cross-platform)
+which pwsh
+```
+
+Use `bash` on Linux/macOS and `pwsh` on Windows.
+
 ### Available Tools
 
 | Tool | Purpose |
 |------|---------|
-| `start_terminal` | Start a new terminal session with a command |
+| `start_bash_terminal` | Start a new bash shell session (Linux/macOS) |
+| `start_pwsh_terminal` | Start a new PowerShell session (Windows or cross-platform) |
 | `stop_terminal` | Kill the process (session remains for inspection) |
 | `remove_session` | Fully dispose and clean up a session |
 | `list_terminals` | List all active terminal sessions |
-| `send_terminal_input` | Send text input to the terminal |
+| `send_terminal_input` | Send text input (commands) to the shell |
 | `send_terminal_key` | Send special keys (Enter, Tab, arrows, F1-F12) |
 | `resize_terminal` | Resize the terminal dimensions |
 | `capture_terminal_text` | Get the screen buffer as plain text |
 | `capture_terminal_screenshot` | Get the screen as an SVG image |
 | `wait_for_terminal_text` | Wait for specific text to appear |
 
-### Typical Workflow
+### Interactive Shell Workflow
+
+⚠️ **IMPORTANT: Start a shell, then send commands interactively**
+
+Do NOT try to run `dotnet run` directly as the command. Instead, start an interactive shell and send commands to it like a user would:
 
 ```
-# 1. Start a terminal session running your built example
-start_terminal command="dotnet" arguments=["run", "--project", "/path/to/DocTest"]
+# 1. Start an interactive bash shell (use start_pwsh_terminal on Windows)
+mcp_terminal-mcp_start_bash_terminal workingDirectory="/path/to/hex1b"
 
-# 2. Wait for the app to start (look for expected text)
-wait_for_terminal_text text="Welcome" timeoutSeconds=10
+# 2. Wait for the shell prompt to appear
+mcp_terminal-mcp_wait_for_terminal_text text="$" timeoutSeconds=5
 
-# 3. Capture what's on screen
-capture_terminal_text  # Get plain text
-capture_terminal_screenshot savePath="/tmp/example-output.svg"  # Get visual
+# 3. Send a command by typing it + pressing Enter
+mcp_terminal-mcp_send_terminal_input text="cd .doc-tester-workspace/DocTest"
+mcp_terminal-mcp_send_terminal_key key="Enter"
 
-# 4. Interact with the app
-send_terminal_key key="Tab"  # Navigate
-send_terminal_input text="Hello"  # Type text
-send_terminal_key key="Enter"  # Submit
+# 4. Wait for the command to complete (shell prompt returns)
+mcp_terminal-mcp_wait_for_terminal_text text="$" timeoutSeconds=5
 
-# 5. Verify the result
-wait_for_terminal_text text="Expected Output"
-capture_terminal_text
+# 5. Run the TUI application
+mcp_terminal-mcp_send_terminal_input text="dotnet run"
+mcp_terminal-mcp_send_terminal_key key="Enter"
 
-# 6. Clean up
-remove_session sessionId="..."
+# 6. Wait for the TUI to render
+mcp_terminal-mcp_wait_for_terminal_text text="TextBox Widget Demo" timeoutSeconds=15
+
+# 7. Capture and verify output
+mcp_terminal-mcp_capture_terminal_text
+
+# 8. Interact with the TUI (type, Tab, etc.)
+mcp_terminal-mcp_send_terminal_input text="Hello World"
+mcp_terminal-mcp_send_terminal_key key="Tab"
+
+# 9. Exit the TUI (Ctrl+C)
+mcp_terminal-mcp_send_terminal_key key="c" modifiers=["Ctrl"]
+
+# 10. Clean up
+mcp_terminal-mcp_stop_terminal sessionId="..."
+mcp_terminal-mcp_remove_session sessionId="..."
 ```
+
+### Why Interactive Shell?
+
+The dedicated shell tools (`start_bash_terminal`, `start_pwsh_terminal`) ensure:
+- Proper environment setup (PATH, etc.)
+- Correct working directory handling
+- Better PTY initialization for TUI apps
+- The ability to run multiple commands in sequence
 
 ### Testing Code Examples with TerminalMcp
 
-For Hex1b TUI applications, use TerminalMcp instead of just `dotnet run`:
+For Hex1b TUI applications:
 
-1. **Build the test project** first: `dotnet build`
-2. **Start the app in TerminalMcp**: Use `start_terminal` with `dotnet run`
-3. **Wait for startup**: Use `wait_for_terminal_text` with expected initial content
-4. **Capture output**: Use `capture_terminal_text` to see what's displayed
-5. **Compare to documentation**: Does the output match what docs describe?
-6. **Clean up**: Use `remove_session` to dispose the terminal
+1. **Build the test project** first using `run_in_terminal` (standard terminal)
+2. **Start an interactive shell** in TerminalMcp
+3. **Navigate to the project directory** using `cd` command
+4. **Run `dotnet run`** by sending the command + Enter
+5. **Wait for the TUI** to render using `wait_for_terminal_text`
+6. **Capture output** using BOTH `capture_terminal_text` AND `capture_terminal_screenshot`
+7. **Interact** with the TUI using input tools
+8. **Exit and clean up** the session
 
 ### Comparing Output to Documentation
 
 When documentation shows expected output:
 
-1. Use `capture_terminal_text` to get actual output
-2. Compare line-by-line with documentation claims
-3. For visual elements (colors, styling), use `capture_terminal_screenshot`
-4. Report discrepancies as documentation issues
+1. **ALWAYS capture both** text AND screenshot for TUI apps
+2. Use `capture_terminal_text` for text-based verification
+3. Use `capture_terminal_screenshot` for visual analysis (colors, borders, focus states, layout)
+4. Compare against documentation claims
+5. Report discrepancies as documentation issues
+
+⚠️ **IMPORTANT**: TUI apps have visual elements (colors, borders, styling) that cannot be assessed from plain text alone. Always generate the screenshot to support complete analysis of the rendered output.
 
 ### Limitations
 

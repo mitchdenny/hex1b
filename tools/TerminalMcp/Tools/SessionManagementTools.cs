@@ -10,22 +10,44 @@ namespace TerminalMcp.Tools;
 public class SessionManagementTools(TerminalSessionManager sessionManager)
 {
     /// <summary>
-    /// Starts a new terminal session with the specified command.
+    /// Starts a new bash terminal session.
     /// </summary>
-    [McpServerTool, Description("Start a new terminal session with the specified command. Returns the session ID for use with other terminal tools.")]
-    public async Task<StartTerminalResult> StartTerminal(
-        [Description("The command to execute (e.g., 'bash', 'dotnet run', 'python script.py')")] string command,
-        [Description("Optional arguments to pass to the command")] string[]? arguments = null,
-        [Description("Optional working directory for the process")] string? workingDirectory = null,
+    [McpServerTool, Description("Start a new bash terminal session. Use this on Linux and macOS. Returns the session ID for use with other terminal tools.")]
+    public async Task<StartTerminalResult> StartBashTerminal(
+        [Description("Optional working directory for the bash session")] string? workingDirectory = null,
         [Description("Terminal width in columns (default: 80)")] int width = 80,
         [Description("Terminal height in rows (default: 24)")] int height = 24,
         CancellationToken ct = default)
+    {
+        return await StartShellAsync("bash", [], workingDirectory, width, height, ct);
+    }
+
+    /// <summary>
+    /// Starts a new PowerShell (pwsh) terminal session.
+    /// </summary>
+    [McpServerTool, Description("Start a new PowerShell (pwsh) terminal session. Use this on Windows or when PowerShell is preferred. Returns the session ID for use with other terminal tools.")]
+    public async Task<StartTerminalResult> StartPwshTerminal(
+        [Description("Optional working directory for the PowerShell session")] string? workingDirectory = null,
+        [Description("Terminal width in columns (default: 80)")] int width = 80,
+        [Description("Terminal height in rows (default: 24)")] int height = 24,
+        CancellationToken ct = default)
+    {
+        return await StartShellAsync("pwsh", [], workingDirectory, width, height, ct);
+    }
+
+    private async Task<StartTerminalResult> StartShellAsync(
+        string command,
+        string[] arguments,
+        string? workingDirectory,
+        int width,
+        int height,
+        CancellationToken ct)
     {
         try
         {
             var session = await sessionManager.StartSessionAsync(
                 command,
-                arguments ?? [],
+                arguments,
                 workingDirectory,
                 environment: null,
                 width,
@@ -54,7 +76,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 ProcessId = null,
                 Message = $"Failed to start terminal: {ex.Message}",
                 Command = command,
-                Arguments = arguments ?? [],
+                Arguments = arguments,
                 WorkingDirectory = workingDirectory,
                 Width = width,
                 Height = height
@@ -67,7 +89,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
     /// </summary>
     [McpServerTool, Description("Stop a terminal session's process by its ID. The session remains available for inspection. Use remove_session to fully clean up.")]
     public StopTerminalResult StopTerminal(
-        [Description("The session ID returned by start_terminal")] string sessionId)
+        [Description("The session ID returned by start_bash_terminal or start_pwsh_terminal")] string sessionId)
     {
         var session = sessionManager.GetSession(sessionId);
         if (session == null)
@@ -133,7 +155,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
     /// </summary>
     [McpServerTool, Description("Remove a terminal session completely, disposing all resources. Use after stop_terminal or when the process has exited.")]
     public async Task<RemoveSessionResult> RemoveSession(
-        [Description("The session ID returned by start_terminal")] string sessionId)
+        [Description("The session ID returned by start_bash_terminal or start_pwsh_terminal")] string sessionId)
     {
         var session = sessionManager.GetSession(sessionId);
         if (session == null)
@@ -165,7 +187,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
     /// </summary>
     [McpServerTool, Description("Resize a terminal session to the specified dimensions.")]
     public async Task<ResizeTerminalResult> ResizeTerminal(
-        [Description("The session ID returned by start_terminal")] string sessionId,
+        [Description("The session ID returned by start_bash_terminal or start_pwsh_terminal")] string sessionId,
         [Description("New width in columns")] int width,
         [Description("New height in rows")] int height,
         CancellationToken ct = default)

@@ -488,5 +488,6 @@ src/content/.vitepress/cache/
 src/Hex1b/Terminal/runtimes/linux-x64/native/*.so
 src/Hex1b/Terminal/native/*.o
 
-# Doc-tester local packages
+# Doc-tester local packages and workspace
 .doc-tester-packages/
+.doc-tester-workspace/
