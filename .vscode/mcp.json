@@ -15,6 +15,15 @@
         "-y",
         "@playwright/mcp@latest"
       ]
+    },
+    "terminal-mcp": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/tools/TerminalMcp"
+      ]
     }
   }
 }
