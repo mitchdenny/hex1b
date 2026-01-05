@@ -386,6 +386,7 @@ FodyWeavers.xsd
 
 # VS Code files for those working on multiple tools
 .vscode/*
+!.vscode/mcp.json
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -431,7 +432,7 @@ test-results/
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon  
 
 
 # Thumbnails
@@ -486,3 +487,7 @@ src/content/.vitepress/cache/
 # Intermediate native binaries for PTY interop
 src/Hex1b/Terminal/runtimes/linux-x64/native/*.so
 src/Hex1b/Terminal/native/*.o
+
+# Doc-tester local packages and workspace
+.doc-tester-packages/
+.doc-tester-workspace/

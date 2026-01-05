@@ -10,21 +10,18 @@ import basicSnippet from './snippets/button-basic.cs?raw'
 import focusSnippet from './snippets/button-focus.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new ButtonState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
-        v.Text("Button Examples"),
-        v.Text(""),
-        v.Text($"Button clicked {state.ClickCount} times"),
-        v.Text(""),
-        v.Button("Click me!").OnClick(_ => state.ClickCount++),
-        v.Text(""),
-        v.Text("Press Tab to focus, Enter or Space to activate")
-    ])
-));
+var app = new Hex1bApp(ctx => ctx.VStack(v => [
+    v.Text("Button Examples"),
+    v.Text(""),
+    v.Text($"Button clicked {state.ClickCount} times"),
+    v.Text(""),
+    v.Button("Click me!").OnClick(_ => state.ClickCount++),
+    v.Text(""),
+    v.Text("Press Tab to focus, Enter or Space to activate")
+]));
 
 await app.RunAsync();
 
@@ -34,25 +31,22 @@ class ButtonState
 }`
 
 const counterCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new CounterState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
-        b.VStack(v => [
-            v.Text($"Count: {state.Count}"),
-            v.Text(""),
-            v.HStack(h => [
-                h.Button("- Decrement").OnClick(_ => state.Count--),
-                h.Text(" "),
-                h.Button("+ Increment").OnClick(_ => state.Count++)
-            ]),
-            v.Text(""),
-            v.Button("Reset").OnClick(_ => state.Count = 0)
-        ])
-    ], title: "Counter")
-));
+var app = new Hex1bApp(ctx => ctx.Border(b => [
+    b.VStack(v => [
+        v.Text($"Count: {state.Count}"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Button("- Decrement").OnClick(_ => state.Count--),
+            h.Text(" "),
+            h.Button("+ Increment").OnClick(_ => state.Count++)
+        ]),
+        v.Text(""),
+        v.Button("Reset").OnClick(_ => state.Count = 0)
+    ])
+], title: "Counter"));
 
 await app.RunAsync();
 
@@ -62,40 +56,40 @@ class CounterState
 }`
 
 const asyncCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new LoaderState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
-        b.VStack(v => [
-            v.Text("Async Background Work Demo"),
-            v.Text(""),
-            v.Text($"Status: {state.Status}"),
-            v.Progress(state.Progress),
-            v.Text(""),
-            state.Result != null 
-                ? v.Text($"Result: {state.Result}") 
-                : v.Text(""),
-            v.Text(""),
-            v.Button(state.IsLoading ? "Loading..." : "Load Data")
-                .OnClick(_ => state.StartLoading(app))
-        ])
-    ], title: "Background Work")
-));
+var app = new Hex1bApp(ctx => ctx.Border(b => [
+    b.VStack(v => [
+        v.Text("Async Background Work Demo"),
+        v.Text(""),
+        v.Text($"Status: {state.Status}"),
+        v.Progress(state.Progress),
+        v.Text(""),
+        state.Result != null 
+            ? v.Text($"Result: {state.Result}") 
+            : v.Text(""),
+        v.Text(""),
+        v.Button(state.IsLoading ? "Loading..." : "Load Data")
+            .OnClick(_ => state.StartLoading())
+    ])
+], title: "Background Work"));
+
+state.App = app;
 
 await app.RunAsync();
 
 class LoaderState
 {
+    public Hex1bApp? App { get; set; }
     public string Status { get; private set; } = "Ready";
     public int Progress { get; private set; }
     public bool IsLoading { get; private set; }
     public string? Result { get; private set; }
 
-    public void StartLoading(Hex1bApp app)
+    public void StartLoading()
     {
-        if (IsLoading) return;
+        if (IsLoading || App is null) return;
         
         IsLoading = true;
         Status = "Starting...";
@@ -103,10 +97,10 @@ class LoaderState
         Result = null;
         
         // Trigger background work - not awaited!
-        _ = DoBackgroundWorkAsync(app);
+        _ = DoBackgroundWorkAsync();
     }
 
-    private async Task DoBackgroundWorkAsync(Hex1bApp app)
+    private async Task DoBackgroundWorkAsync()
     {
         var steps = new[] { "Connecting...", "Fetching data...", "Processing...", "Finalizing..." };
 
@@ -114,7 +108,7 @@ class LoaderState
         {
             Status = steps[i];
             Progress = (i + 1) * 25;
-            app.Invalidate(); // Tell app to re-render
+            App?.Invalidate(); // Tell app to re-render
             
             await Task.Delay(600); // Simulate work
         }
@@ -123,7 +117,7 @@ class LoaderState
         Progress = 100;
         Result = "Successfully loaded 42 items";
         IsLoading = false;
-        app.Invalidate();
+        App?.Invalidate();
     }
 }`
 </script>
@@ -226,7 +220,10 @@ The focused button has a distinct background color (configurable via theming) to
 Customize button appearance using theme elements:
 
 ```csharp
-var theme = Hex1bTheme.Create()
+using Hex1b;
+using Hex1b.Theming;
+
+var theme = new Hex1bTheme("Custom")
     .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
     .Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue)
     .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.Black)
@@ -234,9 +231,12 @@ var theme = Hex1bTheme.Create()
     .Set(ButtonTheme.LeftBracket, "< ")
     .Set(ButtonTheme.RightBracket, " >");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+var app = new Hex1bApp(
+    ctx => ctx.Button("Themed Button"),
+    new Hex1bAppOptions { Theme = theme }
+);
+
+await app.RunAsync();
 ```
 
 ### Available Theme Elements
@@ -266,7 +266,8 @@ You can add additional bindings using the standard input binding API:
 ```csharp
 v.Button("Save")
     .OnClick(_ => Save())
-    .OnKey(Hex1bKey.S, Hex1bModifiers.Control, _ => Save())
+    .WithInputBindings(bindings => bindings
+        .Ctrl().Key(Hex1bKey.S).Action(() => Save()))
 ```
 
 ## Related Widgets

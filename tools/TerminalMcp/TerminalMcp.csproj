@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+  <!-- Copy native interop library for PTY support -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <None Include="../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so" 
+          Condition="Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="libhex1binterop.so" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <None Include="../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" 
+          Condition="Exists('../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="libhex1binterop.dylib" />
+  </ItemGroup>
+
+</Project>
