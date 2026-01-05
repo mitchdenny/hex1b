@@ -515,25 +515,29 @@ dotnet run
 - Does it run without exceptions?
 - Does the output/behavior match what documentation describes?
 
-⚠️ **Limitation: TUI apps require interactive terminals**
+**For TUI apps, use TerminalMcp:**
 
-Hex1b applications are TUI (Terminal User Interface) apps that:
-- Take over the terminal screen
-- Require keyboard input to interact
-- Cannot be easily observed through automated tooling
+Hex1b applications are TUI (Terminal User Interface) apps that take over the terminal. Use the TerminalMcp server to run and observe them:
 
-**What you CAN verify:**
-- Code compiles successfully (`dotnet build`)
-- Code runs without immediate crashes (`dotnet run` exits cleanly or requires Ctrl+C)
+```
+# Start the app in TerminalMcp
+start_terminal command="dotnet" arguments=["run"] workingDirectory="/tmp/DocTest"
 
-**What you CANNOT verify without manual testing:**
-- Visual appearance matches documentation
-- Interactive behavior works as described
-- Layout and styling are correct
+# Wait for it to start
+wait_for_terminal_text text="Expected text" timeoutSeconds=10
 
-For visual verification of example output, rely on:
-1. The "Show output" previews in documentation (verify with screenshots)
-2. The "Run in browser" demos (interact via Playwright, take screenshots)
+# Capture and verify output
+capture_terminal_text
+
+# Interact if needed
+send_terminal_key key="Tab"
+send_terminal_input text="test"
+
+# Clean up
+remove_session sessionId="..."
+```
+
+See the [TerminalMcp Server](#terminalmcp-server) section for full details.
 
 ### Automated Example Testing
 
@@ -690,6 +694,87 @@ Look for:
 - ✅ `Running` state for both `content` and `website`
 - ✅ HTTP endpoints available
 - ⚠️ If `Waiting` or `Failed`, check logs with `list_console_logs`
+
+## TerminalMcp Server
+
+The TerminalMcp server provides tools for running and observing terminal applications. This is essential for testing Hex1b code examples that produce TUI (Terminal User Interface) output, since standard command-line execution cannot capture the visual output of TUI apps.
+
+### When to Use TerminalMcp
+
+Use TerminalMcp when you need to:
+- **Run a Hex1b TUI application** and verify its visual output
+- **Capture terminal screenshots** (SVG) for documentation verification
+- **Interact with running TUI apps** using keyboard input
+- **Wait for specific text** to appear on the terminal screen
+
+TerminalMcp solves the limitation that TUI apps take over the terminal and can't be easily observed through standard tooling.
+
+### Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `start_terminal` | Start a new terminal session with a command |
+| `stop_terminal` | Kill the process (session remains for inspection) |
+| `remove_session` | Fully dispose and clean up a session |
+| `list_terminals` | List all active terminal sessions |
+| `send_terminal_input` | Send text input to the terminal |
+| `send_terminal_key` | Send special keys (Enter, Tab, arrows, F1-F12) |
+| `resize_terminal` | Resize the terminal dimensions |
+| `capture_terminal_text` | Get the screen buffer as plain text |
+| `capture_terminal_screenshot` | Get the screen as an SVG image |
+| `wait_for_terminal_text` | Wait for specific text to appear |
+
+### Typical Workflow
+
+```
+# 1. Start a terminal session running your built example
+start_terminal command="dotnet" arguments=["run", "--project", "/path/to/DocTest"]
+
+# 2. Wait for the app to start (look for expected text)
+wait_for_terminal_text text="Welcome" timeoutSeconds=10
+
+# 3. Capture what's on screen
+capture_terminal_text  # Get plain text
+capture_terminal_screenshot savePath="/tmp/example-output.svg"  # Get visual
+
+# 4. Interact with the app
+send_terminal_key key="Tab"  # Navigate
+send_terminal_input text="Hello"  # Type text
+send_terminal_key key="Enter"  # Submit
+
+# 5. Verify the result
+wait_for_terminal_text text="Expected Output"
+capture_terminal_text
+
+# 6. Clean up
+remove_session sessionId="..."
+```
+
+### Testing Code Examples with TerminalMcp
+
+For Hex1b TUI applications, use TerminalMcp instead of just `dotnet run`:
+
+1. **Build the test project** first: `dotnet build`
+2. **Start the app in TerminalMcp**: Use `start_terminal` with `dotnet run`
+3. **Wait for startup**: Use `wait_for_terminal_text` with expected initial content
+4. **Capture output**: Use `capture_terminal_text` to see what's displayed
+5. **Compare to documentation**: Does the output match what docs describe?
+6. **Clean up**: Use `remove_session` to dispose the terminal
+
+### Comparing Output to Documentation
+
+When documentation shows expected output:
+
+1. Use `capture_terminal_text` to get actual output
+2. Compare line-by-line with documentation claims
+3. For visual elements (colors, styling), use `capture_terminal_screenshot`
+4. Report discrepancies as documentation issues
+
+### Limitations
+
+- TerminalMcp runs on the local machine (Linux/macOS with PTY support)
+- Sessions persist until explicitly removed - always clean up
+- For long-running apps, use `stop_terminal` then `remove_session`
 
 ## Playwright MCP Tools Reference
 
