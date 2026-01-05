@@ -126,4 +126,57 @@
           Link="libhex1binterop.dylib" />
   </ItemGroup>
 
+  <!--
+    Automatic native library building for local development
+    
+    This target builds the native interop library if it doesn't exist.
+    In CI, the native libraries are built in separate jobs on each platform,
+    then binplaced before dotnet pack. This target is a fallback for local
+    development when the library hasn't been built yet.
+  -->
+  
+  <!-- Linux x64: Build native library if it doesn't exist -->
+  <Target Name="BuildNativeLibraryLinuxX64" 
+          BeforeTargets="BeforeBuild"
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
+    <Message Importance="high" Text="Building hex1binterop native library for linux-x64..." />
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
+    </Exec>
+    <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure gcc and make are installed." />
+  </Target>
+  
+  <!-- Linux arm64: Build native library if it doesn't exist -->
+  <Target Name="BuildNativeLibraryLinuxArm64" 
+          BeforeTargets="BeforeBuild"
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('Terminal/runtimes/linux-arm64/native/libhex1binterop.so')">
+    <Message Importance="high" Text="Building hex1binterop native library for linux-arm64..." />
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
+    </Exec>
+    <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure gcc and make are installed." />
+  </Target>
+  
+  <!-- macOS x64: Build native library if it doesn't exist -->
+  <Target Name="BuildNativeLibraryOsxX64" 
+          BeforeTargets="BeforeBuild"
+          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')">
+    <Message Importance="high" Text="Building hex1binterop native library for osx-x64..." />
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
+    </Exec>
+    <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure Xcode Command Line Tools are installed." />
+  </Target>
+  
+  <!-- macOS arm64: Build native library if it doesn't exist -->
+  <Target Name="BuildNativeLibraryOsxArm64" 
+          BeforeTargets="BeforeBuild"
+          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
+    <Message Importance="high" Text="Building hex1binterop native library for osx-arm64..." />
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
+    </Exec>
+    <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure Xcode Command Line Tools are installed." />
+  </Target>
+
 </Project>
