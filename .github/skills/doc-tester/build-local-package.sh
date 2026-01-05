@@ -120,12 +120,13 @@ fi
 ACTUAL_VERSION=$(basename "$PACKAGE_FILE" | sed 's/Hex1b\.\(.*\)\.nupkg/\1/')
 
 # Create NuGet.config for test projects
+# Use absolute path so the config works when copied to any test project directory
 cat > "$PACKAGE_OUTPUT_DIR/NuGet.config" << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
     <clear />
-    <add key="doc-tester-local" value="." />
+    <add key="doc-tester-local" value="$PACKAGE_OUTPUT_DIR" />
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
   </packageSources>
   <packageSourceMapping>

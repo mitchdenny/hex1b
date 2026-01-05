@@ -92,11 +92,24 @@ The `content` resource serves the documentation. Use `mcp_aspire_list_resources`
 
 ### Starting the Local Environment
 
-Before testing, start Aspire:
+⚠️ **CRITICAL: Terminal Isolation**
+
+Aspire must run in an **isolated background process** to avoid interference with other terminal commands. When running commands in the same terminal session as Aspire, the terminal may send signals that stop Aspire unexpectedly.
+
+**Recommended approach - run Aspire with nohup:**
 
 ```bash
-aspire run
+# Start Aspire in background (won't be interrupted by other commands)
+cd /path/to/hex1b
+nohup aspire run > /tmp/aspire.log 2>&1 &
+
+# Wait a few seconds for startup, then check logs
+sleep 10 && head -15 /tmp/aspire.log
 ```
+
+**Alternative - use `isBackground: true`:**
+
+When using the `run_in_terminal` tool, set `isBackground: true` for the Aspire command, then run all subsequent commands in separate terminal invocations.
 
 Use the Aspire MCP tools to get the content URL:
 
@@ -462,13 +475,14 @@ When validating code examples from documentation:
 
 ```bash
 # Create temp directory for test project
-TEMP_DIR=$(mktemp -d)
-cd "$TEMP_DIR"
+cd /tmp
+mkdir -p hex1b-doc-test
+cd hex1b-doc-test
 
 # Create new console project
-dotnet new console -n DocTest
+dotnet new console -n DocTest -o DocTest --force
 
-# Copy the local NuGet.config
+# Copy the local NuGet.config (contains absolute path to packages)
 cp /path/to/hex1b/.doc-tester-packages/NuGet.config DocTest/
 ```
 
@@ -478,7 +492,8 @@ cp /path/to/hex1b/.doc-tester-packages/NuGet.config DocTest/
 cd DocTest
 
 # Add the local Hex1b package (use version from build script output)
-dotnet add package Hex1b --version 0.35.0-local.20260105120000
+# The NuGet.config uses an absolute path, so no need to copy the .nupkg file
+dotnet add package Hex1b --version 1.0.0-local.20260105120000
 ```
 
 #### Step 3: Test the Code Example
@@ -499,6 +514,26 @@ dotnet run
 - Does it compile without errors?
 - Does it run without exceptions?
 - Does the output/behavior match what documentation describes?
+
+⚠️ **Limitation: TUI apps require interactive terminals**
+
+Hex1b applications are TUI (Terminal User Interface) apps that:
+- Take over the terminal screen
+- Require keyboard input to interact
+- Cannot be easily observed through automated tooling
+
+**What you CAN verify:**
+- Code compiles successfully (`dotnet build`)
+- Code runs without immediate crashes (`dotnet run` exits cleanly or requires Ctrl+C)
+
+**What you CANNOT verify without manual testing:**
+- Visual appearance matches documentation
+- Interactive behavior works as described
+- Layout and styling are correct
+
+For visual verification of example output, rely on:
+1. The "Show output" previews in documentation (verify with screenshots)
+2. The "Run in browser" demos (interact via Playwright, take screenshots)
 
 ### Automated Example Testing
 
@@ -537,14 +572,14 @@ done
 
 ### NuGet.config Template
 
-The build script creates this NuGet.config:
+The build script creates a NuGet.config with an **absolute path** to the package directory:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
     <clear />
-    <add key="doc-tester-local" value="." />
+    <add key="doc-tester-local" value="/absolute/path/to/hex1b/.doc-tester-packages" />
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
   </packageSources>
   <packageSourceMapping>
@@ -559,8 +594,9 @@ The build script creates this NuGet.config:
 ```
 
 This ensures:
-- Hex1b comes from the local package
+- Hex1b comes from the local package (works when copied to any directory)
 - All other dependencies come from nuget.org
+- No need to copy the `.nupkg` file to the test project directory
 
 ### Cleanup
 
@@ -680,6 +716,31 @@ mcp_playwright_browser_snapshot
 ```
 
 The snapshot returns an accessibility tree showing all text content, links, buttons, and interactive elements.
+
+### ⚠️ Visual Verification Limitations
+
+**Accessibility snapshots cannot verify visual correctness.** Snapshots show DOM structure and text content, but NOT:
+- Colors and styling
+- Visual layout and spacing
+- How text overflow actually renders (truncation, wrapping)
+- Unicode character display width
+- Terminal cursor appearance
+
+**For visual verification, use screenshots:**
+
+```
+# Take a screenshot to verify visual output
+mcp_playwright_browser_take_screenshot
+
+# Or screenshot a specific element
+mcp_playwright_browser_take_screenshot element="Terminal demo output" ref="e123"
+```
+
+**When to use screenshots:**
+- Verifying "Show output" previews match their descriptions
+- Checking interactive terminal demos display correctly
+- Confirming Unicode characters (emoji, CJK) render with correct width
+- Validating color/styling claims in documentation
 
 ### Interacting with Demos
 
