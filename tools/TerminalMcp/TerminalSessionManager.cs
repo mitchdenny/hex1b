@@ -120,8 +120,41 @@ public sealed class TerminalSessionManager : IAsyncDisposable
             Height = s.Height,
             StartedAt = s.StartedAt,
             HasExited = s.HasExited,
-            ExitCode = s.HasExited ? s.ExitCode : null
+            ExitCode = s.HasExited ? s.ExitCode : null,
+            ProcessId = s.ProcessId
         }).ToList();
+    }
+
+    /// <summary>
+    /// Stops a session's process but keeps the session for inspection.
+    /// </summary>
+    /// <param name="id">The session ID.</param>
+    /// <param name="signal">Signal to send when killing (Unix only). Default is SIGTERM (15).</param>
+    /// <returns>True if the session was found, false if not found.</returns>
+    public bool StopSession(string id, int signal = 15)
+    {
+        if (!_sessions.TryGetValue(id, out var session))
+            return false;
+
+        if (!session.HasExited)
+        {
+            session.Kill(signal);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a session completely, disposing all resources.
+    /// </summary>
+    /// <param name="id">The session ID.</param>
+    /// <returns>True if the session was found and removed, false if not found.</returns>
+    public async Task<bool> RemoveSessionAsync(string id)
+    {
+        if (!_sessions.TryRemove(id, out var session))
+            return false;
+
+        await session.DisposeAsync();
+        return true;
     }
 
     /// <summary>
@@ -130,7 +163,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     /// <param name="id">The session ID.</param>
     /// <param name="signal">Signal to send when killing (Unix only). Default is SIGTERM (15).</param>
     /// <returns>True if the session was found and stopped, false if not found.</returns>
-    public async Task<bool> StopSessionAsync(string id, int signal = 15)
+    public async Task<bool> StopAndRemoveSessionAsync(string id, int signal = 15)
     {
         if (!_sessions.TryRemove(id, out var session))
             return false;
@@ -156,27 +189,27 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     }
 
     /// <summary>
-    /// Removes sessions where the process has exited.
+    /// Removes all sessions where the process has exited.
     /// </summary>
-    /// <returns>The number of sessions cleaned up.</returns>
-    public async Task<int> CleanupExitedSessionsAsync()
+    /// <returns>The IDs of sessions that were cleaned up.</returns>
+    public async Task<IReadOnlyList<string>> CleanupExitedSessionsAsync()
     {
         var exitedSessions = _sessions
             .Where(kvp => kvp.Value.HasExited)
             .Select(kvp => kvp.Key)
             .ToList();
 
-        var count = 0;
+        var cleanedUp = new List<string>();
         foreach (var id in exitedSessions)
         {
             if (_sessions.TryRemove(id, out var session))
             {
                 await session.DisposeAsync();
-                count++;
+                cleanedUp.Add(id);
             }
         }
 
-        return count;
+        return cleanedUp;
     }
 
     private static string GenerateSessionId()
@@ -245,4 +278,9 @@ public class SessionInfo
     /// The exit code if the process has exited.
     /// </summary>
     public required int? ExitCode { get; init; }
+
+    /// <summary>
+    /// The process ID of the child process.
+    /// </summary>
+    public required int ProcessId { get; init; }
 }

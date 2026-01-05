@@ -54,6 +54,11 @@ public sealed class TerminalSession : IAsyncDisposable
     public string? WorkingDirectory { get; }
 
     /// <summary>
+    /// Gets the process ID of the child process. Returns -1 if not started.
+    /// </summary>
+    public int ProcessId => _process.ProcessId;
+
+    /// <summary>
     /// Gets whether the underlying process has exited.
     /// </summary>
     public bool HasExited => _process.HasExited;
