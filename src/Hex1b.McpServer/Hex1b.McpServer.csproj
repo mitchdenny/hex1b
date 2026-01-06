@@ -15,11 +15,6 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
 
-    <!-- Versioning - uses same version as Hex1b via Directory.Build.props -->
-    <Version>$(Hex1bVersion)</Version>
-    <AssemblyVersion>$(Hex1bVersion)</AssemblyVersion>
-    <FileVersion>$(Hex1bVersion)</FileVersion>
-
     <!-- Package Metadata -->
     <PackageId>Hex1b.McpServer</PackageId>
     <Title>Hex1b MCP Server</Title>
