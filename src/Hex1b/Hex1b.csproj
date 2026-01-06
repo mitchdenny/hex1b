@@ -170,6 +170,47 @@
   </ItemGroup>
 
   <!--
+    Ensure the native library is included in transitive output even when built dynamically.
+    This target hooks into GetCopyToOutputDirectoryItems which is called by consuming projects.
+  -->
+  <Target Name="IncludeNativeLibraryInCopyToOutput" 
+          BeforeTargets="GetCopyToOutputDirectoryItems"
+          DependsOnTargets="BuildNativeLibraryLinuxX64;BuildNativeLibraryLinuxArm64;BuildNativeLibraryOsxX64;BuildNativeLibraryOsxArm64"
+          Condition="'$(RuntimeIdentifier)' == ''">
+    <!-- Add native library to AllItemsFullPathWithTargetPath for transitive copy -->
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so">
+        <TargetPath>libhex1binterop.so</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </AllItemsFullPathWithTargetPath>
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so">
+        <TargetPath>libhex1binterop.so</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib">
+        <TargetPath>libhex1binterop.dylib</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </AllItemsFullPathWithTargetPath>
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib">
+        <TargetPath>libhex1binterop.dylib</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and !Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib') and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib">
+        <TargetPath>libhex1binterop.dylib</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </AllItemsFullPathWithTargetPath>
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib">
+        <TargetPath>libhex1binterop.dylib</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+
+  <!--
     Automatic native library building for local development
     
     This target builds the native interop library if it doesn't exist.
