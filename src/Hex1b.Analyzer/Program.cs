@@ -1,135 +1,62 @@
-using Hex1b.Terminal;
+using System.CommandLine;
+using Hex1b.Analyzer;
+using Hex1b.Analyzer.Components;
 using Hex1b.Terminal.Automation;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+// Create the root command
+var rootCommand = new RootCommand("Hex1b Analyzer - Terminal passthrough with web-based monitoring");
+
+// Create the 'run' command
+var runCommand = new Command("run", "Run a command with terminal passthrough and web monitoring");
+
+// Add options
+var portOption = new Option<int>(
+    name: "--port",
+    getDefaultValue: () => 5050,
+    description: "Port for the web server");
+portOption.AddValidator(result =>
 {
-    await Console.Error.WriteLineAsync("Hex1b.Analyzer requires Linux or macOS.");
-    return 1;
-}
-
-// Parse command-line arguments
-var (command, commandArgs, port) = ParseArgs(args);
-
-if (string.IsNullOrEmpty(command))
-{
-    PrintUsage();
-    return 1;
-}
-
-var width = Console.WindowWidth > 0 ? Console.WindowWidth : 120;
-var height = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
-
-try
-{
-    // Launch the specified command with passthrough
-    await using var process = new Hex1bTerminalChildProcess(
-        command,
-        commandArgs,
-        workingDirectory: Environment.CurrentDirectory,
-        inheritEnvironment: true,
-        initialWidth: width,
-        initialHeight: height
-    );
-
-    var presentation = new ConsolePresentationAdapter(enableMouse: false);
-
-    var terminalOptions = new Hex1bTerminalOptions
+    var port = result.GetValueForOption(portOption);
+    if (port <= 0 || port > 65535)
     {
-        Width = width,
-        Height = height,
-        PresentationAdapter = presentation,
-        WorkloadAdapter = process
-    };
-
-    using var terminal = new Hex1bTerminal(terminalOptions);
-    await process.StartAsync();
-
-    // Start the web server in the background
-    using var cts = new CancellationTokenSource();
-    var webTask = StartWebServerAsync(terminal, port, cts.Token);
-
-    // Wait for process to exit
-    try
-    {
-        await process.WaitForExitAsync(CancellationToken.None);
+        result.ErrorMessage = "Port must be between 1 and 65535";
     }
-    catch (OperationCanceledException)
+});
+
+var commandArgument = new Argument<string[]>(
+    name: "command",
+    description: "The command and arguments to run (after --)");
+commandArgument.Arity = ArgumentArity.OneOrMore;
+
+runCommand.AddOption(portOption);
+runCommand.AddArgument(commandArgument);
+
+runCommand.SetHandler(async (int port, string[] commandParts) =>
+{
+    if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
     {
-        process.Kill();
+        await Console.Error.WriteLineAsync("Hex1b.Analyzer requires Linux or macOS.");
+        Environment.ExitCode = 1;
+        return;
     }
 
-    // Stop the web server
-    await cts.CancelAsync();
-
-    try
+    if (commandParts.Length == 0)
     {
-        await webTask;
-    }
-    catch (OperationCanceledException)
-    {
-        // Expected when cancelled
-    }
-}
-catch (Exception ex)
-{
-    await Console.Error.WriteLineAsync($"Error: {ex.Message}");
-    return 1;
-}
-
-return 0;
-
-static (string Command, string[] Args, int Port) ParseArgs(string[] args)
-{
-    var port = 5050; // Default port
-    var command = "";
-    var commandArgs = new List<string>();
-    var parsingOptions = true;
-
-    for (int i = 0; i < args.Length; i++)
-    {
-        if (parsingOptions && args[i] == "--port" && i + 1 < args.Length)
-        {
-            if (int.TryParse(args[i + 1], out var p) && p > 0 && p <= 65535)
-            {
-                port = p;
-            }
-            i++; // Skip the value
-        }
-        else if (parsingOptions && args[i] == "--")
-        {
-            parsingOptions = false;
-        }
-        else if (string.IsNullOrEmpty(command))
-        {
-            command = args[i];
-            parsingOptions = false; // Stop parsing options after command
-        }
-        else
-        {
-            commandArgs.Add(args[i]);
-        }
+        await Console.Error.WriteLineAsync("Error: A command to run is required.");
+        Environment.ExitCode = 1;
+        return;
     }
 
-    return (command, commandArgs.ToArray(), port);
-}
+    var command = commandParts[0];
+    var commandArgs = commandParts.Length > 1 ? commandParts[1..] : [];
 
-static void PrintUsage()
-{
-    Console.Error.WriteLine("Usage: hex1b-analyzer [--port PORT] <command> [args...]");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("Options:");
-    Console.Error.WriteLine("  --port PORT  Port for the web server (default: 5050)");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("Examples:");
-    Console.Error.WriteLine("  hex1b-analyzer bash");
-    Console.Error.WriteLine("  hex1b-analyzer --port 8080 /bin/bash --norc");
-    Console.Error.WriteLine("  hex1b-analyzer htop");
-}
+    // Create the RunCommand instance
+    var runCmd = new RunCommand(port, command, commandArgs);
 
-static async Task StartWebServerAsync(Hex1bTerminal terminal, int port, CancellationToken ct)
-{
+    // Build the web application with DI
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     {
         Args = [] // Don't pass command line args to web app
@@ -144,11 +71,29 @@ static async Task StartWebServerAsync(Hex1bTerminal terminal, int port, Cancella
         options.ListenLocalhost(port);
     });
 
+    // Register services
+    builder.Services.AddSingleton(runCmd);
+    builder.Services.AddSingleton<TerminalHolder>();
+    
+    // Add Blazor services
+    builder.Services.AddRazorComponents()
+        .AddInteractiveServerComponents();
+
     var app = builder.Build();
 
+    // Configure the HTTP request pipeline
+    app.UseStaticFiles();
+    app.UseAntiforgery();
+
     // Add the /getsvg endpoint
-    app.MapGet("/getsvg", () =>
+    app.MapGet("/getsvg", (TerminalHolder holder) =>
     {
+        var terminal = holder.Terminal;
+        if (terminal == null)
+        {
+            return Results.Problem("Terminal not initialized");
+        }
+        
         using var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg(new TerminalSvgOptions
         {
@@ -157,6 +102,17 @@ static async Task StartWebServerAsync(Hex1bTerminal terminal, int port, Cancella
         return Results.Content(svg, "image/svg+xml");
     });
 
-    // Run the web application
-    await app.RunAsync(ct);
-}
+    // Map Blazor components
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
+
+    // Execute the run command
+    Environment.ExitCode = await runCmd.ExecuteAsync(app);
+
+}, portOption, commandArgument);
+
+rootCommand.AddCommand(runCommand);
+
+// Execute the command
+return await rootCommand.InvokeAsync(args);
+

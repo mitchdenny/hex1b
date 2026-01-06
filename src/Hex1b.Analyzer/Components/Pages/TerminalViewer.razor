@@ -1,0 +1,46 @@
+@page "/"
+@using System.Timers
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<h1>Hex1b Analyzer - Terminal Viewer</h1>
+
+<div class="terminal-container">
+    <div class="terminal-frame">
+        <img src="@_imageSrc" alt="Terminal snapshot" />
+    </div>
+    <div class="status">
+        Auto-refreshing every 5 seconds. Last updated: @_lastUpdated.ToString("HH:mm:ss")
+    </div>
+</div>
+
+@code {
+    private string _imageSrc = "/getsvg";
+    private DateTime _lastUpdated = DateTime.Now;
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        // Create a timer that fires every 5 seconds
+        _timer = new Timer(5000);
+        _timer.Elapsed += OnTimerElapsed;
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
+    {
+        // Add a cache-busting query parameter to force the image to reload
+        _imageSrc = $"/getsvg?t={DateTime.UtcNow.Ticks}";
+        _lastUpdated = DateTime.Now;
+        
+        // Request a re-render on the UI thread
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _timer?.Stop();
+        _timer?.Dispose();
+    }
+}

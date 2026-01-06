@@ -4,7 +4,9 @@ A terminal analyzer tool that provides passthrough emulation with a web-based te
 
 ## Overview
 
-Hex1b.Analyzer launches a child process with PTY passthrough (similar to running a command in a terminal), while simultaneously exposing a local web server that provides SVG snapshots of the terminal state.
+Hex1b.Analyzer launches a child process with PTY passthrough (similar to running a command in a terminal), while simultaneously exposing a local web server that provides:
+- A Blazor-based web UI with auto-refreshing terminal view
+- An API endpoint for SVG snapshots of the terminal state
 
 This is useful for:
 - Debugging terminal applications
@@ -21,19 +23,25 @@ dotnet tool install --global Hex1b.Analyzer
 ## Usage
 
 ```bash
-# Launch bash with the analyzer
-hex1b-analyzer bash
+# Launch bash with the analyzer (default port 5050)
+hex1b-analyzer run -- bash
 
 # Launch with a specific port for the web server
-hex1b-analyzer --port 8080 /bin/bash
+hex1b-analyzer run --port 8080 -- /bin/bash --norc
 
 # Launch any command
-hex1b-analyzer htop
+hex1b-analyzer run -- htop
 ```
 
-## Web API
+When started, the analyzer outputs the URL with a clickable hyperlink (using OSC 8 escape codes in supported terminals).
 
-Once running, the analyzer exposes a local web server (default port 5050) with the following endpoint:
+## Web Interface
+
+Once running, open the displayed URL in a browser to see:
+- **Home page (/)**: Blazor UI with auto-refreshing terminal view (updates every 5 seconds)
+- **SVG endpoint (/getsvg)**: Returns an SVG snapshot of the current terminal state
+
+## API
 
 ### GET /getsvg
 
@@ -43,13 +51,18 @@ Returns an SVG snapshot of the current terminal state.
 curl http://localhost:5050/getsvg > terminal.svg
 ```
 
-Open the SVG in a browser to view the terminal state.
+## Command Line Reference
 
-## Options
+```
+hex1b-analyzer run [options] -- <command> [args...]
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--port PORT` | 5050 | Port for the web server |
+Options:
+  --port <port>  Port for the web server (default: 5050)
+  -?, -h, --help Show help and usage information
+
+Arguments:
+  <command>      The command and arguments to run
+```
 
 ## Requirements
 
@@ -59,3 +72,4 @@ Open the SVG in a browser to view the terminal state.
 ## License
 
 MIT License - See [LICENSE](https://github.com/mitchdenny/hex1b/blob/main/LICENSE) for details.
+
