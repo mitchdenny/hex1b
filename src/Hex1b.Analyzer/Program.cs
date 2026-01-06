@@ -91,7 +91,7 @@ static (string Command, string[] Args, int Port) ParseArgs(string[] args)
     {
         if (parsingOptions && args[i] == "--port" && i + 1 < args.Length)
         {
-            if (int.TryParse(args[i + 1], out var p))
+            if (int.TryParse(args[i + 1], out var p) && p > 0 && p <= 65535)
             {
                 port = p;
             }

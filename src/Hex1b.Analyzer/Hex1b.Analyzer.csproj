@@ -39,7 +39,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     
     <!-- Release Notes -->
-    <PackageReleaseNotes>See https://github.com/hex1b/hex1b/releases for release notes.</PackageReleaseNotes>
+    <PackageReleaseNotes>See https://github.com/mitchdenny/hex1b/releases for release notes.</PackageReleaseNotes>
     
     <!-- Additional Package Settings -->
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
