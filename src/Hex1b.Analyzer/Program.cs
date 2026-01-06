@@ -1,10 +1,11 @@
 using System.CommandLine;
 using Hex1b.Analyzer;
-using Hex1b.Analyzer.Components;
 using Hex1b.Terminal.Automation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.FileProviders;
 
 // Create the root command
 var rootCommand = new RootCommand("Hex1b Analyzer - Terminal passthrough with web-based monitoring");
@@ -59,7 +60,9 @@ runCommand.SetHandler(async (int port, string[] commandParts) =>
     // Build the web application with DI
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     {
-        Args = [] // Don't pass command line args to web app
+        Args = [], // Don't pass command line args to web app
+        ApplicationName = "Hex1b.Analyzer",
+        ContentRootPath = AppContext.BaseDirectory
     });
 
     // Disable all ASP.NET Core logging to prevent interference with terminal passthrough
@@ -74,16 +77,33 @@ runCommand.SetHandler(async (int port, string[] commandParts) =>
     // Register services
     builder.Services.AddSingleton(runCmd);
     builder.Services.AddSingleton<TerminalHolder>();
+    builder.Services.AddSingleton<BlazorPresentationAdapterHolder>();
     
-    // Add Blazor services
-    builder.Services.AddRazorComponents()
-        .AddInteractiveServerComponents();
+    // Add SignalR
+    builder.Services.AddSignalR();
+    builder.Services.AddResponseCompression(opts =>
+    {
+        opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/octet-stream"]);
+    });
 
     var app = builder.Build();
 
     // Configure the HTTP request pipeline
-    app.UseStaticFiles();
-    app.UseAntiforgery();
+    app.UseResponseCompression();
+    
+    // Serve static files from wwwroot
+    var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    if (Directory.Exists(wwwrootPath))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(wwwrootPath)
+        });
+        app.UseDefaultFiles(new DefaultFilesOptions
+        {
+            FileProvider = new PhysicalFileProvider(wwwrootPath)
+        });
+    }
 
     // Add the /getsvg endpoint
     app.MapGet("/getsvg", (TerminalHolder holder) =>
@@ -102,9 +122,14 @@ runCommand.SetHandler(async (int port, string[] commandParts) =>
         return Results.Content(svg, "image/svg+xml");
     });
 
-    // Map Blazor components
-    app.MapRazorComponents<App>()
-        .AddInteractiveServerRenderMode();
+    // Map SignalR hub
+    app.MapHub<TerminalHub>("/terminalhub");
+
+    // Fallback to index.html for SPA-style routing
+    app.MapFallbackToFile("index.html", new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(wwwrootPath)
+    });
 
     // Execute the run command
     Environment.ExitCode = await runCmd.ExecuteAsync(app);
@@ -115,4 +140,3 @@ rootCommand.AddCommand(runCommand);
 
 // Execute the command
 return await rootCommand.InvokeAsync(args);
-

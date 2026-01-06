@@ -57,6 +57,10 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- 
     Native interop library for PTY support is transitively copied from Hex1b.
     No manual copy targets needed - the Hex1b project uses Content items with

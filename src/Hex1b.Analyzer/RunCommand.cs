@@ -1,5 +1,6 @@
 using Hex1b.Terminal;
 using Hex1b.Terminal.Automation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Hex1b.Analyzer;
 
@@ -53,6 +54,10 @@ public class RunCommand
         var width = Console.WindowWidth > 0 ? Console.WindowWidth : 120;
         var height = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
 
+        // Output the URL with OSC 8 hyperlink escape codes BEFORE starting terminal
+        var url = $"http://localhost:{_port}";
+        OutputHyperlinkUrl(url);
+
         try
         {
             // Launch the specified command with passthrough
@@ -65,13 +70,23 @@ public class RunCommand
                 initialHeight: height
             );
 
-            var presentation = new ConsolePresentationAdapter(enableMouse: false);
+            // Create console presentation adapter for passthrough
+            var consoleAdapter = new ConsolePresentationAdapter(enableMouse: false);
+            
+            // Create Blazor presentation adapter for web streaming
+            var blazorAdapter = new BlazorPresentationAdapter(width, height);
+            
+            // Store Blazor adapter for SignalR hub access
+            app.Services.GetRequiredService<BlazorPresentationAdapterHolder>().Adapter = blazorAdapter;
+            
+            // Create multiheaded adapter that broadcasts to both
+            var multiheadedAdapter = new MultiheadedPresentationAdapter(consoleAdapter, blazorAdapter);
 
             var terminalOptions = new Hex1bTerminalOptions
             {
                 Width = width,
                 Height = height,
-                PresentationAdapter = presentation,
+                PresentationAdapter = multiheadedAdapter,
                 WorkloadAdapter = process
             };
 
@@ -86,10 +101,6 @@ public class RunCommand
             // Start the web server in the background
             using var webCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var webTask = app.RunAsync(webCts.Token);
-
-            // Output the URL with OSC 8 hyperlink escape codes
-            var url = $"http://localhost:{_port}";
-            OutputHyperlinkUrl(url);
 
             // Wait for process to exit
             try

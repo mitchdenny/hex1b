@@ -5,7 +5,7 @@ A terminal analyzer tool that provides passthrough emulation with a web-based te
 ## Overview
 
 Hex1b.Analyzer launches a child process with PTY passthrough (similar to running a command in a terminal), while simultaneously exposing a local web server that provides:
-- A Blazor-based web UI with auto-refreshing terminal view
+- A real-time terminal view using xterm.js with SignalR streaming
 - An API endpoint for SVG snapshots of the terminal state
 
 This is useful for:
@@ -38,8 +38,10 @@ When started, the analyzer outputs the URL with a clickable hyperlink (using OSC
 ## Web Interface
 
 Once running, open the displayed URL in a browser to see:
-- **Home page (/)**: Blazor UI with auto-refreshing terminal view (updates every 5 seconds)
+- **Home page (/)**: Real-time terminal view using xterm.js with live updates via SignalR
 - **SVG endpoint (/getsvg)**: Returns an SVG snapshot of the current terminal state
+
+The web terminal automatically reconnects and syncs state if the connection is interrupted.
 
 ## API
 
@@ -50,6 +52,15 @@ Returns an SVG snapshot of the current terminal state.
 ```bash
 curl http://localhost:5050/getsvg > terminal.svg
 ```
+
+## Architecture
+
+Hex1b.Analyzer uses a multiheaded presentation adapter architecture:
+- **ConsolePresentationAdapter**: Handles passthrough to the host terminal
+- **BlazorPresentationAdapter**: Captures output for web streaming
+- **MultiheadedPresentationAdapter**: Combines both, broadcasting output to all adapters
+
+The web interface uses SignalR for real-time streaming of terminal output to xterm.js in the browser.
 
 ## Command Line Reference
 
@@ -72,4 +83,3 @@ Arguments:
 ## License
 
 MIT License - See [LICENSE](https://github.com/mitchdenny/hex1b/blob/main/LICENSE) for details.
-

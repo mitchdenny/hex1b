@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex1b Analyzer - Terminal Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+        #terminal-container {
+            width: 100%;
+            height: 100%;
+            padding: 8px;
+        }
+        #terminal-container .xterm {
+            height: 100%;
+        }
+        .connection-status {
+            position: fixed;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        .connected {
+            background-color: #4caf50;
+            color: white;
+        }
+        .disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+        .connecting {
+            background-color: #ff9800;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="connection-status" class="connection-status connecting">Connecting...</div>
+    <div id="terminal-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+    
+    <script>
+        // Initialize terminal
+        const terminal = new Terminal({
+            fontFamily: "'Cascadia Code', 'Fira Code', Consolas, Monaco, 'Courier New', monospace",
+            fontSize: 14,
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#d4d4d4',
+                cursor: '#ffffff'
+            },
+            cursorBlink: true,
+            convertEol: true
+        });
+
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
+        
+        const container = document.getElementById('terminal-container');
+        terminal.open(container);
+        fitAddon.fit();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+        });
+
+        // Connection status UI
+        const statusEl = document.getElementById('connection-status');
+        function setStatus(status, text) {
+            statusEl.className = 'connection-status ' + status;
+            statusEl.textContent = text;
+        }
+
+        // Set up SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl('/terminalhub')
+            .withAutomaticReconnect()
+            .build();
+
+        // Handle dimension updates
+        connection.on('SetDimensions', (cols, rows) => {
+            terminal.resize(cols, rows);
+        });
+
+        // Handle buffered output on connection/reconnection (initial state sync)
+        // This is sent once when connecting, before the stream starts
+        connection.on('WriteOutput', (data) => {
+            terminal.write(data);
+        });
+
+        // Send input to terminal
+        terminal.onData(data => {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                connection.invoke('SendInput', data);
+            }
+        });
+
+        // Handle resize events from xterm
+        terminal.onResize(({ cols, rows }) => {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                connection.invoke('Resize', cols, rows);
+            }
+        });
+
+        // Connection state handling
+        connection.onreconnecting(() => {
+            setStatus('connecting', 'Reconnecting...');
+        });
+
+        connection.onreconnected(() => {
+            setStatus('connected', 'Connected');
+        });
+
+        connection.onclose(() => {
+            setStatus('disconnected', 'Disconnected');
+        });
+
+        // Start connection and stream
+        async function start() {
+            try {
+                await connection.start();
+                setStatus('connected', 'Connected');
+                
+                // Start streaming output
+                const stream = connection.stream('StreamOutput');
+                stream.subscribe({
+                    next: (data) => {
+                        terminal.write(data);
+                    },
+                    error: (err) => {
+                        console.error('Stream error:', err);
+                    },
+                    complete: () => {
+                        console.log('Stream completed');
+                    }
+                });
+            } catch (err) {
+                setStatus('disconnected', 'Connection failed');
+                console.error('Connection error:', err);
+                setTimeout(start, 5000);
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>
