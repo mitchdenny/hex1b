@@ -905,6 +905,65 @@ Before considering documentation complete:
 - [ ] Internal links work (relative paths are correct)
 - [ ] The documentation follows the project's voice and style
 - [ ] Related documentation is cross-linked
+- [ ] **Content build verification passed** (see below)
+
+## Documentation Build Verification
+
+**CRITICAL**: Before completing documentation work, verify that the VitePress content build succeeds. This catches issues like dead links, missing files, or syntax errors before deployment.
+
+### Verification Step
+
+Run the Aspire content build pipeline:
+
+```bash
+cd /path/to/hex1b
+aspire do build-content
+```
+
+This executes the deployment pipeline step that builds the static resources from the VitePress site. The build must succeed before documentation changes are complete.
+
+**Expected output on success:**
+```
+✓ PIPELINE SUCCEEDED
+```
+
+**If the build fails**, proceed to the diagnostic step below.
+
+### Diagnostic Step
+
+If `aspire do build-content` fails, run the underlying npm build command directly to see the detailed error message:
+
+```bash
+cd src/content
+npm install  # Ensure dependencies are installed
+npm run build
+```
+
+This is the step most likely to fail inside `aspire do build-content`. The npm build output provides detailed error messages explaining:
+- Dead links (references to non-existent pages)
+- Missing files
+- Syntax errors in markdown
+- VitePress configuration issues
+
+**Common issues to fix:**
+- **Dead links**: Remove or fix links to pages that don't exist
+- **Missing imports**: Ensure all referenced snippets exist in `snippets/` folders
+- **Invalid frontmatter**: Check YAML syntax in `<script setup>` sections
+- **Broken component references**: Verify all VitePress components are used correctly
+
+### Example: Fixing Dead Links
+
+If you see an error like:
+```
+Found dead link /guide/widgets/nonexistent in file guide/widgets/mywidget.md
+```
+
+Either:
+1. Remove the dead link from the documentation
+2. Create the missing page if it should exist
+3. Fix the link path if it's incorrect
+
+After fixing issues, re-run both verification commands to ensure the build succeeds.
 
 ## Common Pitfalls to Avoid
 
