@@ -57,6 +57,38 @@
     When packed, these get placed in the NuGet package under runtimes/
     and .NET's runtime loader automatically finds them based on the current RID.
   -->
+
+  <!-- Determine native library paths based on platform -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <NativeLibraryName>libhex1binterop.so</NativeLibraryName>
+    <NativeLibraryRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">linux-arm64</NativeLibraryRid>
+    <NativeLibraryRid Condition="'$(NativeLibraryRid)' == ''">linux-x64</NativeLibraryRid>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <NativeLibraryName>libhex1binterop.dylib</NativeLibraryName>
+    <NativeLibraryRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">osx-arm64</NativeLibraryRid>
+    <NativeLibraryRid Condition="'$(NativeLibraryRid)' == ''">osx-x64</NativeLibraryRid>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(NativeLibraryRid)' != ''">
+    <NativeLibraryPath>$(MSBuildThisFileDirectory)Terminal/runtimes/$(NativeLibraryRid)/native/$(NativeLibraryName)</NativeLibraryPath>
+  </PropertyGroup>
+
+  <!-- Build native library if it doesn't exist (Linux/macOS only) -->
+  <Target Name="BuildNativeInteropLibrary" 
+          BeforeTargets="BeforeBuild" 
+          Condition="'$(NativeLibraryPath)' != '' and !Exists('$(NativeLibraryPath)')">
+    <Message Importance="High" Text="Building native interop library ($(NativeLibraryName))..." />
+    <Exec Command="make" WorkingDirectory="$(MSBuildThisFileDirectory)Terminal/native" />
+  </Target>
+
+  <!-- Copy native library to output after build (handles freshly built libraries) -->
+  <Target Name="CopyNativeInteropLibrary" 
+          AfterTargets="Build" 
+          Condition="'$(NativeLibraryPath)' != '' and Exists('$(NativeLibraryPath)')">
+    <Copy SourceFiles="$(NativeLibraryPath)" 
+          DestinationFiles="$(OutputPath)$(NativeLibraryName)" 
+          SkipUnchangedFiles="true" />
+  </Target>
   
   <!-- Pack native libraries into NuGet package -->
   <ItemGroup>
