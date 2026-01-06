@@ -42,6 +42,9 @@ builder.Services.AddSingleton<IGalleryExample, RescueBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, RescueCustomFallbackExample>();
 builder.Services.AddSingleton<IGalleryExample, RescueEventHandlersExample>();
 
+// Register Responsive widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, ResponsiveBasicExample>();
+
 // Register Getting Started tutorial examples
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep1Example>();
 builder.Services.AddSingleton<IGalleryExample, GettingStartedStep2Example>();
