@@ -22,7 +22,7 @@
       "args": [
         "run",
         "--project",
-        "${workspaceFolder}/tools/TerminalMcp"
+        "${workspaceFolder}/src/Hex1b.McpServer"
       ]
     }
   }

@@ -1,6 +1,6 @@
 using Hex1b.Terminal;
 
-namespace TerminalMcp;
+namespace Hex1b.McpServer;
 
 /// <summary>
 /// A presentation adapter that captures output but doesn't display it anywhere.

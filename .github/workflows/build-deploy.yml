@@ -175,16 +175,25 @@ jobs:
           echo "Native libraries downloaded:"
           find src/Hex1b/Terminal/runtimes -type f -name "*.so" -o -name "*.dylib" | xargs ls -la
 
-      - name: Build and pack (PR version for GH Packages)
+      - name: Build and pack Hex1b (PR version for GH Packages)
         env:
           HEX1B_VERSION: ${{ steps.version.outputs.pr }}
         run: |
           dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
 
+      - name: Build and pack Hex1b.McpServer (PR version for GH Packages)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+        run: |
+          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
+
       - name: Verify package contents
         run: |
-          echo "Package contents:"
-          unzip -l ./artifacts/*.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in package!"
+          echo "Hex1b package contents:"
+          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in Hex1b package!"
+          echo ""
+          echo "Hex1b.McpServer package contents:"
+          unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -235,16 +244,25 @@ jobs:
           echo "Native libraries downloaded:"
           find src/Hex1b/Terminal/runtimes -type f -name "*.so" -o -name "*.dylib" | xargs ls -la
 
-      - name: Build and pack (release version for NuGet.org)
+      - name: Build and pack Hex1b (release version for NuGet.org)
         env:
           HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
 
+      - name: Build and pack Hex1b.McpServer (release version for NuGet.org)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+        run: |
+          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
+
       - name: Verify package contents
         run: |
-          echo "Package contents:"
-          unzip -l ./artifacts/*.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in package!"
+          echo "Hex1b package contents:"
+          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in Hex1b package!"
+          echo ""
+          echo "Hex1b.McpServer package contents:"
+          unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -311,28 +329,35 @@ jobs:
 
           # Create comment body
           cat > /tmp/pr_comment.md << EOF
-          ## 📦 PR Package Published
+          ## 📦 PR Packages Published
 
-          A preview package for this PR has been published to GitHub Packages.
+          Preview packages for this PR have been published to GitHub Packages.
 
           ### Package Version
           \`${PACKAGE_VERSION}\`
 
+          ### Packages
+
+          | Package | Description |
+          |---------|-------------|
+          | Hex1b | Core TUI library |
+          | Hex1b.McpServer | MCP server for terminal session management |
+
           ### Usage Examples
 
-          **PackageReference (csproj):**
+          **Hex1b - PackageReference (csproj):**
           \`\`\`xml
           <PackageReference Include="Hex1b" Version="${PACKAGE_VERSION}" />
           \`\`\`
 
-          **Polyglot Notebooks / .NET Interactive:**
-          \`\`\`csharp
-          #:package Hex1b@${PACKAGE_VERSION}"
-          \`\`\`
-
-          **.NET CLI:**
+          **Hex1b - .NET CLI:**
           \`\`\`bash
           dotnet add package Hex1b --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          **Hex1b.McpServer - Install as global tool:**
+          \`\`\`bash
+          dotnet tool install -g Hex1b.McpServer --version ${PACKAGE_VERSION}
           \`\`\`
 
           ### NuGet Configuration
@@ -417,21 +442,41 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Check if package exists on NuGet.org
+      - name: Check if packages exist on NuGet.org
         id: check-package
         run: |
           PACKAGE_VERSION="${{ steps.version.outputs.release }}"
-          echo "Checking if Hex1b version $PACKAGE_VERSION exists on NuGet.org..."
           
-          # Try to get package info from NuGet API
+          # Check Hex1b
+          echo "Checking if Hex1b version $PACKAGE_VERSION exists on NuGet.org..."
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             "https://api.nuget.org/v3-flatcontainer/hex1b/$PACKAGE_VERSION/hex1b.nuspec")
           
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "Package version $PACKAGE_VERSION already exists on NuGet.org"
+            echo "Hex1b version $PACKAGE_VERSION already exists on NuGet.org"
+            echo "hex1b-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Hex1b version $PACKAGE_VERSION does not exist on NuGet.org"
+            echo "hex1b-exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check Hex1b.McpServer
+          echo "Checking if Hex1b.McpServer version $PACKAGE_VERSION exists on NuGet.org..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.nuget.org/v3-flatcontainer/hex1b.mcpserver/$PACKAGE_VERSION/hex1b.mcpserver.nuspec")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Hex1b.McpServer version $PACKAGE_VERSION already exists on NuGet.org"
+            echo "mcpserver-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Hex1b.McpServer version $PACKAGE_VERSION does not exist on NuGet.org"
+            echo "mcpserver-exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set combined flag - only skip if BOTH exist
+          if [ "$HTTP_CODE" = "200" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" "https://api.nuget.org/v3-flatcontainer/hex1b/$PACKAGE_VERSION/hex1b.nuspec")" = "200" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "Package version $PACKAGE_VERSION does not exist on NuGet.org"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
@@ -460,27 +505,35 @@ jobs:
           cat > /tmp/release_notes.md << EOF
           ## Hex1b v${PACKAGE_VERSION}
 
+          ### Packages
+
+          | Package | Description |
+          |---------|-------------|
+          | [Hex1b](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION}) | Core TUI library |
+          | [Hex1b.McpServer](https://www.nuget.org/packages/Hex1b.McpServer/${PACKAGE_VERSION}) | MCP server for terminal session management |
+
           ### Installation
 
-          **NuGet CLI:**
+          **Hex1b (library):**
           \`\`\`bash
           dotnet add package Hex1b --version ${PACKAGE_VERSION}
           \`\`\`
 
-          **PackageReference:**
-          \`\`\`xml
-          <PackageReference Include="Hex1b" Version="${PACKAGE_VERSION}" />
+          **Hex1b.McpServer (global tool):**
+          \`\`\`bash
+          dotnet tool install -g Hex1b.McpServer --version ${PACKAGE_VERSION}
           \`\`\`
 
           ### Links
-          - 📦 [NuGet Package](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION})
+          - 📦 [Hex1b on NuGet](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION})
+          - 🔧 [Hex1b.McpServer on NuGet](https://www.nuget.org/packages/Hex1b.McpServer/${PACKAGE_VERSION})
           - 📖 [Documentation](https://hex1b.dev)
 
           ---
           *Released from commit ${{ github.sha }}*
           EOF
 
-          # Create the GitHub release with the nupkg attached
+          # Create the GitHub release with all nupkg files attached
           gh release create "v${PACKAGE_VERSION}" \
             --title "v${PACKAGE_VERSION}" \
             --notes-file /tmp/release_notes.md \
