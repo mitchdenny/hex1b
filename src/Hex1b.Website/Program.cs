@@ -106,6 +106,11 @@ builder.Services.AddSingleton<IGalleryExample, ScrollInfiniteExample>();
 // Register Align widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, AlignDemoExample>();
 
+// Register Drawer widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, DrawerBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, DrawerOverlayExample>();
+builder.Services.AddSingleton<IGalleryExample, DrawerPositionExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

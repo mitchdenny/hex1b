@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="270" height="54" viewBox="0 0 270 54">
+  <defs>
+    <style>
+      .terminal-text { font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace; font-size: 14px; }
+      .cell { pointer-events: bounding-box; }
+    </style>
+  </defs>
+  <rect width="270" height="54" fill="#0f0f1a"/>
+  <g class="terminal-text">
+    <!-- Border top -->
+    <text x="0" y="14" fill="#808080">┌</text>
+    <text x="9" y="14" fill="#808080">─────────────────────────────</text>
+    <text x="261" y="14" fill="#808080">┐</text>
+    <!-- Header row with expand indicator -->
+    <text x="0" y="32" fill="#808080">│</text>
+    <text x="9" y="32" fill="#00ffff">▶</text>
+    <text x="27" y="32" fill="#e0e0e0">📁 Files</text>
+    <text x="261" y="32" fill="#808080">│</text>
+    <!-- Border bottom -->
+    <text x="0" y="50" fill="#808080">└</text>
+    <text x="9" y="50" fill="#808080">─────────────────────────────</text>
+    <text x="261" y="50" fill="#808080">┘</text>
+  </g>
+</svg>
