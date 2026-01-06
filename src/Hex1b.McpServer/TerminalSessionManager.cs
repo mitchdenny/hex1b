@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace TerminalMcp;
+namespace Hex1b.McpServer;
 
 /// <summary>
 /// Manages multiple terminal sessions with thread-safe operations.

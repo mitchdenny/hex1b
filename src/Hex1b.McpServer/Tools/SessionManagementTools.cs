@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 
-namespace TerminalMcp.Tools;
+namespace Hex1b.McpServer.Tools;
 
 /// <summary>
 /// MCP tools for managing terminal session lifecycle.

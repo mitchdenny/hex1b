@@ -1,9 +1,9 @@
+using Hex1b.McpServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
-using TerminalMcp;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -33,9 +33,9 @@ public static class PingTool
     /// Returns a pong response to verify the server is working.
     /// </summary>
     /// <returns>A pong message with the current timestamp.</returns>
-    [McpServerTool, Description("Verify the TerminalMcp server is running and responsive.")]
+    [McpServerTool, Description("Verify the Hex1b MCP server is running and responsive.")]
     public static string Ping()
     {
-        return $"pong! TerminalMcp server is running. Server time: {DateTime.UtcNow:O}";
+        return $"pong! Hex1b.McpServer is running. Server time: {DateTime.UtcNow:O}";
     }
 }

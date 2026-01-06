@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TerminalMcp.Tools;
+namespace Hex1b.McpServer.Tools;
 
 public class StartTerminalResult
 {

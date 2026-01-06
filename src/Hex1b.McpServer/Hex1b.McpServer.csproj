@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- Embed source code for debugging -->
+    <EmbedAllSources>true</EmbedAllSources>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+
+    <!-- Package Metadata -->
+    <PackageId>Hex1b.McpServer</PackageId>
+    <Title>Hex1b MCP Server</Title>
+    <Authors>Mitch Denny</Authors>
+    <Copyright>Copyright (c) 2024 Mitch Denny</Copyright>
+    <Description>Model Context Protocol (MCP) server for terminal session management using Hex1b. Provides tools for creating, controlling, and capturing terminal sessions.</Description>
+    <PackageTags>mcp;terminal;tui;automation;ai;copilot;cli</PackageTags>
+    
+    <!-- Make it a tool package -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>hex1b-mcp</ToolCommandName>
+    
+    <!-- License -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    
+    <!-- Repository -->
+    <RepositoryUrl>https://github.com/mitchdenny/hex1b</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/mitchdenny/hex1b</PackageProjectUrl>
+    
+    <!-- README -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    
+    <!-- Release Notes -->
+    <PackageReleaseNotes>See https://github.com/hex1b/hex1b/releases for release notes.</PackageReleaseNotes>
+    
+    <!-- Additional Package Settings -->
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <!-- 
+    Native interop library for PTY support is transitively copied from Hex1b.
+    No manual copy targets needed - the Hex1b project uses Content items with
+    CopyToOutputDirectory which flow through ProjectReference.
+  -->
+
+</Project>

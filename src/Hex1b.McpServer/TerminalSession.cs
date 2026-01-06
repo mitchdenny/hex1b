@@ -2,7 +2,7 @@ using System.Text;
 using Hex1b.Terminal;
 using Hex1b.Terminal.Automation;
 
-namespace TerminalMcp;
+namespace Hex1b.McpServer;
 
 /// <summary>
 /// Represents a terminal session that manages a child process attached to a virtual terminal.
