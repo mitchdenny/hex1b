@@ -270,7 +270,7 @@ public sealed class TerminalSession : IAsyncDisposable
         var hasShift = modifiers?.Contains("Shift", StringComparer.OrdinalIgnoreCase) ?? false;
 
         // Handle special keys
-        return key.ToLowerInvariant() switch
+        var baseKey = key.ToLowerInvariant() switch
         {
             "enter" or "return" => "\r"u8.ToArray(),
             "tab" => hasShift ? "\x1b[Z"u8.ToArray() : "\t"u8.ToArray(),
@@ -303,6 +303,17 @@ public sealed class TerminalSession : IAsyncDisposable
             _ when key.Length == 1 => Encoding.UTF8.GetBytes(key),
             _ => []
         };
+
+        // Alt modifier sends ESC prefix followed by the key
+        if (hasAlt && baseKey.Length > 0)
+        {
+            var result = new byte[baseKey.Length + 1];
+            result[0] = 0x1b; // ESC
+            baseKey.CopyTo(result, 1);
+            return result;
+        }
+
+        return baseKey;
     }
 
     /// <inheritdoc />
