@@ -1,9 +1,7 @@
 <!--
-  MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
-  - basicCode → src/Hex1b.Website/Examples/DrawerBasicExample.cs
-  - overlayCode → src/Hex1b.Website/Examples/DrawerOverlayExample.cs
-  - positionCode → src/Hex1b.Website/Examples/DrawerPositionExample.cs
-  When updating code here, update the corresponding Example file and vice versa.
+  NOTE: This documentation describes a proposed DrawerWidget that is not yet implemented.
+  Live demos will be available once the widget is added to the Hex1b library.
+  WebSocket examples should be created in src/Hex1b.Website/Examples/ when implementing.
 -->
 <script setup>
 import collapsedSnippet from './snippets/drawer-collapsed.cs?raw'
@@ -14,7 +12,7 @@ using Hex1b.Widgets;
 
 var drawerExpanded = false;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.Drawer(
         isExpanded: drawerExpanded,
         onToggle: expanded => drawerExpanded = expanded,
@@ -26,7 +24,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text("Videos")
         ])
     )
-));
+);
 
 await app.RunAsync();`
 
@@ -35,7 +33,7 @@ using Hex1b.Widgets;
 
 var drawerExpanded = false;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.ZStack(z => [
         // Main content behind the drawer
         z.VStack(v => [
@@ -57,7 +55,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             mode: DrawerMode.Overlay
         )
     ])
-));
+);
 
 await app.RunAsync();`
 
@@ -67,7 +65,7 @@ using Hex1b.Widgets;
 var leftExpanded = true;
 var rightExpanded = false;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.HStack(h => [
         // Left drawer (docked)
         h.Drawer(
@@ -99,7 +97,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             position: DrawerPosition.Right
         )
     ])
-));
+);
 
 await app.RunAsync();`
 </script>
@@ -114,7 +112,13 @@ DrawerWidget provides a toggleable container that transitions between a compact 
 
 Create a simple drawer with a header and expandable content:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="drawer-basic" exampleTitle="Drawer Widget - Basic Usage" />
+::: warning Widget Not Yet Implemented
+The DrawerWidget is a proposed widget that is not yet implemented in Hex1b. This documentation serves as a specification for the widget's intended behavior. Live demos will be available once the widget is added to the library.
+:::
+
+```csharp-vue
+{{ basicCode }}
+```
 
 The drawer displays a header row with a toggle button. Clicking the button or pressing Enter/Space when focused expands or collapses the content area.
 
@@ -170,7 +174,9 @@ This is ideal for:
 
 In overlay mode, the expanded drawer renders above other content without affecting the layout:
 
-<CodeBlock lang="csharp" :code="overlayCode" command="dotnet run" example="drawer-overlay" exampleTitle="Drawer Widget - Overlay Mode" />
+```csharp-vue
+{{ overlayCode }}
+```
 
 This is ideal for:
 - Mobile-style slide-out menus
@@ -185,7 +191,9 @@ When using overlay mode, ensure the drawer is rendered after the content it shou
 
 Control which edge the drawer anchors to with the `position` parameter:
 
-<CodeBlock lang="csharp" :code="positionCode" command="dotnet run" example="drawer-position" exampleTitle="Drawer Widget - Positions" />
+```csharp-vue
+{{ positionCode }}
+```
 
 | Position | Collapsed | Expanded | Use Case |
 |----------|-----------|----------|----------|
