@@ -43,6 +43,21 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ./TestResults
 
+      - name: Install Aspire CLI
+        run: dotnet tool install -g aspire
+
+      - name: Setup Node.js for content build
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify content build
+        run: |
+          cd src/content
+          npm install
+          cd ../..
+          aspire do build-content
+
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: success() || failure()

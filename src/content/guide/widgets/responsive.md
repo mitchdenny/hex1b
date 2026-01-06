@@ -402,7 +402,7 @@ For most applications, this overhead is negligible. If you have many complex bra
 
 ## Related Widgets
 
-- [ConditionalWidget](/guide/widgets/conditional) - The underlying mechanism for responsive conditions
 - [HStackWidget](/guide/widgets/hstack) - Horizontal layouts often used in wide breakpoints
 - [VStackWidget](/guide/widgets/vstack) - Vertical layouts often used in narrow breakpoints
 - [BorderWidget](/guide/widgets/border) - Often combined with responsive layouts for visual structure
+- [SplitterWidget](/guide/widgets/splitter) - Divides space between panels, useful in responsive layouts
