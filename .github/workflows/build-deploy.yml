@@ -43,8 +43,11 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ./TestResults
 
-      - name: Install Aspire CLI
-        run: dotnet tool install -g aspire
+      - name: Download and install Aspire CLI
+        run: |
+          set -e
+          curl -sSL https://aspire.dev/install.sh | bash -s
+          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js for content build
         uses: actions/setup-node@v4
