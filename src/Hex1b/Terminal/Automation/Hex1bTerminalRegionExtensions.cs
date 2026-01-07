@@ -391,6 +391,12 @@ public static class Hex1bTerminalRegionExtensions
     /// <param name="startColumn">The starting column (X coordinate).</param>
     /// <param name="endColumn">The ending column (X coordinate, exclusive).</param>
     /// <returns>The text at the specified coordinates.</returns>
+    /// <remarks>
+    /// Wide characters (such as emojis) may use continuation cells in the terminal buffer.
+    /// This method skips continuation cells, so the returned string length may be shorter 
+    /// than (endColumn - startColumn). For text extracted via FindPattern or 
+    /// FindFirstPattern, use the <see cref="TextMatch.Text"/> property directly.
+    /// </remarks>
     public static string GetTextAt(this IHex1bTerminalRegion region, int line, int startColumn, int endColumn)
     {
         if (line < 0 || line >= region.Height)
