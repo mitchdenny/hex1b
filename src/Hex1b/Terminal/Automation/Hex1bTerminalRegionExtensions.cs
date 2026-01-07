@@ -19,6 +19,27 @@ public readonly record struct TextMatch(int Line, int StartColumn, int EndColumn
 }
 
 /// <summary>
+/// Represents a text match that may span multiple lines in a terminal region.
+/// </summary>
+/// <param name="StartLine">The line (Y coordinate) where the match starts.</param>
+/// <param name="StartColumn">The starting column (X coordinate) of the match.</param>
+/// <param name="EndLine">The line (Y coordinate) where the match ends.</param>
+/// <param name="EndColumn">The ending column (X coordinate, exclusive) of the match.</param>
+/// <param name="Text">The matched text (including newline characters if multi-line).</param>
+public readonly record struct MultiLineTextMatch(int StartLine, int StartColumn, int EndLine, int EndColumn, string Text)
+{
+    /// <summary>
+    /// Gets whether this match spans multiple lines.
+    /// </summary>
+    public bool IsMultiLine => StartLine != EndLine;
+
+    /// <summary>
+    /// Gets the number of lines this match spans.
+    /// </summary>
+    public int LineCount => EndLine - StartLine + 1;
+}
+
+/// <summary>
 /// Extension methods for <see cref="IHex1bTerminalRegion"/> providing common text operations.
 /// </summary>
 public static class Hex1bTerminalRegionExtensions
@@ -454,5 +475,208 @@ public static class Hex1bTerminalRegionExtensions
     public static bool ContainsPattern(this IHex1bTerminalRegion region, Regex regex)
     {
         return region.FindFirstPattern(regex) is not null;
+    }
+
+    /// <summary>
+    /// Finds all occurrences of a regular expression pattern across multiple lines in the region.
+    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <returns>A list of matches with their start and end coordinates.</returns>
+    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        var regex = new Regex(pattern, options);
+        return FindMultiLinePatternCore(region, regex);
+    }
+
+    /// <summary>
+    /// Finds all occurrences of a compiled regular expression across multiple lines in the region.
+    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>A list of matches with their start and end coordinates.</returns>
+    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+
+        return FindMultiLinePatternCore(region, regex);
+    }
+
+    /// <summary>
+    /// Finds the first occurrence of a regular expression pattern across multiple lines in the region.
+    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <returns>The first match with its coordinates, or null if not found.</returns>
+    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        var regex = new Regex(pattern, options);
+        return FindFirstMultiLinePatternCore(region, regex);
+    }
+
+    /// <summary>
+    /// Finds the first occurrence of a compiled regular expression across multiple lines in the region.
+    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>The first match with its coordinates, or null if not found.</returns>
+    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+
+        return FindFirstMultiLinePatternCore(region, regex);
+    }
+
+    /// <summary>
+    /// Checks if the region contains text matching the specified regular expression pattern across multiple lines.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <returns>True if a match is found, false otherwise.</returns>
+    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        return region.FindFirstMultiLinePattern(pattern, options) is not null;
+    }
+
+    /// <summary>
+    /// Checks if the region contains text matching the specified compiled regular expression across multiple lines.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>True if a match is found, false otherwise.</returns>
+    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        return region.FindFirstMultiLinePattern(regex) is not null;
+    }
+
+    /// <summary>
+    /// Gets the text content across multiple lines at the specified coordinates.
+    /// </summary>
+    /// <param name="region">The terminal region.</param>
+    /// <param name="startLine">The starting line (Y coordinate).</param>
+    /// <param name="startColumn">The starting column (X coordinate).</param>
+    /// <param name="endLine">The ending line (Y coordinate).</param>
+    /// <param name="endColumn">The ending column (X coordinate, exclusive).</param>
+    /// <returns>The text at the specified coordinates, with lines separated by newlines.</returns>
+    public static string GetMultiLineTextAt(this IHex1bTerminalRegion region, int startLine, int startColumn, int endLine, int endColumn)
+    {
+        if (startLine < 0 || startLine >= region.Height || endLine < startLine)
+            return "";
+
+        var sb = new StringBuilder();
+        
+        for (int y = startLine; y <= Math.Min(endLine, region.Height - 1); y++)
+        {
+            if (y > startLine)
+                sb.Append('\n');
+
+            int start = (y == startLine) ? Math.Max(0, startColumn) : 0;
+            int end = (y == endLine) ? Math.Min(region.Width, endColumn) : region.Width;
+
+            for (int x = start; x < end; x++)
+            {
+                var cell = region.GetCell(x, y);
+                var ch = cell.Character;
+                // Skip empty continuation cells (used for wide characters)
+                if (string.IsNullOrEmpty(ch))
+                    continue;
+                // Replace null character with space for display
+                if (ch == "\0")
+                    sb.Append(' ');
+                else
+                    sb.Append(ch);
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Gets the text content at the coordinates specified by a <see cref="MultiLineTextMatch"/>.
+    /// </summary>
+    /// <param name="region">The terminal region.</param>
+    /// <param name="match">The multi-line text match containing the coordinates.</param>
+    /// <returns>The text at the match coordinates.</returns>
+    public static string GetMultiLineTextAt(this IHex1bTerminalRegion region, MultiLineTextMatch match)
+    {
+        return region.GetMultiLineTextAt(match.StartLine, match.StartColumn, match.EndLine, match.EndColumn);
+    }
+
+    private static List<MultiLineTextMatch> FindMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex)
+    {
+        var results = new List<MultiLineTextMatch>();
+        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region);
+
+        var matches = regex.Matches(fullText);
+        foreach (Match match in matches)
+        {
+            var (startLine, startColumn) = OffsetToLineColumn(match.Index, lineOffsets);
+            var (endLine, endColumn) = OffsetToLineColumn(match.Index + match.Length, lineOffsets);
+            results.Add(new MultiLineTextMatch(startLine, startColumn, endLine, endColumn, match.Value));
+        }
+        return results;
+    }
+
+    private static MultiLineTextMatch? FindFirstMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex)
+    {
+        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region);
+
+        var match = regex.Match(fullText);
+        if (match.Success)
+        {
+            var (startLine, startColumn) = OffsetToLineColumn(match.Index, lineOffsets);
+            var (endLine, endColumn) = OffsetToLineColumn(match.Index + match.Length, lineOffsets);
+            return new MultiLineTextMatch(startLine, startColumn, endLine, endColumn, match.Value);
+        }
+        return null;
+    }
+
+    private static (string fullText, int[] lineOffsets) BuildFullTextWithOffsets(IHex1bTerminalRegion region)
+    {
+        var sb = new StringBuilder();
+        // Store the start offset of each line's content (after any preceding newline)
+        var lineOffsets = new int[region.Height + 1]; // +1 for end sentinel
+
+        for (int y = 0; y < region.Height; y++)
+        {
+            if (y > 0)
+                sb.Append('\n');
+            // Record the start offset of this line's content
+            lineOffsets[y] = sb.Length;
+            // Use trimmed lines to remove trailing spaces that terminals pad with
+            sb.Append(region.GetLineTrimmed(y));
+        }
+        lineOffsets[region.Height] = sb.Length;
+
+        return (sb.ToString(), lineOffsets);
+    }
+
+    private static (int line, int column) OffsetToLineColumn(int offset, int[] lineOffsets)
+    {
+        // Find the line that contains this offset using binary search
+        int line = 0;
+        for (int i = 0; i < lineOffsets.Length - 1; i++)
+        {
+            if (offset >= lineOffsets[i] && (i == lineOffsets.Length - 2 || offset < lineOffsets[i + 1]))
+            {
+                line = i;
+                break;
+            }
+        }
+
+        // Calculate column within the line
+        int column = offset - lineOffsets[line];
+
+        return (line, column);
     }
 }
