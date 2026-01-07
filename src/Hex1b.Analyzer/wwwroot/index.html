@@ -13,75 +13,161 @@
         }
         html, body {
             height: 100%;
-            background-color: #1e1e1e;
-            color: #d4d4d4;
+            background-color: #0d1117;
+            color: #c9d1d9;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
         }
-        #terminal-container {
-            width: 100%;
+        .container {
+            display: flex;
+            flex-direction: column;
             height: 100%;
-            padding: 8px;
+            padding: 20px;
         }
-        #terminal-container .xterm {
-            height: 100%;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f0f6fc;
         }
         .connection-status {
-            position: fixed;
-            top: 8px;
-            right: 8px;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 4px 12px;
+            border-radius: 12px;
             font-size: 12px;
-            z-index: 1000;
+            font-weight: 500;
         }
         .connected {
-            background-color: #4caf50;
+            background-color: #238636;
             color: white;
         }
         .disconnected {
-            background-color: #f44336;
+            background-color: #da3633;
             color: white;
         }
         .connecting {
-            background-color: #ff9800;
+            background-color: #9e6a03;
             color: white;
+        }
+        .terminal-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow: hidden;
+        }
+        .terminal-frame {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        #terminal-container {
+            /* Size will be set dynamically based on terminal dimensions */
+        }
+        #terminal-container .xterm {
+            padding: 4px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px 0;
+            border-top: 1px solid #30363d;
+            margin-top: 16px;
+        }
+        .control-button {
+            padding: 8px 16px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background-color: #21262d;
+            color: #c9d1d9;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .control-button:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+        .control-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .control-button.primary {
+            background-color: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        .control-button.primary:hover {
+            background-color: #2ea043;
+            border-color: #2ea043;
+        }
+        .dimensions-info {
+            font-size: 12px;
+            color: #8b949e;
+            margin-left: auto;
         }
     </style>
 </head>
 <body>
-    <div id="connection-status" class="connection-status connecting">Connecting...</div>
-    <div id="terminal-container"></div>
+    <div class="container">
+        <div class="header">
+            <div class="title">Hex1b Analyzer - Terminal Viewer</div>
+            <div id="connection-status" class="connection-status connecting">Connecting...</div>
+        </div>
+        
+        <div class="terminal-wrapper">
+            <div class="terminal-frame">
+                <div id="terminal-container"></div>
+            </div>
+        </div>
+        
+        <!-- Control buttons - placeholder for future functionality -->
+        <div class="controls">
+            <button class="control-button" id="btn-screenshot" disabled title="Screenshot functionality coming soon">📷 Screenshot</button>
+            <button class="control-button" id="btn-record" disabled title="Recording functionality coming soon">⏺️ Record</button>
+            <button class="control-button" id="btn-pause" disabled title="Pause functionality coming soon">⏸️ Pause</button>
+            <button class="control-button primary" id="btn-clear" disabled title="Clear functionality coming soon">🗑️ Clear</button>
+            <div class="dimensions-info" id="dimensions-info">--x--</div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
     
     <script>
-        // Initialize terminal
+        // Terminal dimensions from server
+        let terminalCols = 80;
+        let terminalRows = 24;
+
+        // Initialize terminal with fixed size
         const terminal = new Terminal({
             fontFamily: "'Cascadia Code', 'Fira Code', Consolas, Monaco, 'Courier New', monospace",
             fontSize: 14,
             theme: {
-                background: '#1e1e1e',
-                foreground: '#d4d4d4',
-                cursor: '#ffffff'
+                background: '#0d1117',
+                foreground: '#c9d1d9',
+                cursor: '#58a6ff'
             },
             cursorBlink: true,
-            convertEol: true
+            convertEol: true,
+            cols: terminalCols,
+            rows: terminalRows
         });
 
-        const fitAddon = new FitAddon.FitAddon();
-        terminal.loadAddon(fitAddon);
-        
         const container = document.getElementById('terminal-container');
         terminal.open(container);
-        fitAddon.fit();
 
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            fitAddon.fit();
-        });
+        // Update dimensions display
+        function updateDimensionsDisplay(cols, rows) {
+            document.getElementById('dimensions-info').textContent = `${cols}x${rows}`;
+        }
 
         // Connection status UI
         const statusEl = document.getElementById('connection-status');
@@ -96,13 +182,15 @@
             .withAutomaticReconnect()
             .build();
 
-        // Handle dimension updates
+        // Handle dimension updates from server (when host terminal resizes)
         connection.on('SetDimensions', (cols, rows) => {
+            terminalCols = cols;
+            terminalRows = rows;
             terminal.resize(cols, rows);
+            updateDimensionsDisplay(cols, rows);
         });
 
         // Handle buffered output on connection/reconnection (initial state sync)
-        // This is sent once when connecting, before the stream starts
         connection.on('WriteOutput', (data) => {
             terminal.write(data);
         });
@@ -111,13 +199,6 @@
         terminal.onData(data => {
             if (connection.state === signalR.HubConnectionState.Connected) {
                 connection.invoke('SendInput', data);
-            }
-        });
-
-        // Handle resize events from xterm
-        terminal.onResize(({ cols, rows }) => {
-            if (connection.state === signalR.HubConnectionState.Connected) {
-                connection.invoke('Resize', cols, rows);
             }
         });
 

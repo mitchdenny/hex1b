@@ -77,7 +77,7 @@ runCommand.SetHandler(async (int port, string[] commandParts) =>
     // Register services
     builder.Services.AddSingleton(runCmd);
     builder.Services.AddSingleton<TerminalHolder>();
-    builder.Services.AddSingleton<BlazorPresentationAdapterHolder>();
+    builder.Services.AddSingleton<FollowingPresentationAdapterHolder>();
     
     // Add SignalR
     builder.Services.AddSignalR();

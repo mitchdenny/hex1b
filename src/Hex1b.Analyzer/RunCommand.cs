@@ -70,17 +70,17 @@ public class RunCommand
                 initialHeight: height
             );
 
-            // Create console presentation adapter for passthrough
+            // Create console presentation adapter for passthrough (primary)
             var consoleAdapter = new ConsolePresentationAdapter(enableMouse: false);
             
-            // Create Blazor presentation adapter for web streaming
-            var blazorAdapter = new BlazorPresentationAdapter(width, height);
+            // Create following presentation adapter that follows console adapter's resize events
+            var followingAdapter = new FollowingPresentationAdapter(consoleAdapter);
             
-            // Store Blazor adapter for SignalR hub access
-            app.Services.GetRequiredService<BlazorPresentationAdapterHolder>().Adapter = blazorAdapter;
+            // Store following adapter for SignalR hub access
+            app.Services.GetRequiredService<FollowingPresentationAdapterHolder>().Adapter = followingAdapter;
             
             // Create multiheaded adapter that broadcasts to both
-            var multiheadedAdapter = new MultiheadedPresentationAdapter(consoleAdapter, blazorAdapter);
+            var multiheadedAdapter = new MultiheadedPresentationAdapter(consoleAdapter, followingAdapter);
 
             var terminalOptions = new Hex1bTerminalOptions
             {
