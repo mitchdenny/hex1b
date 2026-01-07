@@ -1,6 +1,22 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Hex1b.Terminal.Automation;
+
+/// <summary>
+/// Represents a text match found in a terminal region, with its coordinates.
+/// </summary>
+/// <param name="Line">The line (Y coordinate) where the match was found.</param>
+/// <param name="StartColumn">The starting column (X coordinate) of the match.</param>
+/// <param name="EndColumn">The ending column (X coordinate, exclusive) of the match.</param>
+/// <param name="Text">The matched text.</param>
+public readonly record struct TextMatch(int Line, int StartColumn, int EndColumn, string Text)
+{
+    /// <summary>
+    /// Gets the length of the matched text.
+    /// </summary>
+    public int Length => EndColumn - StartColumn;
+}
 
 /// <summary>
 /// Extension methods for <see cref="IHex1bTerminalRegion"/> providing common text operations.
@@ -264,5 +280,173 @@ public static class Hex1bTerminalRegionExtensions
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Finds all occurrences of a regular expression pattern in the region.
+    /// Returns a list of <see cref="TextMatch"/> objects with start and end coordinates.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None).</param>
+    /// <returns>A list of matches with their coordinates and matched text.</returns>
+    public static List<TextMatch> FindPattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        var results = new List<TextMatch>();
+        var regex = new Regex(pattern, options);
+
+        for (int y = 0; y < region.Height; y++)
+        {
+            var line = region.GetLine(y);
+            var matches = regex.Matches(line);
+            foreach (Match match in matches)
+            {
+                results.Add(new TextMatch(y, match.Index, match.Index + match.Length, match.Value));
+            }
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Finds all occurrences of a compiled regular expression in the region.
+    /// Returns a list of <see cref="TextMatch"/> objects with start and end coordinates.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>A list of matches with their coordinates and matched text.</returns>
+    public static List<TextMatch> FindPattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+
+        var results = new List<TextMatch>();
+
+        for (int y = 0; y < region.Height; y++)
+        {
+            var line = region.GetLine(y);
+            var matches = regex.Matches(line);
+            foreach (Match match in matches)
+            {
+                results.Add(new TextMatch(y, match.Index, match.Index + match.Length, match.Value));
+            }
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Finds the first occurrence of a regular expression pattern in the region.
+    /// Returns the <see cref="TextMatch"/> if found, or null if not found.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None).</param>
+    /// <returns>The first match with its coordinates and matched text, or null if not found.</returns>
+    public static TextMatch? FindFirstPattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        var regex = new Regex(pattern, options);
+
+        for (int y = 0; y < region.Height; y++)
+        {
+            var line = region.GetLine(y);
+            var match = regex.Match(line);
+            if (match.Success)
+            {
+                return new TextMatch(y, match.Index, match.Index + match.Length, match.Value);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds the first occurrence of a compiled regular expression in the region.
+    /// Returns the <see cref="TextMatch"/> if found, or null if not found.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>The first match with its coordinates and matched text, or null if not found.</returns>
+    public static TextMatch? FindFirstPattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        ArgumentNullException.ThrowIfNull(regex);
+
+        for (int y = 0; y < region.Height; y++)
+        {
+            var line = region.GetLine(y);
+            var match = regex.Match(line);
+            if (match.Success)
+            {
+                return new TextMatch(y, match.Index, match.Index + match.Length, match.Value);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the text content at the specified coordinates.
+    /// </summary>
+    /// <param name="region">The terminal region.</param>
+    /// <param name="line">The line (Y coordinate) to read from.</param>
+    /// <param name="startColumn">The starting column (X coordinate).</param>
+    /// <param name="endColumn">The ending column (X coordinate, exclusive).</param>
+    /// <returns>The text at the specified coordinates.</returns>
+    public static string GetTextAt(this IHex1bTerminalRegion region, int line, int startColumn, int endColumn)
+    {
+        if (line < 0 || line >= region.Height)
+            return "";
+
+        var sb = new StringBuilder();
+        var start = Math.Max(0, startColumn);
+        var end = Math.Min(region.Width, endColumn);
+
+        for (int x = start; x < end; x++)
+        {
+            var cell = region.GetCell(x, line);
+            var ch = cell.Character;
+            // Skip empty continuation cells (used for wide characters)
+            if (string.IsNullOrEmpty(ch))
+                continue;
+            // Replace null character with space for display
+            if (ch == "\0")
+                sb.Append(' ');
+            else
+                sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Gets the text content at the coordinates specified by a <see cref="TextMatch"/>.
+    /// </summary>
+    /// <param name="region">The terminal region.</param>
+    /// <param name="match">The text match containing the coordinates.</param>
+    /// <returns>The text at the match coordinates.</returns>
+    public static string GetTextAt(this IHex1bTerminalRegion region, TextMatch match)
+    {
+        return region.GetTextAt(match.Line, match.StartColumn, match.EndColumn);
+    }
+
+    /// <summary>
+    /// Checks if the region contains text matching the specified regular expression pattern.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="pattern">The regular expression pattern to search for.</param>
+    /// <param name="options">Regular expression options (default is None).</param>
+    /// <returns>True if a match is found, false otherwise.</returns>
+    public static bool ContainsPattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    {
+        return region.FindFirstPattern(pattern, options) is not null;
+    }
+
+    /// <summary>
+    /// Checks if the region contains text matching the specified compiled regular expression.
+    /// </summary>
+    /// <param name="region">The terminal region to search.</param>
+    /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <returns>True if a match is found, false otherwise.</returns>
+    public static bool ContainsPattern(this IHex1bTerminalRegion region, Regex regex)
+    {
+        return region.FindFirstPattern(regex) is not null;
     }
 }
