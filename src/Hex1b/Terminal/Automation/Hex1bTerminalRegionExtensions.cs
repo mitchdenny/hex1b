@@ -569,20 +569,26 @@ public static class Hex1bTerminalRegionExtensions
     /// <param name="endLine">The ending line (Y coordinate).</param>
     /// <param name="endColumn">The ending column (X coordinate, exclusive).</param>
     /// <returns>The text at the specified coordinates, with lines separated by newlines.</returns>
+    /// <remarks>
+    /// If endLine exceeds the region height, it will be clamped to the last valid line.
+    /// </remarks>
     public static string GetMultiLineTextAt(this IHex1bTerminalRegion region, int startLine, int startColumn, int endLine, int endColumn)
     {
         if (startLine < 0 || startLine >= region.Height || endLine < startLine)
             return "";
 
+        // Clamp endLine to valid range
+        var clampedEndLine = Math.Min(endLine, region.Height - 1);
+
         var sb = new StringBuilder();
         
-        for (int y = startLine; y <= Math.Min(endLine, region.Height - 1); y++)
+        for (int y = startLine; y <= clampedEndLine; y++)
         {
             if (y > startLine)
                 sb.Append('\n');
 
             int start = (y == startLine) ? Math.Max(0, startColumn) : 0;
-            int end = (y == endLine) ? Math.Min(region.Width, endColumn) : region.Width;
+            int end = (y == clampedEndLine && endLine <= region.Height - 1) ? Math.Min(region.Width, endColumn) : region.Width;
 
             for (int x = start; x < end; x++)
             {
@@ -663,11 +669,18 @@ public static class Hex1bTerminalRegionExtensions
 
     private static (int line, int column) OffsetToLineColumn(int offset, int[] lineOffsets)
     {
-        // Find the line that contains this offset using binary search
+        // Find the line that contains this offset using linear search
+        // For typical terminal heights (< 100 lines), this is efficient enough
         int line = 0;
         for (int i = 0; i < lineOffsets.Length - 1; i++)
         {
-            if (offset >= lineOffsets[i] && (i == lineOffsets.Length - 2 || offset < lineOffsets[i + 1]))
+            int lineStart = lineOffsets[i];
+            int nextLineStart = lineOffsets[i + 1];
+            
+            // The newline character between lines is at nextLineStart - 1
+            // Characters from lineStart to (nextLineStart - 1) inclusive belong to line i
+            // Note: For the last line, this is just until the end
+            if (offset >= lineStart && (i == lineOffsets.Length - 2 || offset < nextLineStart))
             {
                 line = i;
                 break;

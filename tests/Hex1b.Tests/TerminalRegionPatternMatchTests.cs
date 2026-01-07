@@ -982,6 +982,26 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
+    public void FindMultiLinePattern_ZeroLengthMatches()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        
+        workload.Write("Line 1\r\n");
+        workload.Write("Line 2");
+        
+        var snapshot = terminal.CreateSnapshot();
+        // Match at the start of each line using Multiline mode (^ matches start of each line)
+        var matches = snapshot.FindMultiLinePattern(@"^", RegexOptions.Multiline);
+        
+        // Each line should have a match at position 0
+        Assert.True(matches.Count >= 2);
+        Assert.Equal(0, matches[0].StartColumn);
+        Assert.Equal(0, matches[0].EndColumn); // Zero-length match
+        Assert.Equal("", matches[0].Text);
+    }
+
+    [Fact]
     public void FindMultiLinePattern_UnicodeContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1085,7 +1105,8 @@ public class TerminalRegionPatternMatchTests
         workload.Write("| Item2 | 200   |");
         
         var snapshot = terminal.CreateSnapshot();
-        var match = snapshot.FindFirstMultiLinePattern(@"\| Name.*\| Item2 \| 200 \s*\|", RegexOptions.Singleline);
+        // Match table from header to last row - \s* handles any trailing whitespace
+        var match = snapshot.FindFirstMultiLinePattern(@"\|\s*Name.*\|\s*Item2\s*\|\s*200\s*\|", RegexOptions.Singleline);
         
         Assert.NotNull(match);
         Assert.Equal(4, match.Value.LineCount);
