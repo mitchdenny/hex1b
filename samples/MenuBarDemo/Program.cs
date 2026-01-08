@@ -1,12 +1,17 @@
 using Hex1b;
 using Hex1b.Terminal;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 // Application state
 var lastAction = "None";
 var documentName = "Untitled";
 var isModified = false;
 var recentDocuments = new List<string> { "Report.md", "Notes.txt", "Config.json", "README.md" };
+
+// Drawer state
+var explorerExpanded = true;
+var propertiesExpanded = false;
 
 // Input control state
 var searchText = "";
@@ -119,85 +124,127 @@ await using var app = new Hex1bApp(ctx =>
             ])
         ]),
         
-        // Main content area
-        main.Border(
-            main.VStack(content => [
-                content.Text(""),
-                content.Text("  Menu Bar Demo"),
-                content.Text("  ═══════════════════════════════════════"),
-                content.Text(""),
-                content.Text($"  Document: {documentName}{(isModified ? " *" : "")}"),
-                content.Text($"  Last Action: {lastAction}"),
-                content.Text(""),
-                
-                // Search box
-                content.HStack(row => [
-                    row.Text("  Search: "),
-                    row.TextBox(searchText)
-                        .FixedWidth(30)
-                        .OnTextChanged(e => searchText = e.NewText)
-                ]).FixedHeight(1),
-                
-                content.Text(""),
-                
-                // Options row with toggles
-                content.HStack(row => [
-                    row.Text("  "),
-                    row.ToggleSwitch(toggleOptions, autoSaveIndex)
-                        .OnSelectionChanged(e => { autoSaveIndex = e.SelectedIndex; lastAction = $"Auto-save: {toggleOptions[e.SelectedIndex]}"; }),
-                    row.Text(" Auto-save   "),
-                    row.ToggleSwitch(toggleOptions, wordWrapIndex)
-                        .OnSelectionChanged(e => { wordWrapIndex = e.SelectedIndex; lastAction = $"Word wrap: {toggleOptions[e.SelectedIndex]}"; }),
-                    row.Text(" Word wrap")
-                ]).FixedHeight(1),
-                
-                content.Text(""),
-                
-                // Notes text area
-                content.HStack(row => [
-                    row.Text("  Notes: "),
-                    row.TextBox(notesText)
-                        .FixedWidth(40)
-                        .OnTextChanged(e => { notesText = e.NewText; isModified = true; })
-                ]).FixedHeight(1),
-                
-                content.Text(""),
-                
-                // Picker control
-                content.HStack(row => [
-                    row.Text("  Font Size: "),
-                    row.Picker(fontSizes, selectedFontSize)
-                        .OnSelectionChanged(e => { selectedFontSize = e.SelectedIndex; lastAction = $"Font size: {fontSizes[e.SelectedIndex]}"; })
-                ]).FixedHeight(1),
-                
-                content.Text(""),
-                
-                // Action buttons
-                content.HStack(row => [
-                    row.Text("  "),
-                    row.Button("Save").OnClick(_ => { 
-                        isModified = false; 
-                        lastAction = $"Saved: {documentName}"; 
-                    }),
-                    row.Text(" "),
-                    row.Button("Clear").OnClick(_ => { 
-                        searchText = "";
-                        notesText = "";
-                        lastAction = "Cleared all fields"; 
-                    }),
-                    row.Text(" "),
-                    row.Button("Exit").OnClick(e => e.Context.RequestStop())
-                ]).FixedHeight(1),
-                
-                content.Text(""),
-                content.Text("  Keyboard: Tab to navigate, Enter/Space to activate"),
-            ]),
-            title: "Main Content"
-        ).Fill(),
+        // Main content area with drawers
+        main.HStack(layout => [
+            // Left drawer - Explorer
+            layout.Drawer(
+                isExpanded: explorerExpanded,
+                onToggle: expanded => { explorerExpanded = expanded; lastAction = expanded ? "Explorer opened" : "Explorer closed"; },
+                header: ctx.Text("📁"),
+                content: ctx.VStack(v => [
+                    v.Text(""),
+                    v.Text(" src/"),
+                    v.Button("  Program.cs").OnClick(_ => { documentName = "Program.cs"; lastAction = "Opened Program.cs"; }),
+                    v.Button("  App.cs").OnClick(_ => { documentName = "App.cs"; lastAction = "Opened App.cs"; }),
+                    v.Text(" tests/"),
+                    v.Button("  Tests.cs").OnClick(_ => { documentName = "Tests.cs"; lastAction = "Opened Tests.cs"; }),
+                    v.Text(""),
+                    v.Text(" docs/"),
+                    v.Button("  README.md").OnClick(_ => { documentName = "README.md"; lastAction = "Opened README.md"; })
+                ]),
+                position: DrawerPosition.Left
+            ).WithExpandedSize(22),
+            
+            // Main editor area
+            layout.Border(
+                layout.VStack(content => [
+                    content.Text(""),
+                    content.Text("  Menu Bar Demo"),
+                    content.Text("  ═══════════════════════════════════════"),
+                    content.Text(""),
+                    content.Text($"  Document: {documentName}{(isModified ? " *" : "")}"),
+                    content.Text($"  Last Action: {lastAction}"),
+                    content.Text(""),
+                    
+                    // Search box
+                    content.HStack(row => [
+                        row.Text("  Search: "),
+                        row.TextBox(searchText)
+                            .FixedWidth(30)
+                            .OnTextChanged(e => searchText = e.NewText)
+                    ]).FixedHeight(1),
+                    
+                    content.Text(""),
+                    
+                    // Options row with toggles
+                    content.HStack(row => [
+                        row.Text("  "),
+                        row.ToggleSwitch(toggleOptions, autoSaveIndex)
+                            .OnSelectionChanged(e => { autoSaveIndex = e.SelectedIndex; lastAction = $"Auto-save: {toggleOptions[e.SelectedIndex]}"; }),
+                        row.Text(" Auto-save   "),
+                        row.ToggleSwitch(toggleOptions, wordWrapIndex)
+                            .OnSelectionChanged(e => { wordWrapIndex = e.SelectedIndex; lastAction = $"Word wrap: {toggleOptions[e.SelectedIndex]}"; }),
+                        row.Text(" Word wrap")
+                    ]).FixedHeight(1),
+                    
+                    content.Text(""),
+                    
+                    // Notes text area
+                    content.HStack(row => [
+                        row.Text("  Notes: "),
+                        row.TextBox(notesText)
+                            .FixedWidth(40)
+                            .OnTextChanged(e => { notesText = e.NewText; isModified = true; })
+                    ]).FixedHeight(1),
+                    
+                    content.Text(""),
+                    
+                    // Picker control
+                    content.HStack(row => [
+                        row.Text("  Font Size: "),
+                        row.Picker(fontSizes, selectedFontSize)
+                            .OnSelectionChanged(e => { selectedFontSize = e.SelectedIndex; lastAction = $"Font size: {fontSizes[e.SelectedIndex]}"; })
+                    ]).FixedHeight(1),
+                    
+                    content.Text(""),
+                    
+                    // Action buttons
+                    content.HStack(row => [
+                        row.Text("  "),
+                        row.Button("Save").OnClick(_ => { 
+                            isModified = false; 
+                            lastAction = $"Saved: {documentName}"; 
+                        }),
+                        row.Text(" "),
+                        row.Button("Clear").OnClick(_ => { 
+                            searchText = "";
+                            notesText = "";
+                            lastAction = "Cleared all fields"; 
+                        }),
+                        row.Text(" "),
+                        row.Button("Exit").OnClick(e => e.Context.RequestStop())
+                    ]).FixedHeight(1),
+                    
+                    content.Text(""),
+                    content.Text("  Keyboard: Tab to navigate, Enter/Space to activate"),
+                ]),
+                title: "Main Content"
+            ).Fill(),
+            
+            // Right drawer - Properties
+            layout.Drawer(
+                isExpanded: propertiesExpanded,
+                onToggle: expanded => { propertiesExpanded = expanded; lastAction = expanded ? "Properties opened" : "Properties closed"; },
+                header: ctx.Text("⚙️ Properties"),
+                content: ctx.VStack(v => [
+                    v.Text(""),
+                    v.Text($" File: {documentName}"),
+                    v.Text(" Size: 2.4 KB"),
+                    v.Text(" Modified: Today"),
+                    v.Text(""),
+                    v.Text(" Encoding: UTF-8"),
+                    v.Text(" Line Endings: LF"),
+                    v.Text(""),
+                    v.Button(" Apply Changes").OnClick(_ => lastAction = "Properties applied")
+                ]),
+                position: DrawerPosition.Right
+            ).WithExpandedSize(22)
+        ]).Fill(),
         
         // Status bar
         main.InfoBar([
             "Tab", "Navigate",
+            "Enter", "Toggle Drawer",
             "Alt+Letter", "Menu",
             "Ctrl+C", "Exit"
         ])

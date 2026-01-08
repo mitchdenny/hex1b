@@ -491,3 +491,4 @@ src/Hex1b/Terminal/native/*.o
 # Doc-tester local packages and workspace
 .doc-tester-packages/
 .doc-tester-workspace/
+samples/TmuxDemo/tmux-demo.cast
