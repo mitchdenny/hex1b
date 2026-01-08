@@ -491,3 +491,6 @@ src/Hex1b/Terminal/native/*.o
 # Doc-tester local packages and workspace
 .doc-tester-packages/
 .doc-tester-workspace/
+
+# exclude casts files
+samples/**/*.cast
