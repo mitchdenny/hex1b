@@ -901,12 +901,12 @@ public class CellPatternSearcherTests
     public void ThenEither_UsesFirstIfMatches()
     {
         var snapshot = CreateSnapshot("AB");
-        var first = new CellPatternSearcher().Right('B');
-        var second = new CellPatternSearcher().Right('X');
 
         var pattern = new CellPatternSearcher()
             .Find('A')
-            .ThenEither(first, second);
+            .ThenEither(
+                p => p.Right('B'),
+                p => p.Right('X'));
 
         var result = pattern.Search(snapshot);
 
@@ -918,12 +918,12 @@ public class CellPatternSearcherTests
     public void ThenEither_UsesSecondIfFirstFails()
     {
         var snapshot = CreateSnapshot("AX");
-        var first = new CellPatternSearcher().Right('B');
-        var second = new CellPatternSearcher().Right('X');
 
         var pattern = new CellPatternSearcher()
             .Find('A')
-            .ThenEither(first, second);
+            .ThenEither(
+                p => p.Right('B'),
+                p => p.Right('X'));
 
         var result = pattern.Search(snapshot);
 
@@ -935,16 +935,80 @@ public class CellPatternSearcherTests
     public void ThenEither_FailsIfBothFail()
     {
         var snapshot = CreateSnapshot("AZ");
-        var first = new CellPatternSearcher().Right('B');
-        var second = new CellPatternSearcher().Right('X');
 
         var pattern = new CellPatternSearcher()
             .Find('A')
-            .ThenEither(first, second);
+            .ThenEither(
+                p => p.Right('B'),
+                p => p.Right('X'));
 
         var result = pattern.Search(snapshot);
 
         Assert.False(result.HasMatches);
+    }
+
+    [Fact]
+    public void ThenEither_WithMatch_MatchesTextAtCurrentPosition()
+    {
+        // Simulates the prompt matching scenario:
+        // [1 OK] $
+        // [2 OK] $
+        // [3 ERR:127] $
+        var snapshot = CreateSnapshot(new[] {
+            "[1 OK] $",
+            "[2 OK] $",
+            "[3 ERR:127] $"});
+
+        var pattern = new CellPatternSearcher()
+            .Find(c => c.X == 0 && c.Cell.Character == "[")
+            .BeginCapture("seqno")
+                .RightWhile(c => char.IsNumber(c.Cell.Character[0]))  // Continue while it's a number
+            .EndCapture()
+            .ThenEither(
+                p => p.RightText(" OK]"),  // Use RightText to move and match each char
+                p => p.RightText(" ERR:")
+                    .BeginCapture("errno")
+                        .RightWhile(c => char.IsNumber(c.Cell.Character[0]))  // Continue while it's a number
+                    .EndCapture()
+                    .Right(']')
+            );
+
+        var results = pattern.Search(snapshot);
+
+        Assert.True(results.HasMatches);
+        Assert.Equal(3, results.Count);
+        
+        // First match: [1 OK]
+        Assert.Equal("1", results.Matches[0].GetCaptureText("seqno"));
+        Assert.False(results.Matches[0].HasCapture("errno"));
+        
+        // Second match: [2 OK]
+        Assert.Equal("2", results.Matches[1].GetCaptureText("seqno"));
+        Assert.False(results.Matches[1].HasCapture("errno"));
+        
+        // Third match: [3 ERR:127]
+        Assert.Equal("3", results.Matches[2].GetCaptureText("seqno"));
+        Assert.True(results.Matches[2].HasCapture("errno"));
+        Assert.Equal("127", results.Matches[2].GetCaptureText("errno"));
+    }
+
+    [Fact]
+    public void Match_DebugCursorPosition()
+    {
+        // Test Match followed by RightWhile followed by Right
+        var snapshot = CreateSnapshot(":127]");
+        
+        var pattern = new CellPatternSearcher()
+            .Find(':')
+            .BeginCapture("errno")
+                .RightWhile(c => char.IsNumber(c.Cell.Character[0]))  // Should capture 127
+            .EndCapture()
+            .Right(']');  // Should match ]
+
+        var result = pattern.Search(snapshot);
+        Assert.True(result.HasMatches, "Pattern should match :127]");
+        Assert.Equal(":127]", result.First!.Text);
+        Assert.Equal("127", result.First!.GetCaptureText("errno"));
     }
 
     [Fact]

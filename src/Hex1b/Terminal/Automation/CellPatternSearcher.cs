@@ -108,6 +108,32 @@ public sealed class CellPatternSearcher
 
     #endregion
 
+    #region Match (Continuation at Current Position)
+
+    /// <summary>
+    /// Matches the specified text at the current cursor position.
+    /// Unlike Find, this does not search the region - it matches exactly where the cursor is.
+    /// Use this in sub-patterns (ThenEither, ThenOptional, etc.) to continue from the current position.
+    /// </summary>
+    /// <param name="text">The exact text to match at the current position.</param>
+    public CellPatternSearcher Match(string text) =>
+        AddStep(new MatchTextStep(text));
+
+    /// <summary>
+    /// Matches the specified character at the current cursor position.
+    /// </summary>
+    /// <param name="c">The character to match.</param>
+    public CellPatternSearcher Match(char c) =>
+        AddStep(new MatchTextStep(c.ToString()));
+
+    /// <summary>
+    /// Matches if the predicate returns true for the current cell.
+    /// </summary>
+    public CellPatternSearcher Match(Func<CellMatchContext, bool> predicate) =>
+        AddStep(new MatchPredicateStep(predicate));
+
+    #endregion
+
     #region Directional Movement with Predicate
 
     /// <summary>
@@ -381,7 +407,8 @@ public sealed class CellPatternSearcher
         if (_activeCaptures.IsEmpty)
             throw new InvalidOperationException("No capture to end. Call BeginCapture first.");
         
-        return new(_steps.Add(new EndCaptureStep()), _activeCaptures.Pop());
+        var name = _activeCaptures.Peek();
+        return new(_steps.Add(new EndCaptureStep(name)), _activeCaptures.Pop());
     }
 
     #endregion
@@ -411,10 +438,36 @@ public sealed class CellPatternSearcher
         AddStep(new OptionalStep(subPattern._steps));
 
     /// <summary>
-    /// Tries the first pattern, falls back to the second if the first fails.
+    /// Optionally matches a sub-pattern built by the provided function.
+    /// If it fails, continues from current position.
     /// </summary>
-    public CellPatternSearcher ThenEither(CellPatternSearcher first, CellPatternSearcher second) =>
-        AddStep(new EitherStep(first._steps, second._steps));
+    public CellPatternSearcher ThenOptional(Func<CellPatternSearcher, CellPatternSearcher> buildPattern)
+    {
+        var sub = buildPattern(new CellPatternSearcher());
+        return ThenOptional(sub);
+    }
+
+    /// <summary>
+    /// Tries the first pattern, falls back to the second if the first fails.
+    /// The functions receive a new searcher to build continuation patterns.
+    /// Use Match() instead of Find() in sub-patterns to match at the current position.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// .ThenEither(
+    ///     p => p.Match("✔]"),
+    ///     p => p.Match("✘:").BeginCapture("errno").RightUntil(...).EndCapture().Match("]")
+    /// )
+    /// </code>
+    /// </example>
+    public CellPatternSearcher ThenEither(
+        Func<CellPatternSearcher, CellPatternSearcher> first,
+        Func<CellPatternSearcher, CellPatternSearcher> second)
+    {
+        var firstPattern = first(new CellPatternSearcher());
+        var secondPattern = second(new CellPatternSearcher());
+        return AddStep(new EitherStep(firstPattern._steps, secondPattern._steps));
+    }
 
     /// <summary>
     /// Repeats a pattern while it continues to match.
@@ -423,10 +476,28 @@ public sealed class CellPatternSearcher
         AddStep(new RepeatStep(repeatedPattern._steps, null));
 
     /// <summary>
+    /// Repeats a pattern built by the provided function while it continues to match.
+    /// </summary>
+    public CellPatternSearcher ThenRepeat(Func<CellPatternSearcher, CellPatternSearcher> buildPattern)
+    {
+        var sub = buildPattern(new CellPatternSearcher());
+        return ThenRepeat(sub);
+    }
+
+    /// <summary>
     /// Repeats a pattern exactly N times.
     /// </summary>
     public CellPatternSearcher ThenRepeat(int count, CellPatternSearcher repeatedPattern) =>
         AddStep(new RepeatStep(repeatedPattern._steps, count));
+
+    /// <summary>
+    /// Repeats a pattern built by the provided function exactly N times.
+    /// </summary>
+    public CellPatternSearcher ThenRepeat(int count, Func<CellPatternSearcher, CellPatternSearcher> buildPattern)
+    {
+        var sub = buildPattern(new CellPatternSearcher());
+        return ThenRepeat(count, sub);
+    }
 
     #endregion
 

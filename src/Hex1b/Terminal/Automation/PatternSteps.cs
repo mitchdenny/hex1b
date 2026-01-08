@@ -182,6 +182,95 @@ internal sealed class PatternExecutionState
 }
 
 /// <summary>
+/// Matches at the current cursor position (continuation step).
+/// Unlike FindPredicateStep, this is for sub-patterns that continue from where we left off.
+/// </summary>
+internal sealed class MatchPredicateStep : IPatternStep
+{
+    private readonly Func<CellMatchContext, bool> _predicate;
+
+    public MatchPredicateStep(Func<CellMatchContext, bool> predicate)
+    {
+        _predicate = predicate;
+    }
+
+    public StepResult Execute(PatternExecutionState state)
+    {
+        var context = state.CreateContext();
+        if (_predicate(context))
+        {
+            state.AddTraversedCell();
+            return StepResult.Succeeded;
+        }
+        return StepResult.Failed;
+    }
+}
+
+/// <summary>
+/// Matches exact text at the current cursor position (continuation step).
+/// Unlike FindTextStep, this does not search - it matches exactly where the cursor is.
+/// After matching, cursor is left on the last matched character (consistent with Find behavior).
+/// </summary>
+internal sealed class MatchTextStep : IPatternStep
+{
+    private readonly string _text;
+
+    public MatchTextStep(string text)
+    {
+        _text = text;
+    }
+
+    public StepResult Execute(PatternExecutionState state)
+    {
+        var region = state.Region;
+        int x = state.X;
+        int y = state.Y;
+        
+        int textIndex = 0;
+        int lastMatchedX = x;
+        int lastMatchedY = y;
+        
+        while (textIndex < _text.Length)
+        {
+            if (x >= region.Width)
+                return StepResult.Failed;
+            
+            var cell = region.GetCell(x, y);
+            var cellChar = cell.Character;
+            
+            if (cellChar.Length == 0)
+                return StepResult.Failed;
+            
+            // Handle multi-character graphemes
+            if (_text.Length - textIndex >= cellChar.Length &&
+                _text.Substring(textIndex, cellChar.Length) == cellChar)
+            {
+                state.X = x;
+                state.Y = y;
+                state.AddTraversedCell();
+                
+                lastMatchedX = x;
+                lastMatchedY = y;
+                
+                textIndex += cellChar.Length;
+                x++;
+            }
+            else
+            {
+                return StepResult.Failed;
+            }
+        }
+        
+        // Leave cursor on the last matched character
+        // This is consistent with Find behavior and allows RightWhile to move away
+        state.X = lastMatchedX;
+        state.Y = lastMatchedY;
+        
+        return StepResult.Succeeded;
+    }
+}
+
+/// <summary>
 /// Finds starting positions using a predicate.
 /// </summary>
 internal sealed class FindPredicateStep : IPatternStep
@@ -230,6 +319,7 @@ internal sealed class FindPredicateStep : IPatternStep
 
 /// <summary>
 /// Finds starting positions using an exact text match.
+/// When used as a continuation step (inside ThenEither, etc.), matches text at current position.
 /// </summary>
 internal sealed class FindTextStep : IPatternStep
 {
@@ -246,6 +336,61 @@ internal sealed class FindTextStep : IPatternStep
 
     public StepResult Execute(PatternExecutionState state)
     {
+        // When used as a continuation step, match text at current position
+        var region = state.Region;
+        int x = state.X;
+        int y = state.Y;
+        
+        // Check if we can match the text starting from current position
+        int textIndex = 0;
+        int startX = x;
+        int startY = y;
+        
+        while (textIndex < _text.Length)
+        {
+            if (x >= region.Width)
+                return StepResult.Failed;
+            
+            var cell = region.GetCell(x, y);
+            var cellChar = cell.Character;
+            
+            // Check if this cell's character matches the expected part of the text
+            if (cellChar.Length == 0)
+                return StepResult.Failed;
+            
+            // Handle multi-character graphemes
+            if (_text.Length - textIndex >= cellChar.Length &&
+                _text.Substring(textIndex, cellChar.Length) == cellChar)
+            {
+                // Add to traversed cells if option is set
+                if (_options.IncludeMatchInCells)
+                {
+                    state.X = x;
+                    state.Y = y;
+                    state.AddTraversedCell();
+                }
+                
+                textIndex += cellChar.Length;
+                x++;
+            }
+            else
+            {
+                return StepResult.Failed;
+            }
+        }
+        
+        // Position cursor based on options
+        if (_options.CursorPosition == FindCursorPosition.End)
+        {
+            state.X = x; // After the match
+            state.Y = y;
+        }
+        else
+        {
+            state.X = startX; // At start of match
+            state.Y = startY;
+        }
+        
         return StepResult.Succeeded;
     }
 
@@ -431,6 +576,7 @@ internal sealed class TextSequenceStep : IPatternStep
 
 /// <summary>
 /// Moves while predicate returns true.
+/// Moves first, then checks. Cursor ends at the last matching position (or original if none matched).
 /// </summary>
 internal sealed class WhileStep : IPatternStep
 {
@@ -642,16 +788,20 @@ internal sealed class BeginCaptureStep : IPatternStep
 }
 
 /// <summary>
-/// Ends the most recent capture.
+/// Ends a named capture.
 /// </summary>
 internal sealed class EndCaptureStep : IPatternStep
 {
+    public string Name { get; }
+
+    public EndCaptureStep(string name)
+    {
+        Name = name;
+    }
+
     public StepResult Execute(PatternExecutionState state)
     {
-        // The capture stack is managed by the searcher
-        // Here we just need to remove captures - but we don't know which one
-        // This needs to be handled differently...
-        // For now, we'll track this in the executor
+        state.ActiveCaptures.Remove(Name);
         return StepResult.Succeeded;
     }
 }
