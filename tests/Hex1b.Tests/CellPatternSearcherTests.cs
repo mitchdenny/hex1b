@@ -261,10 +261,10 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_WithRegexString_MatchesPattern()
+    public void FindPattern_WithRegexString_MatchesPattern()
     {
         var snapshot = CreateSnapshot("Name: John, Age: 30");
-        var pattern = new CellPatternSearcher().Find(@"Age:\s*");
+        var pattern = new CellPatternSearcher().FindPattern(@"Age:\s*");
 
         var result = pattern.Search(snapshot);
 
@@ -272,11 +272,11 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_WithRegex_MatchesCompiledPattern()
+    public void FindPattern_WithCompiledRegex_MatchesPattern()
     {
         var snapshot = CreateSnapshot("Error: file not found");
         var regex = new System.Text.RegularExpressions.Regex(@"Error:\s*");
-        var pattern = new CellPatternSearcher().Find(regex);
+        var pattern = new CellPatternSearcher().FindPattern(regex);
 
         var result = pattern.Search(snapshot);
 
@@ -739,7 +739,7 @@ public class CellPatternSearcherTests
     {
         var snapshot = CreateSnapshot("Name: John");
         var pattern = new CellPatternSearcher()
-            .Find(@"Name:\s*")
+            .FindPattern(@"Name:\s*")
             .BeginCapture("value")
             .RightWhile(ctx => ctx.Cell.Character != " " && ctx.X < 10)
             .EndCapture();
@@ -1398,6 +1398,26 @@ public class CellPatternSearcherTests
         var result = pattern.Search(snapshot);
 
         Assert.False(result.HasMatches);
+    }
+
+    #endregion
+
+    #region Debug Tests
+
+    [Fact]
+    public void FindOptions_Default_HasCorrectDefaults()
+    {
+        var options = FindOptions.Default;
+        Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
+        Assert.Equal(FindCursorPosition.End, options.CursorPosition);
+    }
+    
+    [Fact]
+    public void FindOptions_Constructor_HasCorrectDefaults()
+    {
+        var options = new FindOptions(); // Constructor with defaults
+        Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
+        Assert.Equal(FindCursorPosition.End, options.CursorPosition);
     }
 
     #endregion

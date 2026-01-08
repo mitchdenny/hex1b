@@ -3,6 +3,16 @@ using System.Collections.Immutable;
 namespace Hex1b.Terminal.Automation;
 
 /// <summary>
+/// Represents starting position info for pattern matching.
+/// </summary>
+internal readonly record struct StartPosition(
+    int X, int Y,
+    int EndX, int EndY,
+    int MatchLength,
+    int FindStepIndex,
+    FindOptions Options);
+
+/// <summary>
 /// Executes a pattern against a terminal region.
 /// </summary>
 internal sealed class PatternExecutor
@@ -29,7 +39,7 @@ internal sealed class PatternExecutor
 
         foreach (var startPos in startingPositions)
         {
-            var match = TryMatchInternal(startPos.X, startPos.Y, startPos.InitialCellsToAdd, startPos.FindStepIndex);
+            var match = TryMatchInternal(startPos);
             if (match != null)
             {
                 matches.Add(match);
@@ -65,7 +75,7 @@ internal sealed class PatternExecutor
 
         foreach (var startPos in startingPositions)
         {
-            var match = TryMatchInternal(startPos.X, startPos.Y, startPos.InitialCellsToAdd, startPos.FindStepIndex);
+            var match = TryMatchInternal(startPos);
             if (match != null)
             {
                 return match;
@@ -75,9 +85,9 @@ internal sealed class PatternExecutor
         return null;
     }
 
-    private List<(int X, int Y, int InitialCellsToAdd, int FindStepIndex)> FindStartingPositions()
+    private List<StartPosition> FindStartingPositions()
     {
-        var positions = new List<(int X, int Y, int InitialCellsToAdd, int FindStepIndex)>();
+        var positions = new List<StartPosition>();
 
         if (_steps.Count == 0)
             return positions;
@@ -86,7 +96,7 @@ internal sealed class PatternExecutor
         int findStepIndex = -1;
         for (int i = 0; i < _steps.Count; i++)
         {
-            if (_steps[i] is FindPredicateStep or FindRegexStep)
+            if (_steps[i] is FindPredicateStep or FindRegexStep or FindTextStep or FindMultilineRegexStep)
             {
                 findStepIndex = i;
                 break;
@@ -102,7 +112,16 @@ internal sealed class PatternExecutor
                 var found = predicateStep.FindStartingPositions(_region);
                 foreach (var (x, y) in found)
                 {
-                    positions.Add((x, y, 1, findStepIndex)); // Add the starting cell
+                    positions.Add(new StartPosition(x, y, x, y, 1, findStepIndex, FindOptions.Default));
+                }
+            }
+            else if (findStep is FindTextStep textStep)
+            {
+                var found = textStep.FindStartingPositions(_region);
+                foreach (var (x, y, length) in found)
+                {
+                    var endX = x + length - 1;
+                    positions.Add(new StartPosition(x, y, endX, y, length, findStepIndex, textStep.Options));
                 }
             }
             else if (findStep is FindRegexStep regexStep)
@@ -110,7 +129,22 @@ internal sealed class PatternExecutor
                 var found = regexStep.FindStartingPositions(_region);
                 foreach (var (x, y, length) in found)
                 {
-                    positions.Add((x, y, length, findStepIndex)); // Add all matched cells
+                    var endX = x + length - 1;
+                    positions.Add(new StartPosition(x, y, endX, y, length, findStepIndex, regexStep.Options));
+                }
+            }
+            else if (findStep is FindMultilineRegexStep multilineStep)
+            {
+                var found = multilineStep.FindStartingPositions(_region);
+                foreach (var match in found)
+                {
+                    // Calculate total length across lines (approximate for cell count)
+                    var lineCount = match.EndY - match.StartY + 1;
+                    var totalLength = match.Text.Length; // Use text length as approximation
+                    positions.Add(new StartPosition(
+                        match.StartX, match.StartY,
+                        match.EndX, match.EndY,
+                        totalLength, findStepIndex, multilineStep.Options));
                 }
             }
         }
@@ -121,7 +155,7 @@ internal sealed class PatternExecutor
             {
                 for (int x = 0; x < _region.Width; x++)
                 {
-                    positions.Add((x, y, 0, -1));
+                    positions.Add(new StartPosition(x, y, x, y, 0, -1, FindOptions.Default));
                 }
             }
         }
@@ -129,23 +163,36 @@ internal sealed class PatternExecutor
         return positions;
     }
 
-    private CellPatternMatch? TryMatchInternal(int startX, int startY, int initialCellsToAdd, int findStepIndex)
+    private CellPatternMatch? TryMatchInternal(StartPosition startPos)
     {
+        // Determine starting position based on options
+        int cursorX, cursorY;
+        if (startPos.Options.CursorPosition == FindCursorPosition.End)
+        {
+            cursorX = startPos.EndX;
+            cursorY = startPos.EndY;
+        }
+        else
+        {
+            cursorX = startPos.X;
+            cursorY = startPos.Y;
+        }
+        
         var state = new PatternExecutionState(_region)
         {
-            X = startX,
-            Y = startY,
-            MatchStartCell = _region.GetCell(startX, startY),
-            MatchStartPosition = (startX, startY),
-            PreviousCell = _region.GetCell(startX, startY),
-            PreviousPosition = (startX, startY)
+            X = cursorX,
+            Y = cursorY,
+            MatchStartCell = _region.GetCell(startPos.X, startPos.Y),
+            MatchStartPosition = (startPos.X, startPos.Y),
+            PreviousCell = _region.GetCell(cursorX, cursorY),
+            PreviousPosition = (cursorX, cursorY)
         };
 
         // Track capture stack for proper EndCapture handling
         var captureStack = new Stack<string>();
 
         // Process steps before Find (typically BeginCapture steps)
-        for (int i = 0; i < findStepIndex && findStepIndex >= 0; i++)
+        for (int i = 0; i < startPos.FindStepIndex && startPos.FindStepIndex >= 0; i++)
         {
             var step = _steps[i];
             if (step is BeginCaptureStep beginCapture)
@@ -161,22 +208,14 @@ internal sealed class PatternExecutor
             }
         }
 
-        // Add initial cells (for Find steps) - with active captures applied
-        if (initialCellsToAdd > 0)
+        // Add initial cells (for Find steps) if IncludeMatchInCells is true
+        if (startPos.MatchLength > 0 && startPos.Options.IncludeMatchInCells)
         {
-            for (int i = 0; i < initialCellsToAdd; i++)
-            {
-                state.AddTraversedCell();
-                if (i < initialCellsToAdd - 1)
-                {
-                    state.X++;
-                }
-            }
-            // Position is now at the last character of the initial match
+            AddMatchedCells(state, startPos);
         }
 
         // Execute remaining steps (skip steps up to and including Find)
-        int startStepIndex = findStepIndex >= 0 ? findStepIndex + 1 : 0;
+        int startStepIndex = startPos.FindStepIndex >= 0 ? startPos.FindStepIndex + 1 : 0;
         
         for (int i = startStepIndex; i < _steps.Count; i++)
         {
@@ -212,8 +251,52 @@ internal sealed class PatternExecutor
         return new CellPatternMatch(state.TraversedCells);
     }
 
-    private static string GetCaptureName(BeginCaptureStep step)
+    private void AddMatchedCells(PatternExecutionState state, StartPosition startPos)
     {
-        return step.Name;
+        // Save current position
+        int savedX = state.X;
+        int savedY = state.Y;
+        
+        // Move to start position and add cells
+        state.X = startPos.X;
+        state.Y = startPos.Y;
+        
+        if (startPos.Y == startPos.EndY)
+        {
+            // Single line match
+            for (int x = startPos.X; x <= startPos.EndX; x++)
+            {
+                state.X = x;
+                state.AddTraversedCell();
+            }
+        }
+        else
+        {
+            // Multiline match - add cells line by line
+            for (int y = startPos.Y; y <= startPos.EndY; y++)
+            {
+                state.Y = y;
+                int startX = (y == startPos.Y) ? startPos.X : 0;
+                int endX = (y == startPos.EndY) ? startPos.EndX : _region.Width - 1;
+                
+                for (int x = startX; x <= endX; x++)
+                {
+                    state.X = x;
+                    state.AddTraversedCell();
+                }
+            }
+        }
+        
+        // Restore cursor position based on options
+        if (startPos.Options.CursorPosition == FindCursorPosition.End)
+        {
+            state.X = startPos.EndX;
+            state.Y = startPos.EndY;
+        }
+        else
+        {
+            state.X = savedX;
+            state.Y = savedY;
+        }
     }
 }

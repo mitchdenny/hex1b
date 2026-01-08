@@ -4,6 +4,59 @@ using System.Text.RegularExpressions;
 namespace Hex1b.Terminal.Automation;
 
 /// <summary>
+/// Specifies where to position the cursor after a Find match.
+/// </summary>
+public enum FindCursorPosition
+{
+    /// <summary>
+    /// Position cursor at the start of the match (first character).
+    /// </summary>
+    Start,
+    
+    /// <summary>
+    /// Position cursor at the end of the match (last character).
+    /// </summary>
+    End
+}
+
+/// <summary>
+/// Options for Find pattern methods.
+/// </summary>
+public readonly struct FindOptions
+{
+    /// <summary>
+    /// Default options: cursor at end of match, match cells included.
+    /// </summary>
+    public static readonly FindOptions Default = new(FindCursorPosition.End, true);
+    
+    private readonly FindCursorPosition _cursorPosition;
+    private readonly bool _includeMatchInCells;
+    private readonly bool _isExplicitlySet;
+    
+    /// <summary>
+    /// Where to leave the cursor after matching.
+    /// Default is End (after the match) for natural pattern chaining.
+    /// </summary>
+    public FindCursorPosition CursorPosition => _isExplicitlySet ? _cursorPosition : FindCursorPosition.End;
+    
+    /// <summary>
+    /// Whether to include the matched cells in the result.
+    /// When default-initialized, returns true (the default behavior).
+    /// </summary>
+    public bool IncludeMatchInCells => _isExplicitlySet ? _includeMatchInCells : true;
+    
+    /// <summary>
+    /// Creates FindOptions with the specified settings.
+    /// </summary>
+    public FindOptions(FindCursorPosition cursorPosition = FindCursorPosition.End, bool includeMatchInCells = true)
+    {
+        _cursorPosition = cursorPosition;
+        _includeMatchInCells = includeMatchInCells;
+        _isExplicitlySet = true;
+    }
+}
+
+/// <summary>
 /// Base interface for pattern steps.
 /// </summary>
 internal interface IPatternStep
@@ -176,20 +229,23 @@ internal sealed class FindPredicateStep : IPatternStep
 }
 
 /// <summary>
-/// Finds starting positions using a regex pattern.
+/// Finds starting positions using an exact text match.
 /// </summary>
-internal sealed class FindRegexStep : IPatternStep
+internal sealed class FindTextStep : IPatternStep
 {
-    private readonly Regex _regex;
+    private readonly string _text;
+    private readonly FindOptions _options;
 
-    public FindRegexStep(Regex regex)
+    public FindTextStep(string text, FindOptions options)
     {
-        _regex = regex;
+        _text = text;
+        _options = options;
     }
+
+    public FindOptions Options => _options;
 
     public StepResult Execute(PatternExecutionState state)
     {
-        // Regex steps add the matched characters to traversed cells
         return StepResult.Succeeded;
     }
 
@@ -200,17 +256,109 @@ internal sealed class FindRegexStep : IPatternStep
         for (int y = 0; y < region.Height; y++)
         {
             var line = region.GetLine(y);
-            var matches = _regex.Matches(line);
+            int index = 0;
             
-            foreach (Match match in matches)
+            while ((index = line.IndexOf(_text, index, StringComparison.Ordinal)) >= 0)
             {
-                positions.Add((match.Index, y, match.Length));
+                positions.Add((index, y, _text.Length));
+                index++;
             }
         }
         
         return positions;
     }
 }
+
+/// <summary>
+/// Finds starting positions using a regex pattern (single-line).
+/// Uses the existing FindPattern infrastructure.
+/// </summary>
+internal sealed class FindRegexStep : IPatternStep
+{
+    private readonly Regex _regex;
+    private readonly FindOptions _options;
+
+    public FindRegexStep(Regex regex, FindOptions options = default)
+    {
+        _regex = regex;
+        _options = options;
+    }
+
+    public FindOptions Options => _options;
+
+    public StepResult Execute(PatternExecutionState state)
+    {
+        return StepResult.Succeeded;
+    }
+
+    public List<(int X, int Y, int Length)> FindStartingPositions(IHex1bTerminalRegion region)
+    {
+        var positions = new List<(int X, int Y, int Length)>();
+        
+        // Use existing FindPattern infrastructure
+        var matches = region.FindPattern(_regex);
+        
+        foreach (var match in matches)
+        {
+            positions.Add((match.StartColumn, match.Line, match.Length));
+        }
+        
+        return positions;
+    }
+}
+
+/// <summary>
+/// Finds starting positions using a regex pattern that can span multiple lines.
+/// Uses the existing FindMultiLinePattern infrastructure.
+/// </summary>
+internal sealed class FindMultilineRegexStep : IPatternStep
+{
+    private readonly Regex _regex;
+    private readonly FindOptions _options;
+    private readonly bool _trimLines;
+    private readonly string? _lineSeparator;
+
+    public FindMultilineRegexStep(Regex regex, FindOptions options = default, bool trimLines = false, string? lineSeparator = "\n")
+    {
+        _regex = regex;
+        _options = options;
+        _trimLines = trimLines;
+        _lineSeparator = lineSeparator;
+    }
+
+    public FindOptions Options => _options;
+
+    public StepResult Execute(PatternExecutionState state)
+    {
+        return StepResult.Succeeded;
+    }
+
+    public List<MultilineMatchPosition> FindStartingPositions(IHex1bTerminalRegion region)
+    {
+        var positions = new List<MultilineMatchPosition>();
+        
+        // Use existing FindMultiLinePattern infrastructure
+        var matches = region.FindMultiLinePattern(_regex, _trimLines, _lineSeparator);
+        
+        foreach (var match in matches)
+        {
+            positions.Add(new MultilineMatchPosition(
+                match.StartColumn, match.StartLine,
+                match.EndColumn, match.EndLine,
+                match.Text));
+        }
+        
+        return positions;
+    }
+}
+
+/// <summary>
+/// Position info for a multiline match.
+/// </summary>
+internal readonly record struct MultilineMatchPosition(
+    int StartX, int StartY,
+    int EndX, int EndY,
+    string Text);
 
 /// <summary>
 /// Moves in a direction and optionally matches a predicate.
@@ -347,6 +495,87 @@ internal sealed class UntilStep : IPatternStep
             var context = state.CreateContext();
             if (_predicate(context))
                 return StepResult.Succeeded; // Found the terminator
+        }
+    }
+}
+
+/// <summary>
+/// Moves until a text string is found (inclusive).
+/// Supports graphemes by selecting adjacent cells for multi-cell characters.
+/// </summary>
+internal sealed class UntilTextStep : IPatternStep
+{
+    private readonly Direction _direction;
+    private readonly string _text;
+
+    public UntilTextStep(Direction direction, string text)
+    {
+        _direction = direction;
+        _text = text;
+    }
+
+    public StepResult Execute(PatternExecutionState state)
+    {
+        int textIndex = 0;
+        
+        while (true)
+        {
+            if (!state.Move(_direction))
+                return StepResult.Failed; // Hit boundary without finding match
+
+            var cell = state.Region.GetCell(state.X, state.Y);
+            var cellChar = cell.Character;
+            
+            // Compare character by character within the text
+            bool matched = false;
+            int remaining = _text.Length - textIndex;
+            
+            if (remaining > 0 && cellChar.Length > 0)
+            {
+                // Handle grapheme comparison - cell may contain multiple chars for graphemes
+                var textPart = _text.Substring(textIndex, Math.Min(cellChar.Length, remaining));
+                if (cellChar == textPart)
+                {
+                    textIndex += cellChar.Length;
+                    matched = true;
+                }
+            }
+            
+            if (!matched)
+            {
+                // Reset and try from this position
+                textIndex = 0;
+                
+                // Check if this cell starts the text
+                if (_text.Length > 0 && cellChar.Length > 0)
+                {
+                    var textPart = _text.Substring(0, Math.Min(cellChar.Length, _text.Length));
+                    if (cellChar == textPart)
+                    {
+                        textIndex = cellChar.Length;
+                    }
+                }
+            }
+            
+            state.AddTraversedCell();
+            
+            // For wide characters (East Asian width), the next cell may be a continuation
+            // Check if character is likely a wide character by measuring grapheme display width
+            int graphemeWidth = GraphemeHelper.GetClusterDisplayWidth(cellChar);
+            if (graphemeWidth > 1 && _direction == Direction.Right)
+            {
+                // Wide character spans two cells, add continuation cells
+                for (int i = 1; i < graphemeWidth; i++)
+                {
+                    if (state.Move(_direction))
+                    {
+                        state.AddTraversedCell();
+                    }
+                }
+            }
+            
+            if (textIndex >= _text.Length)
+                return StepResult.Succeeded; // Found the complete text
         }
     }
 }

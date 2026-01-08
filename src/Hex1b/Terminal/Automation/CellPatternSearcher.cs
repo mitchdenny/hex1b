@@ -49,17 +49,62 @@ public sealed class CellPatternSearcher
         Find(ctx => ctx.Cell.Character == c.ToString());
 
     /// <summary>
-    /// Starts the pattern by finding all matches of a regex pattern.
-    /// Uses the existing FindPattern infrastructure for efficiency.
+    /// Starts the pattern by finding all occurrences of the specified text.
+    /// Supports graphemes (multi-cell characters).
     /// </summary>
-    public CellPatternSearcher Find(string regexPattern, RegexOptions options = RegexOptions.None) =>
-        AddStep(new FindRegexStep(new Regex(regexPattern, options)));
+    /// <param name="text">The exact text to find.</param>
+    /// <param name="options">Options controlling cursor position and match inclusion.</param>
+    public CellPatternSearcher Find(string text, FindOptions options = default) =>
+        AddStep(new FindTextStep(text, options));
 
     /// <summary>
-    /// Starts the pattern by finding all matches of a compiled regex.
+    /// Starts the pattern by finding all matches of a regex pattern (single-line).
+    /// Uses the existing FindPattern infrastructure for efficiency.
     /// </summary>
-    public CellPatternSearcher Find(Regex regex) =>
-        AddStep(new FindRegexStep(regex));
+    /// <param name="pattern">The regex pattern to search for.</param>
+    /// <param name="regexOptions">Regular expression options.</param>
+    /// <param name="findOptions">Options controlling cursor position and match inclusion.</param>
+    public CellPatternSearcher FindPattern(string pattern, RegexOptions regexOptions = RegexOptions.None, FindOptions findOptions = default) =>
+        AddStep(new FindRegexStep(new Regex(pattern, regexOptions), findOptions));
+
+    /// <summary>
+    /// Starts the pattern by finding all matches of a compiled regex (single-line).
+    /// </summary>
+    /// <param name="regex">The compiled regex to search for.</param>
+    /// <param name="options">Options controlling cursor position and match inclusion.</param>
+    public CellPatternSearcher FindPattern(Regex regex, FindOptions options = default) =>
+        AddStep(new FindRegexStep(regex, options));
+
+    /// <summary>
+    /// Starts the pattern by finding all matches of a regex pattern that can span multiple lines.
+    /// Uses the existing FindMultiLinePattern infrastructure.
+    /// </summary>
+    /// <param name="pattern">The regex pattern to search for.</param>
+    /// <param name="regexOptions">Regular expression options.</param>
+    /// <param name="findOptions">Options controlling cursor position and match inclusion.</param>
+    /// <param name="trimLines">Whether to trim whitespace from lines before matching.</param>
+    /// <param name="lineSeparator">The line separator to use when concatenating lines.</param>
+    public CellPatternSearcher FindMultilinePattern(
+        string pattern,
+        RegexOptions regexOptions = RegexOptions.None,
+        FindOptions findOptions = default,
+        bool trimLines = false,
+        string? lineSeparator = "\n") =>
+        AddStep(new FindMultilineRegexStep(new Regex(pattern, regexOptions), findOptions, trimLines, lineSeparator));
+
+    /// <summary>
+    /// Starts the pattern by finding all matches of a compiled regex that can span multiple lines.
+    /// </summary>
+    /// <param name="regex">The compiled regex to search for.</param>
+    /// <param name="options">Options controlling cursor position and match inclusion.</param>
+    /// <param name="trimLines">Whether to trim whitespace from lines before matching.</param>
+    /// <param name="lineSeparator">The line separator to use when concatenating lines.</param>
+    public CellPatternSearcher FindMultilinePattern(
+        Regex regex,
+        FindOptions options = default,
+        bool trimLines = false,
+        string? lineSeparator = "\n") =>
+        AddStep(new FindMultilineRegexStep(regex, options, trimLines, lineSeparator));
 
     #endregion
 
@@ -260,6 +305,34 @@ public sealed class CellPatternSearcher
     /// </summary>
     public CellPatternSearcher LeftUntil(char c) =>
         LeftUntil(ctx => ctx.Cell.Character == c.ToString());
+
+    /// <summary>
+    /// Moves right until the specified text is found (inclusive).
+    /// Supports graphemes (multi-cell characters) by selecting adjacent cells.
+    /// </summary>
+    public CellPatternSearcher RightUntil(string text) =>
+        AddStep(new UntilTextStep(Direction.Right, text));
+
+    /// <summary>
+    /// Moves left until the specified text is found (inclusive).
+    /// Supports graphemes (multi-cell characters) by selecting adjacent cells.
+    /// </summary>
+    public CellPatternSearcher LeftUntil(string text) =>
+        AddStep(new UntilTextStep(Direction.Left, text));
+
+    /// <summary>
+    /// Moves up until the specified text is found (inclusive).
+    /// Supports graphemes (multi-cell characters) by selecting adjacent cells.
+    /// </summary>
+    public CellPatternSearcher UpUntil(string text) =>
+        AddStep(new UntilTextStep(Direction.Up, text));
+
+    /// <summary>
+    /// Moves down until the specified text is found (inclusive).
+    /// Supports graphemes (multi-cell characters) by selecting adjacent cells.
+    /// </summary>
+    public CellPatternSearcher DownUntil(string text) =>
+        AddStep(new UntilTextStep(Direction.Down, text));
 
     #endregion
 
