@@ -479,62 +479,70 @@ public static class Hex1bTerminalRegionExtensions
 
     /// <summary>
     /// Finds all occurrences of a regular expression pattern across multiple lines in the region.
-    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// The entire region text is joined with the specified separator, allowing patterns to match across line boundaries.
     /// </summary>
     /// <param name="region">The terminal region to search.</param>
     /// <param name="pattern">The regular expression pattern to search for.</param>
     /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>A list of matches with their start and end coordinates.</returns>
-    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None, bool trimLines = false, string? lineSeparator = "\n")
     {
         ArgumentNullException.ThrowIfNull(pattern);
 
         var regex = new Regex(pattern, options);
-        return FindMultiLinePatternCore(region, regex);
+        return FindMultiLinePatternCore(region, regex, trimLines, lineSeparator);
     }
 
     /// <summary>
     /// Finds all occurrences of a compiled regular expression across multiple lines in the region.
-    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// The entire region text is joined with the specified separator, allowing patterns to match across line boundaries.
     /// </summary>
     /// <param name="region">The terminal region to search.</param>
     /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>A list of matches with their start and end coordinates.</returns>
-    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    public static List<MultiLineTextMatch> FindMultiLinePattern(this IHex1bTerminalRegion region, Regex regex, bool trimLines = false, string? lineSeparator = "\n")
     {
         ArgumentNullException.ThrowIfNull(regex);
 
-        return FindMultiLinePatternCore(region, regex);
+        return FindMultiLinePatternCore(region, regex, trimLines, lineSeparator);
     }
 
     /// <summary>
     /// Finds the first occurrence of a regular expression pattern across multiple lines in the region.
-    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// The entire region text is joined with the specified separator, allowing patterns to match across line boundaries.
     /// </summary>
     /// <param name="region">The terminal region to search.</param>
     /// <param name="pattern">The regular expression pattern to search for.</param>
     /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>The first match with its coordinates, or null if not found.</returns>
-    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None, bool trimLines = false, string? lineSeparator = "\n")
     {
         ArgumentNullException.ThrowIfNull(pattern);
 
         var regex = new Regex(pattern, options);
-        return FindFirstMultiLinePatternCore(region, regex);
+        return FindFirstMultiLinePatternCore(region, regex, trimLines, lineSeparator);
     }
 
     /// <summary>
     /// Finds the first occurrence of a compiled regular expression across multiple lines in the region.
-    /// The entire region text is joined with newlines, allowing patterns to match across line boundaries.
+    /// The entire region text is joined with the specified separator, allowing patterns to match across line boundaries.
     /// </summary>
     /// <param name="region">The terminal region to search.</param>
     /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>The first match with its coordinates, or null if not found.</returns>
-    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    public static MultiLineTextMatch? FindFirstMultiLinePattern(this IHex1bTerminalRegion region, Regex regex, bool trimLines = false, string? lineSeparator = "\n")
     {
         ArgumentNullException.ThrowIfNull(regex);
 
-        return FindFirstMultiLinePatternCore(region, regex);
+        return FindFirstMultiLinePatternCore(region, regex, trimLines, lineSeparator);
     }
 
     /// <summary>
@@ -543,10 +551,12 @@ public static class Hex1bTerminalRegionExtensions
     /// <param name="region">The terminal region to search.</param>
     /// <param name="pattern">The regular expression pattern to search for.</param>
     /// <param name="options">Regular expression options (default is None). Singleline option treats the entire text as one line, allowing . to match newlines.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>True if a match is found, false otherwise.</returns>
-    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None)
+    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, string pattern, RegexOptions options = RegexOptions.None, bool trimLines = false, string? lineSeparator = "\n")
     {
-        return region.FindFirstMultiLinePattern(pattern, options) is not null;
+        return region.FindFirstMultiLinePattern(pattern, options, trimLines, lineSeparator) is not null;
     }
 
     /// <summary>
@@ -554,10 +564,12 @@ public static class Hex1bTerminalRegionExtensions
     /// </summary>
     /// <param name="region">The terminal region to search.</param>
     /// <param name="regex">The compiled regular expression to search for.</param>
+    /// <param name="trimLines">If true, trailing whitespace is removed from each line before matching. Default is false to preserve exact screen content.</param>
+    /// <param name="lineSeparator">The string to insert between lines. Default is "\n". Pass null or empty to concatenate lines directly.</param>
     /// <returns>True if a match is found, false otherwise.</returns>
-    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, Regex regex)
+    public static bool ContainsMultiLinePattern(this IHex1bTerminalRegion region, Regex regex, bool trimLines = false, string? lineSeparator = "\n")
     {
-        return region.FindFirstMultiLinePattern(regex) is not null;
+        return region.FindFirstMultiLinePattern(regex, trimLines, lineSeparator) is not null;
     }
 
     /// <summary>
@@ -618,10 +630,10 @@ public static class Hex1bTerminalRegionExtensions
         return region.GetMultiLineTextAt(match.StartLine, match.StartColumn, match.EndLine, match.EndColumn);
     }
 
-    private static List<MultiLineTextMatch> FindMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex)
+    private static List<MultiLineTextMatch> FindMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex, bool trimLines, string? lineSeparator)
     {
         var results = new List<MultiLineTextMatch>();
-        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region);
+        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region, trimLines, lineSeparator);
 
         var matches = regex.Matches(fullText);
         foreach (Match match in matches)
@@ -633,9 +645,9 @@ public static class Hex1bTerminalRegionExtensions
         return results;
     }
 
-    private static MultiLineTextMatch? FindFirstMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex)
+    private static MultiLineTextMatch? FindFirstMultiLinePatternCore(IHex1bTerminalRegion region, Regex regex, bool trimLines, string? lineSeparator)
     {
-        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region);
+        var (fullText, lineOffsets) = BuildFullTextWithOffsets(region, trimLines, lineSeparator);
 
         var match = regex.Match(fullText);
         if (match.Success)
@@ -647,20 +659,21 @@ public static class Hex1bTerminalRegionExtensions
         return null;
     }
 
-    private static (string fullText, int[] lineOffsets) BuildFullTextWithOffsets(IHex1bTerminalRegion region)
+    private static (string fullText, int[] lineOffsets) BuildFullTextWithOffsets(IHex1bTerminalRegion region, bool trimLines, string? lineSeparator)
     {
         var sb = new StringBuilder();
-        // Store the start offset of each line's content (after any preceding newline)
+        // Store the start offset of each line's content (after any preceding separator)
         var lineOffsets = new int[region.Height + 1]; // +1 for end sentinel
+        var separator = lineSeparator ?? "";
 
         for (int y = 0; y < region.Height; y++)
         {
-            if (y > 0)
-                sb.Append('\n');
+            if (y > 0 && separator.Length > 0)
+                sb.Append(separator);
             // Record the start offset of this line's content
             lineOffsets[y] = sb.Length;
-            // Use trimmed lines to remove trailing spaces that terminals pad with
-            sb.Append(region.GetLineTrimmed(y));
+            // Use trimmed or untrimmed lines based on parameter
+            sb.Append(trimLines ? region.GetLineTrimmed(y) : region.GetLine(y));
         }
         lineOffsets[region.Height] = sb.Length;
 

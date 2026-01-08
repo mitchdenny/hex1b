@@ -521,7 +521,8 @@ public class TerminalRegionPatternMatchTests
         
         var snapshot = terminal.CreateSnapshot();
         // Match pattern that spans from "here" on line 0 to "End" on line 1
-        var matches = snapshot.FindMultiLinePattern(@"here\nEnd", RegexOptions.None);
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var matches = snapshot.FindMultiLinePattern(@"here\nEnd", RegexOptions.None, trimLines: true);
         
         Assert.Single(matches);
         Assert.Equal(0, matches[0].StartLine);
@@ -747,7 +748,8 @@ public class TerminalRegionPatternMatchTests
         
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"A\nB\nC");
-        var match = snapshot.FindFirstMultiLinePattern(regex);
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var match = snapshot.FindFirstMultiLinePattern(regex, trimLines: true);
         
         Assert.NotNull(match);
         Assert.Equal(0, match.Value.StartLine);
@@ -795,7 +797,8 @@ public class TerminalRegionPatternMatchTests
         
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"Line1\nLine2");
-        Assert.True(snapshot.ContainsMultiLinePattern(regex));
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        Assert.True(snapshot.ContainsMultiLinePattern(regex, trimLines: true));
     }
 
     #endregion
@@ -905,7 +908,8 @@ public class TerminalRegionPatternMatchTests
         workload.Write("End");
         
         var snapshot = terminal.CreateSnapshot();
-        var matches = snapshot.FindMultiLinePattern(@"Start\n\nEnd");
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var matches = snapshot.FindMultiLinePattern(@"Start\n\nEnd", trimLines: true);
         
         Assert.Single(matches);
         Assert.Equal(0, matches[0].StartLine);
@@ -922,7 +926,8 @@ public class TerminalRegionPatternMatchTests
         workload.Write("DEF");
         
         var snapshot = terminal.CreateSnapshot();
-        var matches = snapshot.FindMultiLinePattern(@"^ABC\nDEF");
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var matches = snapshot.FindMultiLinePattern(@"^ABC\nDEF", trimLines: true);
         
         Assert.Single(matches);
         Assert.Equal(0, matches[0].StartLine);
@@ -940,7 +945,8 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ZZZ");
         
         var snapshot = terminal.CreateSnapshot();
-        var matches = snapshot.FindMultiLinePattern(@"YYY\nZZZ");
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var matches = snapshot.FindMultiLinePattern(@"YYY\nZZZ", trimLines: true);
         
         Assert.Single(matches);
         Assert.Equal(1, matches[0].StartLine);
@@ -1029,7 +1035,8 @@ public class TerminalRegionPatternMatchTests
         
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"Name: (\w+)\nAge: (\d+)");
-        var matches = snapshot.FindMultiLinePattern(regex);
+        // Use trimLines: true to avoid matching trailing whitespace padding
+        var matches = snapshot.FindMultiLinePattern(regex, trimLines: true);
         
         Assert.Single(matches);
         Assert.Contains("John", matches[0].Text);
@@ -1110,6 +1117,104 @@ public class TerminalRegionPatternMatchTests
         
         Assert.NotNull(match);
         Assert.Equal(4, match.Value.LineCount);
+    }
+
+    [Fact]
+    public void FindPattern_MatchesUnicodeCheckAndCross()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        workload.Write("[1 ✔] $ \r\n");
+        workload.Write("[1 ✘:127] $ \r\n");
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // The line-by-line FindPattern should work since GetLine doesn't trim
+        var regex = new Regex(@"\[\d+ (?:✔|✘:\d+)\] \$ ", RegexOptions.Multiline);
+        var matches = snapshot.FindPattern(regex);
+        
+        Assert.Equal(2, matches.Count);
+        Assert.Equal("[1 ✔] $ ", matches[0].Text);
+        Assert.Equal("[1 ✘:127] $ ", matches[1].Text);
+    }
+
+    [Fact]
+    public void FindMultiLinePattern_MatchesUnicodeCheckAndCross_WithTrailingSpace()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        
+        workload.Write("[1 ✔] $ \r\n");
+        workload.Write("[1 ✘:127] $ \r\n");
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // FindMultiLinePattern now uses untrimmed lines, so trailing space is preserved
+        var regex = new Regex(@"\[\d+ (?:✔|✘:\d+)\] \$ ", RegexOptions.Multiline);
+        var matches = snapshot.FindMultiLinePattern(regex);
+        
+        Assert.Equal(2, matches.Count);
+        Assert.Equal("[1 ✔] $ ", matches[0].Text);
+        Assert.Equal("[1 ✘:127] $ ", matches[1].Text);
+    }
+
+    [Fact]
+    public void FindMultiLinePattern_WithCustomLineSeparator()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        
+        workload.Write("Line1\r\n");
+        workload.Write("Line2\r\n");
+        workload.Write("Line3");
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Use custom separator " | " between lines
+        var matches = snapshot.FindMultiLinePattern(@"Line1 \| Line2 \| Line3", trimLines: true, lineSeparator: " | ");
+        
+        Assert.Single(matches);
+        Assert.Contains("Line1", matches[0].Text);
+        Assert.Contains("Line2", matches[0].Text);
+        Assert.Contains("Line3", matches[0].Text);
+    }
+
+    [Fact]
+    public void FindMultiLinePattern_WithNoLineSeparator_ConcatenatesDirectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        
+        workload.Write("ABC\r\n");
+        workload.Write("DEF\r\n");
+        workload.Write("GHI");
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Use null separator to concatenate lines directly
+        var matches = snapshot.FindMultiLinePattern(@"ABCDEFGHI", trimLines: true, lineSeparator: null);
+        
+        Assert.Single(matches);
+        Assert.Equal("ABCDEFGHI", matches[0].Text);
+    }
+
+    [Fact]
+    public void FindMultiLinePattern_WithEmptyLineSeparator_ConcatenatesDirectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        
+        workload.Write("Hello\r\n");
+        workload.Write("World");
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Use empty string separator to concatenate lines directly
+        var matches = snapshot.FindMultiLinePattern(@"HelloWorld", trimLines: true, lineSeparator: "");
+        
+        Assert.Single(matches);
+        Assert.Equal("HelloWorld", matches[0].Text);
     }
 
     #endregion
