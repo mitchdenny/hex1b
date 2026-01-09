@@ -609,7 +609,7 @@ jobs:
           HEX1B_VERSION: ${{ steps.version.outputs.pr }}
         run: |
           set -e
-          aspire deploy
+          aspire deploy --debug
 
       - name: Get Azure resource details
         id: azure-resources
@@ -775,4 +775,4 @@ jobs:
           HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           set -e
-          aspire deploy
+          aspire deploy --debug
