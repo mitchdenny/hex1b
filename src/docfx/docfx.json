@@ -8,32 +8,12 @@
           "files": ["Hex1b/Hex1b.csproj"]
         }
       ],
-      "dest": "api",
+      "dest": "_metadata",
       "includePrivateMembers": false,
       "disableGitFeatures": false,
       "properties": {
         "TargetFramework": "net10.0"
       }
     }
-  ],
-  "build": {
-    "content": [
-      {
-        "files": ["api/**.yml", "api/index.md"]
-      }
-    ],
-    "resource": [],
-    "output": "_site",
-    "template": ["default", "modern"],
-    "globalMetadata": {
-      "_appTitle": "Hex1b API Reference",
-      "_appName": "Hex1b",
-      "_enableSearch": true
-    },
-    "fileMetadata": {},
-    "postProcessors": [],
-    "noLangKeyword": false,
-    "keepFileLink": false,
-    "disableGitFeatures": false
-  }
+  ]
 }

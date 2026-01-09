@@ -20,7 +20,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Deep Dives', link: '/deep-dives/reconciliation' },
-      { text: 'API', link: '/api/' },
+      { text: 'API Reference', link: '/reference/' },
       { text: 'Gallery', link: '/gallery' }
     ],
 
@@ -77,11 +77,25 @@ export default defineConfig({
           ]
         }
       ],
-      '/api/': [
+      '/reference/': [
         {
           text: 'API Reference',
           items: [
-            { text: 'Overview', link: '/api/' }
+            { text: 'Overview', link: '/reference/' }
+          ]
+        },
+        {
+          text: 'Namespaces',
+          items: [
+            { text: 'Hex1b', link: '/reference/Hex1b' },
+            { text: 'Hex1b.Widgets', link: '/reference/Hex1b.Widgets' },
+            { text: 'Hex1b.Nodes', link: '/reference/Hex1b.Nodes' },
+            { text: 'Hex1b.Layout', link: '/reference/Hex1b.Layout' },
+            { text: 'Hex1b.Input', link: '/reference/Hex1b.Input' },
+            { text: 'Hex1b.Events', link: '/reference/Hex1b.Events' },
+            { text: 'Hex1b.Theming', link: '/reference/Hex1b.Theming' },
+            { text: 'Hex1b.Tokens', link: '/reference/Hex1b.Tokens' },
+            { text: 'Hex1b.Terminal', link: '/reference/Hex1b.Terminal' }
           ]
         }
       ]
