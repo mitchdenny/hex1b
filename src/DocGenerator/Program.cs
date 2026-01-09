@@ -527,8 +527,8 @@ public partial class YamlToMarkdownConverter
         // Convert <c>X</c> to inline code
         result = CCodeRegex().Replace(result, "`$1`");
 
-        // Convert <code>X</code> to code blocks
-        result = CodeBlockRegex().Replace(result, "```csharp\n$1\n```");
+        // Convert <code>X</code> to inline code (DocFX converts <c> to <code>)
+        result = CodeBlockRegex().Replace(result, "`$1`");
 
         // Remove remaining XML/HTML tags
         result = XmlTagRegex().Replace(result, "");
