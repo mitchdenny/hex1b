@@ -494,3 +494,8 @@ src/Hex1b/Terminal/native/*.o
 
 # exclude casts files
 samples/**/*.cast
+
+# DocFX generated content
+src/docfx/api/
+src/docfx/_site/
+src/docfx/templates/
