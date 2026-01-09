@@ -22,6 +22,9 @@ public partial class Program
         Console.WriteLine($"Project root: {projectRoot}");
         Console.WriteLine($"Output directory: {outputDir}");
 
+        // Ensure the metadata output directory exists
+        Directory.CreateDirectory(yamlOutputDir);
+
         // Step 1: Generate YAML metadata using DocFX library API
         Console.WriteLine("Generating API metadata with DocFX...");
         
