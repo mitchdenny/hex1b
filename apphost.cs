@@ -16,6 +16,18 @@ var certificateName = !string.IsNullOrEmpty(certificateNameValue) ? builder.AddP
 
 builder.AddAzureContainerAppEnvironment("env");
 
+// DocFX API documentation server
+IResourceBuilder<ExecutableResource>? docfx = null;
+docfx = builder.AddExecutable("docfx", "dotnet", "./src/docfx", "docfx", "docfx.json", "--serve")
+    .WithHttpEndpoint(name: "http", targetPort: null)
+    .WithArgs(context =>
+    {
+        var endpoint = docfx!.GetEndpoint("http");
+        context.Args.Add("-p");
+        context.Args.Add(endpoint.Property(EndpointProperty.TargetPort));
+    })
+    .ExcludeFromManifest();
+
 var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
     .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints()
