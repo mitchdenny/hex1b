@@ -197,3 +197,80 @@ int hex1b_wait(int pid, int timeout_ms, int* out_status)
     /* Timeout */
     return 1;
 }
+
+/**
+ * Spawns an executable with arguments attached to a new PTY using forkpty().
+ * Unlike hex1b_forkpty_shell, this runs an arbitrary command with arguments.
+ * 
+ * @param exec_path     Path to the executable
+ * @param argv          NULL-terminated array of arguments (including argv[0])
+ * @param argc          Number of arguments in argv (not including NULL terminator)
+ * @param working_dir   Working directory for the child (NULL for current)
+ * @param width         Initial terminal width in columns
+ * @param height        Initial terminal height in rows
+ * @param out_master_fd Output: Master PTY file descriptor
+ * @param out_child_pid Output: PID of the spawned child process
+ * 
+ * @return 0 on success, -1 on error (errno is set)
+ */
+int hex1b_forkpty_exec(
+    const char* exec_path,
+    const char** argv,
+    int argc,
+    const char* working_dir,
+    int width,
+    int height,
+    int* out_master_fd,
+    int* out_child_pid)
+{
+    if (exec_path == NULL || argv == NULL || out_master_fd == NULL || out_child_pid == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    /* Set up terminal size */
+    struct winsize ws;
+    ws.ws_row = height > 0 ? height : 24;
+    ws.ws_col = width > 0 ? width : 80;
+    ws.ws_xpixel = 0;
+    ws.ws_ypixel = 0;
+
+    int master_fd;
+    pid_t pid = forkpty(&master_fd, NULL, NULL, &ws);
+
+    if (pid == -1) {
+        return -1;
+    }
+
+    if (pid == 0) {
+        /* ========== CHILD PROCESS ========== */
+        
+        /* Reset signal handlers to default */
+        struct sigaction sa_default;
+        memset(&sa_default, 0, sizeof(sa_default));
+        sa_default.sa_handler = SIG_DFL;
+        
+        for (int sig = 1; sig < NSIG; sig++) {
+            if (sig == SIGKILL || sig == SIGSTOP) continue;
+            sigaction(sig, &sa_default, NULL);
+        }
+
+        /* Change working directory if specified */
+        if (working_dir != NULL && working_dir[0] != '\0') {
+            if (chdir(working_dir) < 0) {
+                /* Non-fatal - continue with current directory */
+            }
+        }
+
+        /* Execute with provided arguments - cast away const for execve */
+        execve(exec_path, (char* const*)argv, environ);
+
+        /* If execve returns, it failed */
+        _exit(127);
+    }
+
+    /* ========== PARENT PROCESS ========== */
+    *out_master_fd = master_fd;
+    *out_child_pid = pid;
+    return 0;
+}

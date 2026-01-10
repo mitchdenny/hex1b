@@ -38,7 +38,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         
         string resolvedPath = ResolveExecutablePath(fileName);
         
-        // The native pty_forkpty_shell inherits the parent's environment.
+        // The native pty_forkpty functions inherit the parent's environment.
         // We need to temporarily set HEX1B_NESTING_LEVEL so the child inherits the correct value,
         // then restore the original value after fork.
         // Note: This is not thread-safe, but acceptable for this diagnostic variable.
@@ -53,17 +53,51 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
                 System.Environment.SetEnvironmentVariable(nestingLevelKey, newNestingLevel);
             }
             
-            var result = pty_forkpty_shell(
-                resolvedPath,
-                workingDirectory ?? System.Environment.CurrentDirectory,
-                width,
-                height,
-                out _masterFd,
-                out _childPid);
-
-            if (result < 0)
+            int result;
+            
+            // If arguments are provided, use the exec function which passes them through
+            // Otherwise, use the shell function which creates a login shell
+            if (arguments.Length > 0)
             {
-                throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+                // Build argv array: [fileName, ...arguments, null]
+                var argv = new string[arguments.Length + 2];
+                argv[0] = resolvedPath;
+                for (int i = 0; i < arguments.Length; i++)
+                {
+                    argv[i + 1] = arguments[i];
+                }
+                // Last element is implicitly null for strings array in marshalling
+                
+                result = pty_forkpty_exec(
+                    resolvedPath,
+                    argv,
+                    arguments.Length + 1, // argc includes argv[0]
+                    workingDirectory ?? System.Environment.CurrentDirectory,
+                    width,
+                    height,
+                    out _masterFd,
+                    out _childPid);
+                
+                if (result < 0)
+                {
+                    throw new InvalidOperationException($"pty_forkpty_exec failed with error: {Marshal.GetLastWin32Error()}");
+                }
+            }
+            else
+            {
+                // No arguments - start as login shell
+                result = pty_forkpty_shell(
+                    resolvedPath,
+                    workingDirectory ?? System.Environment.CurrentDirectory,
+                    width,
+                    height,
+                    out _masterFd,
+                    out _childPid);
+                
+                if (result < 0)
+                {
+                    throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+                }
             }
         }
         finally
@@ -286,6 +320,17 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_shell", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static partial int pty_forkpty_shell(
         string shellPath,
+        string workingDir,
+        int width,
+        int height,
+        out int masterFd,
+        out int childPid);
+    
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_exec", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int pty_forkpty_exec(
+        string execPath,
+        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] argv,
+        int argc,
         string workingDir,
         int width,
         int height,

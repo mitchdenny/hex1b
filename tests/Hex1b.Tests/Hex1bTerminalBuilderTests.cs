@@ -1,6 +1,9 @@
 using Hex1b.Terminal;
 using Hex1b.Terminal.Automation;
+using Hex1b.Tests.TestHelpers;
 using Hex1b.Widgets;
+using System.Diagnostics;
+using System.Text;
 
 namespace Hex1b.Tests;
 
@@ -449,6 +452,390 @@ public class Hex1bTerminalBuilderTests
         Assert.NotNull(capturedApp);
     }
 
+    // === WithPtyShell and WithPtyProcess Tests ===
+
+    [Fact]
+    public void WithPtyShell_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder().WithPtyShell("dotnet");
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithPtyShell_NullShell_UsesDefaultShell()
+    {
+        // Should not throw when shell is null (uses default shell)
+        var builder = Hex1bTerminal.CreateBuilder().WithPtyShell();
+        
+        Assert.NotNull(builder);
+    }
+
+    [Fact]
+    public void WithPtyProcess_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder().WithPtyProcess("dotnet", "--version");
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithPtyProcess_NullFileName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithPtyProcess((string)null!));
+    }
+
+    [Fact]
+    public void WithPtyProcess_OptionsOverload_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "dotnet";
+                options.Arguments = ["--version"];
+            });
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithPtyProcess_Options_NullConfigure_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithPtyProcess((Action<Hex1bTerminalProcessOptions>)null!));
+    }
+
+    [Fact]
+    public void WithPtyProcess_Options_EmptyFileName_ThrowsInvalidOperationException()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Hex1bTerminal.CreateBuilder()
+                .WithPtyProcess(options => { /* FileName not set */ })
+                .Build());
+        
+        Assert.Contains("FileName", ex.Message);
+    }
+
+    [Fact]
+    public void WithPtyProcess_Options_CanSetEnvironment()
+    {
+        // Should not throw when setting environment variables
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "dotnet";
+                options.Environment = new Dictionary<string, string>
+                {
+                    ["MY_VAR"] = "my_value"
+                };
+            });
+        
+        Assert.NotNull(builder);
+    }
+
+    [Fact]
+    public void WithPtyProcess_Options_CanSetWorkingDirectory()
+    {
+        // Should not throw when setting working directory
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "dotnet";
+                options.WorkingDirectory = Path.GetTempPath();
+            });
+        
+        Assert.NotNull(builder);
+    }
+
+    [Fact]
+    public async Task WithPtyProcess_ExecutesProcess()
+    {
+        // Inline C# script for cross-platform testing
+        const string script = """
+            if (args.Length >= 2 && int.TryParse(args[0], out var delayMs))
+            {
+                await Task.Delay(delayMs);
+                Console.WriteLine(string.Join(" ", args.Skip(1)));
+            }
+            """;
+
+        using var workspace = TestWorkspace.Create("pty_exec");
+        var scriptFile = workspace.CreateCSharpProgram("delay.cs", script);
+        
+        var pattern = new CellPatternSearcher().Find("Hello from test program");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess("dotnet", "run", scriptFile.FullName, "50", "Hello from test program")
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task WithPtyProcess_InteractiveProcess_RespondsToInput()
+    {
+        // Inline C# script for interactive input test
+        const string script = """
+            Console.WriteLine("Ready");
+            Console.ReadKey(intercept: true);
+            Console.WriteLine("Done");
+            """;
+
+        using var workspace = TestWorkspace.Create("pty_interactive");
+        var scriptFile = workspace.CreateCSharpProgram("wait-input.cs", script);
+        
+        var readyPattern = new CellPatternSearcher().Find("Ready");
+        var exitPattern = new CellPatternSearcher().Find("Done");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess("dotnet", "run", scriptFile.FullName)
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(readyPattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Type("q")
+            .WaitUntil(s => s.SearchPattern(exitPattern).HasMatches, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
+    // === WithProcess (Standard .NET Process) Tests ===
+
+    [Fact]
+    public void WithProcess_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder().WithProcess("dotnet", "--version");
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithProcess_NullFileName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithProcess((string)null!));
+    }
+
+    [Fact]
+    public async Task WithProcess_ExecutesProcess()
+    {
+        // Inline C# echo script
+        const string script = """Console.WriteLine(string.Join(" ", args));""";
+        
+        using var workspace = TestWorkspace.Create("process_exec");
+        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
+        
+        var pattern = new CellPatternSearcher().Find("Hello from process");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithProcess("dotnet", "run", scriptFile.FullName, "Hello", "from", "process")
+            .WithHeadless()
+            .WithDimensions(60, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
+    // === WithProcess(ProcessStartInfo) Tests ===
+
+    [Fact]
+    public void WithProcess_ProcessStartInfo_ReturnsBuilder()
+    {
+        var startInfo = new ProcessStartInfo("dotnet", "--version");
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithProcess(startInfo);
+        
+        Assert.NotNull(builder);
+    }
+
+    [Fact]
+    public void WithProcess_ProcessStartInfo_NullThrows()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder()
+                .WithProcess((ProcessStartInfo)null!));
+    }
+
+    [Fact]
+    public async Task WithProcess_ProcessStartInfo_AdapterCapturesOutput()
+    {
+        // Inline C# echo script
+        const string script = """Console.WriteLine(string.Join(" ", args));""";
+        
+        using var workspace = TestWorkspace.Create("adapter_output");
+        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
+        
+        var startInfo = new ProcessStartInfo("dotnet", $"run {scriptFile.FullName} AdapterTestOutput");
+        var adapter = new StandardProcessWorkloadAdapter(startInfo);
+        
+        await adapter.StartAsync();
+        
+        // Read output
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var output = new StringBuilder();
+        
+        while (!cts.Token.IsCancellationRequested)
+        {
+            var data = await adapter.ReadOutputAsync(cts.Token);
+            if (data.IsEmpty)
+            {
+                if (adapter.HasExited) break;
+                continue;
+            }
+            output.Append(Encoding.UTF8.GetString(data.Span));
+        }
+        
+        var exitCode = await adapter.WaitForExitAsync();
+        await adapter.DisposeAsync();
+        
+        Assert.Equal(0, exitCode);
+        Assert.Contains("AdapterTestOutput", output.ToString());
+    }
+
+    [Fact]
+    public async Task WithProcess_ProcessStartInfo_ExecutesProcess()
+    {
+        // Inline C# echo script
+        const string script = """Console.WriteLine(string.Join(" ", args));""";
+        
+        using var workspace = TestWorkspace.Create("psi_exec");
+        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
+        
+        var startInfo = new ProcessStartInfo("dotnet");
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add(scriptFile.FullName);
+        startInfo.ArgumentList.Add("Hello");
+        startInfo.ArgumentList.Add("from");
+        startInfo.ArgumentList.Add("ProcessStartInfo");
+        
+        var pattern = new CellPatternSearcher().Find("Hello from ProcessStartInfo");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithProcess(startInfo)
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task WithProcess_ProcessStartInfo_PreservesWorkingDirectory()
+    {
+        // Inline C# pwd script
+        const string script = """Console.WriteLine(Environment.CurrentDirectory);""";
+        
+        using var workspace = TestWorkspace.Create("psi_workdir");
+        var scriptFile = workspace.CreateCSharpProgram("pwd.cs", script);
+        
+        var tempDir = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = tempDir
+        };
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add(scriptFile.FullName);
+        
+        var pattern = new CellPatternSearcher().Find(tempDir);
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithProcess(startInfo)
+            .WithHeadless()
+            .WithDimensions(120, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task WithProcess_ProcessStartInfo_PreservesEnvironmentVariables()
+    {
+        // Inline C# env script
+        const string script = """
+            if (args.Length > 0)
+            {
+                var value = Environment.GetEnvironmentVariable(args[0]);
+                if (value != null)
+                    Console.WriteLine(value);
+            }
+            """;
+        
+        using var workspace = TestWorkspace.Create("psi_env");
+        var scriptFile = workspace.CreateCSharpProgram("env.cs", script);
+        
+        var startInfo = new ProcessStartInfo("dotnet");
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add(scriptFile.FullName);
+        startInfo.ArgumentList.Add("MY_CUSTOM_VAR");
+        startInfo.Environment["MY_CUSTOM_VAR"] = "TestValue12345";
+        
+        var pattern = new CellPatternSearcher().Find("TestValue12345");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithProcess(startInfo)
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var exitCode = await runTask;
+        
+        Assert.Equal(0, exitCode);
+    }
+
     // === Test Helpers ===
 
     private class TestWorkloadFilter : IHex1bTerminalWorkloadFilter
@@ -534,5 +921,86 @@ public class Hex1bTerminalBuilderTests
             => ValueTask.CompletedTask;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    // === Diagnostic Tests for PTY + Headless Investigation ===
+
+    [Fact]
+    public async Task Diagnostic_EchoCommand_OutputAppearsInBuffer()
+    {
+        // Inline C# delay script that outputs a marker after a delay
+        const string script = """
+            await Task.Delay(100);
+            Console.WriteLine("DIAGNOSTIC_MARKER_12345");
+            """;
+
+        using var workspace = TestWorkspace.Create("diag_echo");
+        var scriptFile = workspace.CreateCSharpProgram("delay-echo.cs", script);
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess("dotnet", "run", scriptFile.FullName)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        // Start RunAsync in background - this starts the process
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var runTask = terminal.RunAsync(cts.Token);
+
+        // Poll the screen buffer directly
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(5);
+        var foundMarker = false;
+        var diagnosticOutput = new StringBuilder();
+        
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            var snapshot = terminal.CreateSnapshot();
+            var screenText = snapshot.GetScreenText();
+            
+            diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Screen: '{screenText.Replace("\n", "\\n").Replace("\r", "\\r")}'");
+            
+            if (screenText.Contains("DIAGNOSTIC_MARKER_12345"))
+            {
+                foundMarker = true;
+                break;
+            }
+
+            // Check if process exited
+            if (runTask.IsCompleted)
+            {
+                diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Process exited with code: {runTask.Result}");
+                // Give one more chance to read output after process exits
+                await Task.Delay(100);
+                snapshot = terminal.CreateSnapshot();
+                screenText = snapshot.GetScreenText();
+                diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Final screen: '{screenText.Replace("\n", "\\n").Replace("\r", "\\r")}'");
+                if (screenText.Contains("DIAGNOSTIC_MARKER_12345"))
+                {
+                    foundMarker = true;
+                }
+                break;
+            }
+
+            await Task.Delay(50, cts.Token);
+        }
+
+        TestContext.Current.TestOutputHelper?.WriteLine(diagnosticOutput.ToString());
+
+        // Wait for process to complete
+        var exitCode = 0;
+        if (!runTask.IsCompleted)
+        {
+            cts.Cancel();
+            try { exitCode = await runTask; } catch { }
+        }
+        else
+        {
+            exitCode = await runTask;
+        }
+
+        Assert.True(foundMarker, 
+            $"Expected to find 'DIAGNOSTIC_MARKER_12345' in screen buffer.\n" +
+            $"Diagnostics:\n{diagnosticOutput}");
     }
 }

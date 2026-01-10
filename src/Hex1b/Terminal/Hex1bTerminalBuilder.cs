@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hex1b.Widgets;
 
 namespace Hex1b.Terminal;
@@ -292,6 +293,288 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
+    // === Process Workloads ===
+
+    /// <summary>
+    /// Configures the terminal to run an arbitrary process using standard .NET process primitives.
+    /// </summary>
+    /// <param name="fileName">The executable to run.</param>
+    /// <param name="arguments">Command-line arguments for the process.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses standard .NET <see cref="Process"/> with stream redirection.
+    /// Programs won't detect a TTY (isatty() returns false), so this is suitable for:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Build tools (dotnet, make, cargo)</item>
+    ///   <item>Command-line utilities (grep, find, curl)</item>
+    ///   <item>Scripts and batch processing</item>
+    /// </list>
+    /// <para>
+    /// For programs requiring a real terminal (vim, tmux, interactive shells),
+    /// use <see cref="WithPtyProcess(string, string[])"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithProcess("dotnet", "build")
+    ///     .WithHeadless()
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithProcess(string fileName, params string[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        var startInfo = new ProcessStartInfo(fileName)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in arguments)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        return WithProcess(startInfo);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a shell process with full PTY (pseudo-terminal) support.
+    /// </summary>
+    /// <param name="shell">
+    /// The shell to run. Examples: "/bin/bash", "/bin/zsh", "pwsh", "cmd.exe".
+    /// If null, uses the default shell for the platform.
+    /// </param>
+    /// <param name="arguments">Optional arguments to pass to the shell.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method uses PTY (pseudo-terminal) emulation for full shell support:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Job control (Ctrl+C, Ctrl+Z, background processes)</item>
+    ///   <item>Terminal resize events (SIGWINCH)</item>
+    ///   <item>TTY detection (isatty() returns true)</item>
+    ///   <item>Interactive features (history, line editing)</item>
+    /// </list>
+    /// <para>
+    /// Requires native library support on Unix platforms.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyShell("/bin/bash", "-l")
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithPtyShell(string? shell = null, params string[] arguments)
+    {
+        var shellPath = shell ?? GetDefaultShell();
+        return WithPtyProcess(shellPath, arguments);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run an arbitrary process with a PTY (pseudo-terminal) attached.
+    /// </summary>
+    /// <param name="fileName">The executable to run.</param>
+    /// <param name="arguments">Command-line arguments for the process.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this for programs that require a real terminal:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Interactive editors (vim, nano, emacs)</item>
+    ///   <item>Terminal multiplexers (tmux, screen)</item>
+    ///   <item>Programs using ncurses or similar TUI libraries</item>
+    ///   <item>Programs that detect TTY for colorized output</item>
+    /// </list>
+    /// <para>
+    /// Requires native library support on Unix platforms.
+    /// For simple command-line tools, use <see cref="WithProcess(string, string[])"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("htop")
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithPtyProcess(string fileName, params string[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        SetWorkloadFactory(presentation =>
+        {
+            var width = presentation?.Width ?? _width;
+            var height = presentation?.Height ?? _height;
+
+            var process = new Hex1bTerminalChildProcess(
+                fileName,
+                arguments,
+                workingDirectory: null,
+                environment: null,
+                inheritEnvironment: true,
+                initialWidth: width,
+                initialHeight: height);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await process.StartAsync(ct);
+                return await process.WaitForExitAsync(ct);
+            };
+
+            return new Hex1bTerminalBuildContext(process, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a PTY process with full options.
+    /// </summary>
+    /// <param name="configure">Action to configure the process options.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method provides full control over PTY process configuration including
+    /// working directory, environment variables, and whether to inherit the parent
+    /// environment. Use this for advanced scenarios requiring custom process setup.
+    /// </para>
+    /// <para>
+    /// Requires native library support on Unix platforms.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess(options =>
+    ///     {
+    ///         options.FileName = "/bin/bash";
+    ///         options.Arguments = ["-l"];
+    ///         options.WorkingDirectory = "/home/user";
+    ///         options.Environment["TERM"] = "xterm-256color";
+    ///     })
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithPtyProcess(Action<Hex1bTerminalProcessOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new Hex1bTerminalProcessOptions();
+        configure(options);
+
+        if (string.IsNullOrEmpty(options.FileName))
+            throw new InvalidOperationException("FileName must be set in process options.");
+
+        SetWorkloadFactory(presentation =>
+        {
+            var width = presentation?.Width ?? _width;
+            var height = presentation?.Height ?? _height;
+
+            var process = new Hex1bTerminalChildProcess(
+                options.FileName,
+                options.Arguments?.ToArray() ?? [],
+                workingDirectory: options.WorkingDirectory,
+                environment: options.Environment?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                inheritEnvironment: options.InheritEnvironment,
+                initialWidth: width,
+                initialHeight: height);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await process.StartAsync(ct);
+                return await process.WaitForExitAsync(ct);
+            };
+
+            return new Hex1bTerminalBuildContext(process, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a process using standard .NET process primitives.
+    /// </summary>
+    /// <param name="startInfo">The process start info.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload uses standard .NET <see cref="ProcessStartInfo"/> and process redirection
+    /// rather than PTY (pseudo-terminal) emulation. This means:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>No native library dependencies - works on all .NET platforms</item>
+    ///   <item>Programs won't detect a TTY (isatty() returns false)</item>
+    ///   <item>Terminal resize (SIGWINCH) is not supported</item>
+    ///   <item>Programs like vim, tmux, and screen won't work correctly</item>
+    /// </list>
+    /// <para>
+    /// Use this for simple command-line programs, build tools, and non-interactive applications.
+    /// For full terminal emulation, use <see cref="WithPtyProcess(string, string[])"/> or 
+    /// <see cref="WithPtyShell(string?, string[])"/> which use PTY.
+    /// </para>
+    /// <para>
+    /// The following properties will be set automatically:
+    /// <see cref="ProcessStartInfo.RedirectStandardInput"/>,
+    /// <see cref="ProcessStartInfo.RedirectStandardOutput"/>,
+    /// <see cref="ProcessStartInfo.RedirectStandardError"/>,
+    /// <see cref="ProcessStartInfo.UseShellExecute"/> (set to false),
+    /// <see cref="ProcessStartInfo.CreateNoWindow"/> (set to true).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var startInfo = new ProcessStartInfo("dotnet", "build")
+    /// {
+    ///     WorkingDirectory = "/path/to/project"
+    /// };
+    /// 
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithProcess(startInfo)
+    ///     .WithHeadless()
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithProcess(ProcessStartInfo startInfo)
+    {
+        ArgumentNullException.ThrowIfNull(startInfo);
+
+        SetWorkloadFactory(presentation =>
+        {
+            var adapter = new StandardProcessWorkloadAdapter(startInfo);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await adapter.StartAsync(ct);
+                return await adapter.WaitForExitAsync(ct);
+            };
+
+            return new Hex1bTerminalBuildContext(adapter, runCallback);
+        });
+
+        return this;
+    }
+
+    private static string GetDefaultShell()
+    {
+        if (OperatingSystem.IsWindows())
+            return Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
+        
+        // Unix: try SHELL env var, fallback to /bin/sh
+        return Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh";
+    }
+
     /// <summary>
     /// Enables mouse input for the Hex1bApp.
     /// </summary>
@@ -482,4 +765,37 @@ internal sealed class Hex1bTerminalBuildContext(
     /// If null, the terminal will wait for the workload to disconnect.
     /// </summary>
     public Func<CancellationToken, Task<int>>? RunCallback { get; } = runCallback;
+}
+
+/// <summary>
+/// Options for configuring a child process workload.
+/// </summary>
+public sealed class Hex1bTerminalProcessOptions
+{
+    /// <summary>
+    /// Gets or sets the executable to run.
+    /// </summary>
+    public string FileName { get; set; } = "";
+
+    /// <summary>
+    /// Gets or sets the command-line arguments for the process.
+    /// </summary>
+    public IList<string>? Arguments { get; set; }
+
+    /// <summary>
+    /// Gets or sets the working directory for the process.
+    /// If null, uses the current directory.
+    /// </summary>
+    public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Gets or sets additional environment variables for the process.
+    /// </summary>
+    public IDictionary<string, string>? Environment { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to inherit the parent's environment variables.
+    /// Defaults to true.
+    /// </summary>
+    public bool InheritEnvironment { get; set; } = true;
 }
