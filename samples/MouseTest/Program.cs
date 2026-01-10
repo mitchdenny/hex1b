@@ -146,26 +146,9 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
 
 try
 {
-    // Create the presentation adapter for console I/O with mouse support
-    var presentation = new ConsolePresentationAdapter(enableMouse: true);
-    
-    // Create the workload adapter that Hex1bApp will use
-    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-    
-    // Create terminal options with Hex1bApp render optimization filter
-    var terminalOptions = new Hex1bTerminalOptions
-    {
-        PresentationAdapter = presentation,
-        WorkloadAdapter = workload
-    };
-    terminalOptions.AddHex1bAppRenderOptimization();
-    
-    // Create the terminal that bridges presentation ↔ workload
-    // The terminal auto-starts I/O pumps when a presentation adapter is provided
-    using var terminal = new Hex1bTerminal(terminalOptions);
-
-    await using var app = new Hex1bApp(
-        ctx => ctx.VStack(root => [
+    await Hex1bTerminal.CreateBuilder()
+        .WithHex1bApp(
+            ctx => ctx.VStack(root => [
             // Main content wrapped in a border
             root.Border(
                 // Splitter with scenario list on left, controls on right
@@ -198,15 +181,10 @@ try
                 "Enter/Click", "Activate", 
                 "Ctrl+C", "Exit"
             ]),
-        ]),
-        new Hex1bAppOptions
-        {
-            WorkloadAdapter = workload,
-            EnableMouse = true
-        }
-    );
-
-    await app.RunAsync();
+        ]))
+        .WithMouse()
+        .WithRenderOptimization()
+        .RunAsync();
 }
 catch (Exception ex)
 {

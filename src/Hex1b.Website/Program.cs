@@ -262,7 +262,7 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         PresentationAdapter = presentation,
         WorkloadAdapter = workload
     };
-    terminalOptions.AddHex1bAppRenderOptimization();
+    terminalOptions.PresentationFilters.Add(new Hex1bAppRenderOptimizationFilter());
     
     // Create the terminal that bridges presentation ↔ workload
     // Terminal auto-starts I/O pumps when presentation is provided

@@ -1,5 +1,4 @@
 using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 
 if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
 {
@@ -17,49 +16,24 @@ if (File.Exists(castFile))
     File.Delete(castFile);
 }
 
+AsciinemaRecorder? recorder = null;
+
 try
 {
-    // Launch bash
-    await using var process = new Hex1bTerminalChildProcess(
-        "/bin/bash",
-        ["--norc", "--noprofile"],
-        workingDirectory: Environment.CurrentDirectory,
-        inheritEnvironment: true,
-        initialWidth: width,
-        initialHeight: height
-    );
+    await Hex1bTerminal.CreateBuilder()
+        .WithPtyShell("/bin/bash", "--norc", "--noprofile")
+        .WithDimensions(width, height)
+        .WithAsciinemaRecording(castFile, r => recorder = r, new AsciinemaRecorderOptions
+        {
+            Title = "Tmux Demo",
+            CaptureInput = true
+        })
+        .RunAsync();
     
-    var presentation = new ConsolePresentationAdapter(enableMouse: false);
-    
-    var terminalOptions = new Hex1bTerminalOptions
+    if (recorder != null)
     {
-        Width = width,
-        Height = height,
-        PresentationAdapter = presentation,
-        WorkloadAdapter = process
-    };
-    
-    // Add asciinema recorder
-    var recorder = terminalOptions.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
-    {
-        Title = "Tmux Demo",
-        CaptureInput = true
-    });
-    
-    using var terminal = new Hex1bTerminal(terminalOptions);
-    await process.StartAsync();
-    
-    // Wait for process to exit
-    try
-    {
-        await process.WaitForExitAsync(CancellationToken.None);
+        await recorder.FlushAsync();
     }
-    catch (OperationCanceledException)
-    {
-        process.Kill();
-    }
-    
-    await recorder.FlushAsync();
 }
 catch (Exception ex)
 {

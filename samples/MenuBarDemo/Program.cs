@@ -17,19 +17,8 @@ var wordWrapIndex = 1;
 var fontSizes = new[] { "Small", "Medium", "Large", "Extra Large" };
 var selectedFontSize = 1; // Medium
 
-var presentation = new ConsolePresentationAdapter(enableMouse: true);
-var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-
-var terminalOptions = new Hex1bTerminalOptions
-{
-    PresentationAdapter = presentation,
-    WorkloadAdapter = workload
-};
-terminalOptions.AddHex1bAppRenderOptimization();
-
-using var terminal = new Hex1bTerminal(terminalOptions);
-
-await using var app = new Hex1bApp(ctx =>
+await Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp(ctx =>
     ctx.VStack(main => [
         // Menu bar at the top
         main.MenuBar(m => [
@@ -201,12 +190,7 @@ await using var app = new Hex1bApp(ctx =>
             "Alt+Letter", "Menu",
             "Ctrl+C", "Exit"
         ])
-    ]),
-    new Hex1bAppOptions
-    {
-        WorkloadAdapter = workload,
-        EnableMouse = true
-    }
-);
-
-await app.RunAsync();
+    ]))
+    .WithMouse()
+    .WithRenderOptimization()
+    .RunAsync();

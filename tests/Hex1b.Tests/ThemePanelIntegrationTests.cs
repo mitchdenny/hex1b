@@ -895,11 +895,12 @@ public class ThemePanelIntegrationTests : IDisposable
             Height = 18,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "ThemePanel Scope Boundary Demo",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         using var app = new Hex1bApp(
@@ -978,11 +979,12 @@ public class ThemePanelIntegrationTests : IDisposable
             Height = 20,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Nested ThemePanel Demo",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         using var app = new Hex1bApp(

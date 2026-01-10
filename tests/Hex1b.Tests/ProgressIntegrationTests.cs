@@ -471,11 +471,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 10,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Indeterminate Progress Animation",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var animationPos = 0.0;
@@ -522,11 +523,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 12,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "File Download Progress Simulation",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var bytesDownloaded = 0L;
@@ -599,11 +601,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 20,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Multi-Task Progress",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var task1Progress = 0.0;
@@ -678,11 +681,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 10,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Progress Bar Resize Behavior",
             IdleTimeLimit = 1.0f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         using var app = new Hex1bApp(
