@@ -1,0 +1,4 @@
+# Generated API reference documentation
+# These files are created by the DocGenerator project at build time
+*.md
+!index.md

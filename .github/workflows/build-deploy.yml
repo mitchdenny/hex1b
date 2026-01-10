@@ -54,10 +54,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Generate API reference docs
+        run: dotnet run --project src/DocGenerator
+
       - name: Verify content build
         run: |
           cd src/content
           npm install
+          npm run build
           cd ../..
           aspire do build-content
 
@@ -609,7 +613,7 @@ jobs:
           HEX1B_VERSION: ${{ steps.version.outputs.pr }}
         run: |
           set -e
-          aspire deploy
+          aspire deploy --debug
 
       - name: Get Azure resource details
         id: azure-resources
@@ -775,4 +779,4 @@ jobs:
           HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           set -e
-          aspire deploy
+          aspire deploy --debug

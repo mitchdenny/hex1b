@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "..",
+          "files": ["Hex1b/Hex1b.csproj"]
+        }
+      ],
+      "dest": "_metadata",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "properties": {
+        "TargetFramework": "net10.0"
+      }
+    }
+  ]
+}
