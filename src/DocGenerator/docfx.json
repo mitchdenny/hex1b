@@ -4,7 +4,7 @@
       "src": [
         {
           "files": ["src/Hex1b/Hex1b.csproj"],
-          "src": "/home/midenn/Code/hex1b"
+          "src": "../.."
         }
       ],
       "dest": "_metadata",
