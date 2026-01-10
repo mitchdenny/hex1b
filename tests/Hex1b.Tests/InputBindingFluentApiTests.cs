@@ -36,7 +36,7 @@ public class InputBindingFluentApiTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         Hex1bKey? firedKey = null;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -98,7 +98,7 @@ public class InputBindingFluentApiTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -150,7 +150,7 @@ public class InputBindingFluentApiTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -201,7 +201,7 @@ public class InputBindingFluentApiTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var aFired = false;
         var bFired = false;
         var cFired = false;
@@ -285,7 +285,7 @@ public class InputBindingFluentApiTests
         // This test verifies that user bindings configured via WithInputBindings work
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -335,7 +335,7 @@ public class InputBindingFluentApiTests
         // Test with CTRL-C disabled to isolate user bindings
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var xBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -385,7 +385,7 @@ public class InputBindingFluentApiTests
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var chordFired = false;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -436,7 +436,7 @@ public class InputBindingFluentApiTests
         // Arrange - verify that bindings are preserved across reconciliation
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFireCount = 0;
         var reconcileCount = 0;
 

@@ -7,7 +7,7 @@ namespace Hex1b.Tests;
 public class AlignNodeTests
 {
     [Fact]
-    public void Measure_ReturnsChildSize()
+    public async Task Measure_ReturnsChildSize()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hello" };
@@ -23,7 +23,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Measure_WithFillHint_StillReturnsChildSize_ParentHandlesExpansion()
+    public async Task Measure_WithFillHint_StillReturnsChildSize_ParentHandlesExpansion()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hello" };
@@ -40,7 +40,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_Center_PositionsChildInCenter()
+    public async Task Arrange_Center_PositionsChildInCenter()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" }; // 2 chars wide, 1 high
@@ -59,7 +59,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_TopLeft_PositionsChildAtTopLeft()
+    public async Task Arrange_TopLeft_PositionsChildAtTopLeft()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -75,7 +75,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_TopRight_PositionsChildAtTopRight()
+    public async Task Arrange_TopRight_PositionsChildAtTopRight()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -91,7 +91,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_BottomLeft_PositionsChildAtBottomLeft()
+    public async Task Arrange_BottomLeft_PositionsChildAtBottomLeft()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -107,7 +107,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_BottomRight_PositionsChildAtBottomRight()
+    public async Task Arrange_BottomRight_PositionsChildAtBottomRight()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -123,7 +123,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_HCenter_CentersHorizontallyAtTop()
+    public async Task Arrange_HCenter_CentersHorizontallyAtTop()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -139,7 +139,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_VCenter_CentersVerticallyAtLeft()
+    public async Task Arrange_VCenter_CentersVerticallyAtLeft()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -155,7 +155,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_BottomCenter_PositionsAtBottomCenter()
+    public async Task Arrange_BottomCenter_PositionsAtBottomCenter()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -171,7 +171,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void Arrange_WithOffset_PositionsRelativeToParentBounds()
+    public async Task Arrange_WithOffset_PositionsRelativeToParentBounds()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hi" };
@@ -187,7 +187,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void AlignmentChange_MarksDirty()
+    public async Task AlignmentChange_MarksDirty()
     {
         // Arrange
         var node = new AlignNode { Alignment = Alignment.TopLeft };
@@ -205,7 +205,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_ReturnsChildFocusables()
+    public async Task GetFocusableNodes_ReturnsChildFocusables()
     {
         // Arrange
         var button = new ButtonNode { Label = "Click" };
@@ -220,7 +220,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void GetChildren_ReturnsChild()
+    public async Task GetChildren_ReturnsChild()
     {
         // Arrange
         var child = new TextBlockNode { Text = "Hello" };
@@ -235,7 +235,7 @@ public class AlignNodeTests
     }
 
     [Fact]
-    public void GetChildren_WhenNoChild_ReturnsEmpty()
+    public async Task GetChildren_WhenNoChild_ReturnsEmpty()
     {
         // Arrange
         var node = new AlignNode();

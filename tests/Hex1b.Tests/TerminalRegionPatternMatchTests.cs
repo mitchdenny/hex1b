@@ -11,7 +11,7 @@ public class TerminalRegionPatternMatchTests
     #region TextMatch Tests
 
     [Fact]
-    public void TextMatch_HasCorrectProperties()
+    public async Task TextMatch_HasCorrectProperties()
     {
         var match = new TextMatch(Line: 2, StartColumn: 5, EndColumn: 10, Text: "Hello");
         
@@ -23,7 +23,7 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void TextMatch_LengthCalculation()
+    public async Task TextMatch_LengthCalculation()
     {
         var match = new TextMatch(Line: 0, StartColumn: 0, EndColumn: 15, Text: "test expression");
         
@@ -35,15 +35,19 @@ public class TerminalRegionPatternMatchTests
     #region FindPattern Tests
 
     [Fact]
-    public void FindPattern_FindsSimplePattern()
+    public async Task FindPattern_FindsSimplePattern()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World\r\n");
         workload.Write("Test Pattern\r\n");
         workload.Write("Another line");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindPattern(@"Test");
         
@@ -55,13 +59,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_FindsMultipleMatchesOnSameLine()
+    public async Task FindPattern_FindsMultipleMatchesOnSameLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("cat and dog and cat again");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindPattern(@"cat");
         
@@ -73,15 +81,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_FindsMatchesAcrossMultipleLines()
+    public async Task FindPattern_FindsMatchesAcrossMultipleLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Error: file not found\r\n");
         workload.Write("Warning: deprecated\r\n");
         workload.Write("Error: permission denied");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindPattern(@"Error");
         
@@ -91,13 +103,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_UsesRegexOptions()
+    public async Task FindPattern_UsesRegexOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Case sensitive (default) - should not match
@@ -111,13 +127,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_WithCompiledRegex()
+    public async Task FindPattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Value: 12345");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"\d+");
         var matches = snapshot.FindPattern(regex);
@@ -128,13 +148,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_ReturnsEmptyListWhenNoMatch()
+    public async Task FindPattern_ReturnsEmptyListWhenNoMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindPattern(@"NotFound");
         
@@ -142,14 +166,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_MatchesComplexRegex()
+    public async Task FindPattern_MatchesComplexRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("Email: user@example.com\r\n");
         workload.Write("Contact: admin@test.org");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindPattern(@"\w+@\w+\.\w+");
         
@@ -163,14 +191,18 @@ public class TerminalRegionPatternMatchTests
     #region FindFirstPattern Tests
 
     [Fact]
-    public void FindFirstPattern_ReturnsFirstMatch()
+    public async Task FindFirstPattern_ReturnsFirstMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("First match\r\n");
         workload.Write("Second match");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstPattern(@"match");
         
@@ -180,13 +212,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstPattern_ReturnsNullWhenNoMatch()
+    public async Task FindFirstPattern_ReturnsNullWhenNoMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstPattern(@"NotFound");
         
@@ -194,13 +230,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstPattern_WithRegexOptions()
+    public async Task FindFirstPattern_WithRegexOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("HELLO World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstPattern(@"hello", RegexOptions.IgnoreCase);
         
@@ -209,13 +249,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstPattern_WithCompiledRegex()
+    public async Task FindFirstPattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Price: $99.99");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"\$[\d.]+");
         var match = snapshot.FindFirstPattern(regex);
@@ -229,13 +273,17 @@ public class TerminalRegionPatternMatchTests
     #region GetTextAt Tests
 
     [Fact]
-    public void GetTextAt_ReturnsTextAtCoordinates()
+    public async Task GetTextAt_ReturnsTextAtCoordinates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World Test");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetTextAt(line: 0, startColumn: 6, endColumn: 11);
         
@@ -243,13 +291,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetTextAt_WithTextMatch()
+    public async Task GetTextAt_WithTextMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("ID: 12345 Name: John");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstPattern(@"\d+");
         
@@ -260,13 +312,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetTextAt_ReturnsEmptyForInvalidLine()
+    public async Task GetTextAt_ReturnsEmptyForInvalidLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetTextAt(line: 100, startColumn: 0, endColumn: 5);
         
@@ -274,13 +330,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetTextAt_ClampsToValidRange()
+    public async Task GetTextAt_ClampsToValidRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Request beyond end of line
         var text = snapshot.GetTextAt(line: 0, startColumn: 6, endColumn: 100);
@@ -290,13 +350,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetTextAt_HandlesNegativeStart()
+    public async Task GetTextAt_HandlesNegativeStart()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Request with negative start
         var text = snapshot.GetTextAt(line: 0, startColumn: -5, endColumn: 5);
@@ -310,52 +374,68 @@ public class TerminalRegionPatternMatchTests
     #region ContainsPattern Tests
 
     [Fact]
-    public void ContainsPattern_ReturnsTrueWhenPatternExists()
+    public async Task ContainsPattern_ReturnsTrueWhenPatternExists()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Error: Something went wrong");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsPattern(@"Error"));
         Assert.True(snapshot.ContainsPattern(@"went \w+"));
     }
 
     [Fact]
-    public void ContainsPattern_ReturnsFalseWhenPatternNotExists()
+    public async Task ContainsPattern_ReturnsFalseWhenPatternNotExists()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Success: All tests passed");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsPattern(@"Error"));
         Assert.False(snapshot.ContainsPattern(@"\d{5}"));
     }
 
     [Fact]
-    public void ContainsPattern_WithRegexOptions()
+    public async Task ContainsPattern_WithRegexOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("SUCCESS");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsPattern(@"success"));
         Assert.True(snapshot.ContainsPattern(@"success", RegexOptions.IgnoreCase));
     }
 
     [Fact]
-    public void ContainsPattern_WithCompiledRegex()
+    public async Task ContainsPattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Version: 2.0.1");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"\d+\.\d+\.\d+");
         Assert.True(snapshot.ContainsPattern(regex));
@@ -366,16 +446,20 @@ public class TerminalRegionPatternMatchTests
     #region Integration Tests with Regions
 
     [Fact]
-    public void FindPattern_WorksWithRegions()
+    public async Task FindPattern_WorksWithRegions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Header line\r\n");
         workload.Write("Match: 123\r\n");
         workload.Write("Match: 456\r\n");
         workload.Write("Footer line");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Get a region excluding header and footer
         var region = snapshot.GetRegion(new Hex1b.Layout.Rect(0, 1, 40, 2));
@@ -389,15 +473,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetTextAt_WorksWithRegions()
+    public async Task GetTextAt_WorksWithRegions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line 0: AAA\r\n");
         workload.Write("Line 1: BBB\r\n");
         workload.Write("Line 2: CCC");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var region = snapshot.GetRegion(new Hex1b.Layout.Rect(8, 1, 10, 2));
         
@@ -410,15 +498,19 @@ public class TerminalRegionPatternMatchTests
     #region Use Case: Extract Data from Terminal
 
     [Fact]
-    public void UseCase_ExtractValueFromLabel()
+    public async Task UseCase_ExtractValueFromLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("Status: Running\r\n");
         workload.Write("Progress: 75%\r\n");
         workload.Write("ETA: 5 minutes");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Find and extract the progress value
@@ -432,16 +524,20 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void UseCase_FindAllErrors()
+    public async Task UseCase_FindAllErrors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("[INFO] Starting...\r\n");
         workload.Write("[ERROR] File not found\r\n");
         workload.Write("[INFO] Retrying...\r\n");
         workload.Write("[ERROR] Connection failed");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var errors = snapshot.FindPattern(@"\[ERROR\].*");
         
@@ -455,7 +551,7 @@ public class TerminalRegionPatternMatchTests
     #region MultiLineTextMatch Tests
 
     [Fact]
-    public void MultiLineTextMatch_HasCorrectProperties()
+    public async Task MultiLineTextMatch_HasCorrectProperties()
     {
         var match = new MultiLineTextMatch(StartLine: 2, StartColumn: 5, EndLine: 4, EndColumn: 10, Text: "Hello\nWorld\nTest");
         
@@ -467,7 +563,7 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void MultiLineTextMatch_IsMultiLine_TrueForMultipleLines()
+    public async Task MultiLineTextMatch_IsMultiLine_TrueForMultipleLines()
     {
         var match = new MultiLineTextMatch(StartLine: 0, StartColumn: 0, EndLine: 2, EndColumn: 5, Text: "abc\ndef\nghi");
         
@@ -476,7 +572,7 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void MultiLineTextMatch_IsMultiLine_FalseForSingleLine()
+    public async Task MultiLineTextMatch_IsMultiLine_FalseForSingleLine()
     {
         var match = new MultiLineTextMatch(StartLine: 1, StartColumn: 0, EndLine: 1, EndColumn: 5, Text: "Hello");
         
@@ -489,15 +585,19 @@ public class TerminalRegionPatternMatchTests
     #region FindMultiLinePattern Tests
 
     [Fact]
-    public void FindMultiLinePattern_FindsSingleLinePattern()
+    public async Task FindMultiLinePattern_FindsSingleLinePattern()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World\r\n");
         workload.Write("Test Pattern\r\n");
         workload.Write("Another line");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"Test");
         
@@ -511,14 +611,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchesAcrossLines()
+    public async Task FindMultiLinePattern_MatchesAcrossLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Start here\r\n");
         workload.Write("End here");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Match pattern that spans from "here" on line 0 to "End" on line 1
         // Use trimLines: true to avoid matching trailing whitespace padding
@@ -533,16 +637,20 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchesMultipleLinesWithSingleline()
+    public async Task FindMultiLinePattern_MatchesMultipleLinesWithSingleline()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("BEGIN\r\n");
         workload.Write("middle content\r\n");
         workload.Write("more content\r\n");
         workload.Write("END");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Use Singleline option so . matches newlines
         var matches = snapshot.FindMultiLinePattern(@"BEGIN.*?END", RegexOptions.Singleline);
@@ -555,10 +663,10 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_FindsMultipleMultiLineMatches()
+    public async Task FindMultiLinePattern_FindsMultipleMultiLineMatches()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("<div>\r\n");
         workload.Write("content1\r\n");
@@ -567,6 +675,10 @@ public class TerminalRegionPatternMatchTests
         workload.Write("content2\r\n");
         workload.Write("</div>");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"<div>.*?</div>", RegexOptions.Singleline);
         
@@ -576,15 +688,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_WithNewlineInPattern()
+    public async Task FindMultiLinePattern_WithNewlineInPattern()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line 1\r\n");
         workload.Write("Line 2\r\n");
         workload.Write("Line 3");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Match explicit newline pattern
         var matches = snapshot.FindMultiLinePattern(@"Line 1\s*\nLine 2");
@@ -595,15 +711,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchesEntireContent()
+    public async Task FindMultiLinePattern_MatchesEntireContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 3).Build();
         
         workload.Write("AAA\r\n");
         workload.Write("BBB\r\n");
         workload.Write("CCC");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"^AAA.*CCC", RegexOptions.Singleline);
         
@@ -613,13 +733,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_ReturnsEmptyForNoMatch()
+    public async Task FindMultiLinePattern_ReturnsEmptyForNoMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"NotFound\nAnywhere");
         
@@ -627,15 +751,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_WithCompiledRegex()
+    public async Task FindMultiLinePattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Start\r\n");
         workload.Write("Middle\r\n");
         workload.Write("End");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"Start.*End", RegexOptions.Singleline);
         var matches = snapshot.FindMultiLinePattern(regex);
@@ -645,16 +773,20 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchingJsonStructure()
+    public async Task FindMultiLinePattern_MatchingJsonStructure()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("{\r\n");
         workload.Write("  \"name\": \"test\",\r\n");
         workload.Write("  \"value\": 123\r\n");
         workload.Write("}");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"\{[^}]+\}", RegexOptions.Singleline);
         
@@ -664,15 +796,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchingCodeBlock()
+    public async Task FindMultiLinePattern_MatchingCodeBlock()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         
         workload.Write("function test() {\r\n");
         workload.Write("    return true;\r\n");
         workload.Write("}");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"function.*?\}", RegexOptions.Singleline);
         
@@ -687,16 +823,20 @@ public class TerminalRegionPatternMatchTests
     #region FindFirstMultiLinePattern Tests
 
     [Fact]
-    public void FindFirstMultiLinePattern_ReturnsFirstMatch()
+    public async Task FindFirstMultiLinePattern_ReturnsFirstMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Block 1\r\n");
         workload.Write("End\r\n");
         workload.Write("Block 2\r\n");
         workload.Write("End");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstMultiLinePattern(@"Block.*?End", RegexOptions.Singleline);
         
@@ -706,13 +846,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstMultiLinePattern_ReturnsNullForNoMatch()
+    public async Task FindFirstMultiLinePattern_ReturnsNullForNoMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstMultiLinePattern(@"NotFound\nPattern");
         
@@ -720,15 +864,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstMultiLinePattern_WithRegexOptions()
+    public async Task FindFirstMultiLinePattern_WithRegexOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("START\r\n");
         workload.Write("content\r\n");
         workload.Write("END");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstMultiLinePattern(@"start.*end", RegexOptions.Singleline | RegexOptions.IgnoreCase);
         
@@ -737,15 +885,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindFirstMultiLinePattern_WithCompiledRegex()
+    public async Task FindFirstMultiLinePattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("A\r\n");
         workload.Write("B\r\n");
         workload.Write("C");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"A\nB\nC");
         // Use trimLines: true to avoid matching trailing whitespace padding
@@ -761,40 +913,52 @@ public class TerminalRegionPatternMatchTests
     #region ContainsMultiLinePattern Tests
 
     [Fact]
-    public void ContainsMultiLinePattern_ReturnsTrueWhenPatternExists()
+    public async Task ContainsMultiLinePattern_ReturnsTrueWhenPatternExists()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Header\r\n");
         workload.Write("Content\r\n");
         workload.Write("Footer");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsMultiLinePattern(@"Header.*Footer", RegexOptions.Singleline));
     }
 
     [Fact]
-    public void ContainsMultiLinePattern_ReturnsFalseWhenPatternNotExists()
+    public async Task ContainsMultiLinePattern_ReturnsFalseWhenPatternNotExists()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsMultiLinePattern(@"NotFound\nPattern"));
     }
 
     [Fact]
-    public void ContainsMultiLinePattern_WithCompiledRegex()
+    public async Task ContainsMultiLinePattern_WithCompiledRegex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line1\r\n");
         workload.Write("Line2");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"Line1\nLine2");
         // Use trimLines: true to avoid matching trailing whitespace padding
@@ -806,13 +970,17 @@ public class TerminalRegionPatternMatchTests
     #region GetMultiLineTextAt Tests
 
     [Fact]
-    public void GetMultiLineTextAt_ReturnsSingleLineText()
+    public async Task GetMultiLineTextAt_ReturnsSingleLineText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World Test");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 6, endLine: 0, endColumn: 11);
         
@@ -820,15 +988,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetMultiLineTextAt_ReturnsMultiLineText()
+    public async Task GetMultiLineTextAt_ReturnsMultiLineText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line 0 content\r\n");
         workload.Write("Line 1 content\r\n");
         workload.Write("Line 2 content");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 7, endLine: 2, endColumn: 7);
         
@@ -837,15 +1009,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetMultiLineTextAt_WithMultiLineTextMatch()
+    public async Task GetMultiLineTextAt_WithMultiLineTextMatch()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("START\r\n");
         workload.Write("middle\r\n");
         workload.Write("END");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstMultiLinePattern(@"START.*END", RegexOptions.Singleline);
         
@@ -860,13 +1036,17 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetMultiLineTextAt_ReturnsEmptyForInvalidLine()
+    public async Task GetMultiLineTextAt_ReturnsEmptyForInvalidLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetMultiLineTextAt(startLine: 100, startColumn: 0, endLine: 101, endColumn: 5);
         
@@ -874,15 +1054,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void GetMultiLineTextAt_ClampsToValidRange()
+    public async Task GetMultiLineTextAt_ClampsToValidRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 3).Build();
         
         workload.Write("AAA\r\n");
         workload.Write("BBB\r\n");
         workload.Write("CCC");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Request beyond end of region
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 0, endLine: 10, endColumn: 100);
@@ -898,15 +1082,19 @@ public class TerminalRegionPatternMatchTests
     #region Multi-Line Edge Cases
 
     [Fact]
-    public void FindMultiLinePattern_EmptyLines()
+    public async Task FindMultiLinePattern_EmptyLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Start\r\n");
         workload.Write("\r\n"); // Empty line
         workload.Write("End");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"Start\n\nEnd", trimLines: true);
@@ -917,14 +1105,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchAtStartOfRegion()
+    public async Task FindMultiLinePattern_MatchAtStartOfRegion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("ABC\r\n");
         workload.Write("DEF");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"^ABC\nDEF", trimLines: true);
@@ -935,15 +1127,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchAtEndOfRegion()
+    public async Task FindMultiLinePattern_MatchAtEndOfRegion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 3).Build();
         
         workload.Write("XXX\r\n");
         workload.Write("YYY\r\n");
         workload.Write("ZZZ");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"YYY\nZZZ", trimLines: true);
@@ -954,14 +1150,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_OverlappingPatterns()
+    public async Task FindMultiLinePattern_OverlappingPatterns()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("ABAB\r\n");
         workload.Write("ABAB");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Non-overlapping matches
         var matches = snapshot.FindMultiLinePattern(@"AB");
@@ -971,15 +1171,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_SpecialRegexCharacters()
+    public async Task FindMultiLinePattern_SpecialRegexCharacters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("[ERROR]\r\n");
         workload.Write("Stack trace:\r\n");
         workload.Write("  at Main()");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"\[ERROR\].*Main\(\)", RegexOptions.Singleline);
         
@@ -988,14 +1192,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_ZeroLengthMatches()
+    public async Task FindMultiLinePattern_ZeroLengthMatches()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line 1\r\n");
         workload.Write("Line 2");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Match at the start of each line using Multiline mode (^ matches start of each line)
         var matches = snapshot.FindMultiLinePattern(@"^", RegexOptions.Multiline);
@@ -1008,14 +1216,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_UnicodeContent()
+    public async Task FindMultiLinePattern_UnicodeContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello 世界\r\n");
         workload.Write("Привет мир");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Use Singleline so . matches newlines and spans the content
         var matches = snapshot.FindMultiLinePattern(@"世界.*мир", RegexOptions.Singleline);
@@ -1025,14 +1237,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_CaptureGroups()
+    public async Task FindMultiLinePattern_CaptureGroups()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Name: John\r\n");
         workload.Write("Age: 30");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var regex = new Regex(@"Name: (\w+)\nAge: (\d+)");
         // Use trimLines: true to avoid matching trailing whitespace padding
@@ -1048,16 +1264,20 @@ public class TerminalRegionPatternMatchTests
     #region Multi-Line Use Cases
 
     [Fact]
-    public void UseCase_ExtractStackTrace()
+    public async Task UseCase_ExtractStackTrace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("Error: NullReferenceException\r\n");
         workload.Write("  at Method1()\r\n");
         workload.Write("  at Method2()\r\n");
         workload.Write("  at Main()");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var match = snapshot.FindFirstMultiLinePattern(@"Error:.*?at Main\(\)", RegexOptions.Singleline);
         
@@ -1068,15 +1288,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void UseCase_ExtractLogBlock()
+    public async Task UseCase_ExtractLogBlock()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("[2024-01-01 10:00:00] INFO: Starting\r\n");
         workload.Write("[2024-01-01 10:00:01] DEBUG: Processing\r\n");
         workload.Write("[2024-01-01 10:00:02] INFO: Complete");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var matches = snapshot.FindMultiLinePattern(@"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] INFO:.*");
         
@@ -1084,16 +1308,20 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void UseCase_WaitForMultiLineOutput()
+    public async Task UseCase_WaitForMultiLineOutput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("Build started...\r\n");
         workload.Write("Compiling...\r\n");
         workload.Write("Build succeeded.\r\n");
         workload.Write("0 Errors, 0 Warnings");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Check for complete build output
@@ -1101,16 +1329,20 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void UseCase_ExtractTableData()
+    public async Task UseCase_ExtractTableData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         
         workload.Write("| Name  | Value |\r\n");
         workload.Write("|-------|-------|\r\n");
         workload.Write("| Item1 | 100   |\r\n");
         workload.Write("| Item2 | 200   |");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Match table from header to last row - \s* handles any trailing whitespace
         var match = snapshot.FindFirstMultiLinePattern(@"\|\s*Name.*\|\s*Item2\s*\|\s*200\s*\|", RegexOptions.Singleline);
@@ -1120,14 +1352,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindPattern_MatchesUnicodeCheckAndCross()
+    public async Task FindPattern_MatchesUnicodeCheckAndCross()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         workload.Write("[1 ✔] $ \r\n");
         workload.Write("[1 ✘:127] $ \r\n");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // The line-by-line FindPattern should work since GetLine doesn't trim
@@ -1140,14 +1376,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_MatchesUnicodeCheckAndCross_WithTrailingSpace()
+    public async Task FindMultiLinePattern_MatchesUnicodeCheckAndCross_WithTrailingSpace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         workload.Write("[1 ✔] $ \r\n");
         workload.Write("[1 ✘:127] $ \r\n");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // FindMultiLinePattern now uses untrimmed lines, so trailing space is preserved
@@ -1160,15 +1400,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_WithCustomLineSeparator()
+    public async Task FindMultiLinePattern_WithCustomLineSeparator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Line1\r\n");
         workload.Write("Line2\r\n");
         workload.Write("Line3");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Use custom separator " | " between lines
@@ -1181,15 +1425,19 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_WithNoLineSeparator_ConcatenatesDirectly()
+    public async Task FindMultiLinePattern_WithNoLineSeparator_ConcatenatesDirectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("ABC\r\n");
         workload.Write("DEF\r\n");
         workload.Write("GHI");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Use null separator to concatenate lines directly
@@ -1200,14 +1448,18 @@ public class TerminalRegionPatternMatchTests
     }
 
     [Fact]
-    public void FindMultiLinePattern_WithEmptyLineSeparator_ConcatenatesDirectly()
+    public async Task FindMultiLinePattern_WithEmptyLineSeparator_ConcatenatesDirectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         workload.Write("Hello\r\n");
         workload.Write("World");
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Use empty string separator to concatenate lines directly

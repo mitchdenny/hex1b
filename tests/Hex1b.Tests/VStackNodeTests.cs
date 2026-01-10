@@ -13,7 +13,7 @@ public class VStackNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_SumsChildHeights()
+    public async Task Measure_SumsChildHeights()
     {
         var node = new VStackNode
         {
@@ -31,7 +31,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Measure_TakesMaxWidth()
+    public async Task Measure_TakesMaxWidth()
     {
         var node = new VStackNode
         {
@@ -49,7 +49,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyChildren_ReturnsZeroSize()
+    public async Task Measure_EmptyChildren_ReturnsZeroSize()
     {
         var node = new VStackNode { Children = new List<Hex1bNode>() };
 
@@ -60,7 +60,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxConstraints()
+    public async Task Measure_RespectsMaxConstraints()
     {
         var node = new VStackNode
         {
@@ -82,7 +82,7 @@ public class VStackNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_PositionsChildrenVertically()
+    public async Task Arrange_PositionsChildrenVertically()
     {
         var child1 = new TextBlockNode { Text = "Line 1" };
         var child2 = new TextBlockNode { Text = "Line 2" };
@@ -96,7 +96,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithFillHints_DistributesSpace()
+    public async Task Arrange_WithFillHints_DistributesSpace()
     {
         var child1 = new TextBlockNode { Text = "Fixed" };
         var child2 = new TextBlockNode { Text = "Fill", HeightHint = SizeHint.Fill };
@@ -115,7 +115,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithFixedHints_UsesExactSize()
+    public async Task Arrange_WithFixedHints_UsesExactSize()
     {
         var child1 = new TextBlockNode { Text = "Fixed", HeightHint = SizeHint.Fixed(3) };
         var child2 = new TextBlockNode { Text = "Also Fixed", HeightHint = SizeHint.Fixed(5) };
@@ -132,7 +132,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithMixedHints_DistributesCorrectly()
+    public async Task Arrange_WithMixedHints_DistributesCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Fixed", HeightHint = SizeHint.Fixed(2) };
         var child2 = new TextBlockNode { Text = "Fill 1", HeightHint = SizeHint.Fill };
@@ -152,7 +152,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Arrange_AtOffset_PositionsChildrenCorrectly()
+    public async Task Arrange_AtOffset_PositionsChildrenCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Line 1" };
         var child2 = new TextBlockNode { Text = "Line 2" };
@@ -172,7 +172,7 @@ public class VStackNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_FindsAllFocusable()
+    public async Task GetFocusableNodes_FindsAllFocusable()
     {
         var textBox1 = new TextBoxNode();
         var button = new ButtonNode { Label = "OK" };
@@ -282,11 +282,11 @@ public class VStackNodeTests
     #region Rendering Tests
 
     [Fact]
-    public void Render_RendersAllChildren()
+    public async Task Render_RendersAllChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
@@ -301,17 +301,21 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("First", terminal.CreateSnapshot().GetScreenText());
         Assert.Contains("Second", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
-    public void Render_ChildrenAppearOnDifferentLines()
+    public async Task Render_ChildrenAppearOnDifferentLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = new Hex1bRenderContext(workload);
 
         var node = new VStackNode
@@ -327,6 +331,10 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Equal("Line A", terminal.CreateSnapshot().GetLineTrimmed(0));
         Assert.Equal("Line B", terminal.CreateSnapshot().GetLineTrimmed(1));
@@ -337,7 +345,7 @@ public class VStackNodeTests
     public async Task Render_InNarrowTerminal_TextClipsAtEdge()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 10).Build();
 
         await using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -354,6 +362,10 @@ public class VStackNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Text clips at terminal edge (not wraps)
@@ -371,7 +383,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -393,8 +405,20 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Body Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Body Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
     }
 
@@ -403,7 +427,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
         var text3 = "";
@@ -449,7 +473,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
 
@@ -486,7 +510,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -508,8 +532,20 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Medium text"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Medium text"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Very long text"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Very long text"));
     }
 
@@ -518,7 +554,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -546,6 +582,10 @@ public class VStackNodeTests
         await runTask;
 
         Assert.True(clicked);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Title"));
     }
 
@@ -554,7 +594,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -579,9 +619,25 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Outer 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Inner 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Inner 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Outer 2"));
     }
 
@@ -590,7 +646,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -618,7 +674,7 @@ public class VStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var items = new List<string> { "Item 1", "Item 2", "Item 3" };
 
         using var app = new Hex1bApp(
@@ -637,8 +693,20 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
     }
 
@@ -647,7 +715,7 @@ public class VStackNodeTests
     #region Orphan Tracking Tests
 
     [Fact]
-    public void Reconcile_FewerChildren_TracksOrphanedBounds()
+    public async Task Reconcile_FewerChildren_TracksOrphanedBounds()
     {
         // Arrange - create a VStack with 5 children
         var initialWidget = new VStackWidget(new Hex1bWidget[]
@@ -698,7 +766,7 @@ public class VStackNodeTests
     }
 
     [Fact]
-    public void Reconcile_SameOrMoreChildren_NoOrphanedBounds()
+    public async Task Reconcile_SameOrMoreChildren_NoOrphanedBounds()
     {
         // Arrange - create a VStack with 2 children
         var initialWidget = new VStackWidget(new Hex1bWidget[]

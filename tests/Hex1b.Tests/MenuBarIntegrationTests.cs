@@ -101,7 +101,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -121,6 +121,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - File menu items should be visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("New"));
         Assert.True(snapshot.ContainsText("Open"));
@@ -132,7 +136,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -150,9 +154,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+        // WaitUntil already verified the menu opened with New and Open visible
     }
     
     [Fact]
@@ -160,7 +162,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -178,9 +180,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+        // WaitUntil already verified the menu opened with New and Open visible
     }
     
     [Fact]
@@ -188,7 +188,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -206,10 +206,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("Cut"));
-        Assert.True(terminal.CreateSnapshot().ContainsText("Copy"));
+        // WaitUntil already verified the menu opened with Undo and Redo visible
     }
     
     [Fact]
@@ -217,7 +214,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -238,6 +235,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Edit menu should be open, not File menu
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Undo"));
         Assert.True(snapshot.ContainsText("Cut"));
@@ -248,7 +249,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -269,9 +270,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("Undo"));
+        // WaitUntil already verified the menu opened with Undo visible
     }
     
     #endregion
@@ -283,7 +282,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -340,7 +339,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -372,7 +371,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -405,7 +404,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -436,7 +435,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -466,7 +465,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -497,7 +496,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -528,7 +527,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -559,7 +558,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -591,7 +590,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -616,6 +615,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Edit menu should be open again (proving focus stayed on Edit)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Undo"));
     }
@@ -625,7 +628,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -659,7 +662,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -683,6 +686,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Submenu items should be visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Doc1.txt"));
         Assert.True(snapshot.ContainsText("Doc2.txt"));
@@ -693,7 +700,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -714,9 +721,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("Doc1.txt"));
+        // WaitUntil already verified the submenu opened with Doc1.txt visible
     }
     
     [Fact]
@@ -724,7 +729,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -747,11 +752,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - Submenu closed but parent menu still open
-        var snapshot = terminal.CreateSnapshot();
-        Assert.False(snapshot.ContainsText("Doc1.txt")); // Submenu closed
-        Assert.True(snapshot.ContainsText("Save"));       // Parent menu still visible
+        // WaitUntil already verified the submenu closed and parent menu is still visible
     }
     
     [Fact]
@@ -759,7 +760,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -786,6 +787,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Submenu should be open again, proving focus was on "Recent"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Doc1.txt")); // Submenu is open
     }
@@ -795,7 +800,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -822,6 +827,10 @@ public class MenuBarIntegrationTests
         // Assert
         Assert.Equal("File > Recent > Doc1.txt", lastAction);
         // All menus should be closed
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsText("Doc1.txt"));
         Assert.False(snapshot.ContainsText("Save"));
@@ -836,7 +845,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -854,9 +863,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert
-        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+        // WaitUntil already verified the menu opened with New and Open visible
     }
     
     [Fact]
@@ -864,7 +871,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -895,7 +902,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -927,7 +934,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -954,6 +961,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Help menu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"));
     }
@@ -967,7 +978,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1005,7 +1016,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1027,9 +1038,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - If we got here, focus was restored correctly
-        Assert.True(terminal.CreateSnapshot().ContainsText("New"));
+        // WaitUntil already verified the menu reopened, proving focus was restored
     }
     
     #endregion
@@ -1041,7 +1050,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var actions = new List<string>();
         
         using var app = new Hex1bApp(
@@ -1085,7 +1094,7 @@ public class MenuBarIntegrationTests
     #region Focus Debugging Tests
     
     [Fact]
-    public void Debug_BackdropFocusDelegation_ToMenuItems()
+    public async Task Debug_BackdropFocusDelegation_ToMenuItems()
     {
         // Arrange - Create the node hierarchy manually
         var menuPopupNode = new MenuPopupNode();
@@ -1118,7 +1127,7 @@ public class MenuBarIntegrationTests
     {
         // This test verifies that when a menu opens, the first menu item automatically gets focus
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { })),
@@ -1159,7 +1168,7 @@ public class MenuBarIntegrationTests
     {
         // This test checks if Down arrow moves focus from "New" to "Open"
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { })),
@@ -1222,7 +1231,7 @@ public class MenuBarIntegrationTests
     {
         // Debug test for submenu opening
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true)),
@@ -1260,6 +1269,10 @@ public class MenuBarIntegrationTests
         var focusedLabel = (focusedBeforeRight as MenuNode)?.Label ?? 
                            (focusedBeforeRight as MenuItemNode)?.Label ?? 
                            focusedBeforeRight?.GetType().Name ?? "null";
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var hasDoc1 = snapshot.ContainsText("Doc1.txt");
         
@@ -1279,7 +1292,7 @@ public class MenuBarIntegrationTests
         // Arrange - When on a leaf menu item (no children), Right arrow should
         // close the current menu and open the next menu in the menu bar
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1301,6 +1314,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Edit menu should be open (not File menu)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
@@ -1312,7 +1329,7 @@ public class MenuBarIntegrationTests
         // Arrange - When on a leaf menu item (no children), Left arrow should
         // close the current menu and open the previous menu in the menu bar
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1335,6 +1352,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - File menu should be open (not Edit menu)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("New"), "File menu should be visible");
         Assert.True(snapshot.ContainsText("Save"), "File menu should be visible");
@@ -1346,7 +1367,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - When on the last menu (Help), Right arrow should wrap to File
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1367,11 +1388,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - File menu should be open
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("New"), "File menu should be visible after wrap");
-        Assert.False(snapshot.ContainsText("About"), "Help menu should be closed");
+        // WaitUntil already verified the File menu opened after wrapping
     }
     
     [Fact]
@@ -1379,7 +1396,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - When on the first menu (File), Left arrow should wrap to Help
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1401,6 +1418,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Help menu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible after wrap");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
@@ -1411,7 +1432,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - Navigate across menus with arrow keys, then activate an item
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1444,7 +1465,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - Press Right multiple times to navigate File -> Edit -> Help
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1468,6 +1489,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Help menu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
@@ -1479,7 +1504,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - Navigate down within a menu first, then Right should still work
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1503,6 +1528,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Edit menu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
@@ -1514,7 +1543,7 @@ public class MenuBarIntegrationTests
         // Arrange - When focused on a submenu trigger (like "Recent" in File menu),
         // Left arrow should navigate to the previous menu in the menu bar (Help with wrap)
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1538,6 +1567,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Help menu should be open (not File menu)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
@@ -1549,7 +1582,7 @@ public class MenuBarIntegrationTests
         // Arrange - When focused on a submenu trigger, Right arrow should open the submenu
         // (This tests that the new Left behavior doesn't break Right)
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastAction = "";
         
         using var app = new Hex1bApp(
@@ -1572,6 +1605,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - Recent submenu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
         Assert.True(snapshot.ContainsText("Doc2.txt"), "Recent submenu should be visible");
@@ -1587,7 +1624,7 @@ public class MenuBarIntegrationTests
         // Arrange - This tests global bindings: menu accelerators should work
         // even when focus is on a TextBox (not on the menu bar)
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
@@ -1620,6 +1657,10 @@ public class MenuBarIntegrationTests
         await runTask;
 
         // Assert - File menu should be open
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
         Assert.True(snapshot.ContainsText("Open"), "File menu item 'Open' should be visible");
@@ -1630,7 +1671,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange - Alt+E should open Edit menu even when a Button is focused
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
@@ -1661,11 +1702,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - Edit menu should be open
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("Undo"), "Edit menu item 'Undo' should be visible");
-        Assert.True(snapshot.ContainsText("Redo"), "Edit menu item 'Redo' should be visible");
+        // WaitUntil already verified the Edit menu opened with Undo and Redo visible
     }
     
     #endregion

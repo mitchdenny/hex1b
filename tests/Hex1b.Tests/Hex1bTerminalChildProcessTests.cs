@@ -345,12 +345,13 @@ public class Hex1bTerminalChildProcessTests
         
         // Create a Hex1bTerminal with both workload and presentation
         // This will auto-start the pump
-        using var terminal = new Hex1bTerminal(
-            presentation: presentation,
-            workload: process,
-            width: 80,
-            height: 24
-        );
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = process,
+            Width = 80,
+            Height = 24
+        });
         
         // Wait for output to appear in the captured output
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

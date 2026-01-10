@@ -390,7 +390,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var textEntered = "";
         
         using var app = new Hex1bApp(
@@ -424,7 +424,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var ctrlCPressed = false;
         
         using var app = new Hex1bApp(
@@ -465,7 +465,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var items = new[] { "Item 1", "Item 2", "Item 3" };
         
         using var app = new Hex1bApp(
@@ -501,7 +501,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
         
@@ -540,7 +540,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Type("Test")

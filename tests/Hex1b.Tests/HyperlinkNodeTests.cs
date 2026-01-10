@@ -12,7 +12,7 @@ namespace Hex1b.Tests;
 public class HyperlinkNodeTests
 {
     [Fact]
-    public void Measure_ReturnsTextWidth()
+    public async Task Measure_ReturnsTextWidth()
     {
         var node = new HyperlinkNode { Text = "Click here", Uri = "https://example.com" };
         
@@ -23,7 +23,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Measure_WithEmptyText_ReturnsZeroWidth()
+    public async Task Measure_WithEmptyText_ReturnsZeroWidth()
     {
         var node = new HyperlinkNode { Text = "", Uri = "https://example.com" };
         
@@ -34,7 +34,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxConstraints()
+    public async Task Measure_RespectsMaxConstraints()
     {
         var node = new HyperlinkNode { Text = "This is a very long hyperlink text", Uri = "https://example.com" };
         var constraints = new Constraints(0, 10, 0, 1);
@@ -45,7 +45,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new HyperlinkNode();
         
@@ -53,7 +53,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void IsFocused_WhenChanged_MarksDirty()
+    public async Task IsFocused_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode();
         node.ClearDirty();
@@ -64,7 +64,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void IsHovered_WhenChanged_MarksDirty()
+    public async Task IsHovered_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode();
         node.ClearDirty();
@@ -75,7 +75,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Text_WhenChanged_MarksDirty()
+    public async Task Text_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Text = "Initial" };
         node.ClearDirty();
@@ -86,7 +86,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Uri_WhenChanged_MarksDirty()
+    public async Task Uri_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Uri = "https://old.com" };
         node.ClearDirty();
@@ -97,7 +97,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Parameters_WhenChanged_MarksDirty()
+    public async Task Parameters_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Parameters = "" };
         node.ClearDirty();
@@ -108,7 +108,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Render_OutputsOsc8Sequences()
+    public async Task Render_OutputsOsc8Sequences()
     {
         var node = new HyperlinkNode 
         { 
@@ -120,10 +120,14 @@ public class HyperlinkNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         var snapshot = terminal.CreateSnapshot();
         
@@ -132,7 +136,7 @@ public class HyperlinkNodeTests
     }
 
     [Fact]
-    public void Render_WithParameters_IncludesParametersInSequence()
+    public async Task Render_WithParameters_IncludesParametersInSequence()
     {
         var node = new HyperlinkNode 
         { 
@@ -144,10 +148,14 @@ public class HyperlinkNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         var snapshot = terminal.CreateSnapshot();
         
@@ -212,7 +220,7 @@ public class HyperlinkNodeTests
 public class HyperlinkWidgetTests
 {
     [Fact]
-    public void Constructor_SetsTextAndUri()
+    public async Task Constructor_SetsTextAndUri()
     {
         var widget = new HyperlinkWidget("Click me", "https://example.com");
         
@@ -221,7 +229,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void WithParameters_SetsParameters()
+    public async Task WithParameters_SetsParameters()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .WithParameters("id=test");
@@ -230,7 +238,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void WithId_SetsIdParameter()
+    public async Task WithId_SetsIdParameter()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .WithId("unique123");
@@ -239,7 +247,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void OnClick_SetsClickHandler()
+    public async Task OnClick_SetsClickHandler()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .OnClick(_ => { });
@@ -248,7 +256,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void OnClick_Async_SetsClickHandler()
+    public async Task OnClick_Async_SetsClickHandler()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .OnClick(async _ => { await Task.Delay(1); });
@@ -257,7 +265,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void Reconcile_CreatesNewNode()
+    public async Task Reconcile_CreatesNewNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
         var context = ReconcileContext.CreateRoot();
@@ -271,7 +279,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void Reconcile_ReusesExistingNode()
+    public async Task Reconcile_ReusesExistingNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
         var existingNode = new HyperlinkNode();
@@ -283,7 +291,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void Reconcile_UpdatesNodeProperties()
+    public async Task Reconcile_UpdatesNodeProperties()
     {
         var widget = new HyperlinkWidget("New Text", "https://new.com")
             .WithParameters("id=new");
@@ -304,7 +312,7 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public void GetExpectedNodeType_ReturnsHyperlinkNode()
+    public async Task GetExpectedNodeType_ReturnsHyperlinkNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
         
@@ -318,7 +326,7 @@ public class HyperlinkIntegrationTests
     public async Task Integration_Hyperlink_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -338,6 +346,10 @@ public class HyperlinkIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("GitHub"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("GitHub"));
     }
 
@@ -345,7 +357,7 @@ public class HyperlinkIntegrationTests
     public async Task Integration_Hyperlink_Enter_TriggersAction()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clicked = false;
         var clickedUri = "";
 
@@ -379,7 +391,7 @@ public class HyperlinkIntegrationTests
     public async Task Integration_MultipleHyperlinks_TabNavigates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var link1Clicked = false;
         var link2Clicked = false;
 
@@ -413,7 +425,7 @@ public class HyperlinkIntegrationTests
     public async Task Integration_HyperlinkWithButton_TabBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var linkClicked = false;
         var buttonClicked = false;
 

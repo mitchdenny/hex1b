@@ -698,7 +698,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
         
         using var workload = new Hex1bAppWorkloadAdapter();
         
-        using var terminal = new Hex1bTerminal(workload, terminalWidth, terminalHeight);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(terminalWidth, terminalHeight).Build();
         
         // State that toggles between a large widget and a small widget
         var showLarge = true;

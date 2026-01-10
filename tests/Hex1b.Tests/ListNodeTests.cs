@@ -27,7 +27,7 @@ public class ListNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize()
+    public async Task Measure_ReturnsCorrectSize()
     {
         var node = new ListNode 
         { 
@@ -42,7 +42,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyList_HasMinHeight()
+    public async Task Measure_EmptyList_HasMinHeight()
     {
         var node = new ListNode { Items = [] };
         
@@ -52,7 +52,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Measure_SingleItem_IncludesIndicator()
+    public async Task Measure_SingleItem_IncludesIndicator()
     {
         var node = new ListNode { Items = CreateItems("Hello") };
         
@@ -63,7 +63,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxWidth()
+    public async Task Measure_RespectsMaxWidth()
     {
         var node = new ListNode { Items = CreateItems("Very Long Item Name") };
         
@@ -73,7 +73,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxHeight()
+    public async Task Measure_RespectsMaxHeight()
     {
         var node = new ListNode 
         { 
@@ -90,7 +90,7 @@ public class ListNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new ListNode { Items = CreateItems("Test") };
         var bounds = new Rect(0, 0, 40, 10);
@@ -101,7 +101,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Arrange_WithOffset_SetsBoundsWithOffset()
+    public async Task Arrange_WithOffset_SetsBoundsWithOffset()
     {
         var node = new ListNode { Items = CreateItems("Test") };
         var bounds = new Rect(5, 3, 30, 8);
@@ -117,11 +117,11 @@ public class ListNodeTests
     #region Rendering - Basic Tests
 
     [Fact]
-    public void Render_ShowsAllItems()
+    public async Task Render_ShowsAllItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode 
         { 
@@ -130,40 +130,68 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
     }
 
     [Fact]
-    public void Render_EmptyList_RendersNothing()
+    public async Task Render_EmptyList_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = [] };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should not crash and output should be minimal
         Assert.False(terminal.CreateSnapshot().ContainsText("Item"));
     }
 
     [Fact]
-    public void Render_SingleItem_ShowsItem()
+    public async Task Render_SingleItem_ShowsItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Only Item") };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Only Item"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Only Item"));
     }
 
@@ -172,68 +200,116 @@ public class ListNodeTests
     #region Rendering - Selection Indicator Tests
 
     [Fact]
-    public void Render_SelectedItem_HasSelectedIndicator()
+    public async Task Render_SelectedItem_HasSelectedIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Default selected indicator is "> "
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Item 1"));
     }
 
     [Fact]
-    public void Render_UnselectedItems_HaveUnselectedIndicator()
+    public async Task Render_UnselectedItems_HaveUnselectedIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Default unselected indicator is "  " (two spaces)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  Item 2"));
     }
 
     [Fact]
-    public void Render_MiddleItemSelected_ShowsCorrectIndicators()
+    public async Task Render_MiddleItemSelected_ShowsCorrectIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 1, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Second"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  Third"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  Third"));
     }
 
     [Fact]
-    public void Render_LastItemSelected_ShowsCorrectIndicators()
+    public async Task Render_LastItemSelected_ShowsCorrectIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 2, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  Second"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  Second"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Third"));
     }
 
@@ -242,34 +318,46 @@ public class ListNodeTests
     #region Rendering - Focus State Tests
 
     [Fact]
-    public void Render_FocusedAndSelected_HasColorCodes()
+    public async Task Render_FocusedAndSelected_HasColorCodes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // The output should contain colors for the focused+selected item
         Assert.True(terminal.CreateSnapshot().HasForegroundColor() || terminal.CreateSnapshot().HasBackgroundColor() || terminal.CreateSnapshot().HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
-    public void Render_NotFocused_SelectedItemHasIndicatorOnly()
+    public async Task Render_NotFocused_SelectedItemHasIndicatorOnly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Still shows indicator but without selection colors
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Item 1"));
     }
 
@@ -278,27 +366,35 @@ public class ListNodeTests
     #region Rendering - Position Tests
 
     [Fact]
-    public void Render_WithOffset_RendersAtCorrectPosition()
+    public async Task Render_WithOffset_RendersAtCorrectPosition()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Test Item"), SelectedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(5, 3, 20, 5));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Check that content is rendered - the terminal places it at the right position internally
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test Item"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Test Item"));
     }
 
     [Fact]
-    public void Render_MultipleItems_RendersAllItems()
+    public async Task Render_MultipleItems_RendersAllItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ListNode 
         { 
@@ -307,10 +403,26 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // All items should be rendered
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item A"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item A"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item B"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item B"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item C"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item C"));
     }
 
@@ -319,11 +431,11 @@ public class ListNodeTests
     #region Rendering - Theming Tests
 
     [Fact]
-    public void Render_WithCustomTheme_UsesCustomColors()
+    public async Task Render_WithCustomTheme_UsesCustomColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.Yellow)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Red);
@@ -332,6 +444,10 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Yellow foreground
         Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(255, 255, 0)));
@@ -340,11 +456,11 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void Render_WithCustomIndicator_UsesCustomIndicator()
+    public async Task Render_WithCustomIndicator_UsesCustomIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.SelectedIndicator, "► ");
         var context = CreateContext(workload, theme);
@@ -352,16 +468,24 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("► Item 1"));
     }
 
     [Fact]
-    public void Render_WithCustomUnselectedIndicator_UsesCustomIndicator()
+    public async Task Render_WithCustomUnselectedIndicator_UsesCustomIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.UnselectedIndicator, "- ");
         var context = CreateContext(workload, theme);
@@ -369,23 +493,39 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("- Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("- Item 2"));
     }
 
     [Fact]
-    public void Render_RetroTheme_UsesTriangleIndicator()
+    public async Task Render_RetroTheme_UsesTriangleIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload, Hex1bThemes.HighContrast);
         var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // HighContrast theme uses "► " indicator
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("► Item 1"));
     }
 
@@ -394,11 +534,11 @@ public class ListNodeTests
     #region Rendering - Narrow Terminal Tests
 
     [Fact]
-    public void Render_NarrowTerminal_TruncatesItems()
+    public async Task Render_NarrowTerminal_TruncatesItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var context = CreateContext(workload);
         var node = new ListNode 
         { 
@@ -408,24 +548,40 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Content is rendered, at least the beginning of the text should be visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Very"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Very"));
     }
 
     [Fact]
-    public void Render_MinimalWidth_StillRendersIndicator()
+    public async Task Render_MinimalWidth_StillRendersIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 5, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(5, 5).Build();
         var context = CreateContext(workload);
         var node = new ListNode { Items = CreateItems("Test"), SelectedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 5, 5));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should still render the indicator
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText(">"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText(">"));
     }
 
@@ -638,7 +794,7 @@ public class ListNodeTests
     #region Focusability Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ListNode();
         
@@ -646,7 +802,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_ReturnsSelf()
+    public async Task GetFocusableNodes_ReturnsSelf()
     {
         var node = new ListNode { Items = CreateItems("Test") };
         
@@ -665,7 +821,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Option A", "Option B", "Option C");
         
         using var app = new Hex1bApp(
@@ -682,8 +838,20 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Option A"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option B"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Option B"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option C"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Option C"));
     }
 
@@ -692,7 +860,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("First", "Second", "Third");
         
         using var app = new Hex1bApp(
@@ -712,8 +880,20 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Second"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  Third"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("  Third"));
     }
 
@@ -722,7 +902,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Item 1", "Item 2");
         
         using var app = new Hex1bApp(
@@ -742,8 +922,20 @@ public class ListNodeTests
         await runTask;
         
         // Note: Border title may not render in all configurations
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
@@ -752,7 +944,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Item 1", "Item 2", "Item 3");
         
         using var app = new Hex1bApp(
@@ -773,6 +965,10 @@ public class ListNodeTests
         await runTask;
         
         // After down arrow, second item should be selected
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
     }
 
@@ -781,7 +977,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Action 1", "Action 2");
         string? activatedAction = null;
         
@@ -811,7 +1007,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Menu Item");
         
         using var app = new Hex1bApp(
@@ -833,7 +1029,15 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Select an option:"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Menu Item"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Menu Item"));
     }
 
@@ -842,7 +1046,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("Themed Item");
         
         using var app = new Hex1bApp(
@@ -860,6 +1064,10 @@ public class ListNodeTests
         await runTask;
         
         // HighContrast theme uses "► " indicator
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("► Themed Item"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("► Themed Item"));
     }
 
@@ -868,7 +1076,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var items = CreateItems("First", "Second", "Third");
         
         using var app = new Hex1bApp(
@@ -890,6 +1098,10 @@ public class ListNodeTests
         await runTask;
         
         // Third item should be selected
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Third"));
     }
 
@@ -898,7 +1110,7 @@ public class ListNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
         var items = CreateItems("Option A", "Option B");
         
         using var app = new Hex1bApp(
@@ -921,10 +1133,30 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Welcome"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Options"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Options"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Option A"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option B"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Option B"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("OK"));
     }
 
@@ -933,7 +1165,7 @@ public class ListNodeTests
     #region Mouse Click Tests
 
     [Fact]
-    public void HandleMouseClick_SelectsClickedItem()
+    public async Task HandleMouseClick_SelectsClickedItem()
     {
         // Note: Mouse click is synchronous so it cannot fire async events.
         // It only changes the selection.
@@ -953,7 +1185,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_OutOfBounds_ReturnsNotHandled()
+    public async Task HandleMouseClick_OutOfBounds_ReturnsNotHandled()
     {
         var node = new ListNode
         {
@@ -971,7 +1203,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_NegativeY_ReturnsNotHandled()
+    public async Task HandleMouseClick_NegativeY_ReturnsNotHandled()
     {
         var node = new ListNode
         {
@@ -1085,7 +1317,7 @@ public class ListNodeTests
     #region Viewport Scrolling Tests (Height-Constrained Container)
 
     [Fact]
-    public void ConstrainedList_HasCorrectViewportHeight()
+    public async Task ConstrainedList_HasCorrectViewportHeight()
     {
         var node = new ListNode 
         { 
@@ -1102,7 +1334,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_InitialScrollOffsetIsZero()
+    public async Task ConstrainedList_InitialScrollOffsetIsZero()
     {
         var node = new ListNode 
         { 
@@ -1116,7 +1348,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_NavigatingDown_ScrollsToRevealItem()
+    public async Task ConstrainedList_NavigatingDown_ScrollsToRevealItem()
     {
         var node = new ListNode 
         { 
@@ -1139,7 +1371,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_NavigatingUp_ScrollsToRevealItem()
+    public async Task ConstrainedList_NavigatingUp_ScrollsToRevealItem()
     {
         var node = new ListNode 
         { 
@@ -1165,7 +1397,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_NavigatingToEnd_ScrollsMaximally()
+    public async Task ConstrainedList_NavigatingToEnd_ScrollsMaximally()
     {
         var node = new ListNode 
         { 
@@ -1184,10 +1416,10 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_RendersOnlyVisibleItems()
+    public async Task ConstrainedList_RendersOnlyVisibleItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         
         var node = new ListNode 
@@ -1201,6 +1433,14 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 3));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Should show first 3 items
@@ -1214,10 +1454,10 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_AfterScrolling_RendersCorrectItems()
+    public async Task ConstrainedList_AfterScrolling_RendersCorrectItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         
         var node = new ListNode 
@@ -1231,6 +1471,14 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 3));
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Should show items 3, 4, 5 (scroll offset = 2)
@@ -1244,7 +1492,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_MouseClickOnVisibleItem_SelectsCorrectItem()
+    public async Task ConstrainedList_MouseClickOnVisibleItem_SelectsCorrectItem()
     {
         var node = new ListNode 
         { 
@@ -1268,7 +1516,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_WrapAroundNavigation_ScrollsCorrectly()
+    public async Task ConstrainedList_WrapAroundNavigation_ScrollsCorrectly()
     {
         var node = new ListNode 
         { 
@@ -1290,7 +1538,7 @@ public class ListNodeTests
     public async Task Integration_ConstrainedListWithKeyboardNavigation_RevealsItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var items = CreateItems("Apple", "Banana", "Cherry", "Date", "Elderberry");
         
         using var app = new Hex1bApp(
@@ -1315,6 +1563,10 @@ public class ListNodeTests
         await runTask;
         
         // After navigation, Date should be visible and selected
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Date"));
         Assert.True(snapshot.ContainsText("> Date")); // Should be selected
@@ -1324,7 +1576,7 @@ public class ListNodeTests
     public async Task Integration_ConstrainedListWithMouseWheel_NavigatesCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var items = CreateItems("Apple", "Banana", "Cherry", "Date", "Elderberry");
         
         using var app = new Hex1bApp(
@@ -1350,12 +1602,16 @@ public class ListNodeTests
         await runTask;
         
         // After scrolling, Date should be selected and visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("Date"));
     }
 
     [Fact]
-    public void UnconstrainedList_IsNotScrollable()
+    public async Task UnconstrainedList_IsNotScrollable()
     {
         var node = new ListNode 
         { 
@@ -1371,7 +1627,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ConstrainedList_ScrollOffsetClampsOnItemsChange()
+    public async Task ConstrainedList_ScrollOffsetClampsOnItemsChange()
     {
         var node = new ListNode 
         { 
@@ -1397,7 +1653,7 @@ public class ListNodeTests
     public async Task Integration_LongList_KeyboardNavigationScrollsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
         
         // Create a long list of 20 items
         var items = Enumerable.Range(1, 20).Select(i => $"Item {i:D2}").ToList();
@@ -1425,6 +1681,10 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Item 15 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 15"));
@@ -1439,7 +1699,7 @@ public class ListNodeTests
     public async Task Integration_LongList_MouseWheelScrollsThroughEntireList()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
         
         // Create a long list of 20 items
         var items = Enumerable.Range(1, 20).Select(i => $"Item {i:D2}").ToList();
@@ -1466,6 +1726,10 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Item 20 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 20"));
@@ -1477,7 +1741,7 @@ public class ListNodeTests
     public async Task Integration_MouseClickAfterScrolling_SelectsCorrectItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
         
         // Create a list of 20 items
         var items = Enumerable.Range(1, 20).Select(i => $"Item {i:D2}").ToList();
@@ -1506,6 +1770,10 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         // Should have selected an item in the scrolled region (item 4-6 range visible)
         // The clicked item should now be selected with ">"
@@ -1513,10 +1781,10 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void LongList_RendersOnlyVisibleItems()
+    public async Task LongList_RendersOnlyVisibleItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 20).Build();
         var context = CreateContext(workload);
         
         // Create a list of 50 items (0-indexed: items[0]="Item 00", items[49]="Item 49")
@@ -1537,6 +1805,14 @@ public class ListNodeTests
         Assert.Equal(16, node.ScrollOffset);
         
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Item 25 should be visible and selected
@@ -1548,7 +1824,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void LongList_WrapAroundFromEnd_ScrollsToStart()
+    public async Task LongList_WrapAroundFromEnd_ScrollsToStart()
     {
         // Create a list of 50 items (0-indexed: items[0]="Item 00", items[49]="Item 49")
         var items = Enumerable.Range(0, 50).Select(i => $"Item {i:D2}").ToList();
@@ -1577,7 +1853,7 @@ public class ListNodeTests
     #region Splitter Resize Tests (List with dynamic container height)
 
     [Fact]
-    public void ListInVerticalSplitter_LastItemSelected_SplitterShrinks_SelectionStaysVisible()
+    public async Task ListInVerticalSplitter_LastItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1626,7 +1902,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListInVerticalSplitter_FirstItemSelected_SplitterShrinks_SelectionStaysVisible()
+    public async Task ListInVerticalSplitter_FirstItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1665,7 +1941,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListInVerticalSplitter_MiddleItemSelected_SplitterShrinks_SelectionStaysVisible()
+    public async Task ListInVerticalSplitter_MiddleItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1708,7 +1984,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListInVerticalSplitter_SelectionNearEnd_SplitterGrows_MoreItemsVisible()
+    public async Task ListInVerticalSplitter_SelectionNearEnd_SplitterGrows_MoreItemsVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1755,7 +2031,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListBelowVerticalSplitter_LastItemSelected_SplitterMovesDown_SelectionStaysVisible()
+    public async Task ListBelowVerticalSplitter_LastItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1797,7 +2073,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListBelowVerticalSplitter_FirstItemSelected_SplitterMovesDown_SelectionStaysVisible()
+    public async Task ListBelowVerticalSplitter_FirstItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();
@@ -1836,7 +2112,7 @@ public class ListNodeTests
     }
 
     [Fact]
-    public void ListBelowVerticalSplitter_MiddleItemSelected_SplitterMovesDown_SelectionStaysVisible()
+    public async Task ListBelowVerticalSplitter_MiddleItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
         var items = Enumerable.Range(0, 30).Select(i => $"Item {i:D2}").ToList();

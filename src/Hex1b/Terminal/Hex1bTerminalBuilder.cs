@@ -31,15 +31,15 @@ namespace Hex1b.Terminal;
 public sealed class Hex1bTerminalBuilder
 {
     private IHex1bTerminalWorkloadAdapter? _workloadAdapter;
-    private IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext>? _workloadFactory;
     private readonly List<IHex1bTerminalWorkloadFilter> _workloadFilters = [];
     private readonly List<IHex1bTerminalPresentationFilter> _presentationFilters = [];
+    private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory = 
+        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse);
     private int _width = 80;
     private int _height = 24;
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
-    private bool _presentationExplicitlyConfigured;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -732,8 +732,8 @@ public sealed class Hex1bTerminalBuilder
     /// <returns>This builder for chaining.</returns>
     public Hex1bTerminalBuilder WithPresentation(IHex1bTerminalPresentationAdapter adapter)
     {
-        _presentationAdapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
-        _presentationExplicitlyConfigured = true;
+        ArgumentNullException.ThrowIfNull(adapter);
+        _presentationFactory = _ => adapter;
         return this;
     }
 
@@ -776,14 +776,35 @@ public sealed class Hex1bTerminalBuilder
     /// </summary>
     /// <returns>This builder for chaining.</returns>
     /// <remarks>
-    /// When running headless, the terminal will use an in-memory buffer for output
-    /// and can be controlled via the <see cref="Automation.Hex1bTerminalInputSequenceBuilder"/>.
-    /// Use <see cref="WithDimensions"/> to set the terminal size.
+    /// When running headless, the terminal will use a <see cref="HeadlessPresentationAdapter"/>
+    /// that discards output and provides no input. Use <see cref="WithDimensions"/> to set
+    /// the terminal size. The terminal can still be controlled via the
+    /// <see cref="Automation.Hex1bTerminalInputSequenceBuilder"/> for testing.
     /// </remarks>
     public Hex1bTerminalBuilder WithHeadless()
     {
-        _presentationAdapter = null;
-        _presentationExplicitlyConfigured = true;
+        _presentationFactory = builder =>
+        {
+            // Use workload capabilities if available, otherwise use Minimal
+            var capabilities = (builder._workloadAdapter as IHex1bAppTerminalWorkloadAdapter)?.Capabilities;
+            return new HeadlessPresentationAdapter(builder._width, builder._height, capabilities);
+        };
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to use a headless presentation adapter with specific capabilities.
+    /// </summary>
+    /// <param name="capabilities">Terminal capabilities to use.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// Use this overload when you need to test with specific terminal capabilities
+    /// (e.g., Sixel support, specific cell dimensions).
+    /// </remarks>
+    public Hex1bTerminalBuilder WithHeadless(TerminalCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        _presentationFactory = builder => new HeadlessPresentationAdapter(builder._width, builder._height, capabilities);
         return this;
     }
 
@@ -809,13 +830,8 @@ public sealed class Hex1bTerminalBuilder
     /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
     public Hex1bTerminal Build()
     {
-        // Default to console presentation when using a factory workload (e.g., WithHex1bApp)
-        // and no presentation was explicitly configured
-        IHex1bTerminalPresentationAdapter? presentation = _presentationAdapter;
-        if (_workloadFactory != null && !_presentationExplicitlyConfigured)
-        {
-            presentation = new ConsolePresentationAdapter(enableMouse: _enableMouse);
-        }
+        // Create presentation adapter via factory
+        var presentation = _presentationFactory(this);
 
         // Resolve workload
         Func<CancellationToken, Task<int>>? runCallback = null;
@@ -839,16 +855,28 @@ public sealed class Hex1bTerminalBuilder
                 "No workload configured. Call WithWorkload(), WithHex1bApp(), WithShellProcess(), or WithProcess() before Build().");
         }
 
-        // Build terminal
-        return new Hex1bTerminal(
-            presentation: presentation,
-            workload: workload,
-            width: _width,
-            height: _height,
-            workloadFilters: _workloadFilters,
-            presentationFilters: _presentationFilters,
-            timeProvider: _timeProvider,
-            runCallback: runCallback);
+        // Build terminal using options
+        var options = new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = _width,
+            Height = _height,
+            TimeProvider = _timeProvider ?? TimeProvider.System,
+            RunCallback = runCallback
+        };
+        
+        foreach (var filter in _workloadFilters)
+        {
+            options.WorkloadFilters.Add(filter);
+        }
+        
+        foreach (var filter in _presentationFilters)
+        {
+            options.PresentationFilters.Add(filter);
+        }
+
+        return new Hex1bTerminal(options);
     }
 
     /// <summary>

@@ -47,7 +47,10 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Act - simulate some output
         workload.Write("Hello, World!");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
 
@@ -177,7 +180,7 @@ public class AsciinemaRecorderTests : IDisposable
     }
 
     [Fact]
-    public void AddMarker_AddsMarkerEvent()
+    public async Task AddMarker_AddsMarkerEvent()
     {
         // Arrange
         var tempFile = GetTempFile();
@@ -333,7 +336,10 @@ public class AsciinemaRecorderTests : IDisposable
         using var terminal = new Hex1bTerminal(options);
 
         workload.Write("Hello!");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -363,7 +369,10 @@ public class AsciinemaRecorderTests : IDisposable
         using var terminal = new Hex1bTerminal(options);
 
         workload.Write("\x1b[1;32mGreen bold text\x1b[0m");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Act - should not throw and should create file
         await TestCaptureHelper.CaptureCastAsync(recorder, "demo", TestContext.Current.CancellationToken);
@@ -601,7 +610,7 @@ public class AsciinemaRecorderTests : IDisposable
         public int SelectedIndex { get; set; }
         public string NewItemText { get; set; } = "";
 
-        public void AddItem()
+        public async Task AddItem()
         {
             if (!string.IsNullOrWhiteSpace(NewItemText))
             {
@@ -610,7 +619,7 @@ public class AsciinemaRecorderTests : IDisposable
             }
         }
 
-        public void ToggleSelected()
+        public async Task ToggleSelected()
         {
             if (SelectedIndex >= 0 && SelectedIndex < Items.Count)
             {

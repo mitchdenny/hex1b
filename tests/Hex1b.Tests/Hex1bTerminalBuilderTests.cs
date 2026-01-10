@@ -13,7 +13,7 @@ namespace Hex1b.Tests;
 public class Hex1bTerminalBuilderTests
 {
     [Fact]
-    public void CreateBuilder_ReturnsNewBuilderInstance()
+    public async Task CreateBuilder_ReturnsNewBuilderInstance()
     {
         var builder = Hex1bTerminal.CreateBuilder();
         
@@ -22,20 +22,21 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void Build_WithWorkloadAdapter_CreatesTerminal()
+    public async Task Build_WithWorkloadAdapter_CreatesTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .WithDimensions(80, 24)
+            .WithHeadless()
             .Build();
         
         Assert.NotNull(terminal);
     }
 
     [Fact]
-    public void Build_WithoutWorkload_ThrowsInvalidOperationException()
+    public async Task Build_WithoutWorkload_ThrowsInvalidOperationException()
     {
         var builder = Hex1bTerminal.CreateBuilder();
         
@@ -44,7 +45,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHeadless_ReturnsBuilder()
+    public async Task WithHeadless_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithHeadless();
         
@@ -52,7 +53,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHeadless_CreatesWorkingTerminal()
+    public async Task WithHeadless_CreatesWorkingTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         
@@ -68,13 +69,14 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithDimensions_SetsTerminalSize()
+    public async Task WithDimensions_SetsTerminalSize()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .WithDimensions(100, 50)
+            .WithHeadless()
             .Build();
         
         var snapshot = terminal.CreateSnapshot();
@@ -83,42 +85,42 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithDimensions_InvalidWidth_ThrowsArgumentOutOfRangeException()
+    public async Task WithDimensions_InvalidWidth_ThrowsArgumentOutOfRangeException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithDimensions(0, 24));
     }
 
     [Fact]
-    public void WithDimensions_InvalidHeight_ThrowsArgumentOutOfRangeException()
+    public async Task WithDimensions_InvalidHeight_ThrowsArgumentOutOfRangeException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithDimensions(80, 0));
     }
 
     [Fact]
-    public void WithWorkload_NullAdapter_ThrowsArgumentNullException()
+    public async Task WithWorkload_NullAdapter_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithWorkload(null!));
     }
 
     [Fact]
-    public void AddWorkloadFilter_NullFilter_ThrowsArgumentNullException()
+    public async Task AddWorkloadFilter_NullFilter_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().AddWorkloadFilter(null!));
     }
 
     [Fact]
-    public void AddPresentationFilter_NullFilter_ThrowsArgumentNullException()
+    public async Task AddPresentationFilter_NullFilter_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().AddPresentationFilter(null!));
     }
 
     [Fact]
-    public void AddWorkloadFilter_AddsFilterToTerminal()
+    public async Task AddWorkloadFilter_AddsFilterToTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         var filter = new TestWorkloadFilter();
@@ -126,6 +128,7 @@ public class Hex1bTerminalBuilderTests
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .AddWorkloadFilter(filter)
+            .WithHeadless()
             .Build();
         
         // Filter should have been notified of session start
@@ -207,7 +210,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void FluentApi_AllMethodsReturnBuilder()
+    public async Task FluentApi_AllMethodsReturnBuilder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         var filter = new TestWorkloadFilter();
@@ -226,7 +229,7 @@ public class Hex1bTerminalBuilderTests
     // === WithHex1bApp Tests ===
 
     [Fact]
-    public void WithHex1bApp_NullBuilder_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_NullBuilder_ThrowsArgumentNullException()
     {
         Func<RootContext, Hex1bWidget>? nullBuilder = null;
         
@@ -235,7 +238,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHex1bApp_NullAsyncBuilder_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_NullAsyncBuilder_ThrowsArgumentNullException()
     {
         Func<RootContext, Task<Hex1bWidget>>? nullBuilder = null;
         
@@ -244,7 +247,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHex1bApp_ReturnsBuilder()
+    public async Task WithHex1bApp_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp(ctx => ctx.Text("Hello"));
@@ -253,7 +256,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHex1bApp_CanBuild()
+    public async Task WithHex1bApp_CanBuild()
     {
         // Should not throw - uses explicit presentation
         var builder = Hex1bTerminal.CreateBuilder()
@@ -308,7 +311,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithMouse_ReturnsBuilder()
+    public async Task WithMouse_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithMouse(true);
@@ -337,7 +340,7 @@ public class Hex1bTerminalBuilderTests
     // === WithHex1bApp Capture Pattern Tests ===
 
     [Fact]
-    public void WithHex1bApp_CapturePattern_NullConfigure_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_CapturePattern_NullConfigure_ThrowsArgumentNullException()
     {
         Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>>? nullConfigure = null;
         
@@ -346,7 +349,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHex1bApp_CapturePattern_AsyncNullConfigure_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_CapturePattern_AsyncNullConfigure_ThrowsArgumentNullException()
     {
         Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>>? nullConfigure = null;
         
@@ -355,7 +358,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithHex1bApp_CapturePattern_ReturnsBuilder()
+    public async Task WithHex1bApp_CapturePattern_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"));
@@ -455,7 +458,7 @@ public class Hex1bTerminalBuilderTests
     // === WithPtyShell and WithPtyProcess Tests ===
 
     [Fact]
-    public void WithPtyShell_ReturnsBuilder()
+    public async Task WithPtyShell_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithPtyShell("dotnet");
         
@@ -463,7 +466,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyShell_NullShell_UsesDefaultShell()
+    public async Task WithPtyShell_NullShell_UsesDefaultShell()
     {
         // Should not throw when shell is null (uses default shell)
         var builder = Hex1bTerminal.CreateBuilder().WithPtyShell();
@@ -472,7 +475,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyProcess_ReturnsBuilder()
+    public async Task WithPtyProcess_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithPtyProcess("dotnet", "--version");
         
@@ -480,14 +483,14 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyProcess_NullFileName_ThrowsArgumentNullException()
+    public async Task WithPtyProcess_NullFileName_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithPtyProcess((string)null!));
     }
 
     [Fact]
-    public void WithPtyProcess_OptionsOverload_ReturnsBuilder()
+    public async Task WithPtyProcess_OptionsOverload_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithPtyProcess(options =>
@@ -500,14 +503,14 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyProcess_Options_NullConfigure_ThrowsArgumentNullException()
+    public async Task WithPtyProcess_Options_NullConfigure_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithPtyProcess((Action<Hex1bTerminalProcessOptions>)null!));
     }
 
     [Fact]
-    public void WithPtyProcess_Options_EmptyFileName_ThrowsInvalidOperationException()
+    public async Task WithPtyProcess_Options_EmptyFileName_ThrowsInvalidOperationException()
     {
         var ex = Assert.Throws<InvalidOperationException>(() =>
             Hex1bTerminal.CreateBuilder()
@@ -518,7 +521,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyProcess_Options_CanSetEnvironment()
+    public async Task WithPtyProcess_Options_CanSetEnvironment()
     {
         // Should not throw when setting environment variables
         var builder = Hex1bTerminal.CreateBuilder()
@@ -535,7 +538,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithPtyProcess_Options_CanSetWorkingDirectory()
+    public async Task WithPtyProcess_Options_CanSetWorkingDirectory()
     {
         // Should not throw when setting working directory
         var builder = Hex1bTerminal.CreateBuilder()
@@ -622,7 +625,7 @@ public class Hex1bTerminalBuilderTests
     // === WithProcess (Standard .NET Process) Tests ===
 
     [Fact]
-    public void WithProcess_ReturnsBuilder()
+    public async Task WithProcess_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithProcess("dotnet", "--version");
         
@@ -630,7 +633,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithProcess_NullFileName_ThrowsArgumentNullException()
+    public async Task WithProcess_NullFileName_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithProcess((string)null!));
@@ -668,7 +671,7 @@ public class Hex1bTerminalBuilderTests
     // === WithProcess(ProcessStartInfo) Tests ===
 
     [Fact]
-    public void WithProcess_ProcessStartInfo_ReturnsBuilder()
+    public async Task WithProcess_ProcessStartInfo_ReturnsBuilder()
     {
         var startInfo = new ProcessStartInfo("dotnet", "--version");
         var builder = Hex1bTerminal.CreateBuilder()
@@ -678,7 +681,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithProcess_ProcessStartInfo_NullThrows()
+    public async Task WithProcess_ProcessStartInfo_NullThrows()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder()
@@ -1007,7 +1010,7 @@ public class Hex1bTerminalBuilderTests
     // === Recording and Optimization Tests ===
 
     [Fact]
-    public void WithAsciinemaRecording_ReturnsBuilder()
+    public async Task WithAsciinemaRecording_ReturnsBuilder()
     {
         var tempFile = Path.GetTempFileName();
         try
@@ -1025,21 +1028,21 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithAsciinemaRecording_NullPath_ThrowsArgumentNullException()
+    public async Task WithAsciinemaRecording_NullPath_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(null!));
     }
 
     [Fact]
-    public void WithAsciinemaRecording_EmptyPath_ThrowsArgumentException()
+    public async Task WithAsciinemaRecording_EmptyPath_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(""));
     }
 
     [Fact]
-    public void WithAsciinemaRecording_WithCapture_ReturnsBuilder()
+    public async Task WithAsciinemaRecording_WithCapture_ReturnsBuilder()
     {
         var tempFile = Path.GetTempFileName();
         try
@@ -1059,7 +1062,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithAsciinemaRecording_WithCapture_NullCapture_ThrowsArgumentNullException()
+    public async Task WithAsciinemaRecording_WithCapture_NullCapture_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording("test.cast", (Action<AsciinemaRecorder>)null!));
@@ -1112,7 +1115,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithRenderOptimization_ReturnsBuilder()
+    public async Task WithRenderOptimization_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp(ctx => ctx.Text("Hello"))
@@ -1122,7 +1125,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithRenderOptimization_WithCapture_ReturnsBuilder()
+    public async Task WithRenderOptimization_WithCapture_ReturnsBuilder()
     {
         Hex1bAppRenderOptimizationFilter? capturedFilter = null;
         var result = Hex1bTerminal.CreateBuilder()
@@ -1134,7 +1137,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public void WithRenderOptimization_WithCapture_NullCapture_ThrowsArgumentNullException()
+    public async Task WithRenderOptimization_WithCapture_NullCapture_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithRenderOptimization(null!));

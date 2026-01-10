@@ -21,7 +21,7 @@ public class SplitterNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize()
+    public async Task Measure_ReturnsCorrectSize()
     {
         var left = new TextBlockNode { Text = "Left Pane" };
         var right = new TextBlockNode { Text = "Right Pane" };
@@ -34,7 +34,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_WithNoChildren_ReturnsMinimalSize()
+    public async Task Measure_WithNoChildren_ReturnsMinimalSize()
     {
         var node = new SplitterNode { Left = null, Right = null, LeftWidth = 20 };
 
@@ -45,7 +45,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsConstraints()
+    public async Task Measure_RespectsConstraints()
     {
         var left = new TextBlockNode { Text = "Very long left content" };
         var right = new TextBlockNode { Text = "Very long right content" };
@@ -58,7 +58,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_HeightIsMaxOfBothPanes()
+    public async Task Measure_HeightIsMaxOfBothPanes()
     {
         var left = new VStackNode
         {
@@ -81,7 +81,7 @@ public class SplitterNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_LeftPaneGetsLeftWidth()
+    public async Task Arrange_LeftPaneGetsLeftWidth()
     {
         var left = new TextBlockNode { Text = "Left" };
         var right = new TextBlockNode { Text = "Right" };
@@ -95,7 +95,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_RightPaneGetsRemainingWidth()
+    public async Task Arrange_RightPaneGetsRemainingWidth()
     {
         var left = new TextBlockNode { Text = "Left" };
         var right = new TextBlockNode { Text = "Right" };
@@ -111,7 +111,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_WithOffset_PositionsCorrectly()
+    public async Task Arrange_WithOffset_PositionsCorrectly()
     {
         var left = new TextBlockNode { Text = "Left" };
         var right = new TextBlockNode { Text = "Right" };
@@ -127,7 +127,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_BothPanesGetFullHeight()
+    public async Task Arrange_BothPanesGetFullHeight()
     {
         var left = new TextBlockNode { Text = "Left" };
         var right = new TextBlockNode { Text = "Right" };
@@ -145,11 +145,11 @@ public class SplitterNodeTests
     #region Rendering - Divider Tests
 
     [Fact]
-    public void Render_ShowsDivider()
+    public async Task Render_ShowsDivider()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -161,17 +161,25 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Default divider character is "│"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("│"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("│"));
     }
 
     [Fact]
-    public void Render_ShowsLeftContent()
+    public async Task Render_ShowsLeftContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -183,16 +191,24 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Pane Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Pane Content"));
     }
 
     [Fact]
-    public void Render_ShowsRightContent()
+    public async Task Render_ShowsRightContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -204,16 +220,24 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Pane Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Pane Content"));
     }
 
     [Fact]
-    public void Render_DividerSpansFullHeight()
+    public async Task Render_DividerSpansFullHeight()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 5).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -225,9 +249,17 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 5));
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Count occurrences of divider chars in screen text - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (← and →) at midpoint
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
         var dividerCount = screenText.Split("│").Length - 1;
@@ -241,11 +273,11 @@ public class SplitterNodeTests
     #region Rendering - Theming Tests
 
     [Fact]
-    public void Render_WithCustomDividerColor_AppliesColor()
+    public async Task Render_WithCustomDividerColor_AppliesColor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerColor, Hex1bColor.Cyan);
         var context = CreateContext(workload, theme);
@@ -259,17 +291,21 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Cyan is RGB(0, 255, 255)
         Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)));
     }
 
     [Fact]
-    public void Render_WithCustomDividerCharacter_UsesCustomCharacter()
+    public async Task Render_WithCustomDividerCharacter_UsesCustomCharacter()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(SplitterTheme.DividerCharacter, "║");
         var context = CreateContext(workload, theme);
@@ -283,16 +319,24 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("║"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("║"));
     }
 
     [Fact]
-    public void Render_WhenFocused_InvertsDividerColors()
+    public async Task Render_WhenFocused_InvertsDividerColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -305,6 +349,10 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // When focused, should have background color on divider
         Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
@@ -315,7 +363,7 @@ public class SplitterNodeTests
     #region Focus Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new SplitterNode();
 
@@ -323,7 +371,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesSelf()
+    public async Task GetFocusableNodes_IncludesSelf()
     {
         var node = new SplitterNode
         {
@@ -337,7 +385,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesLeftPaneFocusables()
+    public async Task GetFocusableNodes_IncludesLeftPaneFocusables()
     {
         var button = new ButtonNode { Label = "Click" };
         var node = new SplitterNode
@@ -352,7 +400,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesRightPaneFocusables()
+    public async Task GetFocusableNodes_IncludesRightPaneFocusables()
     {
         var textBox = new TextBoxNode { State = new TextBoxState() };
         var node = new SplitterNode
@@ -367,7 +415,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_OrdersLeftThenSplitterThenRight()
+    public async Task GetFocusableNodes_OrdersLeftThenSplitterThenRight()
     {
         var leftButton = new ButtonNode { Label = "Left" };
         var rightButton = new ButtonNode { Label = "Right" };
@@ -386,7 +434,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void SetInitialFocus_FocusesFirstFocusable()
+    public async Task SetInitialFocus_FocusesFirstFocusable()
     {
         var leftButton = new ButtonNode { Label = "Left" };
         var rightButton = new ButtonNode { Label = "Right" };
@@ -668,7 +716,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -690,8 +738,20 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("│"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("│"));
     }
 
@@ -700,7 +760,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -722,9 +782,25 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right 2"));
     }
 
@@ -733,7 +809,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         var leftClicked = false;
 
         using var app = new Hex1bApp(
@@ -766,7 +842,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         var rightClicked = false;
 
         using var app = new Hex1bApp(
@@ -799,7 +875,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -827,6 +903,10 @@ public class SplitterNodeTests
         // So arrow keys should have resized it
         // We can't easily verify the exact size without inspecting the node
         // But we can verify the app ran without error
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
     }
 
@@ -835,7 +915,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
@@ -862,6 +942,10 @@ public class SplitterNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
     }
 
@@ -870,7 +954,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         var text = "";
 
         using var app = new Hex1bApp(
@@ -903,7 +987,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 70, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(70, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -928,9 +1012,25 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Split View"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Split View"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
@@ -939,7 +1039,7 @@ public class SplitterNodeTests
     #region Vertical Splitter - Measurement Tests
 
     [Fact]
-    public void Measure_Vertical_ReturnsCorrectSize()
+    public async Task Measure_Vertical_ReturnsCorrectSize()
     {
         var top = new TextBlockNode { Text = "Top Pane" };
         var bottom = new TextBlockNode { Text = "Bottom Pane" };
@@ -960,7 +1060,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_WithNoChildren_ReturnsMinimalSize()
+    public async Task Measure_Vertical_WithNoChildren_ReturnsMinimalSize()
     {
         var node = new SplitterNode 
         { 
@@ -977,7 +1077,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_RespectsConstraints()
+    public async Task Measure_Vertical_RespectsConstraints()
     {
         var top = new TextBlockNode { Text = "Top" };
         var bottom = new TextBlockNode { Text = "Bottom" };
@@ -995,7 +1095,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_WidthIsMaxOfBothPanes()
+    public async Task Measure_Vertical_WidthIsMaxOfBothPanes()
     {
         var top = new HStackNode
         {
@@ -1025,7 +1125,7 @@ public class SplitterNodeTests
     #region Vertical Splitter - Arrange Tests
 
     [Fact]
-    public void Arrange_Vertical_FirstPaneGetsFirstSizeHeight()
+    public async Task Arrange_Vertical_FirstPaneGetsFirstSizeHeight()
     {
         var top = new TextBlockNode { Text = "Top" };
         var bottom = new TextBlockNode { Text = "Bottom" };
@@ -1045,7 +1145,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_Vertical_SecondPaneGetsRemainingHeight()
+    public async Task Arrange_Vertical_SecondPaneGetsRemainingHeight()
     {
         var top = new TextBlockNode { Text = "Top" };
         var bottom = new TextBlockNode { Text = "Bottom" };
@@ -1067,7 +1167,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_Vertical_WithOffset_PositionsCorrectly()
+    public async Task Arrange_Vertical_WithOffset_PositionsCorrectly()
     {
         var top = new TextBlockNode { Text = "Top" };
         var bottom = new TextBlockNode { Text = "Bottom" };
@@ -1089,7 +1189,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void Arrange_Vertical_BothPanesGetFullWidth()
+    public async Task Arrange_Vertical_BothPanesGetFullWidth()
     {
         var top = new TextBlockNode { Text = "Top" };
         var bottom = new TextBlockNode { Text = "Bottom" };
@@ -1113,11 +1213,11 @@ public class SplitterNodeTests
     #region Vertical Splitter - Rendering Tests
 
     [Fact]
-    public void Render_Vertical_ShowsHorizontalDivider()
+    public async Task Render_Vertical_ShowsHorizontalDivider()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -1130,17 +1230,25 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Default horizontal divider character is "─"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("─"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("─"));
     }
 
     [Fact]
-    public void Render_Vertical_ShowsTopContent()
+    public async Task Render_Vertical_ShowsTopContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -1153,16 +1261,24 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top Content"));
     }
 
     [Fact]
-    public void Render_Vertical_ShowsBottomContent()
+    public async Task Render_Vertical_ShowsBottomContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -1175,16 +1291,24 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Content"));
     }
 
     [Fact]
-    public void Render_Vertical_WhenFocused_InvertsDividerColors()
+    public async Task Render_Vertical_WhenFocused_InvertsDividerColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var context = CreateContext(workload);
         var node = new SplitterNode
         {
@@ -1198,6 +1322,10 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // When focused, should have background color on divider
         Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
@@ -1344,7 +1472,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1366,8 +1494,20 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("─"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("─")); // Horizontal divider
     }
 
@@ -1376,7 +1516,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1398,9 +1538,25 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom 2"));
     }
 
@@ -1409,7 +1565,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
         var topClicked = false;
 
         using var app = new Hex1bApp(
@@ -1442,7 +1598,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
         var bottomClicked = false;
 
         using var app = new Hex1bApp(
@@ -1475,7 +1631,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1500,7 +1656,15 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
     }
 
@@ -1509,7 +1673,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1534,9 +1698,25 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Vertical Split"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Vertical Split"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
@@ -1545,7 +1725,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 20).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1571,8 +1751,20 @@ public class SplitterNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top-Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top-Left"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top-Right"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top-Right"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom"));
     }
 
@@ -1591,7 +1783,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
         var rightButtonClicked = false;
 
@@ -1631,7 +1823,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         var rightButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1670,7 +1862,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
         var leftButtonClicked = false;
 
         using var app = new Hex1bApp(
@@ -1710,7 +1902,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 70, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(70, 15).Build();
         IReadOnlyList<string> items = ["Theme 1", "Theme 2"];
         var rightButtonClicked = false;
 
@@ -1753,7 +1945,7 @@ public class SplitterNodeTests
     #region Drag Binding Tests
 
     [Fact]
-    public void ConfigureDefaultBindings_IncludesDragBinding()
+    public async Task ConfigureDefaultBindings_IncludesDragBinding()
     {
         var node = new SplitterNode();
         var builder = node.BuildBindings();
@@ -1763,7 +1955,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragBinding_Matches_LeftMouseDown()
+    public async Task DragBinding_Matches_LeftMouseDown()
     {
         var node = new SplitterNode();
         var builder = node.BuildBindings();
@@ -1775,7 +1967,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragBinding_DoesNotMatch_RightMouseDown()
+    public async Task DragBinding_DoesNotMatch_RightMouseDown()
     {
         var node = new SplitterNode();
         var builder = node.BuildBindings();
@@ -1787,7 +1979,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragBinding_DoesNotMatch_MouseMove()
+    public async Task DragBinding_DoesNotMatch_MouseMove()
     {
         var node = new SplitterNode();
         var builder = node.BuildBindings();
@@ -1799,7 +1991,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragHandler_OnMove_Horizontal_UpdatesFirstSize()
+    public async Task DragHandler_OnMove_Horizontal_UpdatesFirstSize()
     {
         var node = new SplitterNode
         {
@@ -1825,7 +2017,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragHandler_OnMove_Horizontal_RespectsMinSize()
+    public async Task DragHandler_OnMove_Horizontal_RespectsMinSize()
     {
         var node = new SplitterNode
         {
@@ -1848,7 +2040,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragHandler_OnMove_Horizontal_RespectsMaxSize()
+    public async Task DragHandler_OnMove_Horizontal_RespectsMaxSize()
     {
         var node = new SplitterNode
         {
@@ -1871,7 +2063,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragHandler_OnMove_Vertical_UpdatesFirstSize()
+    public async Task DragHandler_OnMove_Vertical_UpdatesFirstSize()
     {
         var node = new SplitterNode
         {
@@ -1894,7 +2086,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public void DragHandler_OnMove_CapturesStartSize()
+    public async Task DragHandler_OnMove_CapturesStartSize()
     {
         var node = new SplitterNode
         {
@@ -1931,7 +2123,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 20).Build();
         var outerLeftClicked = false;
         
         // The outer splitter's left pane has a button.
@@ -1976,7 +2168,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 20).Build();
         var outerLeftClicked = false;
         
         using var app = new Hex1bApp(
@@ -2015,7 +2207,7 @@ public class SplitterNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 25);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 25).Build();
         var level1Clicked = false;
         
         using var app = new Hex1bApp(
@@ -2055,7 +2247,7 @@ public class SplitterNodeTests
     /// when they shouldn't. The inner splitter's divider should NOT appear focused.
     /// </summary>
     [Fact]
-    public void DirectReconcile_NestedSplitters_OnlyOuterFirstFocusableIsFocused()
+    public async Task DirectReconcile_NestedSplitters_OnlyOuterFirstFocusableIsFocused()
     {
         // Build widgets manually - outer splitter with inner splitter in second pane
         var innerButton = new ButtonWidget("Inner Left").OnClick(_ => Task.CompletedTask);
@@ -2106,7 +2298,7 @@ public class SplitterNodeTests
     /// This was the original bug: both splitter dividers would render as focused.
     /// </summary>
     [Fact]
-    public void DirectReconcile_NestedSplittersNoButtons_OnlyOneSplitterFocused()
+    public async Task DirectReconcile_NestedSplittersNoButtons_OnlyOneSplitterFocused()
     {
         // Build widgets with ONLY text (no buttons) - splitters are the only focusables
         var innerSplitter = new SplitterWidget(
@@ -2164,7 +2356,7 @@ public class SplitterNodeTests
     public async Task Integration_NestedSplitters_ContentDoesNotOverflowIntoBelowPane()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 15).Build();
 
         // Replicate the nested splitters example from docs with content that overflows
         using var app = new Hex1bApp(
@@ -2236,7 +2428,7 @@ public class SplitterNodeTests
     public async Task Integration_HorizontalSplitter_ContentDoesNotOverflowIntoRightPane()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -2284,10 +2476,10 @@ public class SplitterNodeTests
     /// Unit test: Verify that SplitterNode clips child content when rendering.
     /// </summary>
     [Fact]
-    public void Render_Horizontal_ClipsLeftPaneContent()
+    public async Task Render_Horizontal_ClipsLeftPaneContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = CreateContext(workload);
 
         // Create a splitter with a narrow left pane and wide text content
@@ -2308,7 +2500,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(40, 5));
         node.Arrange(new Rect(0, 0, 40, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
 
@@ -2324,10 +2524,10 @@ public class SplitterNodeTests
     /// Unit test: Verify that SplitterNode clips child content in the vertical direction.
     /// </summary>
     [Fact]
-    public void Render_Vertical_ClipsTopPaneContent()
+    public async Task Render_Vertical_ClipsTopPaneContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var context = CreateContext(workload);
 
         // Create a vertical splitter with a short top pane (height 3) and tall content (5 lines)
@@ -2353,7 +2553,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
 
         // Lines 1-3 should be visible
@@ -2383,7 +2591,7 @@ public class SplitterNodeTests
     public async Task Integration_NestedSplitters_ResizingInnerDoesNotCauseOverflow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -2463,7 +2671,7 @@ public class SplitterNodeTests
     public async Task Integration_NestedSplitters_WrappingTextDoesNotOverflowWhenDraggedExtreme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         // Exactly match the SplitterNestedExample from the website
         using var app = new Hex1bApp(

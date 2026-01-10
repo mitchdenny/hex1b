@@ -16,7 +16,7 @@ public class ToggleSwitchNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize_ThreeOptions()
+    public async Task Measure_ReturnsCorrectSize_ThreeOptions()
     {
         var node = new ToggleSwitchNode
         {
@@ -32,7 +32,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyOptions_ReturnsZeroWidth()
+    public async Task Measure_EmptyOptions_ReturnsZeroWidth()
     {
         var node = new ToggleSwitchNode
         {
@@ -46,7 +46,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void Measure_SingleOption_ReturnsCorrectSize()
+    public async Task Measure_SingleOption_ReturnsCorrectSize()
     {
         var node = new ToggleSwitchNode
         {
@@ -61,7 +61,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void Measure_TwoOptions_ReturnsCorrectSize()
+    public async Task Measure_TwoOptions_ReturnsCorrectSize()
     {
         var node = new ToggleSwitchNode
         {
@@ -76,7 +76,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxWidthConstraint()
+    public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new ToggleSwitchNode
         {
@@ -93,11 +93,11 @@ public class ToggleSwitchNodeTests
     #region Rendering Tests
 
     [Fact]
-    public void Render_Unfocused_ShowsOptions()
+    public async Task Render_Unfocused_ShowsOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
@@ -108,6 +108,10 @@ public class ToggleSwitchNodeTests
         node.Arrange(new Rect(0, 0, 40, 1));
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("A") && s.ContainsText("B") && s.ContainsText("C"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("A", line);
@@ -116,11 +120,11 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void Render_Focused_ContainsAnsiCodes()
+    public async Task Render_Focused_ContainsAnsiCodes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
@@ -133,19 +137,23 @@ public class ToggleSwitchNodeTests
         node.Render(context);
 
         // Should contain ANSI escape codes for styling (foreground or background colors)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
-    public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
+    public async Task Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
         using var focusedWorkload = new Hex1bAppWorkloadAdapter();
 
-        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var focusedTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(focusedWorkload).WithHeadless().WithDimensions(40, 5).Build();
         using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
 
-        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        using var unfocusedTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(unfocusedWorkload).WithHeadless().WithDimensions(40, 5).Build();
         var focusedContext = new Hex1bRenderContext(focusedWorkload);
         var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
@@ -165,21 +173,37 @@ public class ToggleSwitchNodeTests
         focusedNode.Render(focusedContext);
         unfocusedNode.Render(unfocusedContext);
 
+        var pattern = new CellPatternSearcher().Find("A");
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(focusedTerminal);
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(unfocusedTerminal);
+
         // Focused toggle should have different styling (colors or attributes)
-        var focusedSnapshot = focusedTerminal.CreateSnapshot();
-        var focusedHasStyling = focusedSnapshot.HasAttribute(CellAttributes.Reverse) ||
-                                focusedSnapshot.HasForegroundColor() ||
-                                focusedSnapshot.HasBackgroundColor();
+        var focusedMatch = focusedTerminal.CreateSnapshot().SearchPattern(pattern).First;
+        Assert.NotNull(focusedMatch);
+        
+        var focusedCells = focusedMatch.Cells;
+        var focusedHasStyling = focusedCells.Any(c => 
+            c.Cell.IsReverse || 
+            c.Cell.Foreground.HasValue || 
+            c.Cell.Background.HasValue);
         
         Assert.True(focusedHasStyling, "Focused toggle should have styling applied");
     }
 
     [Fact]
-    public void Render_EmptyOptions_DoesNotThrow()
+    public async Task Render_EmptyOptions_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ToggleSwitchNode
         {
@@ -330,7 +354,7 @@ public class ToggleSwitchNodeTests
     #region Focus Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ToggleSwitchNode();
 
@@ -342,7 +366,7 @@ public class ToggleSwitchNodeTests
     #region Layout Tests
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new ToggleSwitchNode
         {
@@ -360,7 +384,7 @@ public class ToggleSwitchNodeTests
     #region State Tests
 
     [Fact]
-    public void SelectedOption_ReturnsCorrectValue()
+    public async Task SelectedOption_ReturnsCorrectValue()
     {
         var node = new ToggleSwitchNode
         {
@@ -372,7 +396,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void SelectedOption_EmptyOptions_ReturnsNull()
+    public async Task SelectedOption_EmptyOptions_ReturnsNull()
     {
         var node = new ToggleSwitchNode
         {
@@ -391,7 +415,7 @@ public class ToggleSwitchNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -421,7 +445,7 @@ public class ToggleSwitchNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedOption = "Off";
 
         using var app = new Hex1bApp(
@@ -452,7 +476,7 @@ public class ToggleSwitchNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedOption = "Low";
 
         using var app = new Hex1bApp(
@@ -483,7 +507,7 @@ public class ToggleSwitchNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedOption = "A";
         var buttonClicked = false;
 
@@ -518,7 +542,7 @@ public class ToggleSwitchNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var lastSelectedValue = "";
 
         using var app = new Hex1bApp(
@@ -549,7 +573,7 @@ public class ToggleSwitchNodeTests
     #region Mouse Click Tests
 
     [Fact]
-    public void HandleMouseClick_SelectsClickedOption()
+    public async Task HandleMouseClick_SelectsClickedOption()
     {
         // Format: "[ Manual | Auto | Delayed ]"
         // Positions: 0-1="[ ", 2-7="Manual", 8-10=" | ", 11-14="Auto", 15-17=" | ", 18-24="Delayed", 25-26=" ]"
@@ -569,7 +593,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_FirstOption_SelectsIndex0()
+    public async Task HandleMouseClick_FirstOption_SelectsIndex0()
     {
         var node = new ToggleSwitchNode
         {
@@ -588,7 +612,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_OnBracket_ReturnsNotHandled()
+    public async Task HandleMouseClick_OnBracket_ReturnsNotHandled()
     {
         var node = new ToggleSwitchNode
         {
@@ -605,7 +629,7 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_EmptyOptions_ReturnsNotHandled()
+    public async Task HandleMouseClick_EmptyOptions_ReturnsNotHandled()
     {
         var node = new ToggleSwitchNode
         {

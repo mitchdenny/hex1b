@@ -50,7 +50,7 @@ namespace Hex1b.Terminal;
 /// </example>
 public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 {
-    private readonly IHex1bTerminalPresentationAdapter? _presentation;
+    private readonly IHex1bTerminalPresentationAdapter _presentation;
     private readonly IHex1bTerminalWorkloadAdapter _workload;
     private readonly Func<CancellationToken, Task<int>>? _runCallback;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
@@ -123,67 +123,30 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </example>
     public static Hex1bTerminalBuilder CreateBuilder() => new();
 
-    // === Constructors ===
-
-    /// <summary>
-    /// Creates a new headless terminal for testing with the specified workload adapter and dimensions.
-    /// </summary>
-    /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    /// <param name="width">Terminal width in characters.</param>
-    /// <param name="height">Terminal height in lines.</param>
-    public Hex1bTerminal(IHex1bTerminalWorkloadAdapter workload, int width, int height)
-        : this(presentation: null, workload: workload, width: width, height: height, timeProvider: TimeProvider.System)
-    {
-    }
+    // === Constructor ===
 
     /// <summary>
     /// Creates a new terminal with the specified options.
     /// </summary>
     /// <param name="options">Terminal configuration options.</param>
     public Hex1bTerminal(Hex1bTerminalOptions options)
-        : this(
-            presentation: options.PresentationAdapter,
-            workload: options.WorkloadAdapter ?? throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required"),
-            width: options.Width,
-            height: options.Height,
-            workloadFilters: options.WorkloadFilters,
-            presentationFilters: options.PresentationFilters,
-            timeProvider: options.TimeProvider)
     {
-    }
-
-    /// <summary>
-    /// Creates a new terminal with the specified presentation and workload adapters.
-    /// </summary>
-    /// <param name="presentation">The presentation adapter for actual I/O. Pass null for headless/test mode.</param>
-    /// <param name="workload">The workload adapter (e.g., Hex1bAppWorkloadAdapter).</param>
-    /// <param name="width">Terminal width (used when presentation is null). Ignored if presentation is provided.</param>
-    /// <param name="height">Terminal height (used when presentation is null). Ignored if presentation is provided.</param>
-    /// <param name="workloadFilters">Filters applied on the workload side.</param>
-    /// <param name="presentationFilters">Filters applied on the presentation side.</param>
-    /// <param name="timeProvider">The time provider for all time-related operations. Defaults to system time.</param>
-    /// <param name="runCallback">Optional callback that runs the workload and returns an exit code.</param>
-    public Hex1bTerminal(
-        IHex1bTerminalPresentationAdapter? presentation,
-        IHex1bTerminalWorkloadAdapter workload,
-        int width = 80,
-        int height = 24,
-        IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
-        IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null,
-        TimeProvider? timeProvider = null,
-        Func<CancellationToken, Task<int>>? runCallback = null)
-    {
+        ArgumentNullException.ThrowIfNull(options);
+        
+        var presentation = options.PresentationAdapter ?? new HeadlessPresentationAdapter(options.Width, options.Height);
+        var workload = options.WorkloadAdapter ?? throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required");
+        
         _presentation = presentation;
-        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
-        _runCallback = runCallback;
-        _workloadFilters = workloadFilters?.ToList() ?? [];
-        _presentationFilters = presentationFilters?.ToList() ?? [];
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _workload = workload;
+        _runCallback = options.RunCallback;
+        _workloadFilters = options.WorkloadFilters?.ToList() ?? [];
+        _presentationFilters = options.PresentationFilters?.ToList() ?? [];
+        _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
         
-        // Get dimensions from presentation if available, otherwise use provided dimensions
-        _width = presentation?.Width ?? width;
-        _height = presentation?.Height ?? height;
+        // Get dimensions from presentation adapter (it's the source of truth)
+        _width = _presentation.Width > 0 ? _presentation.Width : options.Width;
+        _height = _presentation.Height > 0 ? _presentation.Height : options.Height;
         
         // Notify workload of initial dimensions (ResizeAsync handles not firing event on init)
         _ = _workload.ResizeAsync(_width, _height);
@@ -194,11 +157,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         ClearBuffer();
 
-        // Subscribe to presentation events if present
-        if (_presentation != null)
-        {
-            _presentation.Resized += OnPresentationResized;
-        }
+        // Subscribe to presentation events
+        _presentation.Resized += OnPresentationResized;
 
         // Notify filters of session start
         // Note: We fire-and-forget here since the constructor can't be async
@@ -206,8 +166,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _ = NotifyWorkloadFiltersSessionStartAsync();
         _ = NotifyPresentationFiltersSessionStartAsync();
 
-        // Auto-start I/O pumps when presentation is provided (production mode)
-        if (_presentation != null)
+        // Auto-start I/O pumps when no runCallback is set.
+        // When a runCallback is provided (builder pattern), the workload may not be ready
+        // (e.g., PTY process not started yet), so we defer starting pumps to RunAsync().
+        if (_runCallback == null)
         {
             Start();
         }

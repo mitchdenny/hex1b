@@ -71,6 +71,22 @@ public sealed class Hex1bTerminalOptions
     public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>
+    /// Optional callback that runs the workload and returns an exit code.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When set, the terminal will call this callback from <see cref="Hex1bTerminal.RunAsync"/>
+    /// after starting the I/O pumps. This is used by the builder pattern where the workload
+    /// lifecycle is managed internally (e.g., PTY processes, Hex1bApp).
+    /// </para>
+    /// <para>
+    /// When null, the terminal operates in "external workload" mode where the workload
+    /// is started and managed by external code.
+    /// </para>
+    /// </remarks>
+    public Func<CancellationToken, Task<int>>? RunCallback { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

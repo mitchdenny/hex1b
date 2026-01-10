@@ -10,24 +10,49 @@ public class CellPatternSearcherTests
 {
     #region Helper Methods
 
-    private static Hex1bTerminalSnapshot CreateSnapshot(string[] lines, int width = 80, int height = 24)
+    private static async Task<Hex1bTerminalSnapshot> CreateSnapshotAsync(string[] lines, int width = 80, int height = 24)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, width, height);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(width, height).Build();
 
         foreach (var line in lines)
         {
             workload.Write(line + "\r\n");
         }
 
+        // Wait for content to be processed by the output pump
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
+
         return terminal.CreateSnapshot();
     }
 
-    private static Hex1bTerminalSnapshot CreateSnapshot(string content, int width = 80, int height = 24)
+    private static async Task<Hex1bTerminalSnapshot> CreateSnapshotAsync(string content, int width = 80, int height = 24)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, width, height);
-        workload.Write(content);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(width, height).Build();
+        
+        if (string.IsNullOrEmpty(content))
+        {
+            // For empty content, just wait a short time to let the pump run
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Wait(TimeSpan.FromMilliseconds(50))
+                .Build()
+                .ApplyAsync(terminal);
+        }
+        else
+        {
+            workload.Write(content);
+            
+            // Wait for content to be processed by the output pump
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+                .Build()
+                .ApplyAsync(terminal);
+        }
+        
         return terminal.CreateSnapshot();
     }
 
@@ -36,7 +61,7 @@ public class CellPatternSearcherTests
     #region TraversedCell Tests
 
     [Fact]
-    public void TraversedCell_HasCorrectProperties()
+    public async Task TraversedCell_HasCorrectProperties()
     {
         var cell = new TerminalCell("A", null, null);
         var traversed = new TraversedCell(5, 10, cell, null);
@@ -48,7 +73,7 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void TraversedCell_WithCaptureNames()
+    public async Task TraversedCell_WithCaptureNames()
     {
         var cell = new TerminalCell("B", null, null);
         var captures = new HashSet<string> { "name", "value" };
@@ -64,9 +89,9 @@ public class CellPatternSearcherTests
     #region CellMatchContext Tests
 
     [Fact]
-    public void CellMatchContext_ProvidesRegionAccess()
+    public async Task CellMatchContext_ProvidesRegionAccess()
     {
-        var snapshot = CreateSnapshot("Hello World");
+        var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher()
             .Find(ctx =>
             {
@@ -80,9 +105,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_ProvidesCurrentPosition()
+    public async Task CellMatchContext_ProvidesCurrentPosition()
     {
-        var snapshot = CreateSnapshot("Hello");
+        var snapshot = await CreateSnapshotAsync("Hello");
         var positions = new List<(int X, int Y)>();
 
         var pattern = new CellPatternSearcher()
@@ -101,9 +126,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_ProvidesMatchStartCell()
+    public async Task CellMatchContext_ProvidesMatchStartCell()
     {
-        var snapshot = CreateSnapshot("ABC");
+        var snapshot = await CreateSnapshotAsync("ABC");
         TerminalCell? capturedStartCell = null;
 
         var pattern = new CellPatternSearcher()
@@ -121,9 +146,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_ProvidesPreviousCell()
+    public async Task CellMatchContext_ProvidesPreviousCell()
     {
-        var snapshot = CreateSnapshot("ABC");
+        var snapshot = await CreateSnapshotAsync("ABC");
         var previousChars = new List<string>();
 
         var pattern = new CellPatternSearcher()
@@ -147,9 +172,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_GetRelative_ReturnsCorrectCell()
+    public async Task CellMatchContext_GetRelative_ReturnsCorrectCell()
     {
-        var snapshot = CreateSnapshot(new[] { "ABC", "DEF", "GHI" });
+        var snapshot = await CreateSnapshotAsync(new[] { "ABC", "DEF", "GHI" });
         TerminalCell? relativeCell = null;
 
         var pattern = new CellPatternSearcher()
@@ -169,9 +194,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_GetAbsolute_ReturnsCorrectCell()
+    public async Task CellMatchContext_GetAbsolute_ReturnsCorrectCell()
     {
-        var snapshot = CreateSnapshot(new[] { "ABC", "DEF" });
+        var snapshot = await CreateSnapshotAsync(new[] { "ABC", "DEF" });
         TerminalCell? absoluteCell = null;
 
         var pattern = new CellPatternSearcher()
@@ -189,9 +214,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void CellMatchContext_TraversedCells_TracksProgress()
+    public async Task CellMatchContext_TraversedCells_TracksProgress()
     {
-        var snapshot = CreateSnapshot("ABCD");
+        var snapshot = await CreateSnapshotAsync("ABCD");
         var traversedCounts = new List<int>();
 
         var pattern = new CellPatternSearcher()
@@ -225,9 +250,9 @@ public class CellPatternSearcherTests
     #region Find Tests
 
     [Fact]
-    public void Find_WithChar_MatchesSingleCharacter()
+    public async Task Find_WithChar_MatchesSingleCharacter()
     {
-        var snapshot = CreateSnapshot("Hello World");
+        var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher().Find('W');
 
         var result = pattern.Search(snapshot);
@@ -238,9 +263,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_WithChar_FindsMultipleOccurrences()
+    public async Task Find_WithChar_FindsMultipleOccurrences()
     {
-        var snapshot = CreateSnapshot("ababa");
+        var snapshot = await CreateSnapshotAsync("ababa");
         var pattern = new CellPatternSearcher().Find('a');
 
         var result = pattern.Search(snapshot);
@@ -249,9 +274,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_WithPredicate_MatchesCondition()
+    public async Task Find_WithPredicate_MatchesCondition()
     {
-        var snapshot = CreateSnapshot("abc123def");
+        var snapshot = await CreateSnapshotAsync("abc123def");
         var pattern = new CellPatternSearcher()
             .Find(ctx => char.IsDigit(ctx.Cell.Character[0]));
 
@@ -261,9 +286,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void FindPattern_WithRegexString_MatchesPattern()
+    public async Task FindPattern_WithRegexString_MatchesPattern()
     {
-        var snapshot = CreateSnapshot("Name: John, Age: 30");
+        var snapshot = await CreateSnapshotAsync("Name: John, Age: 30");
         var pattern = new CellPatternSearcher().FindPattern(@"Age:\s*");
 
         var result = pattern.Search(snapshot);
@@ -272,9 +297,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void FindPattern_WithCompiledRegex_MatchesPattern()
+    public async Task FindPattern_WithCompiledRegex_MatchesPattern()
     {
-        var snapshot = CreateSnapshot("Error: file not found");
+        var snapshot = await CreateSnapshotAsync("Error: file not found");
         var regex = new System.Text.RegularExpressions.Regex(@"Error:\s*");
         var pattern = new CellPatternSearcher().FindPattern(regex);
 
@@ -284,9 +309,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_NoMatch_ReturnsEmptyResult()
+    public async Task Find_NoMatch_ReturnsEmptyResult()
     {
-        var snapshot = CreateSnapshot("Hello World");
+        var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher().Find('Z');
 
         var result = pattern.Search(snapshot);
@@ -297,9 +322,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Find_AcrossMultipleLines()
+    public async Task Find_AcrossMultipleLines()
     {
-        var snapshot = CreateSnapshot(new[] { "Line 1", "Line 2", "Line 3" });
+        var snapshot = await CreateSnapshotAsync(new[] { "Line 1", "Line 2", "Line 3" });
         var pattern = new CellPatternSearcher().Find('L');
 
         var result = pattern.Search(snapshot);
@@ -315,9 +340,9 @@ public class CellPatternSearcherTests
     #region Directional Movement Tests
 
     [Fact]
-    public void Right_WithChar_MovesAndMatches()
+    public async Task Right_WithChar_MovesAndMatches()
     {
-        var snapshot = CreateSnapshot("AB");
+        var snapshot = await CreateSnapshotAsync("AB");
         var pattern = new CellPatternSearcher().Find('A').Right('B');
 
         var result = pattern.Search(snapshot);
@@ -327,9 +352,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Right_WithPredicate_MovesAndMatches()
+    public async Task Right_WithPredicate_MovesAndMatches()
     {
-        var snapshot = CreateSnapshot("A1");
+        var snapshot = await CreateSnapshotAsync("A1");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right(ctx => char.IsDigit(ctx.Cell.Character[0]));
@@ -340,9 +365,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Right_FailsIfNoMatch()
+    public async Task Right_FailsIfNoMatch()
     {
-        var snapshot = CreateSnapshot("AC");
+        var snapshot = await CreateSnapshotAsync("AC");
         var pattern = new CellPatternSearcher().Find('A').Right('B');
 
         var result = pattern.Search(snapshot);
@@ -351,9 +376,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Right_WithCount_MovesMultipleCells()
+    public async Task Right_WithCount_MovesMultipleCells()
     {
-        var snapshot = CreateSnapshot("ABCDE");
+        var snapshot = await CreateSnapshotAsync("ABCDE");
         var pattern = new CellPatternSearcher().Find('A').Right(3);
 
         var result = pattern.Search(snapshot);
@@ -364,9 +389,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Right_WithCountAndPredicate_AllMustMatch()
+    public async Task Right_WithCountAndPredicate_AllMustMatch()
     {
-        var snapshot = CreateSnapshot("A111B");
+        var snapshot = await CreateSnapshotAsync("A111B");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right(3, ctx => ctx.Cell.Character == "1");
@@ -377,9 +402,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Right_WithCountAndPredicate_FailsIfAnyDontMatch()
+    public async Task Right_WithCountAndPredicate_FailsIfAnyDontMatch()
     {
-        var snapshot = CreateSnapshot("A121B");
+        var snapshot = await CreateSnapshotAsync("A121B");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right(3, ctx => ctx.Cell.Character == "1");
@@ -390,9 +415,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Left_WithChar_MovesLeft()
+    public async Task Left_WithChar_MovesLeft()
     {
-        var snapshot = CreateSnapshot("BA");
+        var snapshot = await CreateSnapshotAsync("BA");
         var pattern = new CellPatternSearcher().Find('A').Left('B');
 
         var result = pattern.Search(snapshot);
@@ -401,9 +426,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Up_WithChar_MovesUp()
+    public async Task Up_WithChar_MovesUp()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B" });
         var pattern = new CellPatternSearcher().Find('B').Up('A');
 
         var result = pattern.Search(snapshot);
@@ -412,9 +437,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Down_WithChar_MovesDown()
+    public async Task Down_WithChar_MovesDown()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B" });
         var pattern = new CellPatternSearcher().Find('A').Down('B');
 
         var result = pattern.Search(snapshot);
@@ -423,9 +448,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Left_WithCount_MovesMultipleCells()
+    public async Task Left_WithCount_MovesMultipleCells()
     {
-        var snapshot = CreateSnapshot("ABCDE");
+        var snapshot = await CreateSnapshotAsync("ABCDE");
         var pattern = new CellPatternSearcher().Find('E').Left(4);
 
         var result = pattern.Search(snapshot);
@@ -435,9 +460,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Up_WithCount_MovesMultipleCells()
+    public async Task Up_WithCount_MovesMultipleCells()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B", "C", "D", "E" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C", "D", "E" });
         var pattern = new CellPatternSearcher().Find('E').Up(4);
 
         var result = pattern.Search(snapshot);
@@ -447,9 +472,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Down_WithCount_MovesMultipleCells()
+    public async Task Down_WithCount_MovesMultipleCells()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B", "C", "D", "E" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C", "D", "E" });
         var pattern = new CellPatternSearcher().Find('A').Down(4);
 
         var result = pattern.Search(snapshot);
@@ -463,9 +488,9 @@ public class CellPatternSearcherTests
     #region Text Sequence Tests
 
     [Fact]
-    public void RightText_MatchesExactSequence()
+    public async Task RightText_MatchesExactSequence()
     {
-        var snapshot = CreateSnapshot("Hello World");
+        var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher().Find('H').RightText("ello");
 
         var result = pattern.Search(snapshot);
@@ -475,9 +500,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void RightText_FailsOnMismatch()
+    public async Task RightText_FailsOnMismatch()
     {
-        var snapshot = CreateSnapshot("Hello World");
+        var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher().Find('H').RightText("allo");
 
         var result = pattern.Search(snapshot);
@@ -486,9 +511,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void LeftText_MatchesExactSequence()
+    public async Task LeftText_MatchesExactSequence()
     {
-        var snapshot = CreateSnapshot("Hello");
+        var snapshot = await CreateSnapshotAsync("Hello");
         var pattern = new CellPatternSearcher().Find('o').LeftText("lleH");
 
         var result = pattern.Search(snapshot);
@@ -501,9 +526,9 @@ public class CellPatternSearcherTests
     #region While Tests
 
     [Fact]
-    public void RightWhile_ConsumesMatchingCells()
+    public async Task RightWhile_ConsumesMatchingCells()
     {
-        var snapshot = CreateSnapshot("AAA123");
+        var snapshot = await CreateSnapshotAsync("AAA123");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .RightWhile(ctx => ctx.Cell.Character == "A");
@@ -515,9 +540,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void RightWhile_StopsAtNonMatch()
+    public async Task RightWhile_StopsAtNonMatch()
     {
-        var snapshot = CreateSnapshot("AAABBB");
+        var snapshot = await CreateSnapshotAsync("AAABBB");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .RightWhile(ctx => ctx.Cell.Character == "A");
@@ -528,9 +553,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void RightWhile_ZeroMatchesIsValid()
+    public async Task RightWhile_ZeroMatchesIsValid()
     {
-        var snapshot = CreateSnapshot("AB");
+        var snapshot = await CreateSnapshotAsync("AB");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .RightWhile(ctx => ctx.Cell.Character == "X")
@@ -542,9 +567,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void LeftWhile_ConsumesMatchingCells()
+    public async Task LeftWhile_ConsumesMatchingCells()
     {
-        var snapshot = CreateSnapshot("123AAA");
+        var snapshot = await CreateSnapshotAsync("123AAA");
         var pattern = new CellPatternSearcher()
             .Find(ctx => ctx.X == 5 && ctx.Cell.Character == "A")
             .LeftWhile(ctx => ctx.Cell.Character == "A");
@@ -556,9 +581,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void UpWhile_ConsumesMatchingCells()
+    public async Task UpWhile_ConsumesMatchingCells()
     {
-        var snapshot = CreateSnapshot(new[] { "1", "A", "A", "A" });
+        var snapshot = await CreateSnapshotAsync(new[] { "1", "A", "A", "A" });
         var pattern = new CellPatternSearcher()
             .Find(ctx => ctx.Y == 3 && ctx.Cell.Character == "A")
             .UpWhile(ctx => ctx.Cell.Character == "A");
@@ -570,9 +595,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void DownWhile_ConsumesMatchingCells()
+    public async Task DownWhile_ConsumesMatchingCells()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "A", "A", "1" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "A", "A", "1" });
         var pattern = new CellPatternSearcher()
             .Find('A')
             .DownWhile(ctx => ctx.Cell.Character == "A");
@@ -588,9 +613,9 @@ public class CellPatternSearcherTests
     #region Until Tests
 
     [Fact]
-    public void RightUntil_WithPredicate_StopsAtMatch()
+    public async Task RightUntil_WithPredicate_StopsAtMatch()
     {
-        var snapshot = CreateSnapshot("ABC]DEF");
+        var snapshot = await CreateSnapshotAsync("ABC]DEF");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .RightUntil(ctx => ctx.Cell.Character == "]");
@@ -602,9 +627,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void RightUntil_WithChar_StopsAtChar()
+    public async Task RightUntil_WithChar_StopsAtChar()
     {
-        var snapshot = CreateSnapshot("[content]");
+        var snapshot = await CreateSnapshotAsync("[content]");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .RightUntil(']');
@@ -616,9 +641,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void RightUntil_FailsIfNotFound()
+    public async Task RightUntil_FailsIfNotFound()
     {
-        var snapshot = CreateSnapshot("ABC");
+        var snapshot = await CreateSnapshotAsync("ABC");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .RightUntil(']');
@@ -629,9 +654,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void LeftUntil_StopsAtMatch()
+    public async Task LeftUntil_StopsAtMatch()
     {
-        var snapshot = CreateSnapshot("[content]");
+        var snapshot = await CreateSnapshotAsync("[content]");
         var pattern = new CellPatternSearcher()
             .Find(']')
             .LeftUntil('[');
@@ -642,9 +667,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void UpUntil_StopsAtMatch()
+    public async Task UpUntil_StopsAtMatch()
     {
-        var snapshot = CreateSnapshot(new[] { "-", "A", "A", "A" });
+        var snapshot = await CreateSnapshotAsync(new[] { "-", "A", "A", "A" });
         var pattern = new CellPatternSearcher()
             .Find(ctx => ctx.Y == 3 && ctx.Cell.Character == "A")
             .UpUntil(ctx => ctx.Cell.Character == "-");
@@ -656,9 +681,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void DownUntil_StopsAtMatch()
+    public async Task DownUntil_StopsAtMatch()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "A", "A", "-" });
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "A", "A", "-" });
         var pattern = new CellPatternSearcher()
             .Find('A')
             .DownUntil(ctx => ctx.Cell.Character == "-");
@@ -674,9 +699,9 @@ public class CellPatternSearcherTests
     #region Boundary Tests
 
     [Fact]
-    public void RightToEnd_GoesToEndOfLine()
+    public async Task RightToEnd_GoesToEndOfLine()
     {
-        var snapshot = CreateSnapshot("Hello", 10, 1);
+        var snapshot = await CreateSnapshotAsync("Hello", 10, 1);
         var pattern = new CellPatternSearcher()
             .Find('H')
             .RightToEnd();
@@ -689,9 +714,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void LeftToStart_GoesToStartOfLine()
+    public async Task LeftToStart_GoesToStartOfLine()
     {
-        var snapshot = CreateSnapshot("Hello", 10, 1);
+        var snapshot = await CreateSnapshotAsync("Hello", 10, 1);
         var pattern = new CellPatternSearcher()
             .Find('o')
             .LeftToStart();
@@ -703,9 +728,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void DownToBottom_GoesToBottomOfRegion()
+    public async Task DownToBottom_GoesToBottomOfRegion()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B", "C" }, 10, 5);
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C" }, 10, 5);
         var pattern = new CellPatternSearcher()
             .Find('A')
             .DownToBottom();
@@ -717,9 +742,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void UpToTop_GoesToTopOfRegion()
+    public async Task UpToTop_GoesToTopOfRegion()
     {
-        var snapshot = CreateSnapshot(new[] { "A", "B", "C" }, 10, 5);
+        var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C" }, 10, 5);
         var pattern = new CellPatternSearcher()
             .Find('C')
             .UpToTop();
@@ -735,9 +760,9 @@ public class CellPatternSearcherTests
     #region Capture Tests
 
     [Fact]
-    public void Capture_CapturesTraversedCells()
+    public async Task Capture_CapturesTraversedCells()
     {
-        var snapshot = CreateSnapshot("Name: John");
+        var snapshot = await CreateSnapshotAsync("Name: John");
         var pattern = new CellPatternSearcher()
             .FindPattern(@"Name:\s*")
             .BeginCapture("value")
@@ -752,9 +777,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Capture_MultipleCapturesInOnePattern()
+    public async Task Capture_MultipleCapturesInOnePattern()
     {
-        var snapshot = CreateSnapshot("A=1 B=2");
+        var snapshot = await CreateSnapshotAsync("A=1 B=2");
         var pattern = new CellPatternSearcher()
             .BeginCapture("first")
             .Find('A')
@@ -776,9 +801,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Capture_NestedCaptures()
+    public async Task Capture_NestedCaptures()
     {
-        var snapshot = CreateSnapshot("[ERROR] msg");
+        var snapshot = await CreateSnapshotAsync("[ERROR] msg");
         var pattern = new CellPatternSearcher()
             .BeginCapture("all")
             .Find('[')
@@ -800,9 +825,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Capture_GetCaptureBounds_ReturnsCorrectRect()
+    public async Task Capture_GetCaptureBounds_ReturnsCorrectRect()
     {
-        var snapshot = CreateSnapshot("XX[val]XX");
+        var snapshot = await CreateSnapshotAsync("XX[val]XX");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .BeginCapture("inner")
@@ -818,9 +843,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Capture_NonExistentCapture_ReturnsEmpty()
+    public async Task Capture_NonExistentCapture_ReturnsEmpty()
     {
-        var snapshot = CreateSnapshot("test");
+        var snapshot = await CreateSnapshotAsync("test");
         var pattern = new CellPatternSearcher().Find('t');
 
         var result = pattern.Search(snapshot);
@@ -835,12 +860,12 @@ public class CellPatternSearcherTests
     #region Composition Tests
 
     [Fact]
-    public void Then_ChainsPatterns()
+    public async Task Then_ChainsPatterns()
     {
         var prefix = new CellPatternSearcher().Find('[').RightUntil(']');
         var suffix = new CellPatternSearcher().Right(' ').RightToEnd();
 
-        var snapshot = CreateSnapshot("[TAG] message", 20, 1);
+        var snapshot = await CreateSnapshotAsync("[TAG] message", 20, 1);
         var pattern = new CellPatternSearcher()
             .Then(prefix)
             .Then(suffix);
@@ -851,9 +876,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Then_WithAction_BuildsSubPattern()
+    public async Task Then_WithAction_BuildsSubPattern()
     {
-        var snapshot = CreateSnapshot("ABC123");
+        var snapshot = await CreateSnapshotAsync("ABC123");
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Then(p => p.Right('B').Right('C'));
@@ -865,9 +890,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenOptional_ContinuesIfSubPatternFails()
+    public async Task ThenOptional_ContinuesIfSubPatternFails()
     {
-        var snapshot = CreateSnapshot("AD");
+        var snapshot = await CreateSnapshotAsync("AD");
         var optional = new CellPatternSearcher().Right('B').Right('C');
 
         var pattern = new CellPatternSearcher()
@@ -881,9 +906,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenOptional_IncludesMatchWhenSuccessful()
+    public async Task ThenOptional_IncludesMatchWhenSuccessful()
     {
-        var snapshot = CreateSnapshot("ABCD");
+        var snapshot = await CreateSnapshotAsync("ABCD");
         var optional = new CellPatternSearcher().Right('B').Right('C');
 
         var pattern = new CellPatternSearcher()
@@ -898,9 +923,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenEither_UsesFirstIfMatches()
+    public async Task ThenEither_UsesFirstIfMatches()
     {
-        var snapshot = CreateSnapshot("AB");
+        var snapshot = await CreateSnapshotAsync("AB");
 
         var pattern = new CellPatternSearcher()
             .Find('A')
@@ -915,9 +940,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenEither_UsesSecondIfFirstFails()
+    public async Task ThenEither_UsesSecondIfFirstFails()
     {
-        var snapshot = CreateSnapshot("AX");
+        var snapshot = await CreateSnapshotAsync("AX");
 
         var pattern = new CellPatternSearcher()
             .Find('A')
@@ -932,9 +957,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenEither_FailsIfBothFail()
+    public async Task ThenEither_FailsIfBothFail()
     {
-        var snapshot = CreateSnapshot("AZ");
+        var snapshot = await CreateSnapshotAsync("AZ");
 
         var pattern = new CellPatternSearcher()
             .Find('A')
@@ -948,13 +973,13 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenEither_WithMatch_MatchesTextAtCurrentPosition()
+    public async Task ThenEither_WithMatch_MatchesTextAtCurrentPosition()
     {
         // Simulates the prompt matching scenario:
         // [1 OK] $
         // [2 OK] $
         // [3 ERR:127] $
-        var snapshot = CreateSnapshot(new[] {
+        var snapshot = await CreateSnapshotAsync(new[] {
             "[1 OK] $",
             "[2 OK] $",
             "[3 ERR:127] $"});
@@ -993,10 +1018,10 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Match_DebugCursorPosition()
+    public async Task Match_DebugCursorPosition()
     {
         // Test Match followed by RightWhile followed by Right
-        var snapshot = CreateSnapshot(":127]");
+        var snapshot = await CreateSnapshotAsync(":127]");
         
         var pattern = new CellPatternSearcher()
             .Find(':')
@@ -1012,9 +1037,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenRepeat_RepeatsPatternNTimes()
+    public async Task ThenRepeat_RepeatsPatternNTimes()
     {
-        var snapshot = CreateSnapshot("ABCABCABC");
+        var snapshot = await CreateSnapshotAsync("ABCABCABC");
         var abc = new CellPatternSearcher().Right('A').Right('B').Right('C');
 
         var pattern = new CellPatternSearcher()
@@ -1030,9 +1055,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void ThenRepeat_WithoutCount_RepeatsWhileMatching()
+    public async Task ThenRepeat_WithoutCount_RepeatsWhileMatching()
     {
-        var snapshot = CreateSnapshot("AAAB");
+        var snapshot = await CreateSnapshotAsync("AAAB");
         var singleA = new CellPatternSearcher().Right('A');
 
         var pattern = new CellPatternSearcher()
@@ -1050,9 +1075,9 @@ public class CellPatternSearcherTests
     #region CellPatternMatch Tests
 
     [Fact]
-    public void Match_Bounds_CoversAllCells()
+    public async Task Match_Bounds_CoversAllCells()
     {
-        var snapshot = CreateSnapshot(new[] { "AB", "CD" });
+        var snapshot = await CreateSnapshotAsync(new[] { "AB", "CD" });
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right('B')
@@ -1069,9 +1094,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Match_Start_IsFirstCell()
+    public async Task Match_Start_IsFirstCell()
     {
-        var snapshot = CreateSnapshot("XXX[ABC]XXX");
+        var snapshot = await CreateSnapshotAsync("XXX[ABC]XXX");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .RightUntil(']');
@@ -1082,9 +1107,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Match_End_IsLastCell()
+    public async Task Match_End_IsLastCell()
     {
-        var snapshot = CreateSnapshot("XXX[ABC]XXX");
+        var snapshot = await CreateSnapshotAsync("XXX[ABC]XXX");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .RightUntil(']');
@@ -1095,9 +1120,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Match_Text_ConcatenatesAllCells()
+    public async Task Match_Text_ConcatenatesAllCells()
     {
-        var snapshot = CreateSnapshot("Hello");
+        var snapshot = await CreateSnapshotAsync("Hello");
         var pattern = new CellPatternSearcher()
             .Find('H')
             .RightText("ello");
@@ -1108,9 +1133,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Match_CaptureNames_ListsAllCaptures()
+    public async Task Match_CaptureNames_ListsAllCaptures()
     {
-        var snapshot = CreateSnapshot("A=1");
+        var snapshot = await CreateSnapshotAsync("A=1");
         var pattern = new CellPatternSearcher()
             .BeginCapture("key")
             .Find('A')
@@ -1131,9 +1156,9 @@ public class CellPatternSearcherTests
     #region CellPatternSearchResult Tests
 
     [Fact]
-    public void Result_HasMatches_TrueWhenMatchesExist()
+    public async Task Result_HasMatches_TrueWhenMatchesExist()
     {
-        var snapshot = CreateSnapshot("test");
+        var snapshot = await CreateSnapshotAsync("test");
         var pattern = new CellPatternSearcher().Find('t');
 
         var result = pattern.Search(snapshot);
@@ -1142,9 +1167,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Result_HasMatches_FalseWhenNoMatches()
+    public async Task Result_HasMatches_FalseWhenNoMatches()
     {
-        var snapshot = CreateSnapshot("test");
+        var snapshot = await CreateSnapshotAsync("test");
         var pattern = new CellPatternSearcher().Find('z');
 
         var result = pattern.Search(snapshot);
@@ -1153,9 +1178,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Result_Count_ReturnsMatchCount()
+    public async Task Result_Count_ReturnsMatchCount()
     {
-        var snapshot = CreateSnapshot("aaa");
+        var snapshot = await CreateSnapshotAsync("aaa");
         var pattern = new CellPatternSearcher().Find('a');
 
         var result = pattern.Search(snapshot);
@@ -1164,9 +1189,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Result_First_ReturnsFirstMatch()
+    public async Task Result_First_ReturnsFirstMatch()
     {
-        var snapshot = CreateSnapshot("abc");
+        var snapshot = await CreateSnapshotAsync("abc");
         var pattern = new CellPatternSearcher().Find(ctx => true);
 
         var result = pattern.Search(snapshot);
@@ -1176,9 +1201,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Result_Matches_AreOrderedByPosition()
+    public async Task Result_Matches_AreOrderedByPosition()
     {
-        var snapshot = CreateSnapshot(new[] { "a", "a", "a" });
+        var snapshot = await CreateSnapshotAsync(new[] { "a", "a", "a" });
         var pattern = new CellPatternSearcher().Find('a');
 
         var result = pattern.Search(snapshot);
@@ -1193,9 +1218,9 @@ public class CellPatternSearcherTests
     #region SearchFirst Tests
 
     [Fact]
-    public void SearchFirst_ReturnsSingleMatch()
+    public async Task SearchFirst_ReturnsSingleMatch()
     {
-        var snapshot = CreateSnapshot("aaa");
+        var snapshot = await CreateSnapshotAsync("aaa");
         var pattern = new CellPatternSearcher().Find('a');
 
         var match = pattern.SearchFirst(snapshot);
@@ -1205,9 +1230,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void SearchFirst_ReturnsNullWhenNoMatch()
+    public async Task SearchFirst_ReturnsNullWhenNoMatch()
     {
-        var snapshot = CreateSnapshot("test");
+        var snapshot = await CreateSnapshotAsync("test");
         var pattern = new CellPatternSearcher().Find('z');
 
         var match = pattern.SearchFirst(snapshot);
@@ -1220,9 +1245,9 @@ public class CellPatternSearcherTests
     #region Extension Methods Tests
 
     [Fact]
-    public void Region_SearchPattern_Works()
+    public async Task Region_SearchPattern_Works()
     {
-        var snapshot = CreateSnapshot("Hello");
+        var snapshot = await CreateSnapshotAsync("Hello");
         var pattern = new CellPatternSearcher().Find('H');
 
         var result = snapshot.SearchPattern(pattern);
@@ -1231,9 +1256,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Region_SearchFirstPattern_Works()
+    public async Task Region_SearchFirstPattern_Works()
     {
-        var snapshot = CreateSnapshot("Hello");
+        var snapshot = await CreateSnapshotAsync("Hello");
         var pattern = new CellPatternSearcher().Find('H');
 
         var match = snapshot.SearchFirstPattern(pattern);
@@ -1242,9 +1267,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Region_CreateSnapshot_FromMatch_Works()
+    public async Task Region_CreateSnapshot_FromMatch_Works()
     {
-        var snapshot = CreateSnapshot("XX[content]XX");
+        var snapshot = await CreateSnapshotAsync("XX[content]XX");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .RightUntil(']');
@@ -1257,9 +1282,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Region_CreateSnapshot_FromCapture_Works()
+    public async Task Region_CreateSnapshot_FromCapture_Works()
     {
-        var snapshot = CreateSnapshot("[TAG] message");
+        var snapshot = await CreateSnapshotAsync("[TAG] message");
         var pattern = new CellPatternSearcher()
             .Find('[')
             .BeginCapture("inner")
@@ -1277,9 +1302,9 @@ public class CellPatternSearcherTests
     #region Complex Scenarios
 
     [Fact]
-    public void Scenario_ParseKeyValuePairs()
+    public async Task Scenario_ParseKeyValuePairs()
     {
-        var snapshot = CreateSnapshot("Name: John\r\nAge: 30");
+        var snapshot = await CreateSnapshotAsync("Name: John\r\nAge: 30");
         var kvPattern = new CellPatternSearcher()
             .BeginCapture("key")
             .Find(ctx => char.IsLetter(ctx.Cell.Character[0]))
@@ -1297,9 +1322,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_FindBoxDrawingCorners()
+    public async Task Scenario_FindBoxDrawingCorners()
     {
-        var snapshot = CreateSnapshot(new[]
+        var snapshot = await CreateSnapshotAsync(new[]
         {
             "┌──────┐",
             "│      │",
@@ -1317,10 +1342,10 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_FindStyledText()
+    public async Task Scenario_FindStyledText()
     {
         // This would need styled content - test structure only
-        var snapshot = CreateSnapshot("Normal [Bold] Normal");
+        var snapshot = await CreateSnapshotAsync("Normal [Bold] Normal");
 
         var pattern = new CellPatternSearcher()
             .Find('[')
@@ -1336,9 +1361,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_MatchLogEntry()
+    public async Task Scenario_MatchLogEntry()
     {
-        var snapshot = CreateSnapshot("[2024-01-01] [INFO] Application started");
+        var snapshot = await CreateSnapshotAsync("[2024-01-01] [INFO] Application started");
 
         var pattern = new CellPatternSearcher()
             .Find('[')
@@ -1363,9 +1388,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_TwoDimensionalPattern()
+    public async Task Scenario_TwoDimensionalPattern()
     {
-        var snapshot = CreateSnapshot(new[]
+        var snapshot = await CreateSnapshotAsync(new[]
         {
             "╔═══╗",
             "║ X ║",
@@ -1387,9 +1412,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_MultipleMatchesWithCaptures()
+    public async Task Scenario_MultipleMatchesWithCaptures()
     {
-        var snapshot = CreateSnapshot("x=1 y=2 z=3");
+        var snapshot = await CreateSnapshotAsync("x=1 y=2 z=3");
 
         var pattern = new CellPatternSearcher()
             .BeginCapture("var")
@@ -1409,12 +1434,12 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_Immutability_PatternCanBeReused()
+    public async Task Scenario_Immutability_PatternCanBeReused()
     {
         var basePattern = new CellPatternSearcher().Find('[').RightUntil(']');
 
-        var snapshot1 = CreateSnapshot("[A]");
-        var snapshot2 = CreateSnapshot("[BBB]");
+        var snapshot1 = await CreateSnapshotAsync("[A]");
+        var snapshot2 = await CreateSnapshotAsync("[BBB]");
 
         var result1 = basePattern.Search(snapshot1);
         var result2 = basePattern.Search(snapshot2);
@@ -1425,9 +1450,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_EdgeCase_EmptyRegion()
+    public async Task Scenario_EdgeCase_EmptyRegion()
     {
-        var snapshot = CreateSnapshot("", 10, 1);
+        var snapshot = await CreateSnapshotAsync("", 10, 1);
         var pattern = new CellPatternSearcher().Find('A');
 
         var result = pattern.Search(snapshot);
@@ -1436,9 +1461,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_EdgeCase_PatternAtBoundary()
+    public async Task Scenario_EdgeCase_PatternAtBoundary()
     {
-        var snapshot = CreateSnapshot("ABC", 3, 1);
+        var snapshot = await CreateSnapshotAsync("ABC", 3, 1);
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right('B')
@@ -1451,9 +1476,9 @@ public class CellPatternSearcherTests
     }
 
     [Fact]
-    public void Scenario_EdgeCase_PatternExceedsBoundary()
+    public async Task Scenario_EdgeCase_PatternExceedsBoundary()
     {
-        var snapshot = CreateSnapshot("AB", 2, 1);
+        var snapshot = await CreateSnapshotAsync("AB", 2, 1);
         var pattern = new CellPatternSearcher()
             .Find('A')
             .Right('B')
@@ -1469,7 +1494,7 @@ public class CellPatternSearcherTests
     #region Debug Tests
 
     [Fact]
-    public void FindOptions_Default_HasCorrectDefaults()
+    public async Task FindOptions_Default_HasCorrectDefaults()
     {
         var options = FindOptions.Default;
         Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
@@ -1477,7 +1502,7 @@ public class CellPatternSearcherTests
     }
     
     [Fact]
-    public void FindOptions_Constructor_HasCorrectDefaults()
+    public async Task FindOptions_Constructor_HasCorrectDefaults()
     {
         var options = new FindOptions(); // Constructor with defaults
         Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");

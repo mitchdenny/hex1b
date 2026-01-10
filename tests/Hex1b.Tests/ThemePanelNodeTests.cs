@@ -20,7 +20,7 @@ public class ThemePanelNodeTests
     #region Measure Tests
 
     [Fact]
-    public void Measure_ReturnsChildSize()
+    public async Task Measure_ReturnsChildSize()
     {
         var child = new TextBlockNode { Text = "Hello World" };
         var node = new ThemePanelNode 
@@ -37,7 +37,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Measure_WithNoChild_ReturnsZero()
+    public async Task Measure_WithNoChild_ReturnsZero()
     {
         var node = new ThemePanelNode { Child = null };
 
@@ -48,7 +48,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsConstraints()
+    public async Task Measure_RespectsConstraints()
     {
         var child = new TextBlockNode { Text = "This is a long text that should be constrained" };
         var node = new ThemePanelNode 
@@ -64,7 +64,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Measure_WithVStackChild_ReturnsCorrectSize()
+    public async Task Measure_WithVStackChild_ReturnsCorrectSize()
     {
         var vstack = new VStackNode
         {
@@ -88,7 +88,7 @@ public class ThemePanelNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_ChildGetsFullBounds()
+    public async Task Arrange_ChildGetsFullBounds()
     {
         var child = new TextBlockNode { Text = "Test" };
         var node = new ThemePanelNode { Child = child, ThemeMutator = t => t };
@@ -102,7 +102,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new ThemePanelNode 
         { 
@@ -117,7 +117,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Arrange_WithNoChild_DoesNotThrow()
+    public async Task Arrange_WithNoChild_DoesNotThrow()
     {
         var node = new ThemePanelNode { Child = null };
         var bounds = new Rect(0, 0, 20, 5);
@@ -133,10 +133,10 @@ public class ThemePanelNodeTests
     #region Render Tests
 
     [Fact]
-    public void Render_RendersChildContent()
+    public async Task Render_RendersChildContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
 
         var node = new ThemePanelNode
@@ -148,15 +148,19 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("ThemePanel Content", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
-    public void Render_AppliesThemeMutation()
+    public async Task Render_AppliesThemeMutation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var baseTheme = new Hex1bTheme("Base");
         var context = CreateContext(workload, baseTheme);
 
@@ -177,6 +181,10 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.True(mutatedThemeCaptured, "ThemeMutator should be called during render");
         Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
@@ -184,10 +192,10 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Render_RestoresOriginalTheme()
+    public async Task Render_RestoresOriginalTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var originalTheme = new Hex1bTheme("Original")
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(0, 255, 0));
         var context = CreateContext(workload, originalTheme);
@@ -202,16 +210,20 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // After render, context.Theme should be restored to original
         Assert.Same(originalTheme, context.Theme);
     }
 
     [Fact]
-    public void Render_WithNullMutator_RendersNormally()
+    public async Task Render_WithNullMutator_RendersNormally()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
 
         var node = new ThemePanelNode
@@ -223,15 +235,19 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("No Mutator", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
-    public void Render_WithNoChild_DoesNotThrow()
+    public async Task Render_WithNoChild_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
 
         var node = new ThemePanelNode { Child = null, ThemeMutator = t => t };
@@ -242,10 +258,10 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Render_CachedTheme_IsUsed()
+    public async Task Render_CachedTheme_IsUsed()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
 
         var cachedTheme = new Hex1bTheme("Cached")
@@ -261,6 +277,10 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255)),
             "Button should use cached theme's blue background");
@@ -271,7 +291,7 @@ public class ThemePanelNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_ReturnsFocusableChildren()
+    public async Task GetFocusableNodes_ReturnsFocusableChildren()
     {
         var button = new ButtonNode { Label = "Click" };
         var node = new ThemePanelNode { Child = button, ThemeMutator = t => t };
@@ -283,7 +303,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
+    public async Task GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
     {
         var textBlock = new TextBlockNode { Text = "Not focusable" };
         var node = new ThemePanelNode { Child = textBlock, ThemeMutator = t => t };
@@ -294,7 +314,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNoChild_ReturnsEmpty()
+    public async Task GetFocusableNodes_WithNoChild_ReturnsEmpty()
     {
         var node = new ThemePanelNode { Child = null };
 
@@ -304,7 +324,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
+    public async Task GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
     {
         var textBox = new TextBoxNode { State = new TextBoxState() };
         var button = new ButtonNode { Label = "OK" };
@@ -322,7 +342,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void IsFocusable_ReturnsFalse()
+    public async Task IsFocusable_ReturnsFalse()
     {
         var node = new ThemePanelNode();
 
@@ -334,7 +354,7 @@ public class ThemePanelNodeTests
     #region GetChildren Tests
 
     [Fact]
-    public void GetChildren_ReturnsChild()
+    public async Task GetChildren_ReturnsChild()
     {
         var child = new TextBlockNode { Text = "Child" };
         var node = new ThemePanelNode { Child = child };
@@ -346,7 +366,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void GetChildren_WithNoChild_ReturnsEmpty()
+    public async Task GetChildren_WithNoChild_ReturnsEmpty()
     {
         var node = new ThemePanelNode { Child = null };
 
@@ -390,7 +410,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void HandleInput_WithNoChild_ReturnsFalse()
+    public async Task HandleInput_WithNoChild_ReturnsFalse()
     {
         var node = new ThemePanelNode { Child = null };
 
@@ -404,7 +424,7 @@ public class ThemePanelNodeTests
     #region Reconciliation Tests
 
     [Fact]
-    public void Reconcile_CreatesNewNode_WhenNoExisting()
+    public async Task Reconcile_CreatesNewNode_WhenNoExisting()
     {
         var widget = new ThemePanelWidget(t => t, new TextBlockWidget("Test"));
         var context = ReconcileContext.CreateRoot();
@@ -418,7 +438,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Reconcile_ReusesExistingNode()
+    public async Task Reconcile_ReusesExistingNode()
     {
         var existingNode = new ThemePanelNode 
         { 
@@ -434,7 +454,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Reconcile_UpdatesThemeMutator()
+    public async Task Reconcile_UpdatesThemeMutator()
     {
         var existingNode = new ThemePanelNode 
         { 
@@ -451,7 +471,7 @@ public class ThemePanelNodeTests
     }
 
     [Fact]
-    public void Reconcile_UpdatesChild()
+    public async Task Reconcile_UpdatesChild()
     {
         var existingNode = new ThemePanelNode 
         { 
@@ -472,10 +492,10 @@ public class ThemePanelNodeTests
     #region Nested ThemePanel Tests
 
     [Fact]
-    public void Render_NestedThemePanels_ApplyThemesCorrectly()
+    public async Task Render_NestedThemePanels_ApplyThemesCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
         var context = CreateContext(workload);
 
         var innerButton = new ButtonNode { Label = "Inner", IsFocused = true };
@@ -504,6 +524,10 @@ public class ThemePanelNodeTests
         outerPanel.Render(context);
 
         // Inner button should have red (from inner panel), not blue (from outer)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
             "Inner button should have red background from inner ThemePanel");

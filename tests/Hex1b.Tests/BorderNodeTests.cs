@@ -22,7 +22,7 @@ public class BorderNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_AddsBorderToChildSize()
+    public async Task Measure_AddsBorderToChildSize()
     {
         var child = new TextBlockNode { Text = "Hello" };
         var node = new BorderNode { Child = child };
@@ -35,7 +35,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Measure_WithNoChild_ReturnsMinimalBorder()
+    public async Task Measure_WithNoChild_ReturnsMinimalBorder()
     {
         var node = new BorderNode { Child = null };
 
@@ -47,7 +47,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsConstraints()
+    public async Task Measure_RespectsConstraints()
     {
         var child = new TextBlockNode { Text = "This is a long text line" };
         var node = new BorderNode { Child = child };
@@ -59,7 +59,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Measure_WithMultilineChild_CalculatesCorrectHeight()
+    public async Task Measure_WithMultilineChild_CalculatesCorrectHeight()
     {
         // Simulate a VStack with multiple children
         var vstack = new VStackNode
@@ -81,7 +81,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Measure_WithTightConstraints_RespectsMinimum()
+    public async Task Measure_WithTightConstraints_RespectsMinimum()
     {
         var child = new TextBlockNode { Text = "Hi" };
         var node = new BorderNode { Child = child };
@@ -98,7 +98,7 @@ public class BorderNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_PositionsChildInsideBorder()
+    public async Task Arrange_PositionsChildInsideBorder()
     {
         var child = new TextBlockNode { Text = "Test" };
         var node = new BorderNode { Child = child };
@@ -115,7 +115,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
         var bounds = new Rect(0, 0, 20, 5);
@@ -126,7 +126,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Arrange_WithMinimalBounds_DoesNotCrash()
+    public async Task Arrange_WithMinimalBounds_DoesNotCrash()
     {
         var node = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
         
@@ -138,7 +138,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Arrange_ChildGetsZeroSizeWhenBorderFillsSpace()
+    public async Task Arrange_ChildGetsZeroSizeWhenBorderFillsSpace()
     {
         var child = new TextBlockNode { Text = "Test" };
         var node = new BorderNode { Child = child };
@@ -156,11 +156,11 @@ public class BorderNodeTests
     #region Rendering Tests - Border Characters
 
     [Fact]
-    public void Render_DrawsTopBorder()
+    public async Task Render_DrawsTopBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -170,6 +170,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should contain top-left corner
@@ -181,11 +185,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_DrawsBottomBorder()
+    public async Task Render_DrawsBottomBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -195,6 +199,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var bottomLine = terminal.CreateSnapshot().GetLineTrimmed(4);
         // Should contain bottom-left corner
@@ -204,11 +212,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_DrawsVerticalBorders()
+    public async Task Render_DrawsVerticalBorders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -218,6 +226,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Middle rows should have vertical borders
         var middleLine = terminal.CreateSnapshot().GetLineTrimmed(2);
@@ -225,11 +237,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_CompleteBorderBox()
+    public async Task Render_CompleteBorderBox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -239,6 +251,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 6, 3));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Check complete border structure
         var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
@@ -257,11 +273,11 @@ public class BorderNodeTests
     #region Rendering Tests - Title
 
     [Fact]
-    public void Render_WithTitle_ShowsTitleInTopBorder()
+    public async Task Render_WithTitle_ShowsTitleInTopBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -272,17 +288,21 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Contains("My Title", topLine);
     }
 
     [Fact]
-    public void Render_WithLongTitle_TruncatesTitle()
+    public async Task Render_WithLongTitle_TruncatesTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -293,6 +313,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(15, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be truncated to fit within border (innerWidth=8, title max=6 chars)
@@ -301,11 +325,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_WithShortTitle_CentersTitleInBorder()
+    public async Task Render_WithShortTitle_CentersTitleInBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -316,6 +340,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Title should be present
@@ -326,11 +354,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_WithEmptyTitle_DrawsNormalBorder()
+    public async Task Render_WithEmptyTitle_DrawsNormalBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -341,6 +369,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         // Should be ┌────────┐ without title
@@ -348,11 +380,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_WithNullTitle_DrawsNormalBorder()
+    public async Task Render_WithNullTitle_DrawsNormalBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -363,6 +395,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var topLine = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("┌────────┐", topLine);
@@ -373,11 +409,11 @@ public class BorderNodeTests
     #region Rendering Tests - Child Content
 
     [Fact]
-    public void Render_RendersChildContent()
+    public async Task Render_RendersChildContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -387,16 +423,20 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 15, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("Hello", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
-    public void Render_ChildContentInsideBorder()
+    public async Task Render_ChildContentInsideBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -406,6 +446,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Child "Hi" should be somewhere in the screen between borders
         var screenText = terminal.CreateSnapshot().GetScreenText();
@@ -416,17 +460,21 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_WithNoChild_DrawsEmptyBorder()
+    public async Task Render_WithNoChild_DrawsEmptyBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 5, 3));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
@@ -440,11 +488,11 @@ public class BorderNodeTests
     #region Rendering Tests - Narrow Terminal
 
     [Fact]
-    public void Render_InNarrowTerminal_StillDrawsBorder()
+    public async Task Render_InNarrowTerminal_StillDrawsBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode
         {
@@ -454,6 +502,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 7, 3));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("┌", screenText);
@@ -463,17 +515,21 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_MinimalBorder_DrawsCorrectly()
+    public async Task Render_MinimalBorder_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var context = CreateContext(workload);
         var node = new BorderNode { Child = null };
 
         node.Measure(Constraints.Tight(10, 5));
         node.Arrange(new Rect(0, 0, 2, 2));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
         var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
@@ -488,11 +544,11 @@ public class BorderNodeTests
     #region Theming Tests
 
     [Fact]
-    public void Render_WithCustomTheme_UsesThemeCharacters()
+    public async Task Render_WithCustomTheme_UsesThemeCharacters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -510,6 +566,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hi") && s.ContainsText("╔"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("╔", screenText);
@@ -521,11 +581,11 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void Render_DoubleLineBorderTheme_DrawsCorrectly()
+    public async Task Render_DoubleLineBorderTheme_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
         var theme = new Hex1bTheme("DoubleLine")
             .Set(BorderTheme.TopLeftCorner, "╔")
             .Set(BorderTheme.TopRightCorner, "╗")
@@ -543,6 +603,10 @@ public class BorderNodeTests
         node.Measure(Constraints.Tight(15, 5));
         node.Arrange(new Rect(0, 0, 6, 3));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var line0 = terminal.CreateSnapshot().GetLineTrimmed(0);
         var line1 = terminal.CreateSnapshot().GetLineTrimmed(1);
@@ -559,7 +623,7 @@ public class BorderNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_ReturnsFocusableChildren()
+    public async Task GetFocusableNodes_ReturnsFocusableChildren()
     {
         var textBox = new TextBoxNode { State = new TextBoxState() };
         var node = new BorderNode { Child = textBox };
@@ -571,7 +635,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
+    public async Task GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
     {
         var textBlock = new TextBlockNode { Text = "Not focusable" };
         var node = new BorderNode { Child = textBlock };
@@ -582,7 +646,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNoChild_ReturnsEmpty()
+    public async Task GetFocusableNodes_WithNoChild_ReturnsEmpty()
     {
         var node = new BorderNode { Child = null };
 
@@ -592,7 +656,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
+    public async Task GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
     {
         var textBox1 = new TextBoxNode { State = new TextBoxState() };
         var textBox2 = new TextBoxNode { State = new TextBoxState() };
@@ -610,7 +674,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void IsFocusable_ReturnsFalse()
+    public async Task IsFocusable_ReturnsFalse()
     {
         var node = new BorderNode();
 
@@ -641,7 +705,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void HandleInput_WithNoChild_ReturnsFalse()
+    public async Task HandleInput_WithNoChild_ReturnsFalse()
     {
         var node = new BorderNode { Child = null };
 
@@ -651,7 +715,7 @@ public class BorderNodeTests
     }
 
     [Fact]
-    public void HandleInput_WithNonFocusedChild_ReturnsFalse()
+    public async Task HandleInput_WithNonFocusedChild_ReturnsFalse()
     {
         var state = new TextBoxState { Text = "test" };
         var textBox = new TextBoxNode { State = state, IsFocused = false };
@@ -673,7 +737,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -691,11 +755,31 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
         // Check for border characters
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("└"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("└"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┘"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┘"));
     }
 
@@ -704,7 +788,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -723,7 +807,15 @@ public class BorderNodeTests
         await runTask;
 
         // Check for title and content
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("My Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("My Panel"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
     }
 
@@ -732,7 +824,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -754,9 +846,25 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Line 1"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Line 2"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Line 3"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("List"));
     }
 
@@ -765,7 +873,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var text = "";
 
         using var app = new Hex1bApp(
@@ -795,7 +903,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -816,8 +924,20 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Outer"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Inner"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Nested"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Nested"));
     }
 
@@ -826,7 +946,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 12, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(12, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -845,7 +965,15 @@ public class BorderNodeTests
         await runTask;
 
         // Border characters should be present
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
     }
 
@@ -854,7 +982,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -875,9 +1003,25 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("L"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("L"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("R"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("R"));
     }
 
@@ -886,7 +1030,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -915,7 +1059,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
         var clickedButton = "";
 
         using var app = new Hex1bApp(
@@ -948,7 +1092,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -969,9 +1113,21 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
         // Border characters should be present
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
     }
 
@@ -980,7 +1136,7 @@ public class BorderNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -999,9 +1155,25 @@ public class BorderNodeTests
         await runTask;
 
         // Should still have complete border
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("└"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("└"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┘"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("┘"));
     }
 

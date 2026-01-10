@@ -45,7 +45,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_ScopesButtonColors_OnlyInsidePanel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -93,7 +93,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_AppliesFocusedButtonTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -135,7 +135,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_ScopesTextBoxColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -181,7 +181,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_ScopesListColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
         IReadOnlyList<string> items = ["Apple", "Banana", "Cherry"];
 
         using var app = new Hex1bApp(
@@ -228,7 +228,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_ScopesBorderColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -273,7 +273,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_ScopesProgressColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -322,7 +322,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_NestedPanels_ApplyThemesCumulatively()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 70, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(70, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -373,7 +373,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_NestedDocExample_CyanYellowCyan()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 8);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 8).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.ThemePanel(
@@ -451,7 +451,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_NestedDocExample_CumulativeThemes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 45, 8);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(45, 8).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.ThemePanel(
@@ -533,7 +533,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_InsideVStack_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -571,7 +571,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_InsideHStack_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -611,7 +611,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_InsideBorder_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Border(
@@ -651,7 +651,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_InsideVScroll_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -693,7 +693,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_InsideSplitter_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.HSplitter(
@@ -748,7 +748,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_WithCachedTheme_WorksCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
 
         // Pre-create a cached theme
         var cachedTheme = new Hex1bTheme("CachedBlue")
@@ -795,7 +795,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_PassthroughTheme_HasNoEffect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -847,7 +847,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_RespondsToTerminalWidth(int width)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, width, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(width, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -1065,7 +1065,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_Dashboard_WithThemedSections()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 100, 25);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 25).Build();
         IReadOnlyList<string> menuItems = ["Dashboard", "Settings", "Help"];
 
         using var app = new Hex1bApp(
@@ -1147,7 +1147,7 @@ public class ThemePanelIntegrationTests : IDisposable
     public async Task ThemePanel_Form_WithValidationThemes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 70, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(70, 20).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Border(

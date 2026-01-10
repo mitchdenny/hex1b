@@ -24,7 +24,7 @@ public class ThemingExhibitRepro
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         IReadOnlyList<string> items = [
             "Theme 1",
@@ -175,7 +175,7 @@ public class ThemingExhibitRepro
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         // Create a VStack with a List (focusable) first, then a TextBox
         // The List gets focus by default, so the TextBox should NOT show cursor colors
@@ -220,7 +220,7 @@ public class ThemingExhibitRepro
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.TextBox("test"),
@@ -252,7 +252,7 @@ public class ThemingExhibitRepro
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 100, 30);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 30).Build();
 
         IReadOnlyList<string> items = [
             "Default",

@@ -28,7 +28,7 @@ public class EmojiRenderingTests
         public TestTerminal(int width, int height)
         {
             _workload = StreamWorkloadAdapter.CreateHeadless(width, height);
-            Terminal = new Hex1bTerminal(_workload, width, height);
+            Terminal = Hex1bTerminal.CreateBuilder().WithWorkload(_workload).WithHeadless().WithDimensions(width, height).Build();
         }
 
         public void Write(string text)

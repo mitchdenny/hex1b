@@ -136,7 +136,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             // Default: create console terminal using new architecture
             var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
             var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-            _ownedTerminal = new Hex1bTerminal(presentation, workload);
+            _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
+            {
+                PresentationAdapter = presentation,
+                WorkloadAdapter = workload
+            });
             _adapter = workload;
         }
         

@@ -19,7 +19,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Measure_ReturnsHeightOfOne()
+    public async Task Measure_ReturnsHeightOfOne()
     {
         var node = new InfoBarNode
         {
@@ -32,7 +32,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Measure_WidthIsAtLeastSectionTextLength()
+    public async Task Measure_WidthIsAtLeastSectionTextLength()
     {
         var node = new InfoBarNode
         {
@@ -46,7 +46,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Measure_FillsAvailableWidth()
+    public async Task Measure_FillsAvailableWidth()
     {
         var node = new InfoBarNode
         {
@@ -61,7 +61,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Measure_WithNoSections_ReturnsMinimalSize()
+    public async Task Measure_WithNoSections_ReturnsMinimalSize()
     {
         var node = new InfoBarNode { Sections = [] };
 
@@ -71,7 +71,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new InfoBarNode
         {
@@ -85,11 +85,11 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Render_DisplaysSectionText()
+    public async Task Render_DisplaysSectionText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = CreateContext(workload);
         var node = new InfoBarNode
         {
@@ -99,16 +99,20 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("Ready", terminal.CreateSnapshot().GetScreenText());
     }
 
     [Fact]
-    public void Render_DisplaysMultipleSections()
+    public async Task Render_DisplaysMultipleSections()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 5).Build();
         var context = CreateContext(workload);
         var node = new InfoBarNode
         {
@@ -122,6 +126,10 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(60, 1));
         node.Arrange(new Rect(0, 0, 60, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.Contains("Mode: Normal", screenText);
@@ -130,11 +138,11 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Render_WithInvertColors_SwapsForegroundAndBackground()
+    public async Task Render_WithInvertColors_SwapsForegroundAndBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var theme = new Hex1bTheme("Test")
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.White)
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Black);
@@ -149,6 +157,10 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
@@ -158,11 +170,11 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Render_WithInvertColorsFalse_UsesNormalColors()
+    public async Task Render_WithInvertColorsFalse_UsesNormalColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var theme = new Hex1bTheme("Test")
             .Set(InfoBarTheme.ForegroundColor, Hex1bColor.Green)
             .Set(InfoBarTheme.BackgroundColor, Hex1bColor.Blue);
@@ -177,6 +189,10 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should use the specified colors directly
         Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0))); // Green foreground
@@ -184,11 +200,11 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Render_SectionWithCustomColors_OverridesBarColors()
+    public async Task Render_SectionWithCustomColors_OverridesBarColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = CreateContext(workload);
 
         var node = new InfoBarNode
@@ -203,6 +219,10 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Error section should have its own colors
         Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0))); // Red foreground
@@ -210,11 +230,11 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void Render_TruncatesTextExceedingBounds()
+    public async Task Render_TruncatesTextExceedingBounds()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
 
         var node = new InfoBarNode
@@ -225,6 +245,10 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(20, 1));
         node.Arrange(new Rect(0, 0, 20, 1));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Text should be truncated to fit
         var screenText = terminal.CreateSnapshot().GetScreenText();
@@ -232,7 +256,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void IsFocusable_ReturnsFalse()
+    public async Task IsFocusable_ReturnsFalse()
     {
         var node = new InfoBarNode
         {
@@ -243,7 +267,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_ReturnsEmpty()
+    public async Task GetFocusableNodes_ReturnsEmpty()
     {
         var node = new InfoBarNode
         {
@@ -256,7 +280,7 @@ public class InfoBarNodeTests
     }
 
     [Fact]
-    public void HandleInput_ReturnsFalse()
+    public async Task HandleInput_ReturnsFalse()
     {
         var node = new InfoBarNode
         {
@@ -275,7 +299,7 @@ public class InfoBarNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -293,6 +317,10 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Ready"));
     }
 
@@ -301,7 +329,7 @@ public class InfoBarNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -325,8 +353,20 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Mode: Insert"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Mode: Insert"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("UTF-8"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("UTF-8"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ln 42, Col 7"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Ln 42, Col 7"));
     }
 
@@ -335,7 +375,7 @@ public class InfoBarNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -356,7 +396,15 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Main Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Main Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Status Bar"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Status Bar"));
     }
 
@@ -365,7 +413,7 @@ public class InfoBarNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(InfoBarTheme.ForegroundColor, Hex1bColor.Cyan)
             .Set(InfoBarTheme.BackgroundColor, Hex1bColor.DarkGray);
@@ -386,6 +434,10 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Themed"));
         Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255))); // Cyan
         Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(64, 64, 64))); // DarkGray

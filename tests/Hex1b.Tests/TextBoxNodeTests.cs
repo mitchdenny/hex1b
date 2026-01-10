@@ -15,7 +15,7 @@ public class TextBoxNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize()
+    public async Task Measure_ReturnsCorrectSize()
     {
         var node = new TextBoxNode { Text = "hello" };
 
@@ -27,7 +27,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyText_HasMinWidth()
+    public async Task Measure_EmptyText_HasMinWidth()
     {
         var node = new TextBoxNode { Text = "" };
 
@@ -38,7 +38,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_LongText_MeasuresFullWidth()
+    public async Task Measure_LongText_MeasuresFullWidth()
     {
         var node = new TextBoxNode { Text = "This is a very long text input" };
 
@@ -50,7 +50,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxWidthConstraint()
+    public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new TextBoxNode { Text = "Long text here" };
 
@@ -60,7 +60,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_WithEmoji_CalculatesDisplayWidth()
+    public async Task Measure_WithEmoji_CalculatesDisplayWidth()
     {
         // "😀" is 2 cells wide
         var node = new TextBoxNode { Text = "😀" };
@@ -72,7 +72,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_WithCJK_CalculatesDisplayWidth()
+    public async Task Measure_WithCJK_CalculatesDisplayWidth()
     {
         // "中文" is 4 cells wide (2 + 2)
         var node = new TextBoxNode { Text = "中文" };
@@ -84,7 +84,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_MixedAsciiAndEmoji_CalculatesDisplayWidth()
+    public async Task Measure_MixedAsciiAndEmoji_CalculatesDisplayWidth()
     {
         // "Hi😀" = 2 + 2 = 4 cells
         var node = new TextBoxNode { Text = "Hi😀" };
@@ -96,7 +96,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Measure_FamilyEmoji_TreatedAsTwoColumns()
+    public async Task Measure_FamilyEmoji_TreatedAsTwoColumns()
     {
         // "👨‍👩‍👧" is a ZWJ sequence but displays as one emoji (2 cells)
         var node = new TextBoxNode { Text = "👨‍👩‍👧" };
@@ -112,11 +112,11 @@ public class TextBoxNodeTests
     #region Rendering Tests - Unfocused State
 
     [Fact]
-    public void Render_Unfocused_ShowsBrackets()
+    public async Task Render_Unfocused_ShowsBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -125,16 +125,20 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("[test]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_Unfocused_EmptyText_ShowsEmptyBrackets()
+    public async Task Render_Unfocused_EmptyText_ShowsEmptyBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -143,16 +147,20 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("[]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_Unfocused_LongText_RendersCompletely()
+    public async Task Render_Unfocused_LongText_RendersCompletely()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -161,6 +169,10 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("[This is a longer piece of text]", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
@@ -170,11 +182,11 @@ public class TextBoxNodeTests
     #region Rendering Tests - Focused State with Cursor
 
     [Fact]
-    public void Render_Focused_ShowsCursor()
+    public async Task Render_Focused_ShowsCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -184,8 +196,16 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 1;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // When focused, the cursor character should be highlighted with ANSI codes
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text content should still be visible
@@ -195,11 +215,11 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Render_Focused_CursorAtStart_HighlightsFirstChar()
+    public async Task Render_Focused_CursorAtStart_HighlightsFirstChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -209,19 +229,27 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should have ANSI codes for cursor highlighting
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_Focused_CursorAtEnd_ShowsCursorSpace()
+    public async Task Render_Focused_CursorAtEnd_ShowsCursorSpace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -231,18 +259,26 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 4;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // When cursor is at end, a space is shown as cursor placeholder
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
-    public void Render_Focused_EmptyText_ShowsCursorSpace()
+    public async Task Render_Focused_EmptyText_ShowsCursorSpace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode
         {
@@ -252,8 +288,16 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should still have the brackets and ANSI codes for cursor
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.Contains("[", snapshot.GetLineTrimmed(0));
         Assert.Contains("]", snapshot.GetLineTrimmed(0));
@@ -265,19 +309,27 @@ public class TextBoxNodeTests
     #region Rendering Tests - Selection
 
     [Fact]
-    public void Render_WithSelection_HighlightsSelectedText()
+    public async Task Render_WithSelection_HighlightsSelectedText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
         node.State.SelectionAnchor = 0;
         node.State.CursorPosition = 5;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should have ANSI codes for selection highlighting
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text should still be present
@@ -286,19 +338,27 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void Render_WithSelection_InMiddle_HighlightsCorrectPortion()
+    public async Task Render_WithSelection_InMiddle_HighlightsCorrectPortion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBoxNode { Text = "abcdefgh", IsFocused = true };
         node.State.SelectionAnchor = 2;
         node.State.CursorPosition = 5;
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should contain the full text
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.Contains("abcdefgh", snapshot.GetLineTrimmed(0));
         // Should have selection ANSI codes
@@ -431,7 +491,7 @@ public class TextBoxNodeTests
     #region Focus Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new TextBoxNode();
 
@@ -443,7 +503,7 @@ public class TextBoxNodeTests
     #region Mouse Click Tests
 
     [Fact]
-    public void HandleMouseClick_PositionsCursorAtClickLocation()
+    public async Task HandleMouseClick_PositionsCursorAtClickLocation()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -458,7 +518,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_AtStart_PositionsCursorAtZero()
+    public async Task HandleMouseClick_AtStart_PositionsCursorAtZero()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -473,7 +533,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_AtEnd_PositionsCursorAtEnd()
+    public async Task HandleMouseClick_AtEnd_PositionsCursorAtEnd()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -488,7 +548,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_OnBracket_PositionsCursorAtStart()
+    public async Task HandleMouseClick_OnBracket_PositionsCursorAtStart()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -503,7 +563,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_ClearsSelection()
+    public async Task HandleMouseClick_ClearsSelection()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.State.SelectAll(); // Select all text
@@ -520,7 +580,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_DoubleClick_NotHandledByHandleMouseClick()
+    public async Task HandleMouseClick_DoubleClick_NotHandledByHandleMouseClick()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -534,7 +594,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_RightClick_NotHandled()
+    public async Task HandleMouseClick_RightClick_NotHandled()
     {
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
@@ -548,7 +608,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_WithEmoji_PositionsCorrectly()
+    public async Task HandleMouseClick_WithEmoji_PositionsCorrectly()
     {
         // "😀ab" - emoji is 2 cells wide
         var node = new TextBoxNode { Text = "😀ab" };
@@ -566,7 +626,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public void HandleMouseClick_OnWideChar_PositionsBasedOnMidpoint()
+    public async Task HandleMouseClick_OnWideChar_PositionsBasedOnMidpoint()
     {
         // Click on first half of emoji should position before it
         var node = new TextBoxNode { Text = "😀" };
@@ -589,7 +649,7 @@ public class TextBoxNodeTests
     #region Layout Tests
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new TextBoxNode { Text = "test" };
         var bounds = new Rect(5, 10, 20, 1);
@@ -608,7 +668,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -628,6 +688,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Initial Text"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Initial Text"));
     }
 
@@ -636,7 +700,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -667,7 +731,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
         var capturedText = "Short";
 
         using var app = new Hex1bApp(
@@ -699,7 +763,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
 
@@ -736,7 +800,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "test";
 
         using var app = new Hex1bApp(
@@ -769,7 +833,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "abc";
 
         using var app = new Hex1bApp(
@@ -803,7 +867,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "";
 
         using var app = new Hex1bApp(
@@ -834,7 +898,7 @@ public class TextBoxNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -857,6 +921,10 @@ public class TextBoxNodeTests
         // The text box renders as "[LongTextHere]" which is 14 chars
         // In a 10-char wide terminal, it will wrap
         // Check that the text content is present (split across lines)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[LongText"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[LongText"));
     }
 
@@ -871,7 +939,7 @@ public class TextBoxNodeTests
         // Previously, creating new TextBoxState() inline would reset state on each render
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -895,6 +963,10 @@ public class TextBoxNodeTests
         await runTask;
 
         // The typed text should be visible in the terminal output
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
     }
 
@@ -904,7 +976,7 @@ public class TextBoxNodeTests
         // Each uncontrolled TextBox should have its own independent state
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -931,7 +1003,15 @@ public class TextBoxNodeTests
         await runTask;
 
         // Both texts should be visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("AA"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("AA"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("BB"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("BB"));
     }
 
@@ -941,7 +1021,7 @@ public class TextBoxNodeTests
         // Controlled mode with onTextChanged callback
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "Initial";
 
         using var app = new Hex1bApp(
@@ -979,7 +1059,7 @@ public class TextBoxNodeTests
         // Test with Button (also focusable) to isolate the issue
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -997,6 +1077,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
@@ -1007,7 +1091,7 @@ public class TextBoxNodeTests
         // Wait for alternate screen instead of text to isolate rendering from input
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1025,6 +1109,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Initial"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Initial"));
     }
 
@@ -1034,7 +1122,7 @@ public class TextBoxNodeTests
         // One character typed into TextBox
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -1064,7 +1152,7 @@ public class TextBoxNodeTests
         // Type multiple chars using Type() method
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -1095,7 +1183,7 @@ public class TextBoxNodeTests
         // This tests if the issue is TextBox having initial focus vs receiving focus later
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var capturedText = "";
 
         using var app = new Hex1bApp(
@@ -1129,7 +1217,7 @@ public class TextBoxNodeTests
         // Two buttons, Tab between them, no TextBox involved
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -1164,7 +1252,7 @@ public class TextBoxNodeTests
         // Button first, Tab to TextBox, but don't type - just exit
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1186,6 +1274,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("pre-filled"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("pre-filled"));
     }
 
@@ -1195,7 +1287,7 @@ public class TextBoxNodeTests
         // TextBox in VStack, has initial focus, just exit without any interaction
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1216,6 +1308,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test-value"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("test-value"));
     }
 
@@ -1225,7 +1321,7 @@ public class TextBoxNodeTests
         // Button in VStack, has initial focus
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1245,6 +1341,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
@@ -1254,7 +1354,7 @@ public class TextBoxNodeTests
         // TextBox in VStack, verify it renders and Ctrl+C exits properly
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1274,6 +1374,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("test"));
     }
 

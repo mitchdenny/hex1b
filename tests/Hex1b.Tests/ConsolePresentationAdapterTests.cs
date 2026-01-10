@@ -85,7 +85,7 @@ public class Hex1bTerminalTests_Workload
         // Headless terminal (no presentation adapter)
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // WorkloadAdapter should implement the interface
         Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(workload);
@@ -96,20 +96,24 @@ public class Hex1bTerminalTests_Workload
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 100, 50);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 50).Build();
         
         Assert.Equal(100, terminal.Width);
         Assert.Equal(50, terminal.Height);
     }
     
     [Fact]
-    public void Write_CapturesOutput()
+    public async Task Write_CapturesOutput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         workload.Write("Hello");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
     }
@@ -119,7 +123,7 @@ public class Hex1bTerminalTests_Workload
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var reader = workload.InputEvents;
         Assert.NotNull(reader);
@@ -130,7 +134,7 @@ public class Hex1bTerminalTests_Workload
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var caps = workload.Capabilities;
         Assert.NotNull(caps);

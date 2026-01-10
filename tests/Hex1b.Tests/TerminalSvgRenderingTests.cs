@@ -16,7 +16,7 @@ public class TerminalSvgRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(30, 30, 60))
@@ -63,7 +63,7 @@ public class TerminalSvgRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(20, 40, 60));
@@ -115,7 +115,7 @@ public class TerminalSvgRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 50, 12);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 12).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(25, 25, 35))
@@ -169,7 +169,7 @@ public class TerminalSvgRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 8);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 8).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -206,7 +206,7 @@ public class TerminalSvgRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Text("Custom Options Test"),

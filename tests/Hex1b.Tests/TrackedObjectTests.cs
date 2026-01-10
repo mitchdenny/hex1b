@@ -2,6 +2,7 @@
 
 using Hex1b;
 using Hex1b.Terminal;
+using Hex1b.Terminal.Automation;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -9,10 +10,10 @@ namespace Hex1b.Tests;
 public class TrackedObjectTests
 {
     [Fact]
-    public void ApplyTokens_WithSixelSequence_CreatesSixelData()
+    public async Task ApplyTokens_WithSixelSequence_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Process a Sixel sequence directly
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
@@ -28,10 +29,10 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void ApplyTokens_WithCursorPositionThenSixel_CreatesSixelData()
+    public async Task ApplyTokens_WithCursorPositionThenSixel_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Process cursor position followed by Sixel sequence
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
@@ -47,17 +48,20 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void WorkloadAdapter_WithSixel_TerminalReceivesSixelData()
+    public async Task WorkloadAdapter_WithSixel_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Write through workload adapter (simulating what SixelNode does)
         workload.SetCursorPosition(0, 0);
         workload.Write("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
         
         // Flush should process it
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should track the Sixel data
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -65,17 +69,20 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void WorkloadAdapter_SeparateWrites_TerminalReceivesSixelData()
+    public async Task WorkloadAdapter_SeparateWrites_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Write cursor position and sixel as SEPARATE writes (like SixelNode does via context)
         workload.Write("\x1b[1;1H");  // SetCursorPosition generates this
         workload.Write("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
         
         // Flush should process both
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should track the Sixel data
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -83,10 +90,10 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void RenderContext_WithSixel_TerminalReceivesSixelData()
+    public async Task RenderContext_WithSixel_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         
         // Use render context exactly like SixelNode does
@@ -94,7 +101,10 @@ public class TrackedObjectTests
         context.Write("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\");
         
         // Flush should process it
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should track the Sixel data
         Assert.True(terminal.ContainsSixelData());
@@ -102,10 +112,10 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void TrackedSixel_WhenCellOverwritten_ReleasesReference()
+    public async Task TrackedSixel_WhenCellOverwritten_ReleasesReference()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Process a Sixel sequence
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
@@ -119,10 +129,10 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void TrackedSixel_Deduplication_ReusesSameObject()
+    public async Task TrackedSixel_Deduplication_ReusesSameObject()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Process the same Sixel sequence twice
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
@@ -139,10 +149,10 @@ public class TrackedObjectTests
     }
 
     [Fact]
-    public void TrackedSixel_RefCount_IncreasesWithDeduplication()
+    public async Task TrackedSixel_RefCount_IncreasesWithDeduplication()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Process the same Sixel sequence twice
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));

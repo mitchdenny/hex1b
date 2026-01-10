@@ -7,7 +7,7 @@ namespace Hex1b.Tests;
 public class PickerNodeTests
 {
     [Fact]
-    public void PickerNode_InitialState_HasCorrectDefaults()
+    public async Task PickerNode_InitialState_HasCorrectDefaults()
     {
         // Arrange & Act
         var node = new PickerNode();
@@ -20,7 +20,7 @@ public class PickerNodeTests
     }
     
     [Fact]
-    public void PickerNode_WithItems_ReturnsCorrectSelectedText()
+    public async Task PickerNode_WithItems_ReturnsCorrectSelectedText()
     {
         // Arrange
         var node = new PickerNode
@@ -34,7 +34,7 @@ public class PickerNodeTests
     }
     
     [Fact]
-    public void PickerNode_SelectedIndex_ClampsToValidRange()
+    public async Task PickerNode_SelectedIndex_ClampsToValidRange()
     {
         // Arrange
         var node = new PickerNode
@@ -48,7 +48,7 @@ public class PickerNodeTests
     }
     
     [Fact]
-    public void PickerNode_EmptyItems_ReturnsEmptySelectedText()
+    public async Task PickerNode_EmptyItems_ReturnsEmptySelectedText()
     {
         // Arrange
         var node = new PickerNode
@@ -146,7 +146,7 @@ public class PickerNodeTests
     }
     
     [Fact]
-    public void PickerNode_ContentChild_IsCreated()
+    public async Task PickerNode_ContentChild_IsCreated()
     {
         // Arrange & Act (via reconciliation)
         var widget = new PickerWidget(["Apple", "Banana", "Cherry"]);
@@ -159,7 +159,7 @@ public class PickerNodeTests
     }
     
     [Fact]
-    public void PickerNode_IsFocusable_ReturnsFalse_ButContentChildIsFocusable()
+    public async Task PickerNode_IsFocusable_ReturnsFalse_ButContentChildIsFocusable()
     {
         // Arrange
         var widget = new PickerWidget(["Apple", "Banana", "Cherry"]);
