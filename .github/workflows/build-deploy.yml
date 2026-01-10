@@ -58,6 +58,7 @@ jobs:
         run: |
           cd src/content
           npm install
+          npm run build
           cd ../..
           aspire do build-content
 
