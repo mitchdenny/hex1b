@@ -325,7 +325,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -351,14 +351,10 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("▲") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "vertical arrows to render")
             .Build()
             .ApplyAsync(terminal);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("▲"), "Should show up arrow");
         Assert.True(snapshot.ContainsText("▼"), "Should show down arrow");
@@ -507,7 +503,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -533,7 +529,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("◀") && s.ContainsText("▶"), TimeSpan.FromSeconds(2), "horizontal arrows to render")
             .Build()
             .ApplyAsync(terminal);
 

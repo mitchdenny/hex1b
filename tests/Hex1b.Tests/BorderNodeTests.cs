@@ -424,7 +424,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 15, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2), "child content to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -447,7 +447,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(2), "child content to render")
             .Build()
             .ApplyAsync(terminal);
 

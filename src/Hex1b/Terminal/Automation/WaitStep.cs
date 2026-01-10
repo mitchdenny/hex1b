@@ -15,7 +15,6 @@ public sealed record WaitStep(TimeSpan Duration) : TestStep
             // Use TimeProvider-based delay - when using FakeTimeProvider, the test
             // should advance time externally to complete this delay
             await DelayAsync(timeProvider, Duration, ct);
-            terminal.FlushOutput();
         }
         else
         {

@@ -12,9 +12,9 @@ public sealed class Hex1bTerminalInputSequenceOptions
 
     /// <summary>
     /// How frequently to poll when waiting for conditions.
-    /// Default is 50ms.
+    /// Default is 250ms.
     /// </summary>
-    public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(50);
+    public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
     /// Delay between keystrokes for SlowType.

@@ -328,50 +328,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Synchronously drains any pending output from the workload and processes it
-    /// into the screen buffer.
-    /// </summary>
-    /// <remarks>
-    /// This is called automatically by screen buffer read operations (GetScreenText, 
-    /// ContainsText, etc.) so callers don't need to call it directly.
-    /// When PumpWorkloadOutputAsync is running (presentation mode), this method
-    /// does nothing since the pump already updates the buffer and forwards to
-    /// presentation filters.
-    /// </remarks>
-    internal void FlushOutput()
-    {
-        if (_workload is not Hex1bAppWorkloadAdapter appWorkload)
-            return;
-
-        // When the output pump is running, it's already updating the buffer
-        // and forwarding to presentation filters. Don't compete for channel data.
-        if (_outputProcessingTask != null)
-            return;
-
-        // Drain all available output synchronously using non-blocking reads
-        while (appWorkload.TryReadOutput(out var data))
-        {
-            if (data.IsEmpty)
-            {
-                break;
-            }
-
-            // Tokenize once, use for both notifications and buffer application
-            var text = Encoding.UTF8.GetString(data.Span);
-            var tokens = AnsiTokenizer.Tokenize(text);
-            
-            // Notify workload filters (fire-and-forget in sync context)
-            _ = NotifyWorkloadFiltersOutputAsync(tokens);
-            
-            // Apply tokens to buffer
-            ApplyTokens(tokens);
-        }
-
-        // Channel drained - notify frame complete (fire-and-forget in sync context)
-        _ = NotifyWorkloadFiltersFrameCompleteAsync();
-    }
-
     // === I/O Pump Tasks ===
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
@@ -988,7 +944,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         get
         {
-            FlushOutput();
             return _cursorX;
         }
     }
@@ -1001,7 +956,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         get
         {
-            FlushOutput();
             return _cursorY;
         }
     }
@@ -1014,7 +968,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         get
         {
-            FlushOutput();
             return _inAlternateScreen;
         }
     }
@@ -1047,7 +1000,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </param>
     internal TerminalCell[,] GetScreenBuffer(bool addTrackedObjectRefs = false)
     {
-        FlushOutput();
         var copy = new TerminalCell[_height, _width];
         Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
         
@@ -1071,7 +1023,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal string GetScreenText()
     {
-        FlushOutput();
         return GetScreenTextInternal();
     }
 
@@ -1104,7 +1055,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal string GetLine(int lineIndex)
     {
-        FlushOutput();
         return GetLineInternal(lineIndex);
     }
 
@@ -1139,7 +1089,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal IEnumerable<string> GetNonEmptyLines()
     {
-        FlushOutput();
         for (int y = 0; y < _height; y++)
         {
             var line = GetLineInternal(y).TrimEnd();
@@ -1156,7 +1105,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal bool ContainsText(string text)
     {
-        FlushOutput();
         var screenText = GetScreenTextInternal();
         return screenText.Contains(text, StringComparison.Ordinal);
     }
@@ -1168,7 +1116,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal List<(int Line, int Column)> FindText(string text)
     {
-        FlushOutput();
         var results = new List<(int, int)>();
         for (int y = 0; y < _height; y++)
         {
@@ -1249,7 +1196,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     public Automation.Hex1bTerminalSnapshot CreateSnapshot()
     {
-        FlushOutput();
         return new Automation.Hex1bTerminalSnapshot(this);
     }
 
@@ -1367,7 +1313,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal SixelData? GetSixelDataAt(int x, int y)
     {
-        FlushOutput();
         if (x < 0 || x >= _width || y < 0 || y >= _height)
             return null;
         return _screenBuffer[y, x].SixelData;
@@ -1380,7 +1325,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal TrackedObject<SixelData>? GetTrackedSixelAt(int x, int y)
     {
-        FlushOutput();
         if (x < 0 || x >= _width || y < 0 || y >= _height)
             return null;
         return _screenBuffer[y, x].TrackedSixel;
@@ -1391,7 +1335,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal bool ContainsSixelData()
     {
-        FlushOutput();
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
@@ -1409,7 +1352,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal HyperlinkData? GetHyperlinkDataAt(int x, int y)
     {
-        FlushOutput();
         if (x < 0 || x >= _width || y < 0 || y >= _height)
             return null;
         return _screenBuffer[y, x].HyperlinkData;
@@ -1422,7 +1364,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal TrackedObject<HyperlinkData>? GetTrackedHyperlinkAt(int x, int y)
     {
-        FlushOutput();
         if (x < 0 || x >= _width || y < 0 || y >= _height)
             return null;
         return _screenBuffer[y, x].TrackedHyperlink;
@@ -1433,7 +1374,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal bool ContainsHyperlinkData()
     {
-        FlushOutput();
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)

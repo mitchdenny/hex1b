@@ -24,7 +24,6 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
                 if (options.TimeProvider is { } timeProvider)
                 {
                     await DelayAsync(timeProvider, DelayBetweenKeys, ct);
-                    terminal.FlushOutput();
                 }
                 else
                 {

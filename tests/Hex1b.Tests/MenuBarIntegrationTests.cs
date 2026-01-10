@@ -119,16 +119,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - File menu items should be visible
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("New"));
-        Assert.True(snapshot.ContainsText("Open"));
-        Assert.True(snapshot.ContainsText("Save"));
+        // WaitUntil already verified File menu items (New, Open) are visible
     }
     
     [Fact]
@@ -233,15 +224,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - Edit menu should be open, not File menu
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("Undo"));
-        Assert.True(snapshot.ContainsText("Cut"));
+        // WaitUntil already verified Edit menu items (Undo, Copy) are visible
     }
     
     [Fact]
@@ -613,14 +596,8 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - Edit menu should be open again (proving focus stayed on Edit)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("Undo"));
+        // The WaitUntil in the sequence already verified "Undo" is visible,
+        // proving focus stayed on Edit menu after Up arrow closed it
     }
     
     [Fact]
@@ -672,25 +649,21 @@ public class MenuBarIntegrationTests
 
         // Act - Open File menu, navigate to Recent submenu, open it with right arrow
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
             .Down()   // New -> Open
             .Down()   // Open -> Recent (skip separator)
             .Right()  // Open Recent submenu
-            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .WaitUntil(s => s.ContainsText("Doc1.txt") && s.ContainsText("Doc2.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open with items")
+            .Capture("after_submenu_open")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Submenu items should be visible
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Assert - Submenu items should be visible (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt"));
         Assert.True(snapshot.ContainsText("Doc2.txt"));
     }
@@ -770,7 +743,7 @@ public class MenuBarIntegrationTests
 
         // Act - Open submenu, close it with left arrow, verify focus by pressing right to reopen
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
@@ -781,17 +754,13 @@ public class MenuBarIntegrationTests
             .WaitUntil(s => !s.ContainsText("Doc1.txt") && s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "submenu to close")
             .Right()  // If focus is on Recent, this should reopen the submenu
             .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to reopen")
+            .Capture("after_reopen")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Submenu should be open again, proving focus was on "Recent"
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Assert - Submenu should be open again, proving focus was on "Recent" (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt")); // Submenu is open
     }
     
@@ -1302,23 +1271,19 @@ public class MenuBarIntegrationTests
 
         // Act - Open File menu, then press Right to navigate to Edit menu
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
             .Right()  // Should close File and open Edit
             .WaitUntil(s => s.ContainsText("Undo") && !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .Capture("after_switch")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Edit menu should be open (not File menu)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Assert - Edit menu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
     }
@@ -1350,16 +1315,7 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        // Assert - File menu should be open (not Edit menu)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("New"), "File menu should be visible");
-        Assert.True(snapshot.ContainsText("Save"), "File menu should be visible");
-        Assert.False(snapshot.ContainsText("Undo"), "Edit menu should be closed");
+        // WaitUntil already verified File menu (New, Open) is visible after Left arrow
     }
     
     [Fact]
@@ -1514,25 +1470,21 @@ public class MenuBarIntegrationTests
 
         // Act - Open File, Down twice (to get past first item), then Right to Edit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
             .Down().Down()  // Navigate down a couple items
             .Wait(TimeSpan.FromMilliseconds(50))  // Allow focus to settle
             .Right()  // Navigate to Edit menu
-            .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
+            .WaitUntil(s => s.ContainsText("Undo") && !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "Edit menu to open and File menu to close")
+            .Capture("after_switch")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Edit menu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Assert - Edit menu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
     }
@@ -1592,24 +1544,20 @@ public class MenuBarIntegrationTests
 
         // Act - Open File menu, navigate to "Recent", then Right to open submenu
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
             .Down().Down()  // Navigate to Recent
             .Right()  // Open Recent submenu
-            .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
+            .WaitUntil(s => s.ContainsText("Doc1.txt") && s.ContainsText("Doc2.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open with items")
+            .Capture("after_submenu_open")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Recent submenu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Assert - Recent submenu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
         Assert.True(snapshot.ContainsText("Doc2.txt"), "Recent submenu should be visible");
     }

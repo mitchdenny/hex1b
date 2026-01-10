@@ -1265,8 +1265,8 @@ public class TextBoxNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(2))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK") && s.ContainsText("pre-filled"), TimeSpan.FromSeconds(2), "UI to render")
             .Tab()  // Move focus from Button to TextBox
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)  // Immediately exit
@@ -1274,11 +1274,8 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("pre-filled"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("pre-filled"));
+        // Use captured snapshot
+        Assert.True(snapshot.ContainsText("pre-filled"));
     }
 
     [Fact]

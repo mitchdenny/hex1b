@@ -1552,22 +1552,18 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Navigate down through the list
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Navigate down through the list and wait for Date to be selected
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
             .Down().Down().Down() // Move to Date (index 3)
+            .WaitUntil(s => s.ContainsText("> Date"), TimeSpan.FromSeconds(2), "Date to be selected")
             .Capture("after_navigation")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        // After navigation, Date should be visible and selected
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Use the captured snapshot to verify - Date should be visible and selected
         Assert.True(snapshot.ContainsText("Date"));
         Assert.True(snapshot.ContainsText("> Date")); // Should be selected
     }
@@ -1591,22 +1587,18 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Position mouse over the list (inside the border) and scroll
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(5, 2) // Position mouse inside the list area
             .ScrollDown(3) // Scroll down 3 times to reach Date
+            .WaitUntil(s => s.ContainsText("Date"), TimeSpan.FromSeconds(2), "Date to appear after scrolling")
             .Capture("after_scroll")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        // After scrolling, Date should be selected and visible
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+        // Use the captured snapshot - Date should be visible after scrolling
         Assert.True(snapshot.ContainsText("Date"));
     }
 
@@ -1682,7 +1674,7 @@ public class ListNodeTests
         await runTask;
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("> Item 15"), TimeSpan.FromSeconds(2), "Item 15 to be selected")
             .Build()
             .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
@@ -1727,7 +1719,7 @@ public class ListNodeTests
         await runTask;
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("> Item 20"), TimeSpan.FromSeconds(2), "Item 20 to be selected")
             .Build()
             .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
@@ -1771,7 +1763,7 @@ public class ListNodeTests
         await runTask;
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2), "selection indicator to render")
             .Build()
             .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
