@@ -140,6 +140,159 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures the terminal to run a Hex1bApp with full control over options and app capture.
+    /// </summary>
+    /// <param name="configure">
+    /// A configuration function that receives the <see cref="Hex1bApp"/> instance and 
+    /// <see cref="Hex1bAppOptions"/> for customization, and returns the widget builder function.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload provides full control over the Hex1bApp configuration and allows
+    /// capturing the app instance for external control (e.g., calling <c>RequestStop()</c>
+    /// or <c>Invalidate()</c> from outside the render loop).
+    /// </para>
+    /// <para>
+    /// The <see cref="Hex1bAppOptions.WorkloadAdapter"/> and <see cref="Hex1bAppOptions.EnableMouse"/>
+    /// properties are managed by the builder and will throw if set in the callback.
+    /// Use <see cref="WithMouse"/> to enable mouse support.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Hex1bApp? capturedApp = null;
+    /// 
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithHex1bApp((app, options) =>
+    ///     {
+    ///         capturedApp = app;
+    ///         options.Theme = MyCustomTheme;
+    ///         return ctx => ctx.Text("Hello");
+    ///     })
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithHex1bApp(
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        SetWorkloadFactory(presentation =>
+        {
+            // Get capabilities from presentation adapter
+            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
+
+            // Create workload adapter for Hex1bApp
+            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            var enableMouse = _enableMouse;
+
+            // Create options with managed properties already set
+            // Note: WorkloadAdapter and EnableMouse are managed by the builder.
+            // If user modifies these in configure, behavior is undefined.
+            var options = new Hex1bAppOptions
+            {
+                WorkloadAdapter = workloadAdapter,
+                EnableMouse = enableMouse
+            };
+
+            // Create the run callback - app is created here so user can capture it
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                Hex1bApp? app = null;
+                Func<RootContext, Hex1bWidget>? widgetBuilder = null;
+                bool configureInvoked = false;
+
+                // Widget builder that wraps the user's builder
+                Func<RootContext, Hex1bWidget> wrappedBuilder = ctx =>
+                {
+                    // On first call, invoke configure to get the real builder
+                    if (!configureInvoked)
+                    {
+                        configureInvoked = true;
+                        widgetBuilder = configure(app!, options);
+                    }
+                    return widgetBuilder!(ctx);
+                };
+
+                app = new Hex1bApp(wrappedBuilder, options);
+                await using (app)
+                {
+                    await app.RunAsync(ct);
+                }
+                return 0;
+            };
+
+            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a Hex1bApp with full control over options, app capture,
+    /// and async widget building.
+    /// </summary>
+    /// <param name="configure">
+    /// A configuration function that receives the <see cref="Hex1bApp"/> instance and 
+    /// <see cref="Hex1bAppOptions"/> for customization, and returns an async widget builder function.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload provides full control over the Hex1bApp configuration and allows
+    /// capturing the app instance for external control, with async widget building support.
+    /// </para>
+    /// </remarks>
+    public Hex1bTerminalBuilder WithHex1bApp(
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        SetWorkloadFactory(presentation =>
+        {
+            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
+            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            var enableMouse = _enableMouse;
+            
+            // Create options with managed properties already set
+            var options = new Hex1bAppOptions
+            {
+                WorkloadAdapter = workloadAdapter,
+                EnableMouse = enableMouse
+            };
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                Hex1bApp? app = null;
+                Func<RootContext, Task<Hex1bWidget>>? widgetBuilder = null;
+                bool configureInvoked = false;
+
+                Func<RootContext, Task<Hex1bWidget>> wrappedBuilder = async ctx =>
+                {
+                    if (!configureInvoked)
+                    {
+                        configureInvoked = true;
+                        widgetBuilder = configure(app!, options);
+                    }
+                    return await widgetBuilder!(ctx);
+                };
+
+                app = new Hex1bApp(wrappedBuilder, options);
+                await using (app)
+                {
+                    await app.RunAsync(ct);
+                }
+                return 0;
+            };
+
+            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
     /// Enables mouse input for the Hex1bApp.
     /// </summary>
     /// <param name="enable">Whether to enable mouse input. Defaults to true.</param>
@@ -208,6 +361,23 @@ public sealed class Hex1bTerminalBuilder
     public Hex1bTerminalBuilder WithTimeProvider(TimeProvider timeProvider)
     {
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to run in headless mode without a real terminal.
+    /// This is useful for testing where no actual terminal I/O is needed.
+    /// </summary>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// When running headless, the terminal will use an in-memory buffer for output
+    /// and can be controlled via the <see cref="Automation.Hex1bTerminalInputSequenceBuilder"/>.
+    /// Use <see cref="WithDimensions"/> to set the terminal size.
+    /// </remarks>
+    public Hex1bTerminalBuilder WithHeadless()
+    {
+        _presentationAdapter = null;
+        _presentationExplicitlyConfigured = true;
         return this;
     }
 

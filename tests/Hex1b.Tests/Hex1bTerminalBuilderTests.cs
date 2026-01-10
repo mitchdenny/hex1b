@@ -1,4 +1,5 @@
 using Hex1b.Terminal;
+using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -37,6 +38,30 @@ public class Hex1bTerminalBuilderTests
         
         var ex = Assert.Throws<InvalidOperationException>(() => builder.Build());
         Assert.Contains("No workload configured", ex.Message);
+    }
+
+    [Fact]
+    public void WithHeadless_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder().WithHeadless();
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithHeadless_CreatesWorkingTerminal()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+        
+        var snapshot = terminal.CreateSnapshot();
+        Assert.Equal(80, snapshot.Width);
+        Assert.Equal(24, snapshot.Height);
     }
 
     [Fact]
@@ -304,6 +329,124 @@ public class Hex1bTerminalBuilderTests
         await builder.RunAsync(cts.Token);
         
         Assert.True(filter.SessionStartCalled);
+    }
+
+    // === WithHex1bApp Capture Pattern Tests ===
+
+    [Fact]
+    public void WithHex1bApp_CapturePattern_NullConfigure_ThrowsArgumentNullException()
+    {
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>>? nullConfigure = null;
+        
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
+    }
+
+    [Fact]
+    public void WithHex1bApp_CapturePattern_AsyncNullConfigure_ThrowsArgumentNullException()
+    {
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>>? nullConfigure = null;
+        
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
+    }
+
+    [Fact]
+    public void WithHex1bApp_CapturePattern_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"));
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_CapturePattern_CanCaptureApp()
+    {
+        Hex1bApp? capturedApp = null;
+        var pattern = new CellPatternSearcher().Find("Hello from captured app");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) =>
+            {
+                capturedApp = app;
+                return ctx => ctx.Text("Hello from captured app");
+            })
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.NotNull(capturedApp);
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_CapturePattern_CanSetTheme()
+    {
+        var pattern = new CellPatternSearcher().Find("Themed content");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) =>
+            {
+                // Setting Theme should work (it's not a restricted property)
+                options.Theme = new Hex1b.Theming.Hex1bTheme("TestTheme");
+                return ctx => ctx.Text("Themed content");
+            })
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_CapturePattern_AsyncBuilder_Works()
+    {
+        Hex1bApp? capturedApp = null;
+        var pattern = new CellPatternSearcher().Find("Async Hello World");
+        
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) =>
+            {
+                capturedApp = app;
+                return async ctx =>
+                {
+                    await Task.Yield();
+                    return ctx.Text("Async Hello World");
+                };
+            })
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.NotNull(capturedApp);
     }
 
     // === Test Helpers ===
