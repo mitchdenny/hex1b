@@ -455,24 +455,7 @@ public class Hex1bTerminalBuilderTests
         Assert.NotNull(capturedApp);
     }
 
-    // === WithPtyShell and WithPtyProcess Tests ===
-
-    [Fact]
-    public async Task WithPtyShell_ReturnsBuilder()
-    {
-        var result = Hex1bTerminal.CreateBuilder().WithPtyShell("dotnet");
-        
-        Assert.IsType<Hex1bTerminalBuilder>(result);
-    }
-
-    [Fact]
-    public async Task WithPtyShell_NullShell_UsesDefaultShell()
-    {
-        // Should not throw when shell is null (uses default shell)
-        var builder = Hex1bTerminal.CreateBuilder().WithPtyShell();
-        
-        Assert.NotNull(builder);
-    }
+    // === WithPtyProcess Tests ===
 
     [Fact]
     public async Task WithPtyProcess_ReturnsBuilder()

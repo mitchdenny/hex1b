@@ -345,41 +345,7 @@ public sealed class Hex1bTerminalBuilder
         return WithProcess(startInfo);
     }
 
-    /// <summary>
-    /// Configures the terminal to run a shell process with full PTY (pseudo-terminal) support.
-    /// </summary>
-    /// <param name="shell">
-    /// The shell to run. Examples: "/bin/bash", "/bin/zsh", "pwsh", "cmd.exe".
-    /// If null, uses the default shell for the platform.
-    /// </param>
-    /// <param name="arguments">Optional arguments to pass to the shell.</param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// This method uses PTY (pseudo-terminal) emulation for full shell support:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item>Job control (Ctrl+C, Ctrl+Z, background processes)</item>
-    ///   <item>Terminal resize events (SIGWINCH)</item>
-    ///   <item>TTY detection (isatty() returns true)</item>
-    ///   <item>Interactive features (history, line editing)</item>
-    /// </list>
-    /// <para>
-    /// Requires native library support on Unix platforms.
-    /// </para>
-    /// </remarks>
-    /// <example>
-    /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
-    ///     .WithPtyShell("/bin/bash", "-l")
-    ///     .RunAsync();
-    /// </code>
-    /// </example>
-    public Hex1bTerminalBuilder WithPtyShell(string? shell = null, params string[] arguments)
-    {
-        var shellPath = shell ?? GetDefaultShell();
-        return WithPtyProcess(shellPath, arguments);
-    }
+
 
     /// <summary>
     /// Configures the terminal to run an arbitrary process with a PTY (pseudo-terminal) attached.
@@ -521,8 +487,7 @@ public sealed class Hex1bTerminalBuilder
     /// </list>
     /// <para>
     /// Use this for simple command-line programs, build tools, and non-interactive applications.
-    /// For full terminal emulation, use <see cref="WithPtyProcess(string, string[])"/> or 
-    /// <see cref="WithPtyShell(string?, string[])"/> which use PTY.
+    /// For full terminal emulation, use <see cref="WithPtyProcess(string, string[])"/> which uses PTY.
     /// </para>
     /// <para>
     /// The following properties will be set automatically:
@@ -566,14 +531,6 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
-    private static string GetDefaultShell()
-    {
-        if (OperatingSystem.IsWindows())
-            return Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
-        
-        // Unix: try SHELL env var, fallback to /bin/sh
-        return Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh";
-    }
 
     /// <summary>
     /// Enables mouse input for the Hex1bApp.
@@ -612,7 +569,7 @@ public sealed class Hex1bTerminalBuilder
     /// <example>
     /// <code>
     /// await Hex1bTerminal.CreateBuilder()
-    ///     .WithPtyShell("/bin/bash")
+    ///     .WithPtyProcess("/bin/bash")
     ///     .WithAsciinemaRecording("session.cast")
     ///     .RunAsync();
     /// </code>
@@ -648,7 +605,7 @@ public sealed class Hex1bTerminalBuilder
     /// AsciinemaRecorder? recorder = null;
     /// 
     /// await Hex1bTerminal.CreateBuilder()
-    ///     .WithPtyShell("/bin/bash")
+    ///     .WithPtyProcess("/bin/bash")
     ///     .WithAsciinemaRecording("session.cast", r => recorder = r)
     ///     .RunAsync();
     /// 

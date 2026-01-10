@@ -21,7 +21,7 @@ AsciinemaRecorder? recorder = null;
 try
 {
     await Hex1bTerminal.CreateBuilder()
-        .WithPtyShell("/bin/bash", "--norc", "--noprofile")
+        .WithPtyProcess("/bin/bash", "--norc", "--noprofile")
         .WithDimensions(width, height)
         .WithAsciinemaRecording(castFile, r => recorder = r, new AsciinemaRecorderOptions
         {
