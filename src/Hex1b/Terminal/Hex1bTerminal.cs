@@ -48,10 +48,11 @@ namespace Hex1b.Terminal;
 /// Assert.True(terminal.ContainsText("Hello"));
 /// </code>
 /// </example>
-public sealed class Hex1bTerminal : IDisposable
+public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 {
     private readonly IHex1bTerminalPresentationAdapter? _presentation;
     private readonly IHex1bTerminalWorkloadAdapter _workload;
+    private readonly Func<CancellationToken, Task<int>>? _runCallback;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
     private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
     private readonly CancellationTokenSource _disposeCts = new();
@@ -107,7 +108,22 @@ public sealed class Hex1bTerminal : IDisposable
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
 
+    // === Static Factory ===
 
+    /// <summary>
+    /// Creates a new terminal builder for fluent configuration.
+    /// </summary>
+    /// <returns>A new <see cref="Hex1bTerminalBuilder"/> instance.</returns>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello"))
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder CreateBuilder() => new();
+
+    // === Constructors ===
 
     /// <summary>
     /// Creates a new headless terminal for testing with the specified workload adapter and dimensions.
@@ -146,6 +162,7 @@ public sealed class Hex1bTerminal : IDisposable
     /// <param name="workloadFilters">Filters applied on the workload side.</param>
     /// <param name="presentationFilters">Filters applied on the presentation side.</param>
     /// <param name="timeProvider">The time provider for all time-related operations. Defaults to system time.</param>
+    /// <param name="runCallback">Optional callback that runs the workload and returns an exit code.</param>
     public Hex1bTerminal(
         IHex1bTerminalPresentationAdapter? presentation,
         IHex1bTerminalWorkloadAdapter workload,
@@ -153,10 +170,12 @@ public sealed class Hex1bTerminal : IDisposable
         int height = 24,
         IEnumerable<IHex1bTerminalWorkloadFilter>? workloadFilters = null,
         IEnumerable<IHex1bTerminalPresentationFilter>? presentationFilters = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<CancellationToken, Task<int>>? runCallback = null)
     {
         _presentation = presentation;
         _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+        _runCallback = runCallback;
         _workloadFilters = workloadFilters?.ToList() ?? [];
         _presentationFilters = presentationFilters?.ToList() ?? [];
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -257,6 +276,93 @@ public sealed class Hex1bTerminal : IDisposable
         if (_outputProcessingTask == null)
         {
             _outputProcessingTask = Task.Run(() => PumpWorkloadOutputAsync(_disposeCts.Token));
+        }
+    }
+
+    /// <summary>
+    /// Runs the terminal until the workload exits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method starts the terminal's I/O pumps, executes the workload's run callback
+    /// (if configured), and waits for completion. For terminals created via the builder
+    /// pattern with <see cref="Hex1bTerminalBuilder"/>, the run callback handles the 
+    /// workload lifecycle.
+    /// </para>
+    /// <para>
+    /// For terminals created with a raw workload adapter and no run callback, this method
+    /// waits for the workload to disconnect.
+    /// </para>
+    /// </remarks>
+    /// <param name="ct">Cancellation token to stop the terminal.</param>
+    /// <returns>The exit code from the workload (0 = success).</returns>
+    public async Task<int> RunAsync(CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        try
+        {
+            // Enter raw mode on presentation
+            if (_presentation != null)
+            {
+                await _presentation.EnterRawModeAsync(ct);
+            }
+
+            // Start I/O pumps
+            Start();
+
+            // Execute the run callback or wait for workload disconnect
+            int exitCode = 0;
+            if (_runCallback != null)
+            {
+                exitCode = await _runCallback(ct);
+            }
+            else
+            {
+                // No run callback - wait for workload to disconnect
+                await WaitForWorkloadDisconnectAsync(ct);
+            }
+
+            return exitCode;
+        }
+        finally
+        {
+            // Stop pumps (via dispose cancellation token)
+            _disposeCts.Cancel();
+
+            // Exit raw mode
+            if (_presentation != null)
+            {
+                try
+                {
+                    await _presentation.ExitRawModeAsync(default);
+                }
+                catch
+                {
+                    // Ignore errors during cleanup
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Waits for the workload to disconnect.
+    /// </summary>
+    private async Task WaitForWorkloadDisconnectAsync(CancellationToken ct)
+    {
+        var tcs = new TaskCompletionSource();
+        
+        void OnDisconnect() => tcs.TrySetResult();
+        
+        _workload.Disconnected += OnDisconnect;
+        try
+        {
+            using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+            await tcs.Task;
+        }
+        finally
+        {
+            _workload.Disconnected -= OnDisconnect;
         }
     }
 
