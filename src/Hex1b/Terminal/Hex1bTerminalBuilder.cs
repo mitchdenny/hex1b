@@ -590,6 +590,129 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
+    // === Recording and Optimization ===
+
+    /// <summary>
+    /// Adds Asciinema recording to capture the terminal session.
+    /// </summary>
+    /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
+    /// <param name="options">Optional recording options.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Asciinema recordings capture terminal output (and optionally input) in the
+    /// asciicast v2 format, compatible with the Asciinema player and ecosystem.
+    /// </para>
+    /// <para>
+    /// The recording is automatically flushed when the terminal is disposed.
+    /// Use the overload with a capture callback if you need access to the recorder
+    /// instance for adding markers or manual flush control.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyShell("/bin/bash")
+    ///     .WithAsciinemaRecording("session.cast")
+    ///     .RunAsync();
+    /// </code>
+    /// </example>
+    /// <seealso href="https://docs.asciinema.org/manual/asciicast/v2/"/>
+    public Hex1bTerminalBuilder WithAsciinemaRecording(string filePath, AsciinemaRecorderOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        var recorder = new AsciinemaRecorder(filePath, options);
+        _workloadFilters.Add(recorder);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds Asciinema recording with access to the recorder instance.
+    /// </summary>
+    /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
+    /// <param name="capture">Callback that receives the recorder instance for external control.</param>
+    /// <param name="options">Optional recording options.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this overload when you need access to the recorder instance for:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Adding markers at specific points: <c>recorder.AddMarker("step1")</c></item>
+    ///   <item>Manual flush control: <c>await recorder.FlushAsync()</c></item>
+    ///   <item>Checking pending event count: <c>recorder.PendingEventCount</c></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// AsciinemaRecorder? recorder = null;
+    /// 
+    /// await Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyShell("/bin/bash")
+    ///     .WithAsciinemaRecording("session.cast", r => recorder = r)
+    ///     .RunAsync();
+    /// 
+    /// // Add markers during execution
+    /// recorder?.AddMarker("command-executed");
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithAsciinemaRecording(
+        string filePath,
+        Action<AsciinemaRecorder> capture,
+        AsciinemaRecorderOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentNullException.ThrowIfNull(capture);
+
+        var recorder = new AsciinemaRecorder(filePath, options);
+        capture(recorder);
+        _workloadFilters.Add(recorder);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds render optimization for Hex1bApp workloads.
+    /// </summary>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This filter optimizes rendering by only transmitting cells that have changed
+    /// since the last frame. It's specifically designed for Hex1bApp workloads and
+    /// understands the frame boundary tokens emitted by Hex1bApp.
+    /// </para>
+    /// <para>
+    /// Benefits:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Reduces bandwidth for remote terminal connections</item>
+    ///   <item>Improves rendering performance by avoiding redundant updates</item>
+    ///   <item>Eliminates flicker from intermediate render states</item>
+    /// </list>
+    /// <para>
+    /// This filter is automatically added when using <see cref="WithHex1bApp(Func{RootContext, Hex1bWidget})"/>
+    /// with a real presentation adapter.
+    /// </para>
+    /// </remarks>
+    public Hex1bTerminalBuilder WithRenderOptimization()
+    {
+        _presentationFilters.Add(new Hex1bAppRenderOptimizationFilter());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds render optimization for Hex1bApp workloads with access to the filter instance.
+    /// </summary>
+    /// <param name="capture">Callback that receives the filter instance.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    public Hex1bTerminalBuilder WithRenderOptimization(Action<Hex1bAppRenderOptimizationFilter> capture)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        var filter = new Hex1bAppRenderOptimizationFilter();
+        capture(filter);
+        _presentationFilters.Add(filter);
+        return this;
+    }
+
     /// <summary>
     /// Configures the terminal with a custom workload adapter.
     /// </summary>

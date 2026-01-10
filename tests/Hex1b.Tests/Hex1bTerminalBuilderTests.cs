@@ -1003,4 +1003,215 @@ public class Hex1bTerminalBuilderTests
             $"Expected to find 'DIAGNOSTIC_MARKER_12345' in screen buffer.\n" +
             $"Diagnostics:\n{diagnosticOutput}");
     }
+
+    // === Recording and Optimization Tests ===
+
+    [Fact]
+    public void WithAsciinemaRecording_ReturnsBuilder()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            var result = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithAsciinemaRecording(tempFile);
+
+            Assert.IsType<Hex1bTerminalBuilder>(result);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void WithAsciinemaRecording_NullPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(null!));
+    }
+
+    [Fact]
+    public void WithAsciinemaRecording_EmptyPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(""));
+    }
+
+    [Fact]
+    public void WithAsciinemaRecording_WithCapture_ReturnsBuilder()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            AsciinemaRecorder? capturedRecorder = null;
+            var result = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithAsciinemaRecording(tempFile, r => capturedRecorder = r);
+
+            Assert.IsType<Hex1bTerminalBuilder>(result);
+            Assert.NotNull(capturedRecorder);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void WithAsciinemaRecording_WithCapture_NullCapture_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaRecording("test.cast", (Action<AsciinemaRecorder>)null!));
+    }
+
+    [Fact]
+    public async Task WithAsciinemaRecording_RecordsOutput()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            AsciinemaRecorder? recorder = null;
+            var pattern = new CellPatternSearcher().Find("Recorded");
+
+            await using var terminal = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("Recorded"))
+                .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
+                {
+                    Title = "Test Recording",
+                    AutoFlush = true
+                })
+                .WithHeadless()
+                .WithDimensions(40, 10)
+                .Build();
+
+            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+                .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            await runTask;
+
+            // Ensure recorder is flushed
+            Assert.NotNull(recorder);
+            await recorder.FlushAsync();
+
+            // Verify the recording file was created
+            Assert.True(File.Exists(tempFile), "Recording file should exist");
+            var content = await File.ReadAllTextAsync(tempFile);
+            Assert.Contains("\"version\":2", content); // Asciinema v2 format
+            Assert.Contains("Test Recording", content); // Title is present
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void WithRenderOptimization_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithRenderOptimization();
+
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithRenderOptimization_WithCapture_ReturnsBuilder()
+    {
+        Hex1bAppRenderOptimizationFilter? capturedFilter = null;
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithRenderOptimization(f => capturedFilter = f);
+
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+        Assert.NotNull(capturedFilter);
+    }
+
+    [Fact]
+    public void WithRenderOptimization_WithCapture_NullCapture_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithRenderOptimization(null!));
+    }
+
+    [Fact]
+    public async Task WithAsciinemaRecording_WithOptions_SetsRecorderOptions()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            AsciinemaRecorder? recorder = null;
+
+            var result = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
+                {
+                    Title = "Custom Title",
+                    Command = "test-command",
+                    CaptureInput = true,
+                    IdleTimeLimit = 5.0f
+                });
+
+            Assert.NotNull(recorder);
+            Assert.Equal("Custom Title", recorder.Options.Title);
+            Assert.Equal("test-command", recorder.Options.Command);
+            Assert.True(recorder.Options.CaptureInput);
+            Assert.Equal(5.0f, recorder.Options.IdleTimeLimit);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task FluentChain_WithRecordingAndOptimization_Works()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            AsciinemaRecorder? recorder = null;
+            Hex1bAppRenderOptimizationFilter? optimizationFilter = null;
+            var filter = new TestWorkloadFilter();
+            var pattern = new CellPatternSearcher().Find("Full chain");
+
+            await using var terminal = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("Full chain"))
+                .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
+                {
+                    Title = "Chain Test",
+                    AutoFlush = true
+                })
+                .WithRenderOptimization(f => optimizationFilter = f)
+                .AddWorkloadFilter(filter)
+                .WithHeadless()
+                .WithDimensions(40, 10)
+                .Build();
+
+            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+                .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            await runTask;
+
+            // All filters should have been invoked
+            Assert.True(filter.SessionStartCalled, "Workload filter should be called");
+            Assert.NotNull(recorder);
+            Assert.NotNull(optimizationFilter);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
 }
