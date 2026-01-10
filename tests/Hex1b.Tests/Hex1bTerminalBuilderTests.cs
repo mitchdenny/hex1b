@@ -1,4 +1,5 @@
 using Hex1b.Terminal;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -111,17 +112,15 @@ public class Hex1bTerminalBuilderTests
         
         // Use internal method to set run callback for testing
         var builder = Hex1bTerminal.CreateBuilder();
-        builder.WithWorkload(workload);
-        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext
-        {
-            WorkloadAdapter = workload,
-            RunCallback = async ct =>
+        builder.WithPresentation(new TestPresentationAdapter()); // Must provide explicit presentation for tests
+        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext(
+            workload,
+            async ct =>
             {
                 callbackExecuted = true;
                 await Task.Yield();
                 return 42;
-            }
-        });
+            }));
         
         await using var terminal = builder.Build();
         var exitCode = await terminal.RunAsync();
@@ -137,17 +136,15 @@ public class Hex1bTerminalBuilderTests
         var cts = new CancellationTokenSource();
         
         var builder = Hex1bTerminal.CreateBuilder();
-        builder.WithWorkload(workload);
-        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext
-        {
-            WorkloadAdapter = workload,
-            RunCallback = async ct =>
+        builder.WithPresentation(new TestPresentationAdapter()); // Must provide explicit presentation for tests
+        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext(
+            workload,
+            async ct =>
             {
                 // Wait indefinitely
                 await Task.Delay(Timeout.Infinite, ct);
                 return 0;
-            }
-        });
+            }));
         
         await using var terminal = builder.Build();
         
@@ -165,17 +162,15 @@ public class Hex1bTerminalBuilderTests
         var callbackExecuted = false;
         
         var builder = Hex1bTerminal.CreateBuilder();
-        builder.WithWorkload(workload);
-        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext
-        {
-            WorkloadAdapter = workload,
-            RunCallback = async ct =>
+        builder.WithPresentation(new TestPresentationAdapter()); // Must provide explicit presentation for tests
+        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext(
+            workload,
+            async ct =>
             {
                 callbackExecuted = true;
                 await Task.Yield();
                 return 99;
-            }
-        });
+            }));
         
         var exitCode = await builder.RunAsync();
         
@@ -198,6 +193,117 @@ public class Hex1bTerminalBuilderTests
             .WithTimeProvider(TimeProvider.System);
         
         Assert.IsType<Hex1bTerminalBuilder>(builder);
+    }
+
+    // === WithHex1bApp Tests ===
+
+    [Fact]
+    public void WithHex1bApp_NullBuilder_ThrowsArgumentNullException()
+    {
+        Func<RootContext, Hex1bWidget>? nullBuilder = null;
+        
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
+    }
+
+    [Fact]
+    public void WithHex1bApp_NullAsyncBuilder_ThrowsArgumentNullException()
+    {
+        Func<RootContext, Task<Hex1bWidget>>? nullBuilder = null;
+        
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
+    }
+
+    [Fact]
+    public void WithHex1bApp_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Text("Hello"));
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public void WithHex1bApp_CanBuild()
+    {
+        // Should not throw - uses explicit presentation
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithPresentation(new TestPresentationAdapter());
+        
+        using var terminal = builder.Build();
+        Assert.NotNull(terminal);
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_AsyncBuilder_CanRun()
+    {
+        var builderCalled = false;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(async ctx =>
+            {
+                builderCalled = true;
+                await Task.Yield();
+                return ctx.Text("Hello");
+            })
+            .WithPresentation(new TestPresentationAdapter());
+        
+        // The TestPresentationAdapter returns empty input, which should
+        // cause the app to exit naturally
+        var exitCode = await builder.RunAsync(cts.Token);
+        
+        Assert.True(builderCalled);
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_SyncBuilder_CanRun()
+    {
+        var builderCalled = false;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx =>
+            {
+                builderCalled = true;
+                return ctx.Text("Hello");
+            })
+            .WithPresentation(new TestPresentationAdapter());
+        
+        var exitCode = await builder.RunAsync(cts.Token);
+        
+        Assert.True(builderCalled);
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public void WithMouse_ReturnsBuilder()
+    {
+        var result = Hex1bTerminal.CreateBuilder()
+            .WithMouse(true);
+        
+        Assert.IsType<Hex1bTerminalBuilder>(result);
+    }
+
+    [Fact]
+    public async Task WithHex1bApp_FluentChain_Works()
+    {
+        var filter = new TestWorkloadFilter();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithMouse(true)
+            .WithDimensions(100, 40)
+            .AddWorkloadFilter(filter)
+            .WithPresentation(new TestPresentationAdapter());
+        
+        await builder.RunAsync(cts.Token);
+        
+        Assert.True(filter.SessionStartCalled);
     }
 
     // === Test Helpers ===
@@ -252,5 +358,38 @@ public class Hex1bTerminalBuilderTests
 
         public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
             => ValueTask.CompletedTask;
+    }
+
+    private class TestPresentationAdapter : IHex1bTerminalPresentationAdapter
+    {
+        public TerminalCapabilities Capabilities => TerminalCapabilities.Modern;
+
+        public int Width => 80;
+        public int Height => 24;
+
+#pragma warning disable CS0067 // Event is never used
+        public event Action<int, int>? Resized;
+        public event Action? Disconnected;
+#pragma warning restore CS0067
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            // Return empty input to signal disconnection (test ends immediately)
+            return ValueTask.FromResult<ReadOnlyMemory<byte>>(ReadOnlyMemory<byte>.Empty);
+        }
+
+        public ValueTask FlushAsync(CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
