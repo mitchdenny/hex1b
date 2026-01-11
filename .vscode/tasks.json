@@ -282,6 +282,18 @@
 			"type": "shell",
 			"command": "dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --filter \"MenuBarIntegrationTests\" 2>&1 | tail -10",
 			"isBackground": false
+		},
+		{
+			"label": "generate docs",
+			"type": "shell",
+			"command": "dotnet run --project src/DocGenerator/Hex1b.DocGenerator.csproj 2>&1 | tail -20",
+			"isBackground": false
+		},
+		{
+			"label": "regenerate docs",
+			"type": "shell",
+			"command": "dotnet run --project src/DocGenerator/Hex1b.DocGenerator.csproj 2>&1 | tail -10",
+			"isBackground": false
 		}
 	]
 }
