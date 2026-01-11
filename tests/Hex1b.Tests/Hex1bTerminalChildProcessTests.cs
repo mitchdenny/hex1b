@@ -1,7 +1,5 @@
 using System.Text;
 using Hex1b.Input;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 
 namespace Hex1b.Tests;
 
@@ -345,12 +343,13 @@ public class Hex1bTerminalChildProcessTests
         
         // Create a Hex1bTerminal with both workload and presentation
         // This will auto-start the pump
-        using var terminal = new Hex1bTerminal(
-            presentation: presentation,
-            workload: process,
-            width: 80,
-            height: 24
-        );
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = process,
+            Width = 80,
+            Height = 24
+        });
         
         // Wait for output to appear in the captured output
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -536,11 +535,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "Mapscii Stress Test",
                 CaptureInput = true
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
             using var terminal = new Hex1bTerminal(options);
@@ -770,11 +770,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "Btop Stress Test",
                 CaptureInput = true
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
             using var terminal = new Hex1bTerminal(options);
@@ -912,11 +913,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "SL Steam Locomotive Stress Test",
                 CaptureInput = false // sl doesn't take input
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
             using var terminal = new Hex1bTerminal(options);
@@ -1037,11 +1039,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "Globe Docker Stress Test with Mouse Interaction",
                 CaptureInput = true
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal
             using var terminal = new Hex1bTerminal(options);
@@ -1295,11 +1298,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(160, 50)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "Tmux Split: Globe + Mapscii Stress Test",
                 CaptureInput = true
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal
             using var terminal = new Hex1bTerminal(options);
@@ -1682,11 +1686,12 @@ public class Hex1bTerminalChildProcessTests
                 WorkloadAdapter = process,
                 PresentationAdapter = new CapturingTestPresentationAdapter(120, 40)
             };
-            var recorder = options.AddAsciinemaRecorder(castFile, new AsciinemaRecorderOptions
+            var recorder = new AsciinemaRecorder(castFile, new AsciinemaRecorderOptions
             {
                 Title = "Tmux Split Screen Diagnostic",
                 CaptureInput = true
             });
+            options.WorkloadFilters.Add(recorder);
             
             // Create Hex1bTerminal - the presence of PresentationAdapter auto-starts the pump
             using var terminal = new Hex1bTerminal(options);

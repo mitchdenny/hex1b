@@ -1,7 +1,6 @@
 using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -11,7 +10,7 @@ public class RescueNodeTests
     #region RescueNode Basic Tests
 
     [Fact]
-    public void RescueNode_NoError_MeasuresChild()
+    public async Task RescueNode_NoError_MeasuresChild()
     {
         var child = new TextBlockNode { Text = "Hello" };
         var node = new RescueNode { Child = child };
@@ -23,7 +22,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueNode_NoError_ArrangesChild()
+    public async Task RescueNode_NoError_ArrangesChild()
     {
         var child = new TextBlockNode { Text = "Hello" };
         var node = new RescueNode { Child = child };
@@ -36,10 +35,10 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueNode_NoError_RendersChild()
+    public async Task RescueNode_NoError_RendersChild()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var child = new TextBlockNode { Text = "Hello" };
         var node = new RescueNode { Child = child };
@@ -47,8 +46,13 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1), "Hello text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
+        Assert.True(snapshot.ContainsText("Hello"));
     }
 
     #endregion
@@ -56,7 +60,7 @@ public class RescueNodeTests
     #region Exception Catching Tests
 
     [Fact]
-    public void RescueNode_MeasureThrows_CapturesError()
+    public async Task RescueNode_MeasureThrows_CapturesError()
     {
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode
@@ -74,7 +78,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueNode_ArrangeThrows_CapturesError()
+    public async Task RescueNode_ArrangeThrows_CapturesError()
     {
         var throwingChild = new ThrowingNode { ThrowOnArrange = true };
         var node = new RescueNode
@@ -93,10 +97,10 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueNode_RenderThrows_CapturesError()
+    public async Task RescueNode_RenderThrows_CapturesError()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwingChild = new ThrowingNode { ThrowOnRender = true };
         var node = new RescueNode
@@ -110,6 +114,11 @@ public class RescueNodeTests
 
         // This should not throw - the error should be captured
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "error fallback to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(node.HasError);
         Assert.Equal(RescueErrorPhase.Render, node.ErrorPhase);
@@ -120,10 +129,10 @@ public class RescueNodeTests
     #region Fallback Rendering Tests
 
     [Fact]
-    public void RescueNode_AfterError_RendersFallback()
+    public async Task RescueNode_AfterError_RendersFallback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode
@@ -135,16 +144,21 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "UNHANDLED EXCEPTION fallback to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show error message
-        Assert.True(terminal.CreateSnapshot().ContainsText("UNHANDLED EXCEPTION"));
+        Assert.True(snapshot.ContainsText("UNHANDLED EXCEPTION"));
     }
 
     [Fact]
-    public void RescueNode_CustomFallback_UsesCustomBuilder()
+    public async Task RescueNode_CustomFallback_UsesCustomBuilder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
 
@@ -160,16 +174,21 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Custom error: Test exception"), TimeSpan.FromSeconds(1), "custom fallback message to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show custom error message
-        Assert.True(terminal.CreateSnapshot().ContainsText("Custom error: Test exception"));
+        Assert.True(snapshot.ContainsText("Custom error: Test exception"));
     }
 
     [Fact]
-    public void RescueNode_ShowDetailsTrue_IncludesStackTrace()
+    public async Task RescueNode_ShowDetailsTrue_IncludesStackTrace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode
@@ -181,16 +200,21 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Stack Trace"), TimeSpan.FromSeconds(1), "Stack Trace details to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show stack trace in details mode
-        Assert.True(terminal.CreateSnapshot().ContainsText("Stack Trace"));
+        Assert.True(snapshot.ContainsText("Stack Trace"));
     }
 
     [Fact]
-    public void RescueNode_ShowDetailsFalse_ShowsFriendlyMessage()
+    public async Task RescueNode_ShowDetailsFalse_ShowsFriendlyMessage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwingChild = new ThrowingNode { ThrowOnMeasure = true };
         var node = new RescueNode
@@ -202,10 +226,15 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Something went wrong"), TimeSpan.FromSeconds(1), "friendly error message to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show friendly message without details
-        Assert.True(terminal.CreateSnapshot().ContainsText("Something went wrong"));
-        Assert.False(terminal.CreateSnapshot().ContainsText("Stack Trace"));
+        Assert.True(snapshot.ContainsText("Something went wrong"));
+        Assert.False(snapshot.ContainsText("Stack Trace"));
     }
 
     #endregion
@@ -213,7 +242,7 @@ public class RescueNodeTests
     #region Focus Navigation Tests
 
     [Fact]
-    public void RescueNode_NoError_GetsFocusableNodesFromChild()
+    public async Task RescueNode_NoError_GetsFocusableNodesFromChild()
     {
         var button = new ButtonNode { Label = "Click me" };
         var node = new RescueNode { Child = button };
@@ -225,7 +254,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueNode_AfterError_ReturnsEmptyFocusableNodes()
+    public async Task RescueNode_AfterError_ReturnsEmptyFocusableNodes()
     {
         var button = new ButtonNode { Label = "Click me" };
         var node = new RescueNode
@@ -247,7 +276,7 @@ public class RescueNodeTests
     #region RescueWidget Tests
 
     [Fact]
-    public void RescueWidget_Reconcile_CreatesRescueNode()
+    public async Task RescueWidget_Reconcile_CreatesRescueNode()
     {
         var childWidget = new TextBlockWidget("Test");
         var widget = new RescueWidget(childWidget);
@@ -259,7 +288,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueWidget_Reconcile_ReusesExistingNode()
+    public async Task RescueWidget_Reconcile_ReusesExistingNode()
     {
         var childWidget = new TextBlockWidget("Test");
         var widget = new RescueWidget(childWidget);
@@ -272,7 +301,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueWidget_WhenInErrorState_ReconcilesFallbackInstead()
+    public async Task RescueWidget_WhenInErrorState_ReconcilesFallbackInstead()
     {
         var childWidget = new TextBlockWidget("Test");
         var widget = new RescueWidget(childWidget);
@@ -291,7 +320,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueWidget_GetExpectedNodeType_ReturnsRescueNode()
+    public async Task RescueWidget_GetExpectedNodeType_ReturnsRescueNode()
     {
         var widget = new RescueWidget(new TextBlockWidget("Test"));
 
@@ -303,7 +332,7 @@ public class RescueNodeTests
     #region Event Handler Tests
 
     [Fact]
-    public void RescueWidget_OnRescue_CalledWhenErrorCaptured()
+    public async Task RescueWidget_OnRescue_CalledWhenErrorCaptured()
     {
         var capturedArgs = (RescueEventArgs?)null;
         var childWidget = new TextBlockWidget("Test");
@@ -347,7 +376,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueWidget_WithFallback_UsesCustomFallback()
+    public async Task RescueWidget_WithFallback_UsesCustomFallback()
     {
         var widget = new RescueWidget(new TextBlockWidget("Test"))
             .WithFallback(rescue => new TextBlockWidget($"Error: {rescue.Exception?.Message}"));
@@ -360,10 +389,10 @@ public class RescueNodeTests
     #region Integration Tests
 
     [Fact]
-    public void RescueNode_AfterReset_ResumesNormalRendering()
+    public async Task RescueNode_AfterReset_ResumesNormalRendering()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         var throwOnce = new ThrowOnceNode();
         var node = new RescueNode
@@ -389,7 +418,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueWidget_ChainedWithOtherWidgets_WorksCorrectly()
+    public async Task RescueWidget_ChainedWithOtherWidgets_WorksCorrectly()
     {
         var innerWidget = new TextBlockWidget("Content");
 
@@ -408,7 +437,7 @@ public class RescueNodeTests
     #region RescueContext Tests
 
     [Fact]
-    public void RescueContext_ExposesExceptionInfo()
+    public async Task RescueContext_ExposesExceptionInfo()
     {
         var exception = new ArgumentException("Test arg");
 
@@ -419,7 +448,7 @@ public class RescueNodeTests
     }
 
     [Fact]
-    public void RescueContext_Reset_InvokesCallback()
+    public async Task RescueContext_Reset_InvokesCallback()
     {
         var resetCalled = false;
         var ctx = new RescueContext(new Exception(), RescueErrorPhase.Build, () => resetCalled = true);

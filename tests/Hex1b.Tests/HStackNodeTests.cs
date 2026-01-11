@@ -1,6 +1,5 @@
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -13,7 +12,7 @@ public class HStackNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_SumsChildWidths()
+    public async Task Measure_SumsChildWidths()
     {
         var node = new HStackNode
         {
@@ -31,7 +30,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Measure_TakesMaxHeight()
+    public async Task Measure_TakesMaxHeight()
     {
         var node = new HStackNode
         {
@@ -50,7 +49,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyChildren_ReturnsZeroSize()
+    public async Task Measure_EmptyChildren_ReturnsZeroSize()
     {
         var node = new HStackNode { Children = new List<Hex1bNode>() };
 
@@ -61,7 +60,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxConstraints()
+    public async Task Measure_RespectsMaxConstraints()
     {
         var node = new HStackNode
         {
@@ -82,7 +81,7 @@ public class HStackNodeTests
     #region Arrange Tests
 
     [Fact]
-    public void Arrange_PositionsChildrenHorizontally()
+    public async Task Arrange_PositionsChildrenHorizontally()
     {
         var child1 = new TextBlockNode { Text = "AAA" };
         var child2 = new TextBlockNode { Text = "BBB" };
@@ -96,7 +95,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithFillHints_DistributesWidth()
+    public async Task Arrange_WithFillHints_DistributesWidth()
     {
         var child1 = new TextBlockNode { Text = "A" };
         var child2 = new TextBlockNode { Text = "B", WidthHint = SizeHint.Fill };
@@ -115,7 +114,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithFixedHints_UsesExactSize()
+    public async Task Arrange_WithFixedHints_UsesExactSize()
     {
         var child1 = new TextBlockNode { Text = "Fixed1", WidthHint = SizeHint.Fixed(10) };
         var child2 = new TextBlockNode { Text = "Fixed2", WidthHint = SizeHint.Fixed(15) };
@@ -132,7 +131,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Arrange_WithMixedHints_DistributesCorrectly()
+    public async Task Arrange_WithMixedHints_DistributesCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Fixed", WidthHint = SizeHint.Fixed(10) };
         var child2 = new TextBlockNode { Text = "Fill 1", WidthHint = SizeHint.Fill };
@@ -152,7 +151,7 @@ public class HStackNodeTests
     }
 
     [Fact]
-    public void Arrange_AtOffset_PositionsChildrenCorrectly()
+    public async Task Arrange_AtOffset_PositionsChildrenCorrectly()
     {
         var child1 = new TextBlockNode { Text = "AAA" };
         var child2 = new TextBlockNode { Text = "BBB" };
@@ -172,7 +171,7 @@ public class HStackNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_FindsAllFocusable()
+    public async Task GetFocusableNodes_FindsAllFocusable()
     {
         var button1 = new ButtonNode { Label = "1" };
         var textBlock = new TextBlockNode { Text = "Not focusable" };
@@ -257,11 +256,11 @@ public class HStackNodeTests
     #region Rendering Tests
 
     [Fact]
-    public void Render_RendersAllChildren()
+    public async Task Render_RendersAllChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
@@ -276,17 +275,22 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(1), "Left and Right text")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Left", terminal.CreateSnapshot().GetScreenText());
-        Assert.Contains("Right", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Left", snapshot.GetScreenText());
+        Assert.Contains("Right", snapshot.GetScreenText());
     }
 
     [Fact]
-    public void Render_ChildrenAppearOnSameLine()
+    public async Task Render_ChildrenAppearOnSameLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
@@ -302,19 +306,24 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "AAA BBB CCC on same line")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("AAA", line);
         Assert.Contains("BBB", line);
         Assert.Contains("CCC", line);
     }
 
     [Fact]
-    public void Render_InNarrowTerminal_TextWraps()
+    public async Task Render_InNarrowTerminal_TextWraps()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 8, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(8, 10).Build();
         var context = new Hex1bRenderContext(workload);
 
         var node = new HStackNode
@@ -329,9 +338,14 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(8, 10));
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(1), "AAAA text")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content wraps at terminal edge
-        Assert.Contains("AAAA", terminal.CreateSnapshot().GetLine(0));
+        Assert.Contains("AAAA", snapshot.GetLine(0));
     }
 
     #endregion
@@ -343,7 +357,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -365,8 +379,20 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("|"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("|"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
     }
 
@@ -375,7 +401,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -411,7 +437,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -433,8 +459,20 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("A"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("A"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("B"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("B"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("C"));
     }
 
@@ -443,7 +481,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -470,9 +508,25 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Top"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Top"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Bottom"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Bottom"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Top"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Top"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Bottom"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Bottom"));
     }
 
@@ -481,7 +535,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "";
         var clicked = false;
 
@@ -518,7 +572,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -544,7 +598,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -566,6 +620,10 @@ public class HStackNodeTests
         await runTask;
 
         // Content wraps at terminal boundary
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("VeryLongWord"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("VeryLongWord"));
     }
 
@@ -574,7 +632,7 @@ public class HStackNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var items = new List<string> { "A", "B", "C" };
 
         using var app = new Hex1bApp(
@@ -593,8 +651,20 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[A]"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[A]"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[B]"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[B]"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[C]"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[C]"));
     }
 
@@ -606,7 +676,7 @@ public class HStackNodeTests
         // This simulates the ResponsiveTodoExhibit Extra Wide layout.
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var rightButtonClicked = false;
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
@@ -643,7 +713,7 @@ public class HStackNodeTests
         // Scenario: VStack with 2 focusables should handle Tab itself, not bubble up
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -681,7 +751,7 @@ public class HStackNodeTests
         // This is the ResponsiveTodoExhibit "New" panel scenario.
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var listClicked = false;
         var addButtonClicked = false;
         var otherButtonClicked = false;
@@ -730,7 +800,7 @@ public class HStackNodeTests
         // Scenario: Same as above but with Shift+Tab escaping at the first item.
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var listClicked = false;
         var text = "";
 

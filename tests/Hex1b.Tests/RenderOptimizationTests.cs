@@ -1,5 +1,4 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 using Hex1bTheming = Hex1b.Theming;
 
@@ -14,7 +13,7 @@ public class RenderOptimizationTests
     public async Task SameWidgetInstance_ShouldNotReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
 
         // Create a single widget instance that's reused every frame
@@ -45,7 +44,7 @@ public class RenderOptimizationTests
     public async Task TextBlock_WithChangingText_ShouldReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -71,6 +70,10 @@ public class RenderOptimizationTests
         // Each frame has different text, so each frame should render
         // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) + Ctrl+C (Counter: 4) = 4 renders
         // Verify by checking the final output
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Counter: 4"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
     }
 
@@ -78,7 +81,7 @@ public class RenderOptimizationTests
     public async Task TextBlock_WithSameText_ShouldNotReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
         
         // Track renders by wrapping in a VStack with a TestWidget
@@ -110,7 +113,7 @@ public class RenderOptimizationTests
     public async Task MixedTree_StaticAndDynamic_OnlyDynamicReRenders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var staticRenderCount = 0;
         var counter = 0;
 
@@ -147,6 +150,10 @@ public class RenderOptimizationTests
         Assert.Equal(1, staticRenderCount);
         
         // Dynamic text should have updated (A, B, Ctrl+C = 4 total frames)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Counter: 4"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
     }
 
@@ -156,7 +163,7 @@ public class RenderOptimizationTests
         // Verifies that VStack's index-based reconciliation correctly creates new nodes
         // when a widget's position changes (rather than reusing the old node)
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var reconcileDetails = new List<(int frame, bool isNewNode)>();
         var frameNumber = 0;
 
@@ -210,7 +217,7 @@ public class RenderOptimizationTests
     public async Task SingleFrame_RendersNewNode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
         var reconcileCount = 0;
         Hex1bNode? capturedNode = null;
@@ -249,7 +256,7 @@ public class RenderOptimizationTests
     public async Task NodeWithChangedBounds_ShouldReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
         var frameNumber = 0;
 
@@ -300,7 +307,7 @@ public class RenderOptimizationTests
         // does not cause extra re-renders. The native cursor is rendered by the terminal
         // itself, so we don't need to mark widgets dirty when the cursor moves.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
 
         var testWidget = new TestWidget().OnRender(_ => renderCount++);
@@ -338,7 +345,7 @@ public class RenderOptimizationTests
         // When dragging the splitter, FirstSize changes and the splitter should be marked dirty
         // so that the divider and children re-render at their new positions.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var rightPaneRenderCount = 0;
 
         using var app = new Hex1bApp(
@@ -382,7 +389,7 @@ public class RenderOptimizationTests
         // The splitter divider itself should re-render at its new position when dragged.
         // This test verifies the splitter node is marked dirty when FirstSize changes.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.HSplitter(
@@ -399,50 +406,42 @@ public class RenderOptimizationTests
 
         // Start drag on the splitter divider (at x=21 which is inside the " │ " divider at 20-22)
         // Drag right by 10 characters
+        var dividerMoved = false;
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(2), "splitter to render")
             .Drag(21, 5, 31, 5)
-            .Capture("final")
+            .WaitUntil(s =>
+            {
+                // Check if the divider moved - look for │ around position 31
+                var output = s.GetScreenText();
+                var lines = output.Split('\n');
+                foreach (var line in lines)
+                {
+                    if (line.Length > 31 && line[31] == '│')
+                    {
+                        dividerMoved = true;
+                        return true;
+                    }
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "divider to move to new position")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        
-        var snapshot = terminal.CreateSnapshot();
-        var output = snapshot.GetScreenText();
 
-        // After dragging, the divider should be at the new position (around column 30)
-        // Check that the divider character "│" appears at the expected position
-        // The divider is at FirstSize + 1 = 30 + 1 = 31
-        // Split output into lines and check one of them
-        var lines = output.Split('\n');
-        var foundDividerAtNewPosition = false;
-        foreach (var line in lines)
-        {
-            // The divider should be around position 30-32 (after moving from 20-22)
-            if (line.Length > 31)
-            {
-                var charAtPos = line[31];
-                if (charAtPos == '│')
-                {
-                    foundDividerAtNewPosition = true;
-                    break;
-                }
-            }
-        }
-
-        Assert.True(foundDividerAtNewPosition, 
-            $"Expected divider '│' at position 31 after drag. Output:\n{output}");
+        Assert.True(dividerMoved, "Divider should have moved to new position after drag");
     }
 
     [Fact]
-    public void TerminalResize_Enlarge_ShouldNotCrash()
+    public async Task TerminalResize_Enlarge_ShouldNotCrash()
     {
         // Verifies that enlarging the terminal doesn't cause an index out of bounds exception
         // This was a bug where _width/_height were updated before Resize() was called,
         // causing the copy loop to try accessing indices beyond the old buffer.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // Enlarge the terminal - this should not crash
         terminal.Resize(120, 40);
@@ -459,7 +458,7 @@ public class RenderOptimizationTests
         // When the terminal is resized, all nodes should re-render
         // because their layout may have changed.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
 
         var testWidget = new TestWidget().OnRender(_ => renderCount++);
@@ -490,7 +489,7 @@ public class RenderOptimizationTests
         // the dirty region clearing should use the panel's background color,
         // not the terminal's default background.
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         
         // Use a theme with a visible panel background color
         var panelBgColor = Hex1bTheming.Hex1bColor.FromRgb(30, 30, 60); // Dark blue

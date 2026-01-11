@@ -1,4 +1,3 @@
-using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 

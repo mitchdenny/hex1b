@@ -1,9 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
-using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -18,7 +16,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_FirstMatchingCondition_ReturnsChildSize()
+    public async Task Measure_FirstMatchingCondition_ReturnsChildSize()
     {
         var node = new ResponsiveNode
         {
@@ -43,7 +41,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_FirstConditionTrue_SelectsFirst()
+    public async Task Measure_FirstConditionTrue_SelectsFirst()
     {
         var node = new ResponsiveNode
         {
@@ -66,7 +64,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_NoMatchingCondition_ReturnsZero()
+    public async Task Measure_NoMatchingCondition_ReturnsZero()
     {
         var node = new ResponsiveNode
         {
@@ -90,7 +88,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyBranches_ReturnsZero()
+    public async Task Measure_EmptyBranches_ReturnsZero()
     {
         var node = new ResponsiveNode
         {
@@ -106,7 +104,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsConstraints()
+    public async Task Measure_RespectsConstraints()
     {
         var node = new ResponsiveNode
         {
@@ -127,7 +125,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Arrange_ActiveChildGetsFullBounds()
+    public async Task Arrange_ActiveChildGetsFullBounds()
     {
         var child1 = new TextBlockNode { Text = "Hidden" };
         var child2 = new TextBlockNode { Text = "Visible" };
@@ -151,11 +149,11 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Render_OnlyRendersActiveChild()
+    public async Task Render_OnlyRendersActiveChild()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
@@ -174,18 +172,23 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Visible"), TimeSpan.FromSeconds(1), "Visible text")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var screenText = terminal.CreateSnapshot().GetScreenText();
+        var screenText = snapshot.GetScreenText();
         Assert.Contains("Visible", screenText);
         Assert.DoesNotContain("Hidden", screenText);
     }
 
     [Fact]
-    public void Render_NoMatchingCondition_RendersNothing()
+    public async Task Render_NoMatchingCondition_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
@@ -202,13 +205,17 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
         Assert.DoesNotContain("Hidden", screenText);
     }
 
     [Fact]
-    public void Measure_ConditionReceivesAvailableSize()
+    public async Task Measure_ConditionReceivesAvailableSize()
     {
         int receivedWidth = 0;
         int receivedHeight = 0;
@@ -231,7 +238,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void Measure_WidthBasedCondition_SelectsCorrectBranch()
+    public async Task Measure_WidthBasedCondition_SelectsCorrectBranch()
     {
         var node = new ResponsiveNode
         {
@@ -263,7 +270,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_ReturnsOnlyActiveChildFocusables()
+    public async Task GetFocusableNodes_ReturnsOnlyActiveChildFocusables()
     {
         var button1 = new ButtonNode { Label = "Hidden" };
         var button2 = new ButtonNode { Label = "Visible" };
@@ -288,7 +295,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_NoMatchingCondition_ReturnsEmpty()
+    public async Task GetFocusableNodes_NoMatchingCondition_ReturnsEmpty()
     {
         var button = new ButtonNode { Label = "Hidden" };
         var node = new ResponsiveNode
@@ -340,7 +347,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void HandleInput_NoActiveChild_ReturnsFalse()
+    public async Task HandleInput_NoActiveChild_ReturnsFalse()
     {
         var node = new ResponsiveNode
         {
@@ -361,7 +368,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void IsFocusable_ReturnsFalse()
+    public async Task IsFocusable_ReturnsFalse()
     {
         var node = new ResponsiveNode();
 
@@ -369,7 +376,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void ActiveChild_ReturnsCorrectNode()
+    public async Task ActiveChild_ReturnsCorrectNode()
     {
         var child1 = new TextBlockNode { Text = "First" };
         var child2 = new TextBlockNode { Text = "Second" };
@@ -389,7 +396,7 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void ActiveChild_NoMatch_ReturnsNull()
+    public async Task ActiveChild_NoMatch_ReturnsNull()
     {
         var node = new ResponsiveNode
         {
@@ -409,11 +416,11 @@ public class ResponsiveNodeTests
     }
 
     [Fact]
-    public void NestedResponsive_WorksCorrectly()
+    public async Task NestedResponsive_WorksCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
 
         var innerNode = new ResponsiveNode
@@ -443,16 +450,21 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(1), "Inner text")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Inner", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Inner", snapshot.GetScreenText());
     }
 
     [Fact]
-    public void Responsive_WithOtherwiseFallback_ShowsFallback()
+    public async Task Responsive_WithOtherwiseFallback_ShowsFallback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
         var context = CreateContext(workload);
         var node = new ResponsiveNode
         {
@@ -473,8 +485,13 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Fallback"), TimeSpan.FromSeconds(1), "Fallback text")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Fallback", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Fallback", snapshot.GetScreenText());
     }
 
     #region Integration Tests with Fluent API
@@ -484,7 +501,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 120, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(120, 20).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -505,6 +522,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Wide View: Full Details"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Wide View: Full Details"));
         Assert.False(terminal.CreateSnapshot().ContainsText("Compact"));
     }
@@ -514,7 +535,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -535,6 +556,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Compact View"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Compact View"));
         Assert.False(terminal.CreateSnapshot().ContainsText("Wide View"));
     }
@@ -544,7 +569,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 75, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(75, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -567,6 +592,10 @@ public class ResponsiveNodeTests
         await runTask;
 
         // 75 width should match Medium tier
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Medium"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Medium"));
         Assert.False(terminal.CreateSnapshot().ContainsText("Large"));
         Assert.False(terminal.CreateSnapshot().ContainsText("Small"));
@@ -577,7 +606,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -599,6 +628,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Wide"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Wide"));
         Assert.False(terminal.CreateSnapshot().ContainsText("Very Wide"));
     }
@@ -608,7 +641,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 30);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 30).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -629,6 +662,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Large Screen"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Large Screen"));
     }
 
@@ -637,7 +674,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 50, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -662,7 +699,15 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Border takes 2 columns, so inner space is 48, which is < 100
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Narrow"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Narrow"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Container"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Container"));
     }
 
@@ -671,7 +716,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -702,7 +747,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var text = "";
 
         using var app = new Hex1bApp(
@@ -734,7 +779,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -759,8 +804,20 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Wide Content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Wide Content"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
     }
 
@@ -769,7 +826,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -800,7 +857,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         IReadOnlyList<string> items = ["Item 1", "Item 2"];
 
         using var app = new Hex1bApp(
@@ -825,6 +882,10 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
     }
 
@@ -833,7 +894,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 100, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 20).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -865,7 +926,15 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Wide layout uses HStack
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Left Panel"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Panel"));
     }
 
@@ -874,7 +943,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 20).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -906,7 +975,15 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Narrow layout uses VStack
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Top Panel"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Panel"));
     }
 
@@ -915,7 +992,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 100, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -940,7 +1017,15 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Wide Left"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Wide Left"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Panel"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Right Panel"));
     }
 
@@ -949,7 +1034,7 @@ public class ResponsiveNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var state = new { Message = "Hello from state" };
 
         using var app = new Hex1bApp(
@@ -970,6 +1055,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello from state"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello from state"));
     }
 

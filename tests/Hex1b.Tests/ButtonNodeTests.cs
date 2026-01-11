@@ -1,7 +1,6 @@
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -15,7 +14,7 @@ public class ButtonNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize()
+    public async Task Measure_ReturnsCorrectSize()
     {
         var node = new ButtonNode { Label = "Click" };
 
@@ -27,7 +26,7 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyLabel_HasMinSize()
+    public async Task Measure_EmptyLabel_HasMinSize()
     {
         var node = new ButtonNode { Label = "" };
 
@@ -38,7 +37,7 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void Measure_LongLabel_MeasuresFullWidth()
+    public async Task Measure_LongLabel_MeasuresFullWidth()
     {
         var node = new ButtonNode { Label = "Click Here To Continue" };
 
@@ -50,7 +49,7 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxWidthConstraint()
+    public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new ButtonNode { Label = "A Very Long Button Label" };
 
@@ -60,7 +59,7 @@ public class ButtonNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMinWidthConstraint()
+    public async Task Measure_RespectsMinWidthConstraint()
     {
         var node = new ButtonNode { Label = "OK" };
 
@@ -74,11 +73,11 @@ public class ButtonNodeTests
     #region Rendering Tests - Unfocused State
 
     [Fact]
-    public void Render_Unfocused_ShowsBrackets()
+    public async Task Render_Unfocused_ShowsBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
@@ -87,17 +86,22 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1), "button with OK label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Theme-dependent bracket style, but should contain label
-        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("OK", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_Unfocused_ContainsBracketCharacters()
+    public async Task Render_Unfocused_ContainsBracketCharacters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
@@ -106,18 +110,23 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]") && s.ContainsText("Test"), TimeSpan.FromSeconds(1), "brackets and Test label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
 
     [Fact]
-    public void Render_Unfocused_EmptyLabel_StillRendersBrackets()
+    public async Task Render_Unfocused_EmptyLabel_StillRendersBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
@@ -126,8 +135,13 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]"), TimeSpan.FromSeconds(1), "brackets in empty button")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
@@ -137,11 +151,11 @@ public class ButtonNodeTests
     #region Rendering Tests - Focused State
 
     [Fact]
-    public void Render_Focused_HasDifferentStyle()
+    public async Task Render_Focused_HasDifferentStyle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
@@ -150,18 +164,23 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1), "focused button with OK label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should contain styling for focus
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor() || terminal.CreateSnapshot().HasBackgroundColor() || terminal.CreateSnapshot().HasAttribute(CellAttributes.Reverse));
-        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.Contains("OK", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_Focused_ContainsLabel()
+    public async Task Render_Focused_ContainsLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new ButtonNode
         {
@@ -170,19 +189,24 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(1), "button with Submit Form label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Submit Form", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("Submit Form", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_FocusedAndUnfocused_ProduceDifferentOutput()
+    public async Task Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
         using var focusedWorkload = new Hex1bAppWorkloadAdapter();
 
-        using var focusedTerminal = new Hex1bTerminal(focusedWorkload, 40, 5);
+        using var focusedTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(focusedWorkload).WithHeadless().WithDimensions(40, 5).Build();
         using var unfocusedWorkload = new Hex1bAppWorkloadAdapter();
 
-        using var unfocusedTerminal = new Hex1bTerminal(unfocusedWorkload, 40, 5);
+        using var unfocusedTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(unfocusedWorkload).WithHeadless().WithDimensions(40, 5).Build();
         var focusedContext = new Hex1bRenderContext(focusedWorkload);
         var unfocusedContext = new Hex1bRenderContext(unfocusedWorkload);
 
@@ -192,14 +216,28 @@ public class ButtonNodeTests
         focusedNode.Render(focusedContext);
         unfocusedNode.Render(unfocusedContext);
 
+        var pattern = new CellPatternSearcher().Find("Click");
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(focusedTerminal);
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(unfocusedTerminal);
+
         // Focused button should have different styling (colors or attributes)
-        var focusedSnapshot = focusedTerminal.CreateSnapshot();
-        var unfocusedSnapshot = unfocusedTerminal.CreateSnapshot();
+        var focusedMatch = focusedTerminal.CreateSnapshot().SearchPattern(pattern).First;
+        Assert.NotNull(focusedMatch);
         
         // The focused button should have either reverse attribute or foreground/background colors
-        var focusedHasStyling = focusedSnapshot.HasAttribute(CellAttributes.Reverse) ||
-                                focusedSnapshot.HasForegroundColor() ||
-                                focusedSnapshot.HasBackgroundColor();
+        var focusedCells = focusedMatch.Cells;
+        var focusedHasStyling = focusedCells.Any(c => 
+            c.Cell.IsReverse || 
+            c.Cell.Foreground.HasValue || 
+            c.Cell.Background.HasValue);
         
         Assert.True(focusedHasStyling, "Focused button should have styling applied");
     }
@@ -316,7 +354,7 @@ public class ButtonNodeTests
     #region Focus Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ButtonNode();
 
@@ -328,7 +366,7 @@ public class ButtonNodeTests
     #region Layout Tests
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new ButtonNode { Label = "Test" };
         var bounds = new Rect(0, 0, 20, 1);
@@ -347,7 +385,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -367,6 +405,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Me"));
     }
 
@@ -375,7 +417,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -405,7 +447,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -435,7 +477,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -462,6 +504,10 @@ public class ButtonNodeTests
         await runTask;
 
         Assert.Equal(3, counter);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count: 3"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Count: 3"));
     }
 
@@ -470,7 +516,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1Clicked = false;
         var button2Clicked = false;
 
@@ -505,7 +551,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
         var clicked = false;
 
         using var app = new Hex1bApp(
@@ -528,6 +574,10 @@ public class ButtonNodeTests
         await runTask;
 
         Assert.True(clicked);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("OK"));
     }
 
@@ -536,7 +586,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 12, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(12, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -557,6 +607,10 @@ public class ButtonNodeTests
         await runTask;
 
         // The button text should be present (possibly wrapped)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Click Here"));
     }
 
@@ -565,7 +619,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "";
         var buttonClicked = false;
 
@@ -601,7 +655,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clickCount = 0;
 
         using var app = new Hex1bApp(
@@ -636,7 +690,7 @@ public class ButtonNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -659,6 +713,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Clicked 2 times"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Clicked 2 times"));
     }
 

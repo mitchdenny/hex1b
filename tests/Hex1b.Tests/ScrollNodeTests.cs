@@ -2,10 +2,8 @@ using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
-using Hex1b.Terminal;
 
 namespace Hex1b.Tests;
 
@@ -42,7 +40,7 @@ public class ScrollNodeTests
     #region ScrollNode Internal State Tests
 
     [Fact]
-    public void ScrollNode_InitialState_IsZero()
+    public async Task ScrollNode_InitialState_IsZero()
     {
         var node = new ScrollNode();
 
@@ -52,7 +50,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void ScrollNode_IsScrollable_WhenContentExceedsViewport()
+    public async Task ScrollNode_IsScrollable_WhenContentExceedsViewport()
     {
         var node = new ScrollNode
         {
@@ -67,7 +65,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void ScrollNode_MaxOffset_IsCorrect()
+    public async Task ScrollNode_MaxOffset_IsCorrect()
     {
         var node = new ScrollNode
         {
@@ -86,7 +84,7 @@ public class ScrollNodeTests
     #region Measurement Tests - Vertical Scroll
 
     [Fact]
-    public void Measure_Vertical_ContentSmallerThanViewport_ReturnsFitSize()
+    public async Task Measure_Vertical_ContentSmallerThanViewport_ReturnsFitSize()
     {
         var node = new ScrollNode
         {
@@ -103,7 +101,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_ContentLargerThanViewport_UsesConstraints()
+    public async Task Measure_Vertical_ContentLargerThanViewport_UsesConstraints()
     {
         var node = new ScrollNode
         {
@@ -119,7 +117,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_IncludesScrollbarWidth()
+    public async Task Measure_Vertical_IncludesScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
         var node = new ScrollNode
@@ -147,7 +145,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Measure_Vertical_NoScrollbar_DoesNotIncludeScrollbarWidth()
+    public async Task Measure_Vertical_NoScrollbar_DoesNotIncludeScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
         var node = new ScrollNode
@@ -168,7 +166,7 @@ public class ScrollNodeTests
     #region Measurement Tests - Horizontal Scroll
 
     [Fact]
-    public void Measure_Horizontal_ContentWiderThanViewport_UsesConstraints()
+    public async Task Measure_Horizontal_ContentWiderThanViewport_UsesConstraints()
     {
         var node = new ScrollNode
         {
@@ -183,7 +181,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Measure_Horizontal_IncludesScrollbarHeight()
+    public async Task Measure_Horizontal_IncludesScrollbarHeight()
     {
         var node = new ScrollNode
         {
@@ -203,7 +201,7 @@ public class ScrollNodeTests
     #region Arrange Tests - Vertical Scroll
 
     [Fact]
-    public void Arrange_Vertical_SetsViewportSize()
+    public async Task Arrange_Vertical_SetsViewportSize()
     {
         var node = new ScrollNode
         {
@@ -219,7 +217,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Arrange_Vertical_ChildPositionedWithOffset()
+    public async Task Arrange_Vertical_ChildPositionedWithOffset()
     {
         var child = CreateTallContent(20);
         var node = new ScrollNode
@@ -241,7 +239,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Arrange_Vertical_ClampsOffsetToMaxOffset()
+    public async Task Arrange_Vertical_ClampsOffsetToMaxOffset()
     {
         var node = new ScrollNode
         {
@@ -265,7 +263,7 @@ public class ScrollNodeTests
     #region Arrange Tests - Horizontal Scroll
 
     [Fact]
-    public void Arrange_Horizontal_SetsViewportSize()
+    public async Task Arrange_Horizontal_SetsViewportSize()
     {
         var node = new ScrollNode
         {
@@ -282,7 +280,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void Arrange_Horizontal_ChildPositionedWithOffset()
+    public async Task Arrange_Horizontal_ChildPositionedWithOffset()
     {
         var child = CreateWideContent(20);
         var node = new ScrollNode
@@ -308,11 +306,11 @@ public class ScrollNodeTests
     #region Rendering Tests - Vertical Scrollbar
 
     [Fact]
-    public void Render_Vertical_ShowsScrollbar_WhenContentExceedsViewport()
+    public async Task Render_Vertical_ShowsScrollbar_WhenContentExceedsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ScrollNode
         {
@@ -324,17 +322,21 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "scrollbar to render")
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should contain scrollbar characters
         Assert.Contains("█", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
-    public void Render_Vertical_ShowsArrows()
+    public async Task Render_Vertical_ShowsArrows()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
         var node = new ScrollNode
         {
@@ -346,18 +348,22 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("▲") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "vertical arrows to render")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("▲"), "Should show up arrow");
         Assert.True(snapshot.ContainsText("▼"), "Should show down arrow");
     }
 
     [Fact]
-    public void Render_Vertical_NoScrollbar_WhenContentFitsViewport()
+    public async Task Render_Vertical_NoScrollbar_WhenContentFitsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 20);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 20).Build();
         var context = CreateContext(workload);
         var node = new ScrollNode
         {
@@ -369,17 +375,23 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 20));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▲") && !s.ContainsText("▼"),
+                TimeSpan.FromSeconds(1), "content fits without scrollbar arrows")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content fits, so no scrollbar needed
-        Assert.DoesNotContain("▲", terminal.CreateSnapshot().GetText());
-        Assert.DoesNotContain("▼", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("▲", snapshot.GetText());
+        Assert.DoesNotContain("▼", snapshot.GetText());
     }
 
     [Fact]
     public async Task Render_Vertical_ClipsContentBeyondViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
 
         await using var app = new Hex1bApp(
             ctx => ctx.VScroll(v => [
@@ -405,7 +417,12 @@ public class ScrollNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Line 2") && !s.ContainsText("Line 6"),
+                TimeSpan.FromSeconds(2), "Lines 1-2 visible, Line 6 clipped")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // First lines should be visible, later lines should be clipped
         Assert.Contains("Line 1", snapshot.GetText());
@@ -418,7 +435,7 @@ public class ScrollNodeTests
     public async Task Render_Vertical_WhenScrolled_ShowsOffsetContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
 
         await using var app = new Hex1bApp(
             ctx => ctx.VScroll(v => [
@@ -452,7 +469,12 @@ public class ScrollNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 6") && s.ContainsText("Line 7") && !s.ContainsText("Line 5"),
+                TimeSpan.FromSeconds(2), "Lines 6-7 visible, Line 5 not visible")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Lines starting from offset 5 (Line 6) should be visible
         Assert.Contains("Line 6", snapshot.GetText());
@@ -466,11 +488,11 @@ public class ScrollNodeTests
     #region Rendering Tests - Horizontal Scrollbar
 
     [Fact]
-    public void Render_Horizontal_ShowsScrollbar_WhenContentExceedsViewport()
+    public async Task Render_Horizontal_ShowsScrollbar_WhenContentExceedsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new ScrollNode
         {
@@ -482,17 +504,21 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .Build()
+            .ApplyAsync(terminal);
 
         // Should contain scrollbar characters
         Assert.Contains("█", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
-    public void Render_Horizontal_ShowsArrows()
+    public async Task Render_Horizontal_ShowsArrows()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
         var node = new ScrollNode
         {
@@ -504,6 +530,10 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("◀") && s.ContainsText("▶"), TimeSpan.FromSeconds(2), "horizontal arrows to render")
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Contains("◀", terminal.CreateSnapshot().GetText());
         Assert.Contains("▶", terminal.CreateSnapshot().GetText());
@@ -514,11 +544,11 @@ public class ScrollNodeTests
     #region Theming Tests
 
     [Fact]
-    public void Render_WithCustomThumbColor_AppliesColor()
+    public async Task Render_WithCustomThumbColor_AppliesColor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.ThumbColor, Hex1bColor.Cyan);
         var context = CreateContext(workload, theme);
@@ -532,17 +562,23 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Cyan),
+                TimeSpan.FromSeconds(1), "Cyan foreground color")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Cyan foreground color should be applied
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Cyan));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Cyan));
     }
 
     [Fact]
-    public void Render_WhenFocused_UsesFocusedThumbColor()
+    public async Task Render_WhenFocused_UsesFocusedThumbColor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.FocusedThumbColor, Hex1bColor.Yellow);
         var context = CreateContext(workload, theme);
@@ -557,9 +593,15 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Yellow),
+                TimeSpan.FromSeconds(1), "Yellow foreground color")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Yellow foreground color should be applied
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Yellow));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Yellow));
     }
 
     #endregion
@@ -567,7 +609,7 @@ public class ScrollNodeTests
     #region Focus Tests
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ScrollNode();
 
@@ -575,7 +617,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesSelfFirst()
+    public async Task GetFocusableNodes_IncludesSelfFirst()
     {
         var node = new ScrollNode
         {
@@ -588,7 +630,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesChildFocusables()
+    public async Task GetFocusableNodes_IncludesChildFocusables()
     {
         var button = new ButtonNode { Label = "Button" };
         var node = new ScrollNode
@@ -602,7 +644,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void SetInitialFocus_FocusesSelf()
+    public async Task SetInitialFocus_FocusesSelf()
     {
         var button = new ButtonNode { Label = "Button" };
         var node = new ScrollNode
@@ -900,7 +942,7 @@ public class ScrollNodeTests
     #region ILayoutProvider Tests
 
     [Fact]
-    public void ShouldRenderAt_WithinViewport_ReturnsTrue()
+    public async Task ShouldRenderAt_WithinViewport_ReturnsTrue()
     {
         var node = new ScrollNode
         {
@@ -914,7 +956,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void ShouldRenderAt_OutsideViewport_ReturnsFalse()
+    public async Task ShouldRenderAt_OutsideViewport_ReturnsFalse()
     {
         var node = new ScrollNode
         {
@@ -928,7 +970,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void ClipString_ClipsHorizontally()
+    public async Task ClipString_ClipsHorizontally()
     {
         var node = new ScrollNode
         {
@@ -944,7 +986,7 @@ public class ScrollNodeTests
     }
 
     [Fact]
-    public void ClipString_OutsideVerticalBounds_ReturnsEmpty()
+    public async Task ClipString_OutsideVerticalBounds_ReturnsEmpty()
     {
         var node = new ScrollNode
         {
@@ -968,7 +1010,7 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1011,7 +1053,7 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         int lastOffset = 0;
 
         await using var app = new Hex1bApp(
@@ -1052,7 +1094,7 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var buttonClicked = false;
 
         await using var app = new Hex1bApp(
@@ -1086,7 +1128,7 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1114,15 +1156,12 @@ public class ScrollNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left Side"), TimeSpan.FromSeconds(2))
-            .Capture("final")
+            .WaitUntil(s => s.ContainsText("Left Side") && s.ContainsText("Scrollable"), TimeSpan.FromSeconds(2), "splitter with scroll content to render")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        Assert.Contains("Left Side", terminal.CreateSnapshot().GetText());
-        Assert.Contains("Scrollable", terminal.CreateSnapshot().GetText());
+        // WaitUntil already verified both Left Side and Scrollable content are visible
     }
 
     [Fact]
@@ -1130,7 +1169,7 @@ public class ScrollNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -1166,7 +1205,7 @@ public class ScrollNodeTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         // Terminal is 30 wide, border takes 2 (left+right), so inner content is 28
-        using var terminal = new Hex1bTerminal(workload, 30, 8);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 8).Build();
 
         await using var app = new Hex1bApp(
             ctx => ctx.Border(
@@ -1194,7 +1233,12 @@ public class ScrollNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test") && s.ContainsText("Header") && s.ContainsText("Footer"),
+                TimeSpan.FromSeconds(1), "border with title, header, and footer")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetText();
         var lines = text.Split('\n');
         

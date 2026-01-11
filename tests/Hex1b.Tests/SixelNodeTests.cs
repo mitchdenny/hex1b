@@ -4,8 +4,6 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -41,7 +39,7 @@ public class SixelNodeTests
         });
 
     [Fact]
-    public void Measure_WithRequestedDimensions_ReturnsRequestedSize()
+    public async Task Measure_WithRequestedDimensions_ReturnsRequestedSize()
     {
         var node = new SixelNode
         {
@@ -56,7 +54,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Measure_WithoutRequestedDimensions_ReturnsDefaultSize()
+    public async Task Measure_WithoutRequestedDimensions_ReturnsDefaultSize()
     {
         var node = new SixelNode();
 
@@ -68,7 +66,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Measure_WithFallback_ReturnsFallbackSize()
+    public async Task Measure_WithFallback_ReturnsFallbackSize()
     {
         var fallbackNode = new TextBlockNode { Text = "Fallback text" };
         var node = new SixelNode
@@ -83,22 +81,30 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithSixelSupport_RendersImageData()
+    public async Task Render_WithSixelSupport_RendersImageData()
     {
         var node = new SixelNode();
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // With no image data, should show "[No image data]"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[No image data]"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[No image data]"));
     }
 
     [Fact]
-    public void Render_WithoutSixelSupport_RendersFallback()
+    public async Task Render_WithoutSixelSupport_RendersFallback()
     {
         var node = new SixelNode
         {
@@ -106,31 +112,47 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelDisabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Fallback.Arrange(new Rect(0, 0, 40, 1));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Fallback content"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Fallback content"));
     }
 
     [Fact]
-    public void Render_WithoutSixelSupport_NoFallback_ShowsPlaceholder()
+    public async Task Render_WithoutSixelSupport_NoFallback_ShowsPlaceholder()
     {
         var node = new SixelNode();
         
         using var workload = CreateSixelDisabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[Sixel not supported]"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[Sixel not supported]"));
     }
 
     [Fact]
-    public void GetFocusableNodes_WithFallback_ReturnsFallbackFocusables()
+    public async Task GetFocusableNodes_WithFallback_ReturnsFallbackFocusables()
     {
         var buttonNode = new ButtonNode { Label = "Test" };
         var fallback = new VStackNode();
@@ -172,7 +194,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithSixelData_OutputsSixelSequence()
+    public async Task Render_WithSixelData_OutputsSixelSequence()
     {
         var node = new SixelNode
         {
@@ -180,10 +202,14 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Sixel data should be tracked in the terminal
         Assert.True(terminal.ContainsSixelData());
@@ -195,7 +221,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithPreformattedSixelData_OutputsAsIs()
+    public async Task Render_WithPreformattedSixelData_OutputsAsIs()
     {
         // Data already has DCS header
         var sixelPayload = "\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\";
@@ -205,13 +231,20 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Flush pending output before checking
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Should be tracked as a single Sixel object
         Assert.Equal(1, terminal.TrackedSixelCount);
@@ -223,7 +256,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithSmpteColorBars_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithSmpteColorBars_ProducesSvgWithEmbeddedImage()
     {
         // SMPTE color bars: White, Yellow, Cyan, Green, Magenta, Red, Blue
         // This is the classic TV test pattern - easy to visually verify
@@ -241,13 +274,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
@@ -271,7 +315,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithColorGrid_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithColorGrid_ProducesSvgWithEmbeddedImage()
     {
         // 3x3 grid of colors - easy to verify each color block
         // Layout:
@@ -292,13 +336,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
@@ -320,7 +375,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithGrayscaleGradient_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithGrayscaleGradient_ProducesSvgWithEmbeddedImage()
     {
         // Horizontal grayscale gradient - black on left to white on right
         // Easy to verify smooth transitions
@@ -338,13 +393,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 10, 3));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
@@ -366,7 +432,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithRgbGradients_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithRgbGradients_ProducesSvgWithEmbeddedImage()
     {
         // Three horizontal bands: R gradient, G gradient, B gradient
         // Easy to verify each color channel
@@ -384,13 +450,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 10, 4));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
@@ -412,7 +489,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithCheckerboard_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithCheckerboard_ProducesSvgWithEmbeddedImage()
     {
         // Checkerboard pattern - easy to verify alignment and scaling
         const int width = 64;
@@ -430,13 +507,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
@@ -458,7 +546,7 @@ public class SixelNodeTests
     }
 
     [Fact]
-    public void Render_WithRegistrationMarks_ProducesSvgWithEmbeddedImage()
+    public async Task Render_WithRegistrationMarks_ProducesSvgWithEmbeddedImage()
     {
         // Registration marks with center crosshair and colored corners
         // Useful for verifying alignment and position accuracy
@@ -476,13 +564,24 @@ public class SixelNodeTests
         };
         
         using var workload = CreateSixelEnabledWorkload();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var context = new Hex1bRenderContext(workload);
         node.Arrange(new Rect(0, 0, 12, 6));
         node.Render(context);
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         
         // Create snapshot and generate SVG
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         

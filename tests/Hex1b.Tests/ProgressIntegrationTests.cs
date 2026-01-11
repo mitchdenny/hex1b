@@ -1,8 +1,6 @@
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -37,7 +35,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RendersBasicDeterminateBar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -67,7 +65,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RendersZeroPercent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -93,7 +91,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_Renders100Percent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -119,7 +117,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RendersCustomRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -145,7 +143,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RendersNegativeRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -171,7 +169,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RendersIndeterminate()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -201,7 +199,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_FillsAvailableWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -227,7 +225,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RespectsFixedWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -253,7 +251,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_InHStackWithFill()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -282,7 +280,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_MultipleInVStack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -316,7 +314,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_InBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Border(b => [
@@ -349,7 +347,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RespondsToTerminalWidth(int width)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, width, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(width, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -379,7 +377,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_UpdatesDynamically()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
         var progress = 0.0;
 
         using var app = new Hex1bApp(
@@ -424,7 +422,7 @@ public class ProgressIntegrationTests : IDisposable
     public async Task Progress_RespectsCustomTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         var customTheme = new Hex1bTheme("CustomProgress")
             .Set(ProgressTheme.FilledCharacter, '▓')
@@ -471,11 +469,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 10,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Indeterminate Progress Animation",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var animationPos = 0.0;
@@ -522,11 +521,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 12,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "File Download Progress Simulation",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var bytesDownloaded = 0L;
@@ -599,11 +599,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 20,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Multi-Task Progress",
             IdleTimeLimit = 0.5f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         var task1Progress = 0.0;
@@ -678,11 +679,12 @@ public class ProgressIntegrationTests : IDisposable
             Height = 10,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Progress Bar Resize Behavior",
             IdleTimeLimit = 1.0f
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
         using var app = new Hex1bApp(

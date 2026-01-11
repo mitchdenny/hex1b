@@ -2,8 +2,6 @@ using System.Text;
 using System.Text.Json;
 using Hex1b;
 using Hex1b.Input;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Tokens;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Time.Testing;
@@ -41,12 +39,16 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "Test Recording" });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "Test Recording" });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Act - simulate some output
         workload.Write("Hello, World!");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
 
@@ -81,7 +83,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile);
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Act - directly call the filter's OnResizeAsync since we're in headless mode
@@ -122,7 +125,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureInput = true });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureInput = true });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Simulate input by calling the filter directly (since we're headless)
@@ -154,7 +158,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile);
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Simulate input
@@ -173,7 +178,7 @@ public class AsciinemaRecorderTests : IDisposable
     }
 
     [Fact]
-    public void AddMarker_AddsMarkerEvent()
+    public async Task AddMarker_AddsMarkerEvent()
     {
         // Arrange
         var tempFile = GetTempFile();
@@ -184,7 +189,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { AutoFlush = false });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Act
@@ -206,7 +212,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile);
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         recorder.AddMarker("Start", TimeSpan.Zero);
@@ -246,7 +253,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureEnvironment = true });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureEnvironment = true });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Act
@@ -274,7 +282,8 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureEnvironment = false });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { CaptureEnvironment = false });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         // Act
@@ -294,7 +303,7 @@ public class AsciinemaRecorderTests : IDisposable
     {
         // Arrange
         var tempFile = GetTempFile();
-        var recorder = new AsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { AutoFlush = false });
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
         await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
@@ -320,11 +329,15 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "File Test" });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "File Test" });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         workload.Write("Hello!");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -349,11 +362,15 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = options.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "Capture Test" });
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { Title = "Capture Test" });
+        options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
         workload.Write("\x1b[1;32mGreen bold text\x1b[0m");
-        terminal.FlushOutput();
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         // Act - should not throw and should create file
         await TestCaptureHelper.CaptureCastAsync(recorder, "demo", TestContext.Current.CancellationToken);
@@ -383,12 +400,13 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 30,
             WorkloadAdapter = workload
         };
-        var recorder = terminalOptions.AddAsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions
         {
             Title = "Responsive Todo App Demo",
             CaptureInput = true,  // Capture keystrokes for demonstration
             IdleTimeLimit = 2.0f  // Compress idle time in playback
         });
+        terminalOptions.WorkloadFilters.Add(recorder);
         
         using var terminal = new Hex1bTerminal(terminalOptions);
         
@@ -590,7 +608,7 @@ public class AsciinemaRecorderTests : IDisposable
         public int SelectedIndex { get; set; }
         public string NewItemText { get; set; } = "";
 
-        public void AddItem()
+        public async Task AddItem()
         {
             if (!string.IsNullOrWhiteSpace(NewItemText))
             {
@@ -599,7 +617,7 @@ public class AsciinemaRecorderTests : IDisposable
             }
         }
 
-        public void ToggleSelected()
+        public async Task ToggleSelected()
         {
             if (SelectedIndex >= 0 && SelectedIndex < Items.Count)
             {

@@ -1,6 +1,5 @@
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 
 namespace Hex1b.Tests;
@@ -16,7 +15,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(0, 100, 200))
@@ -68,7 +67,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(255, 0, 0))
@@ -107,7 +106,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 60, 15);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 15).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
@@ -153,7 +152,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Text("Clear Screen Test"),
@@ -186,7 +185,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 40, 8);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 8).Build();
 
         var theme = new Hex1bTheme("Test")
             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(50, 50, 100));
@@ -225,7 +224,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange - Create a simple snapshot with just spaces
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
 
         var snapshot = terminal.CreateSnapshot();
         
@@ -246,7 +245,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.TextBox("Type here"),
@@ -283,7 +282,7 @@ public class TerminalAnsiRenderingTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.Text("Capture Test"),

@@ -48,7 +48,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
-    <Using Include="Hex1b.Terminal" />
+    <Using Include="Hex1b.Automation" />
   </ItemGroup>
 
 </Project>

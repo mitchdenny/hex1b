@@ -1,5 +1,4 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -390,7 +389,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var textEntered = "";
         
         using var app = new Hex1bApp(
@@ -424,7 +423,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var ctrlCPressed = false;
         
         using var app = new Hex1bApp(
@@ -465,7 +464,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var items = new[] { "Item 1", "Item 2", "Item 3" };
         
         using var app = new Hex1bApp(
@@ -501,7 +500,7 @@ public class Hex1bTestSequenceTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
         
@@ -536,18 +535,18 @@ public class Hex1bTestSequenceTests
     }
 
     [Fact]
-    public void Apply_SynchronousVersion_Works()
+    public async Task ApplyAsync_WithoutAppRunning_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Type("Test")
             .Build();
 
-        // Should not throw - just verifies Apply works without an app running
-        sequence.Apply(terminal);
+        // Should not throw - just verifies ApplyAsync works without an app running
+        await sequence.ApplyAsync(terminal);
     }
 
     #endregion

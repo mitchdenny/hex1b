@@ -1,6 +1,5 @@
 using Hex1b;
 using Hex1b.Input;
-using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -32,20 +31,9 @@ var allItems = new[]
 
 try
 {
-    var presentation = new ConsolePresentationAdapter(enableMouse: true);
-    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-    
-    var terminalOptions = new Hex1bTerminalOptions
-    {
-        PresentationAdapter = presentation,
-        WorkloadAdapter = workload
-    };
-    terminalOptions.AddHex1bAppRenderOptimization();
-    
-    using var terminal = new Hex1bTerminal(terminalOptions);
-
-    await using var app = new Hex1bApp(
-        ctx => ctx.ThemePanel(
+    await Hex1bTerminal.CreateBuilder()
+        .WithHex1bApp((app, options) =>
+            ctx => ctx.ThemePanel(
             theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
             ctx.VStack(main => [
                 // Menu bar - buttons use PushAnchored for positioned menus
@@ -92,15 +80,10 @@ try
                 searchQuery = ""; // Reset search on open
                 actionCtx.Popups.Push(() => BuildSearchPopup(ctx, actionCtx.Popups, s => selectedAction = $"Selected: {s}"));
             });
-        }),
-        new Hex1bAppOptions
-        {
-            WorkloadAdapter = workload,
-            EnableMouse = true
-        }
-    );
-
-    await app.RunAsync();
+        }))
+        .WithMouse()
+        .WithRenderOptimization()
+        .RunAsync();
 }
 catch (Exception ex)
 {

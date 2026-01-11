@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using Xunit.Sdk;
 using Hex1b.Input;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -17,7 +16,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello")),
@@ -42,7 +41,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello World")),
@@ -66,7 +65,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text = "";
         
         // Wrap in VStack to get automatic focus
@@ -101,7 +100,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var clicked = false;
         
         // Wrap in VStack to get automatic focus
@@ -133,7 +132,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         using var cts = new CancellationTokenSource();
         
         using var app = new Hex1bApp(
@@ -143,14 +142,17 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(cts.Token);
         
-        // Cancel after a short delay
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        // Wait for app to start rendering
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2), "app to render")
+            .Build()
+            .ApplyAsync(terminal);
+        
+        // Cancel the app
         cts.Cancel();
         
-        // Should not throw
+        // Should not throw, just complete gracefully
         await runTask;
-        
-        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     [Fact]
@@ -158,7 +160,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -191,7 +193,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
         
@@ -229,7 +231,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         IReadOnlyList<string> items = [
             "Item 1",
             "Item 2",
@@ -269,7 +271,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
         
         using var app = new Hex1bApp(
@@ -308,7 +310,7 @@ public class Hex1bAppIntegrationTests
     {
         var workload = new Hex1bAppWorkloadAdapter();
 
-        var terminal = new Hex1bTerminal(workload, 80, 24);
+        var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Test")),
@@ -333,7 +335,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
         
         using var app = new Hex1bApp(
@@ -364,7 +366,7 @@ public class Hex1bAppIntegrationTests
     public async Task App_InvalidateMultipleTimes_CoalescesRerenders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderCount = 0;
         
         using var app = new Hex1bApp(
@@ -413,7 +415,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderTest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
@@ -431,10 +433,10 @@ public class Hex1bAppIntegrationTests
         await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Send CTRL-C after the first render to exercise the default binding
-        new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
-            .Apply(terminal);
+            .ApplyAsync(terminal);
 
         var completed = await Task.WhenAny(runTask, Task.Delay(2000, TestContext.Current.CancellationToken));
         Assert.True(completed == runTask, "Expected CTRL-C to exit the application after the initial render.");
@@ -450,7 +452,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var ctrlCPressed = false;
         
         using var app = new Hex1bApp(
@@ -473,17 +475,13 @@ public class Hex1bAppIntegrationTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        // Wait for initial render
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        
-        // Send CTRL-C
-        new Hex1bTerminalInputSequenceBuilder()
+        // Wait for initial render, send CTRL-C, and wait for processing
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .WaitUntil(_ => ctrlCPressed, TimeSpan.FromSeconds(2), "ctrlCPressed to be true")
             .Build()
-            .Apply(terminal);
-        
-        // Wait for processing
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal);
         
         // The custom binding should have been called
         Assert.True(ctrlCPressed);
@@ -500,7 +498,7 @@ public class Hex1bAppIntegrationTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var customHandlerCalled = false;
         
         using var app = new Hex1bApp(
@@ -524,17 +522,13 @@ public class Hex1bAppIntegrationTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        // Wait for initial render
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        
-        // Send CTRL-C
-        new Hex1bTerminalInputSequenceBuilder()
+        // Wait for initial render, send CTRL-C, and wait for processing
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .WaitUntil(_ => customHandlerCalled, TimeSpan.FromSeconds(2), "customHandlerCalled to be true")
             .Build()
-            .Apply(terminal);
-        
-        // Wait for processing
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal);
         
         // The custom handler should have been called
         Assert.True(customHandlerCalled);

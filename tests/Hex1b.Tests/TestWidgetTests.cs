@@ -15,7 +15,7 @@ public class TestWidgetTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         var renderCounts = new List<int>();
         var reconcileCounts = new List<int>();

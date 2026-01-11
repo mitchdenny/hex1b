@@ -1,6 +1,5 @@
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -13,7 +12,7 @@ public class TextBlockNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_ReturnsCorrectSize()
+    public async Task Measure_ReturnsCorrectSize()
     {
         var node = new TextBlockNode { Text = "Hello World" };
 
@@ -24,7 +23,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_EmptyText_ReturnsZeroWidth()
+    public async Task Measure_EmptyText_ReturnsZeroWidth()
     {
         var node = new TextBlockNode { Text = "" };
 
@@ -35,7 +34,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMaxWidthConstraint()
+    public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new TextBlockNode { Text = "This is a very long text that exceeds constraints" };
 
@@ -45,7 +44,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_RespectsMinWidthConstraint()
+    public async Task Measure_RespectsMinWidthConstraint()
     {
         var node = new TextBlockNode { Text = "Hi" };
 
@@ -59,7 +58,7 @@ public class TextBlockNodeTests
     #region Wrapping Tests
 
     [Fact]
-    public void Measure_WithWrap_CalculatesMultipleLines()
+    public async Task Measure_WithWrap_CalculatesMultipleLines()
     {
         var node = new TextBlockNode 
         { 
@@ -76,7 +75,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_WithWrap_SingleLineWhenFits()
+    public async Task Measure_WithWrap_SingleLineWhenFits()
     {
         var node = new TextBlockNode 
         { 
@@ -91,7 +90,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_WithWrap_UnboundedWidth_SingleLine()
+    public async Task Measure_WithWrap_UnboundedWidth_SingleLine()
     {
         var node = new TextBlockNode 
         { 
@@ -106,7 +105,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_WithWrap_PrefersWordBoundaries()
+    public async Task Measure_WithWrap_PrefersWordBoundaries()
     {
         var node = new TextBlockNode
         {
@@ -122,7 +121,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_WithEllipsis_RespectsMaxWidth()
+    public async Task Measure_WithEllipsis_RespectsMaxWidth()
     {
         var node = new TextBlockNode 
         { 
@@ -137,7 +136,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void Measure_WithOverflow_IgnoresConstraint()
+    public async Task Measure_WithOverflow_IgnoresConstraint()
     {
         var node = new TextBlockNode 
         { 
@@ -157,98 +156,127 @@ public class TextBlockNodeTests
     #region Rendering Tests
 
     [Fact]
-    public void Render_WritesTextToTerminal()
+    public async Task Render_WritesTextToTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Hello World" };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_EmptyText_WritesNothing()
+    public async Task Render_EmptyText_WritesNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "" };
 
         node.Render(context);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
 
         Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_SpecialCharacters_RendersCorrectly()
+    public async Task Render_SpecialCharacters_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Hello → World ← Test" };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello → World ← Test"), TimeSpan.FromSeconds(1), "special characters text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello → World ← Test", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello → World ← Test", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_InNarrowTerminal_TextIsTruncatedByTerminalWidth()
+    public async Task Render_InNarrowTerminal_TextIsTruncatedByTerminalWidth()
     {
         // Terminal is only 10 chars wide - text will wrap/truncate at terminal boundary
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "This is a long text" };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("This is a") && s.ContainsText("long text"), TimeSpan.FromSeconds(1), "wrapped text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // The first line should contain the first 10 characters
-        Assert.Equal("This is a ", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("This is a ", snapshot.GetLine(0));
         // The rest wraps to the next line (terminal behavior, not widget)
-        Assert.Equal("long text", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("long text", snapshot.GetLineTrimmed(1));
     }
 
     [Fact]
-    public void Render_AtSpecificPosition_WritesAtCursorPosition()
+    public async Task Render_AtSpecificPosition_WritesAtCursorPosition()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 40, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = new Hex1bRenderContext(workload);
         var node = new TextBlockNode { Text = "Positioned" };
 
         context.SetCursorPosition(5, 3);
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Positioned"), TimeSpan.FromSeconds(1), "Positioned text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Check that text appears at the right position
-        var line = terminal.CreateSnapshot().GetLine(3);
+        var line = snapshot.GetLine(3);
         Assert.Equal("     Positioned", line.TrimEnd());
     }
 
     [Fact]
-    public void Render_VeryLongText_WrapsAtTerminalEdge()
+    public async Task Render_VeryLongText_WrapsAtTerminalEdge()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = new Hex1bRenderContext(workload);
         var longText = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         var node = new TextBlockNode { Text = longText };
 
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ABCDEFGHIJKLMNOPQRST") && s.ContainsText("UVWXYZ"), TimeSpan.FromSeconds(1), "wrapped alphabet to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // First 20 chars on line 0
-        Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("ABCDEFGHIJKLMNOPQRST", snapshot.GetLine(0));
         // Remaining chars on line 1
-        Assert.Equal("UVWXYZ", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("UVWXYZ", snapshot.GetLineTrimmed(1));
     }
 
     #endregion
@@ -256,11 +284,11 @@ public class TextBlockNodeTests
     #region Clipping Tests
 
     [Fact]
-    public void Render_WithLayoutProvider_ClipsToClipRect()
+    public async Task Render_WithLayoutProvider_ClipsToClipRect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var context = new Hex1bRenderContext(workload);
         
         // Create a LayoutNode that will clip to a 10-char wide region
@@ -277,17 +305,22 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello Worl"), TimeSpan.FromSeconds(1), "clipped text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Text should be clipped to 10 characters
-        Assert.Equal("Hello Worl", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello Worl", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
+    public async Task Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var context = new Hex1bRenderContext(workload);
         
         // Layout clips from x=5 to x=15 (width 10)
@@ -303,18 +336,23 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 26, 1));
         
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("FGHIJKLMNO"), TimeSpan.FromSeconds(1), "clipped alphabet section to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
-        var line = terminal.CreateSnapshot().GetLine(0);
+        var line = snapshot.GetLine(0);
         Assert.Equal("     FGHIJKLMNO", line.Substring(0, 15));
     }
 
     [Fact]
-    public void Render_WithLayoutProviderOverflow_DoesNotClip()
+    public async Task Render_WithLayoutProviderOverflow_DoesNotClip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var context = new Hex1bRenderContext(workload);
         
         // Layout with Overflow mode - should not clip
@@ -329,26 +367,36 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 20, 1));
         
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "full Hello World text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear (no clipping)
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
-    public void Render_WithoutLayoutProvider_DoesNotClip()
+    public async Task Render_WithoutLayoutProvider_DoesNotClip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
         var context = new Hex1bRenderContext(workload);
         
         // No layout provider
         var node = new TextBlockNode { Text = "Hello World" };
         
         node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     #endregion
@@ -356,7 +404,7 @@ public class TextBlockNodeTests
     #region Layout Tests
 
     [Fact]
-    public void Arrange_SetsBounds()
+    public async Task Arrange_SetsBounds()
     {
         var node = new TextBlockNode { Text = "Test" };
         var bounds = new Rect(5, 10, 20, 1);
@@ -371,7 +419,7 @@ public class TextBlockNodeTests
     #region Focus and Input Tests
 
     [Fact]
-    public void IsFocusable_ReturnsFalse()
+    public async Task IsFocusable_ReturnsFalse()
     {
         var node = new TextBlockNode { Text = "Test" };
 
@@ -379,7 +427,7 @@ public class TextBlockNodeTests
     }
 
     [Fact]
-    public void HandleInput_AlwaysReturnsFalse()
+    public async Task HandleInput_AlwaysReturnsFalse()
     {
         var node = new TextBlockNode { Text = "Test" };
 
@@ -397,7 +445,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("Integration Test")),
@@ -413,6 +461,10 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Integration Test"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Integration Test"));
     }
 
@@ -421,7 +473,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -443,8 +495,20 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First Line"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("First Line"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Second Line"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Second Line"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Third Line"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Third Line"));
 
         // Verify they appear at different positions
@@ -466,7 +530,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var counter = 0;
 
         using var app = new Hex1bApp(
@@ -505,7 +569,7 @@ public class TextBlockNodeTests
         // Very narrow terminal - 15 chars wide
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 15, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -527,8 +591,16 @@ public class TextBlockNodeTests
         await runTask;
 
         // "Short" should fit on its line
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
         // Long text will wrap at terminal edge
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("A longer text h"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("A longer text h"));
     }
 
@@ -537,7 +609,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var message = "Hello from State";
 
         using var app = new Hex1bApp(
@@ -556,6 +628,10 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello from State"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello from State"));
     }
 
@@ -564,7 +640,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("")),
@@ -589,7 +665,7 @@ public class TextBlockNodeTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.Text("日本語テスト 🎉 émojis")),
@@ -605,7 +681,15 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("日本語テスト"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("日本語テスト"));
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("🎉"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("🎉"));
     }
 

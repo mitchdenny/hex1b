@@ -70,7 +70,7 @@
     <NativeLibraryRid Condition="'$(NativeLibraryRid)' == ''">osx-x64</NativeLibraryRid>
   </PropertyGroup>
   <PropertyGroup Condition="'$(NativeLibraryRid)' != ''">
-    <NativeLibraryPath>$(MSBuildThisFileDirectory)Terminal/runtimes/$(NativeLibraryRid)/native/$(NativeLibraryName)</NativeLibraryPath>
+    <NativeLibraryPath>$(MSBuildThisFileDirectory)runtimes/$(NativeLibraryRid)/native/$(NativeLibraryName)</NativeLibraryPath>
   </PropertyGroup>
 
   <!-- Build native library if it doesn't exist (Linux/macOS only) -->
@@ -78,7 +78,7 @@
           BeforeTargets="BeforeBuild" 
           Condition="'$(NativeLibraryPath)' != '' and !Exists('$(NativeLibraryPath)')">
     <Message Importance="High" Text="Building native interop library ($(NativeLibraryName))..." />
-    <Exec Command="make" WorkingDirectory="$(MSBuildThisFileDirectory)Terminal/native" />
+    <Exec Command="make" WorkingDirectory="$(MSBuildThisFileDirectory)native" />
   </Target>
 
   <!-- Copy native library to output after build (handles freshly built libraries) -->
@@ -92,20 +92,20 @@
   
   <!-- Pack native libraries into NuGet package -->
   <ItemGroup>
-    <None Include="Terminal/runtimes/linux-x64/native/libhex1binterop.so" 
-          Condition="Exists('Terminal/runtimes/linux-x64/native/libhex1binterop.so')"
+    <None Include="runtimes/linux-x64/native/libhex1binterop.so" 
+          Condition="Exists('runtimes/linux-x64/native/libhex1binterop.so')"
           Pack="true" 
           PackagePath="runtimes/linux-x64/native" />
-    <None Include="Terminal/runtimes/linux-arm64/native/libhex1binterop.so" 
-          Condition="Exists('Terminal/runtimes/linux-arm64/native/libhex1binterop.so')"
+    <None Include="runtimes/linux-arm64/native/libhex1binterop.so" 
+          Condition="Exists('runtimes/linux-arm64/native/libhex1binterop.so')"
           Pack="true" 
           PackagePath="runtimes/linux-arm64/native" />
-    <None Include="Terminal/runtimes/osx-x64/native/libhex1binterop.dylib" 
-          Condition="Exists('Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')"
+    <None Include="runtimes/osx-x64/native/libhex1binterop.dylib" 
+          Condition="Exists('runtimes/osx-x64/native/libhex1binterop.dylib')"
           Pack="true" 
           PackagePath="runtimes/osx-x64/native" />
-    <None Include="Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" 
-          Condition="Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')"
+    <None Include="runtimes/osx-arm64/native/libhex1binterop.dylib" 
+          Condition="Exists('runtimes/osx-arm64/native/libhex1binterop.dylib')"
           Pack="true" 
           PackagePath="runtimes/osx-arm64/native" />
   </ItemGroup>
@@ -116,21 +116,21 @@
     to consuming projects via ProjectReference.
   -->
   <ItemGroup Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">
-    <Content Include="Terminal/runtimes/linux-x64/native/libhex1binterop.so" 
-             Condition="Exists('Terminal/runtimes/linux-x64/native/libhex1binterop.so')"
+    <Content Include="runtimes/linux-x64/native/libhex1binterop.so" 
+             Condition="Exists('runtimes/linux-x64/native/libhex1binterop.so')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.so" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">
-    <Content Include="Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" 
-             Condition="Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')"
+    <Content Include="runtimes/osx-arm64/native/libhex1binterop.dylib" 
+             Condition="Exists('runtimes/osx-arm64/native/libhex1binterop.dylib')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
-    <Content Include="Terminal/runtimes/osx-x64/native/libhex1binterop.dylib" 
-             Condition="Exists('Terminal/runtimes/osx-x64/native/libhex1binterop.dylib') and !Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')"
+    <Content Include="runtimes/osx-x64/native/libhex1binterop.dylib" 
+             Condition="Exists('runtimes/osx-x64/native/libhex1binterop.dylib') and !Exists('runtimes/osx-arm64/native/libhex1binterop.dylib')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
@@ -138,32 +138,32 @@
   
   <!-- For RID-specific builds, copy the matching native library -->
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
-    <Content Include="Terminal/runtimes/linux-x64/native/libhex1binterop.so" 
-             Condition="Exists('Terminal/runtimes/linux-x64/native/libhex1binterop.so')"
+    <Content Include="runtimes/linux-x64/native/libhex1binterop.so" 
+             Condition="Exists('runtimes/linux-x64/native/libhex1binterop.so')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.so" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-arm64'">
-    <Content Include="Terminal/runtimes/linux-arm64/native/libhex1binterop.so" 
-             Condition="Exists('Terminal/runtimes/linux-arm64/native/libhex1binterop.so')"
+    <Content Include="runtimes/linux-arm64/native/libhex1binterop.so" 
+             Condition="Exists('runtimes/linux-arm64/native/libhex1binterop.so')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.so" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64'">
-    <Content Include="Terminal/runtimes/osx-x64/native/libhex1binterop.dylib" 
-             Condition="Exists('Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')"
+    <Content Include="runtimes/osx-x64/native/libhex1binterop.dylib" 
+             Condition="Exists('runtimes/osx-x64/native/libhex1binterop.dylib')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">
-    <Content Include="Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" 
-             Condition="Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')"
+    <Content Include="runtimes/osx-arm64/native/libhex1binterop.dylib" 
+             Condition="Exists('runtimes/osx-arm64/native/libhex1binterop.dylib')"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
@@ -178,32 +178,32 @@
           DependsOnTargets="BuildNativeLibraryLinuxX64;BuildNativeLibraryLinuxArm64;BuildNativeLibraryOsxX64;BuildNativeLibraryOsxArm64"
           Condition="'$(RuntimeIdentifier)' == ''">
     <!-- Add native library to AllItemsFullPathWithTargetPath for transitive copy -->
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
-      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so">
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('$(MSBuildProjectDirectory)/runtimes/linux-x64/native/libhex1binterop.so')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/linux-x64/native/libhex1binterop.so">
         <TargetPath>libhex1binterop.so</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </AllItemsFullPathWithTargetPath>
-      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/linux-x64/native/libhex1binterop.so">
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/linux-x64/native/libhex1binterop.so">
         <TargetPath>libhex1binterop.so</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
     </ItemGroup>
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
-      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib">
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('$(MSBuildProjectDirectory)/runtimes/osx-arm64/native/libhex1binterop.dylib')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/osx-arm64/native/libhex1binterop.dylib">
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </AllItemsFullPathWithTargetPath>
-      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib">
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/osx-arm64/native/libhex1binterop.dylib">
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
     </ItemGroup>
-    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and !Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib') and Exists('$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')">
-      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib">
+    <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) and !Exists('$(MSBuildProjectDirectory)/runtimes/osx-arm64/native/libhex1binterop.dylib') and Exists('$(MSBuildProjectDirectory)/runtimes/osx-x64/native/libhex1binterop.dylib')">
+      <AllItemsFullPathWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/osx-x64/native/libhex1binterop.dylib">
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </AllItemsFullPathWithTargetPath>
-      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/Terminal/runtimes/osx-x64/native/libhex1binterop.dylib">
+      <ContentWithTargetPath Include="$(MSBuildProjectDirectory)/runtimes/osx-x64/native/libhex1binterop.dylib">
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
@@ -222,9 +222,9 @@
   <!-- Linux x64: Build native library if it doesn't exist -->
   <Target Name="BuildNativeLibraryLinuxX64" 
           BeforeTargets="BeforeBuild"
-          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('runtimes/linux-x64/native/libhex1binterop.so')">
     <Message Importance="high" Text="Building hex1binterop native library for linux-x64..." />
-    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/native" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
     </Exec>
     <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure gcc and make are installed." />
@@ -233,9 +233,9 @@
   <!-- Linux arm64: Build native library if it doesn't exist -->
   <Target Name="BuildNativeLibraryLinuxArm64" 
           BeforeTargets="BeforeBuild"
-          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('Terminal/runtimes/linux-arm64/native/libhex1binterop.so')">
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('runtimes/linux-arm64/native/libhex1binterop.so')">
     <Message Importance="high" Text="Building hex1binterop native library for linux-arm64..." />
-    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/native" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
     </Exec>
     <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure gcc and make are installed." />
@@ -244,9 +244,9 @@
   <!-- macOS x64: Build native library if it doesn't exist -->
   <Target Name="BuildNativeLibraryOsxX64" 
           BeforeTargets="BeforeBuild"
-          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('Terminal/runtimes/osx-x64/native/libhex1binterop.dylib')">
+          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' and !Exists('runtimes/osx-x64/native/libhex1binterop.dylib')">
     <Message Importance="high" Text="Building hex1binterop native library for osx-x64..." />
-    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/native" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
     </Exec>
     <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure Xcode Command Line Tools are installed." />
@@ -255,9 +255,9 @@
   <!-- macOS arm64: Build native library if it doesn't exist -->
   <Target Name="BuildNativeLibraryOsxArm64" 
           BeforeTargets="BeforeBuild"
-          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
+          Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and !Exists('runtimes/osx-arm64/native/libhex1binterop.dylib')">
     <Message Importance="high" Text="Building hex1binterop native library for osx-arm64..." />
-    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/Terminal/native" IgnoreExitCode="true">
+    <Exec Command="make" WorkingDirectory="$(MSBuildProjectDirectory)/native" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="MakeExitCode" />
     </Exec>
     <Warning Condition="'$(MakeExitCode)' != '0'" Text="Failed to build native library. PTY features may not work. Ensure Xcode Command Line Tools are installed." />

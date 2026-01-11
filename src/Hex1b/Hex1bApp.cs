@@ -4,7 +4,6 @@ using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -136,7 +135,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             // Default: create console terminal using new architecture
             var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
             var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-            _ownedTerminal = new Hex1bTerminal(presentation, workload);
+            _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
+            {
+                PresentationAdapter = presentation,
+                WorkloadAdapter = workload
+            });
             _adapter = workload;
         }
         

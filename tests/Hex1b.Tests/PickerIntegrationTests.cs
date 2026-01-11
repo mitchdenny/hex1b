@@ -1,5 +1,4 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -16,7 +15,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -47,7 +46,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
         using var app = new Hex1bApp(
@@ -85,7 +84,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectionChangedCount = 0;
         
         using var app = new Hex1bApp(
@@ -123,7 +122,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectionChangedCount = 0;
         
         using var app = new Hex1bApp(
@@ -162,7 +161,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -200,7 +199,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
         using var app = new Hex1bApp(
@@ -235,7 +234,7 @@ public class PickerIntegrationTests
     {
         // Arrange - Start with Cherry selected (index 2)
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
         using var app = new Hex1bApp(
@@ -270,7 +269,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -303,7 +302,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -337,7 +336,7 @@ public class PickerIntegrationTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedFruit = "Apple";
         var selectedColor = "Red";
         

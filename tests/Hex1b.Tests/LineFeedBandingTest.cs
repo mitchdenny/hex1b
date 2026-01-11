@@ -1,7 +1,5 @@
 namespace Hex1b.Tests;
 
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Tokens;
 using Xunit;
 
@@ -11,7 +9,7 @@ public class LineFeedBandingTest
     public void MapsciiPattern_CrLfCr_NoBlankLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 10); // 10 wide, 10 tall (enough room)
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 10).Build(); // 10 wide, 10 tall (enough room)
 
         // Simulate mapscii pattern: chars, \r\n\r, chars, \r\n\r...
         // With deferred wrap (pending wrap):
@@ -56,7 +54,7 @@ public class LineFeedBandingTest
     public void DeferredWrap_WritingAtEndOfLine_DoesNotWrapUntilNextChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 5, 3); // 5 wide, 3 tall
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(5, 3).Build(); // 5 wide, 3 tall
 
         // Write exactly 5 characters - should fill row 0, cursor at col 4 (last column)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("AAAAA"));

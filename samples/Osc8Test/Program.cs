@@ -1,5 +1,4 @@
 using Hex1b;
-using Hex1b.Terminal;
 using Hex1b.Widgets;
 
 // Test OSC 8 hyperlink support using the HyperlinkWidget
@@ -15,17 +14,8 @@ var lastClickedUri = "(none)";
 
 try
 {
-    // Create the presentation adapter for console I/O
-    var presentation = new ConsolePresentationAdapter(enableMouse: true);
-    
-    // Create the workload adapter that Hex1bApp will use
-    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
-    
-    // Create the terminal that bridges presentation ↔ workload
-    using var terminal = new Hex1bTerminal(presentation, workload);
-
-    await using var app = new Hex1bApp(
-        ctx => ctx.VStack(root => [
+    await Hex1bTerminal.CreateBuilder()
+        .WithHex1bApp((app, options) => ctx => ctx.VStack(root => [
             root.Border(
                 root.VStack(content => [
                     content.Text("OSC 8 Hyperlink Widget Demo"),
@@ -99,15 +89,10 @@ try
                 "Enter/Click", "Activate",
                 "Ctrl+C", "Exit"
             ]),
-        ]),
-        new Hex1bAppOptions
-        {
-            WorkloadAdapter = workload,
-            EnableMouse = true
-        }
-    );
-
-    await app.RunAsync();
+        ]))
+        .WithMouse()
+        .WithRenderOptimization()
+        .RunAsync();
 }
 catch (Exception ex)
 {

@@ -1,5 +1,3 @@
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 
@@ -17,7 +15,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new TextToken("Hello") };
 
         // Act
@@ -33,7 +31,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new TextToken("Hi") };
 
         // Act
@@ -49,7 +47,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 5, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(5, 3).Build();
         var tokens = new AnsiToken[] { new TextToken("Hello World") };
 
         // Act
@@ -70,7 +68,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         // LF only moves down, CR returns to column 0 (strict VT100 behavior)
         var tokens = new AnsiToken[] { new TextToken("A"), ControlCharacterToken.CarriageReturn, ControlCharacterToken.LineFeed, new TextToken("B") };
 
@@ -88,7 +86,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new TextToken("ABC"), ControlCharacterToken.CarriageReturn, new TextToken("X") };
 
         // Act
@@ -104,7 +102,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new TextToken("A"), ControlCharacterToken.Tab, new TextToken("B") };
 
         // Act
@@ -123,7 +121,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
         var tokens = new AnsiToken[] { new CursorPositionToken(3, 5), new TextToken("X") };
 
         // Act
@@ -139,7 +137,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         var tokens = new AnsiToken[] { new CursorPositionToken(100, 100) };
 
         // Act
@@ -159,7 +157,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new SgrToken("1"), new TextToken("X") };
 
         // Act
@@ -176,7 +174,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new SgrToken("1"), new TextToken("A"), new SgrToken("0"), new TextToken("B") };
 
         // Act
@@ -193,7 +191,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new SgrToken("38;2;255;0;0"), new TextToken("X") };
 
         // Act
@@ -217,7 +215,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
         // Fill buffer
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("AAAAAAAAAA") });
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("BBBBBBBBBB") });
@@ -237,7 +235,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("Hello") });
         terminal.ApplyTokens(new AnsiToken[] { new ClearScreenToken(ClearMode.All) });
 
@@ -255,7 +253,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("ABCDEFGHIJ") });
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(1, 4), new ClearLineToken(ClearMode.ToEnd) });
 
@@ -269,7 +267,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 10, 3);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("ABCDEFGHIJ") });
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(1, 5), new ClearLineToken(ClearMode.All) });
 
@@ -287,7 +285,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("Main") });
         
         // Act
@@ -304,7 +302,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
         
         // Act
@@ -323,7 +321,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 10);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
         
         // Act
         terminal.ApplyTokens(new AnsiToken[]
@@ -350,7 +348,7 @@ public class AnsiTokenApplyTests
         var ansi = "\x1b[2J\x1b[H\x1b[1;31mHello\x1b[0m World\r\n\x1b[4mLine 2\x1b[0m";
         
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
 
         // Act - tokenize and apply
         var tokens = AnsiTokenizer.Tokenize(ansi);
@@ -369,7 +367,7 @@ public class AnsiTokenApplyTests
         var ansi = "\x1b[38;2;255;128;64mOrange\x1b[0m \x1b[1;3mBold Italic\x1b[0m";
         
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 30, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(30, 5).Build();
 
         // Act
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(ansi));
@@ -392,7 +390,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
 
         // Act
         terminal.ApplyTokens(Array.Empty<AnsiToken>());
@@ -407,7 +405,7 @@ public class AnsiTokenApplyTests
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, 20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var tokens = new AnsiToken[] { new UnrecognizedSequenceToken("\x1b[999z"), new TextToken("OK") };
 
         // Act

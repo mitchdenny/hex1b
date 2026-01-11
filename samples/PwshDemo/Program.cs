@@ -1,5 +1,3 @@
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 
 if (!OperatingSystem.IsWindows())
 {
@@ -12,38 +10,10 @@ var height = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
 
 try
 {
-    // Launch pwsh.exe
-    await using var process = new Hex1bTerminalChildProcess(
-        "pwsh.exe",
-        [],
-        workingDirectory: Environment.CurrentDirectory,
-        inheritEnvironment: true,
-        initialWidth: width,
-        initialHeight: height
-    );
-
-    var presentation = new ConsolePresentationAdapter(enableMouse: false);
-
-    var terminalOptions = new Hex1bTerminalOptions
-    {
-        Width = width,
-        Height = height,
-        PresentationAdapter = presentation,
-        WorkloadAdapter = process
-    };
-    
-    using var terminal = new Hex1bTerminal(terminalOptions);
-    await process.StartAsync();
-
-    // Wait for process to exit
-    try
-    {
-        await process.WaitForExitAsync(CancellationToken.None);
-    }
-    catch (OperationCanceledException)
-    {
-        process.Kill();
-    }
+    await Hex1bTerminal.CreateBuilder()
+        .WithPtyProcess("pwsh.exe")
+        .WithDimensions(width, height)
+        .RunAsync();
 }
 catch (Exception ex)
 {

@@ -1,5 +1,4 @@
 using Hex1b.Input;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -44,7 +43,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -85,7 +84,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var anyBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -126,7 +125,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var parentBindingFired = false;
         var childBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -182,7 +181,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var focusBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -226,7 +225,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var textChanged = "";
 
@@ -263,7 +262,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -311,7 +310,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var focusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -363,7 +362,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1FocusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -424,7 +423,7 @@ public class InputBindingPrecedenceTests
         // Note: This is the same as A3, included for completeness
         using var workload = new Hex1bAppWorkloadAdapter();
 
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var outerFired = false;
         var innerFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -476,7 +475,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var rootFired = false;
         var deepFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -534,7 +533,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
@@ -549,7 +548,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         
         // Send Ctrl+C
-        new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().Apply(terminal);
+        await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().ApplyAsync(terminal);
         
         // App should stop within reasonable time
         var completed = await Task.WhenAny(runTask, Task.Delay(1000, TestContext.Current.CancellationToken)) == runTask;
@@ -567,7 +566,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var userBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -614,7 +613,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -660,7 +659,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -705,7 +704,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var chordFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -755,7 +754,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -796,7 +795,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var button1BindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -848,7 +847,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -898,7 +897,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -939,7 +938,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var focusBindingFired = false;
         var globalBindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -995,7 +994,7 @@ public class InputBindingPrecedenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         
-        using var terminal = new Hex1bTerminal(workload, 80, 24);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFired = false;
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

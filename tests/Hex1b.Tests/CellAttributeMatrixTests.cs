@@ -1,5 +1,3 @@
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -22,7 +20,7 @@ public class CellAttributeMatrixTests
         {
             // Use memory streams - we don't actually need them for this approach
             _workload = StreamWorkloadAdapter.CreateHeadless(width, height);
-            Terminal = new Hex1bTerminal(_workload, width, height);
+            Terminal = Hex1bTerminal.CreateBuilder().WithWorkload(_workload).WithHeadless().WithDimensions(width, height).Build();
         }
 
         /// <summary>

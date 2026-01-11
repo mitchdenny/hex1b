@@ -2,8 +2,6 @@
 
 using System.Text;
 using Hex1b.Input;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -63,7 +61,7 @@ public class SixelScalingIntegrationTests
         // Create workload adapter with sixel-enabled capabilities
         var capabilities = CreateSixelCapabilities(cellWidth, cellHeight);
         using var workload = new Hex1bAppWorkloadAdapter(capabilities);
-        using var terminal = new Hex1bTerminal(workload, terminalWidth, terminalHeight);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(terminalWidth, terminalHeight).Build();
         
         // Build widget tree using Hex1bApp infrastructure
         using var app = new Hex1bApp(
@@ -110,6 +108,10 @@ public class SixelScalingIntegrationTests
         workload.SetCursorPosition(terminalWidth - 1, terminalHeight - 1);
         
         // Create snapshot and verify
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         // Verify cell dimensions are correct
@@ -150,7 +152,7 @@ public class SixelScalingIntegrationTests
         // Create workload adapter with sixel-enabled capabilities
         var capabilities = CreateSixelCapabilities(cellWidth, cellHeight);
         using var workload = new Hex1bAppWorkloadAdapter(capabilities);
-        using var terminal = new Hex1bTerminal(workload, terminalWidth, terminalHeight);
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(terminalWidth, terminalHeight).Build();
         
         // Build widget tree with rulers
         using var app = new Hex1bApp(
@@ -190,6 +192,10 @@ public class SixelScalingIntegrationTests
         // Move cursor to bottom-right so it doesn't interfere with sixel image
         workload.SetCursorPosition(terminalWidth - 1, terminalHeight - 1);
         
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal);
         var snapshot = terminal.CreateSnapshot();
         
         Assert.Equal(cellWidth, snapshot.CellPixelWidth);
