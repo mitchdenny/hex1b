@@ -1,5 +1,3 @@
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Tests.TestHelpers;
 using Hex1b.Widgets;
 using System.Diagnostics;

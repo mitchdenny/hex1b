@@ -1,5 +1,4 @@
 using Hex1b;
-using Hex1b.Terminal;
 using Hex1b.Widgets;
 
 // Comprehensive test for mouse and keyboard support with the new ConsolePresentationAdapter

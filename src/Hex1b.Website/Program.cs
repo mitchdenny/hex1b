@@ -2,7 +2,6 @@ using System.Net.WebSockets;
 using Hex1b.Website;
 using Hex1b.Website.Examples;
 using Hex1b;
-using Hex1b.Terminal;
 using Microsoft.AspNetCore.Rewrite;
 
 var builder = WebApplication.CreateBuilder(args);

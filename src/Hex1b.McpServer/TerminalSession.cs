@@ -1,6 +1,5 @@
 using System.Text;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
+using Hex1b.Automation;
 
 namespace Hex1b.McpServer;
 

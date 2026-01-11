@@ -1,7 +1,5 @@
 using System.Text;
 using Hex1b.Input;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 
 namespace Hex1b.Tests;
 

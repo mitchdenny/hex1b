@@ -1,4 +1,3 @@
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 
 namespace Hex1b.Tests;

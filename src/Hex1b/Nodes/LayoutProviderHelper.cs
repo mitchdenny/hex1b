@@ -1,5 +1,4 @@
 using Hex1b.Layout;
-using Hex1b.Terminal;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;

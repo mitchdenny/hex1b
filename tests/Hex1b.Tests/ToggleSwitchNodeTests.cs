@@ -2,7 +2,6 @@ using Hex1b;
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 

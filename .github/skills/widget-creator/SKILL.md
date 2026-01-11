@@ -515,8 +515,6 @@ Integration tests spin up a real `Hex1bApp` and test the widget in various layou
 ```csharp
 using Hex1b;
 using Hex1b.Input;
-using Hex1b.Terminal;
-using Hex1b.Terminal.Automation;
 using Hex1b.Theming;
 
 public class MyWidgetIntegrationTests : IDisposable

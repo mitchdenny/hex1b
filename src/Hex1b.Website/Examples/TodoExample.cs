@@ -1,6 +1,5 @@
 using Hex1b;
 using Hex1b.Events;
-using Hex1b.Terminal;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 

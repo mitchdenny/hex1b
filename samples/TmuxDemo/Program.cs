@@ -1,4 +1,3 @@
-using Hex1b.Terminal;
 
 if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
 {

@@ -4,7 +4,6 @@ using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 

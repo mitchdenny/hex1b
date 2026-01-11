@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Hex1b.Terminal.Automation;
 
 namespace Hex1b.Tests;
 

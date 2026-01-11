@@ -1,5 +1,4 @@
 using System.Globalization;
-using Hex1b.Terminal;
 
 namespace Hex1b;
 

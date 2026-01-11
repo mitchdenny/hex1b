@@ -1,7 +1,6 @@
 using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Terminal.Automation;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
