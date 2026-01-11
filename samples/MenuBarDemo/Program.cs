@@ -18,7 +18,7 @@ var fontSizes = new[] { "Small", "Medium", "Large", "Extra Large" };
 var selectedFontSize = 1; // Medium
 
 await Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp(ctx =>
+    .WithHex1bApp((app, options) => ctx =>
     ctx.VStack(main => [
         // Menu bar at the top
         main.MenuBar(m => [

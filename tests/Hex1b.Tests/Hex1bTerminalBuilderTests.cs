@@ -229,28 +229,28 @@ public class Hex1bTerminalBuilderTests
     // === WithHex1bApp Tests ===
 
     [Fact]
-    public async Task WithHex1bApp_NullBuilder_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_NullConfigure_ThrowsArgumentNullException()
     {
-        Func<RootContext, Hex1bWidget>? nullBuilder = null;
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>>? nullConfigure = null;
         
         Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
     }
 
     [Fact]
-    public async Task WithHex1bApp_NullAsyncBuilder_ThrowsArgumentNullException()
+    public async Task WithHex1bApp_AsyncNullConfigure_ThrowsArgumentNullException()
     {
-        Func<RootContext, Task<Hex1bWidget>>? nullBuilder = null;
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>>? nullConfigure = null;
         
         Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
     }
 
     [Fact]
     public async Task WithHex1bApp_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx => ctx.Text("Hello"));
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"));
         
         Assert.IsType<Hex1bTerminalBuilder>(result);
     }
@@ -260,7 +260,7 @@ public class Hex1bTerminalBuilderTests
     {
         // Should not throw - uses explicit presentation
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
             .WithPresentation(new TestPresentationAdapter());
         
         using var terminal = builder.Build();
@@ -274,7 +274,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(async ctx =>
+            .WithHex1bApp((app, options) => async ctx =>
             {
                 builderCalled = true;
                 await Task.Yield();
@@ -297,7 +297,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx =>
+            .WithHex1bApp((app, options) => ctx =>
             {
                 builderCalled = true;
                 return ctx.Text("Hello");
@@ -326,7 +326,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
             .WithMouse(true)
             .WithDimensions(100, 40)
             .AddWorkloadFilter(filter)
@@ -340,34 +340,7 @@ public class Hex1bTerminalBuilderTests
     // === WithHex1bApp Capture Pattern Tests ===
 
     [Fact]
-    public async Task WithHex1bApp_CapturePattern_NullConfigure_ThrowsArgumentNullException()
-    {
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>>? nullConfigure = null;
-        
-        Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
-    }
-
-    [Fact]
-    public async Task WithHex1bApp_CapturePattern_AsyncNullConfigure_ThrowsArgumentNullException()
-    {
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>>? nullConfigure = null;
-        
-        Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
-    }
-
-    [Fact]
-    public async Task WithHex1bApp_CapturePattern_ReturnsBuilder()
-    {
-        var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"));
-        
-        Assert.IsType<Hex1bTerminalBuilder>(result);
-    }
-
-    [Fact]
-    public async Task WithHex1bApp_CapturePattern_CanCaptureApp()
+    public async Task WithHex1bApp_CanCaptureApp()
     {
         Hex1bApp? capturedApp = null;
         var pattern = new CellPatternSearcher().Find("Hello from captured app");
@@ -396,7 +369,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public async Task WithHex1bApp_CapturePattern_CanSetTheme()
+    public async Task WithHex1bApp_CanSetTheme()
     {
         var pattern = new CellPatternSearcher().Find("Themed content");
         
@@ -423,7 +396,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public async Task WithHex1bApp_CapturePattern_AsyncBuilder_Works()
+    public async Task WithHex1bApp_AsyncBuilderWithCapture_Works()
     {
         Hex1bApp? capturedApp = null;
         var pattern = new CellPatternSearcher().Find("Async Hello World");
@@ -999,7 +972,7 @@ public class Hex1bTerminalBuilderTests
         try
         {
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile);
 
             Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1032,7 +1005,7 @@ public class Hex1bTerminalBuilderTests
         {
             AsciinemaRecorder? capturedRecorder = null;
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile, r => capturedRecorder = r);
 
             Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1061,7 +1034,7 @@ public class Hex1bTerminalBuilderTests
             var pattern = new CellPatternSearcher().Find("Recorded");
 
             await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp(ctx => ctx.Text("Recorded"))
+                .WithHex1bApp((app, options) => ctx => ctx.Text("Recorded"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Test Recording",
@@ -1101,7 +1074,7 @@ public class Hex1bTerminalBuilderTests
     public async Task WithRenderOptimization_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
             .WithRenderOptimization();
 
         Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1112,7 +1085,7 @@ public class Hex1bTerminalBuilderTests
     {
         Hex1bAppRenderOptimizationFilter? capturedFilter = null;
         var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp(ctx => ctx.Text("Hello"))
+            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
             .WithRenderOptimization(f => capturedFilter = f);
 
         Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1135,7 +1108,7 @@ public class Hex1bTerminalBuilderTests
             AsciinemaRecorder? recorder = null;
 
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp(ctx => ctx.Text("Hello"))
+                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Custom Title",
@@ -1168,7 +1141,7 @@ public class Hex1bTerminalBuilderTests
             var pattern = new CellPatternSearcher().Find("Full chain");
 
             await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp(ctx => ctx.Text("Full chain"))
+                .WithHex1bApp((app, options) => ctx => ctx.Text("Full chain"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Chain Test",

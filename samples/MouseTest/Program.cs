@@ -147,7 +147,7 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
 try
 {
     await Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp(
+        .WithHex1bApp((app, options) =>
             ctx => ctx.VStack(root => [
             // Main content wrapped in a border
             root.Border(

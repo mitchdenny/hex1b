@@ -8,7 +8,7 @@ var selectedColor = "Blue";
 var lastAction = "";
 
 await Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp(ctx =>
+    .WithHex1bApp((app, options) => ctx =>
         ctx.VStack(v => [
             v.Text("Picker Demo - Select your favorite fruit:"),
             v.Text(""),

@@ -16,7 +16,7 @@ var lastClickedUri = "(none)";
 try
 {
     await Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp(ctx => ctx.VStack(root => [
+        .WithHex1bApp((app, options) => ctx => ctx.VStack(root => [
             root.Border(
                 root.VStack(content => [
                     content.Text("OSC 8 Hyperlink Widget Demo"),

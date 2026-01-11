@@ -8,7 +8,7 @@ var throwCount = 0;
 var lastAction = "Ready";
 
 await Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((RootContext ctx) =>
+    .WithHex1bApp((app, options) => ctx =>
         ctx.VStack(v => [
             v.Text("RescueWidget Demo"),
             v.Text("================"),
