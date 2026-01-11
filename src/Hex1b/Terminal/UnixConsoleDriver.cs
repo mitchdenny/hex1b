@@ -118,7 +118,6 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         {
             ModifyFlag(rawTermios, OFLAG_OFFSET, OPOST, clear: false);
         }
-        cfmakeraw(rawTermios);
         
         // Apply to stdin (for input handling)
         result = tcsetattr(STDIN_FILENO, TCSAFLUSH, rawTermios);
