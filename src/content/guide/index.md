@@ -5,7 +5,7 @@ Hex1b is a comprehensive .NET terminal application stack. Whether you're buildin
 ## Architecture
 
 <div class="architecture-diagram">
-<svg viewBox="0 0 500 520" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="terminalGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" style="stop-color:#4ecdc4;stop-opacity:0.3" />
@@ -25,75 +25,211 @@ Hex1b is a comprehensive .NET terminal application stack. Whether you're buildin
   </defs>
   
   <!-- Top row: Presentation Adapter outputs (y=10, height=50) -->
-  <rect x="20" y="10" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="85" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Console</text>
-  <text x="85" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Native Terminal</text>
+  <rect x="65" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="120" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Console</text>
+  <text x="120" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Native Terminal</text>
   
-  <rect x="185" y="10" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="250" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Web</text>
-  <text x="250" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">xterm.js</text>
+  <rect x="205" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="260" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Web</text>
+  <text x="260" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">xterm.js</text>
   
-  <rect x="350" y="10" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="415" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Headless</text>
-  <text x="415" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Testing</text>
+  <rect x="345" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="400" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Headless</text>
+  <text x="400" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Testing</text>
   
-  <!-- Lines from Presentation Adapters to top outputs -->
-  <path d="M130 110 L130 95 Q130 85 110 85 L85 85 L85 60" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  <path d="M250 110 L250 60" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  <path d="M370 110 L370 95 Q370 85 390 85 L415 85 L415 60" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  
-  <!-- Arrow heads pointing up (at y=60, top boxes end) -->
-  <polygon points="85,60 80,68 90,68" fill="#4ecdc4"/>
-  <polygon points="250,60 245,68 255,68" fill="#4ecdc4"/>
-  <polygon points="415,60 410,68 420,68" fill="#4ecdc4"/>
+  <!-- Lines from Presentation Adapters to top outputs (bidirectional) -->
+  <g style="animation: adapterCycle 6s ease-in-out infinite;">
+    <!-- Up arrow (left) -->
+    <path d="M115 110 L115 60" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="115,60 110,68 120,68" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M125 60 L125 110" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="125,110 120,102 130,102" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="115" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="115" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="115" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="125" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="125" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="125" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
+  <g style="animation: adapterCycle 6s ease-in-out infinite 2s;">
+    <!-- Up arrow (left) -->
+    <path d="M255 110 L255 60" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="255,60 250,68 260,68" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M265 60 L265 110" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="265,110 260,102 270,102" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="255" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="255" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="255" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="265" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="265" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="265" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
+  <g style="animation: adapterCycle 6s ease-in-out infinite 4s;">
+    <!-- Up arrow (left) -->
+    <path d="M395 110 L395 60" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="395,60 390,68 400,68" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M405 60 L405 110" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="405,110 400,102 410,102" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="395" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="395" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="395" cy="85" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="405" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="405" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="405" cy="85" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
   
   <!-- Presentation Adapters Box (y=110, height=60) -->
-  <rect x="50" y="110" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
-  <text x="250" y="138" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Presentation Adapters</text>
-  <text x="250" y="156" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalPresentationAdapter</text>
+  <rect x="60" y="110" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
+  <text x="260" y="138" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Presentation Adapters</text>
+  <text x="260" y="156" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalPresentationAdapter</text>
   
-  <!-- Connection line from Terminal to Presentation Adapters -->
-  <path d="M250 220 L250 170" stroke="#4ecdc4" stroke-width="2" fill="none"/>
+  <!-- Connection lines between Terminal and Presentation Adapters (bidirectional) -->
+  <!-- Up arrow (left) -->
+  <path d="M250 220 L250 170" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
   <polygon points="250,170 245,178 255,178" fill="#4ecdc4"/>
+  <!-- Down arrow (right) -->
+  <path d="M270 170 L270 220" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+  <polygon points="270,220 265,212 275,212" fill="#4ecdc4"/>
+  <!-- Data flow dots going up -->
+  <circle cx="250" cy="195" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+  <circle cx="250" cy="195" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+  <circle cx="250" cy="195" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+  <!-- Data flow dots going down -->
+  <circle cx="270" cy="195" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+  <circle cx="270" cy="195" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+  <circle cx="270" cy="195" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
   
-  <!-- Central Terminal Box (y=220, height=80) -->
-  <rect x="125" y="220" width="250" height="80" rx="12" fill="url(#boxGrad)" stroke="#4ecdc4" stroke-width="2" filter="url(#glow)"/>
-  <text x="250" y="255" text-anchor="middle" fill="#4ecdc4" font-family="monospace" font-size="18" font-weight="bold">Hex1bTerminal</text>
-  <text x="250" y="280" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="12">Terminal Emulator Core</text>
+  <!-- Circle connector linking the three components (drawn first so boxes overlap it) -->
+  <circle cx="140" cy="260" r="55" fill="none" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3"/>
+  <!-- Animated dots rotating around the circle (16 dots evenly spaced) -->
+  <g style="transform-origin: 140px 260px; animation: rotateClockwise 8s linear infinite;">
+    <circle cx="140" cy="205" r="3" fill="#4ecdc4"/>
+    <circle cx="161" cy="209" r="3" fill="#4ecdc4"/>
+    <circle cx="179" cy="221" r="3" fill="#4ecdc4"/>
+    <circle cx="191" cy="239" r="3" fill="#4ecdc4"/>
+    <circle cx="195" cy="260" r="3" fill="#4ecdc4"/>
+    <circle cx="191" cy="281" r="3" fill="#4ecdc4"/>
+    <circle cx="179" cy="299" r="3" fill="#4ecdc4"/>
+    <circle cx="161" cy="311" r="3" fill="#4ecdc4"/>
+    <circle cx="140" cy="315" r="3" fill="#4ecdc4"/>
+    <circle cx="119" cy="311" r="3" fill="#4ecdc4"/>
+    <circle cx="101" cy="299" r="3" fill="#4ecdc4"/>
+    <circle cx="89" cy="281" r="3" fill="#4ecdc4"/>
+    <circle cx="85" cy="260" r="3" fill="#4ecdc4"/>
+    <circle cx="89" cy="239" r="3" fill="#4ecdc4"/>
+    <circle cx="101" cy="221" r="3" fill="#4ecdc4"/>
+    <circle cx="119" cy="209" r="3" fill="#4ecdc4"/>
+  </g>
   
-  <!-- Connection line from Workload Adapters to Terminal -->
-  <path d="M250 350 L250 300" stroke="#4ecdc4" stroke-width="2" fill="none"/>
+  <!-- Central Terminal Box (y=220, height=80) - centered at x=260 -->
+  <rect x="135" y="220" width="250" height="80" rx="12" fill="url(#boxGrad)" stroke="#4ecdc4" stroke-width="2" filter="url(#glow)"/>
+  <text x="260" y="255" text-anchor="middle" fill="#4ecdc4" font-family="monospace" font-size="18" font-weight="bold">Hex1bTerminal</text>
+  <text x="260" y="280" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="12">Terminal Emulator Core</text>
+  
+  <!-- Input Sequencer (top left of Terminal) -->
+  <rect x="5" y="200" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="55" y="220" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Input Sequencer</text>
+  <text x="55" y="233" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Keyboard/Mouse</text>
+  
+  <!-- Pattern Searcher (bottom left of Terminal) -->
+  <rect x="5" y="275" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="55" y="295" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Pattern Searcher</text>
+  <text x="55" y="308" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Cell Content</text>
+  
+  <!-- Connection lines between Workload Adapters and Terminal (bidirectional) -->
+  <!-- Up arrow (left) -->
+  <path d="M250 350 L250 300" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
   <polygon points="250,300 245,308 255,308" fill="#4ecdc4"/>
+  <!-- Down arrow (right) -->
+  <path d="M270 300 L270 350" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+  <polygon points="270,350 265,342 275,342" fill="#4ecdc4"/>
+  <!-- Data flow dots going up -->
+  <circle cx="250" cy="325" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.2s;"/>
+  <circle cx="250" cy="325" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.7s;"/>
+  <circle cx="250" cy="325" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1.2s;"/>
+  <!-- Data flow dots going down -->
+  <circle cx="270" cy="325" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite;"/>
+  <circle cx="270" cy="325" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.5s;"/>
+  <circle cx="270" cy="325" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1s;"/>
   
   <!-- Workload Adapters Box (y=350, height=60) -->
-  <rect x="50" y="350" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
-  <text x="250" y="378" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Workload Adapters</text>
-  <text x="250" y="396" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalWorkloadAdapter</text>
+  <rect x="60" y="350" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
+  <text x="260" y="378" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Workload Adapters</text>
+  <text x="260" y="396" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalWorkloadAdapter</text>
   
-  <!-- Connection lines from bottom to Workload Adapters -->
-  <path d="M85 460 L85 445 Q85 435 105 435 L130 435 L130 410" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  <path d="M250 460 L250 410" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  <path d="M415 460 L415 445 Q415 435 395 435 L370 435 L370 410" stroke="#4ecdc4" stroke-width="2" fill="none"/>
-  
-  <!-- Arrow heads pointing to Workload Adapters (at y=410, workload adapters end) -->
-  <polygon points="130,410 125,418 135,418" fill="#4ecdc4"/>
-  <polygon points="250,410 245,418 255,418" fill="#4ecdc4"/>
-  <polygon points="370,410 365,418 375,418" fill="#4ecdc4"/>
+  <!-- Connection lines from bottom to Workload Adapters (bidirectional) -->
+  <g style="animation: adapterCycle 6s ease-in-out infinite 3s;">
+    <!-- Up arrow (left) -->
+    <path d="M115 460 L115 410" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="115,410 110,418 120,418" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M125 410 L125 460" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="125,460 120,452 130,452" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="115" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="115" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="115" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="125" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="125" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="125" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
+  <g style="animation: adapterCycle 6s ease-in-out infinite 5s;">
+    <!-- Up arrow (left) -->
+    <path d="M255 460 L255 410" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="255,410 250,418 260,418" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M265 410 L265 460" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="265,460 260,452 270,452" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="255" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="255" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="255" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="265" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="265" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="265" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
+  <g style="animation: adapterCycle 6s ease-in-out infinite 1s;">
+    <!-- Up arrow (left) -->
+    <path d="M395 460 L395 410" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="395,410 390,418 400,418" fill="#4ecdc4"/>
+    <!-- Down arrow (right) -->
+    <path d="M405 410 L405 460" stroke="rgba(78,205,196,0.5)" stroke-width="2" stroke-dasharray="4,3" fill="none"/>
+    <polygon points="405,460 400,452 410,452" fill="#4ecdc4"/>
+    <!-- Data flow dots up -->
+    <circle cx="395" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite;"/>
+    <circle cx="395" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 0.5s;"/>
+    <circle cx="395" cy="435" r="3" fill="#4ecdc4" style="animation: flowUp 1.5s ease-in-out infinite 1s;"/>
+    <!-- Data flow dots down -->
+    <circle cx="405" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.25s;"/>
+    <circle cx="405" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 0.75s;"/>
+    <circle cx="405" cy="435" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1.25s;"/>
+  </g>
   
   <!-- Hex1bApp Box (y=460, height=50) -->
-  <rect x="20" y="460" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="85" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Hex1bApp</text>
-  <text x="85" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">TUI Framework</text>
+  <rect x="65" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="120" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Hex1bApp</text>
+  <text x="120" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">TUI Framework</text>
   
   <!-- Shells Box -->
-  <rect x="185" y="460" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="250" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Shells</text>
-  <text x="250" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">bash, pwsh, zsh</text>
+  <rect x="205" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="260" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Shells</text>
+  <text x="260" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">bash, pwsh, zsh</text>
   
   <!-- Other Processes Box -->
-  <rect x="350" y="460" width="130" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="415" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Processes</text>
-  <text x="415" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">htop, vim, any CLI</text>
+  <rect x="345" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
+  <text x="400" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Processes</text>
+  <text x="400" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">htop, vim, any CLI</text>
 </svg>
 </div>
 
@@ -165,6 +301,26 @@ Looking for detailed API documentation?
   height: auto;
   display: block;
   margin: 0 auto;
+}
+
+@keyframes rotateClockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes adapterCycle {
+  0%, 33% { opacity: 1; }
+  34%, 100% { opacity: 0; }
+}
+
+@keyframes flowUp {
+  0% { transform: translateY(20px); }
+  100% { transform: translateY(-20px); }
+}
+
+@keyframes flowDown {
+  0% { transform: translateY(-20px); }
+  100% { transform: translateY(20px); }
 }
 
 .feature-cards {
