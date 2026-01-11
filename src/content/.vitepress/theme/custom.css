@@ -24,6 +24,80 @@
   --vp-c-bg-soft: #242438;
 }
 
+/* Shimmer animation for hero border */
+@keyframes shimmer {
+  0% {
+    background-position: 300% 0;
+  }
+  25% {
+    background-position: -300% 0;
+  }
+  100% {
+    background-position: -300% 0;
+  }
+}
+
+/* Hero section terminal-style container */
+.VPHero {
+  position: relative;
+  padding: 80px 24px 48px !important;
+}
+
+.VPHero .container {
+  position: relative;
+  z-index: 1;
+  max-width: calc(1152px + 48px);
+  margin: 0 auto;
+  padding: 48px;
+  background: linear-gradient(180deg, #0d0d18 0%, #0a0a12 100%);
+  border-radius: 24px;
+  border: 1px solid transparent;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Shimmer border effect */
+.VPHero .container::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 25px;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(78, 205, 196, 0.3) 0%,
+    rgba(78, 205, 196, 0.3) 45%,
+    rgba(78, 205, 196, 0.5) 48%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(78, 205, 196, 0.5) 52%,
+    rgba(78, 205, 196, 0.3) 55%,
+    rgba(78, 205, 196, 0.3) 100%
+  );
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 10s linear infinite;
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Keep hero text light in the dark container */
+.VPHero .main .name,
+.VPHero .main .text,
+.VPHero .main .tagline {
+  color: #fff !important;
+}
+
+.VPHero .main .tagline {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
 /* Install guide dark mode border */
 .dark .install-card {
   border: 2px solid var(--vp-c-brand-1);

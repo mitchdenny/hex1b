@@ -18,18 +18,26 @@ export default defineConfig({
     logo: '/logo.svg',
     
     nav: [
-      { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Deep Dives', link: '/deep-dives/reconciliation' },
-      { text: 'API Reference', link: '/reference/' },
-      { text: 'Gallery', link: '/gallery' }
+      { text: 'Guide', link: '/guide/' },
+      { text: 'API Reference', link: '/reference/' }
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: 'Introduction',
+          text: 'Overview',
           items: [
-            { text: 'Getting Started', link: '/guide/getting-started' },
+            { text: 'Guide', link: '/guide/' },
+            { text: 'Terminal UIs', link: '/guide/tui' },
+            { text: 'Terminal Emulator', link: '/guide/terminal-emulator' },
+            { text: 'Automation & Testing', link: '/guide/testing' },
+            { text: 'MCP Server', link: '/guide/mcp-server' }
+          ]
+        },
+        {
+          text: 'Getting Started',
+          items: [
+            { text: 'Installation', link: '/guide/getting-started' },
             { text: 'Your First App', link: '/guide/first-app' }
           ]
         },
@@ -39,8 +47,7 @@ export default defineConfig({
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },
-            { text: 'Theming', link: '/guide/theming' },
-            { text: 'Testing', link: '/guide/testing' }
+            { text: 'Theming', link: '/guide/theming' }
           ]
         },
         {
@@ -63,17 +70,6 @@ export default defineConfig({
             { text: 'TextBox', link: '/guide/widgets/textbox' },
             { text: 'ThemePanel', link: '/guide/widgets/themepanel' },
             { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' }
-          ]
-        }
-      ],
-      '/deep-dives/': [
-        {
-          text: 'Deep Dives',
-          items: [
-            { text: 'Reconciliation', link: '/deep-dives/reconciliation' },
-            { text: 'The Render Loop', link: '/deep-dives/render-loop' },
-            { text: 'Focus System', link: '/deep-dives/focus-system' },
-            { text: 'ANSI & Terminal Rendering', link: '/deep-dives/terminal-rendering' }
           ]
         }
       ],
