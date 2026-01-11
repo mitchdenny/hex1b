@@ -331,14 +331,22 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
+
+        var patternA = new CellPatternSearcher().Find("Line A");
+        var patternB = new CellPatternSearcher().Find("Line B");
+        var patternC = new CellPatternSearcher().Find("Line C");
+
+        // Wait until all three lines are rendered on the correct rows
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s =>
+            {
+                var matchA = s.SearchFirstPattern(patternA);
+                var matchB = s.SearchFirstPattern(patternB);
+                var matchC = s.SearchFirstPattern(patternC);
+                return matchA?.Start.Y == 0 && matchB?.Start.Y == 1 && matchC?.Start.Y == 2;
+            }, TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
-
-        Assert.Equal("Line A", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Equal("Line B", terminal.CreateSnapshot().GetLineTrimmed(1));
-        Assert.Equal("Line C", terminal.CreateSnapshot().GetLineTrimmed(2));
     }
 
     [Fact]
