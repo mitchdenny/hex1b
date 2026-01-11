@@ -138,8 +138,10 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     public event Action<int, int>? Resized;
     
-    public void EnterRawMode()
+    public void EnterRawMode(bool preserveOPost = false)
     {
+        // Note: preserveOPost is Unix-specific (for termios OPOST flag).
+        // On Windows, output processing is controlled differently and doesn't need this.
         if (_inRawMode) return;
         
         if (!GetConsoleMode(_inputHandle, out _originalInputMode))

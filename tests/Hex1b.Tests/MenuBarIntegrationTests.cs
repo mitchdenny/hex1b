@@ -1195,60 +1195,88 @@ public class MenuBarIntegrationTests
             $"Focusables AFTER with IsFocused: [{string.Join(", ", focusablesAfter.Select(f => f.type + (f.label != null ? ":" + f.label : "") + (f.focused ? "*" : "")))}].");
     }
     
+    /// <summary>
+    /// Tests that pressing Right arrow on a menu item with a submenu opens that submenu.
+    /// 
+    /// Scenario:
+    /// 1. Open the File menu (which contains a "Recent" item with a submenu)
+    /// 2. Navigate down to the "Recent" menu item (which has the submenu indicator ►)
+    /// 3. Press Right arrow
+    /// 4. Verify: The submenu opens and "Doc1.txt" becomes visible AND focused
+    /// 
+    /// This test validates both:
+    /// - The submenu content is rendered (text exists)
+    /// - The first submenu item receives focus (has black background color)
+    /// </summary>
     [Fact]
-    public async Task Debug_Submenu_RightArrow_OpensSubmenu()
+    public async Task Submenu_RightArrow_OpensSubmenuAndFocusesFirstItem()
     {
-        // Debug test for submenu opening
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult(CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true)),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        // Arrange
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
-        Hex1bNode? focusedBeforeRight = null;
-        string? focusedParentType = null;
-        string? lastPath = null;
+        // Patterns to verify submenu items and their focus state
+        var doc1Pattern = new CellPatternSearcher().Find("Doc1.txt");
+        var doc2Pattern = new CellPatternSearcher().Find("Doc2.txt");
+
+        // Act & Assert - all verification happens inline in the input sequence
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
+            // Wait for menu bar to render
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
-            .Enter()  // Open File menu
-            .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
-            .Down()   // New -> Open
-            .Down()   // Open -> Recent (skip separator)
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .WaitUntil(_ => {
-                focusedBeforeRight = app.FocusedNode;
-                focusedParentType = focusedBeforeRight?.Parent?.GetType().Name;
-                return true;
-            }, TimeSpan.FromSeconds(1), "capture focus before Right")
-            .Right()  // Should open Recent submenu
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .WaitUntil(_ => {
-                lastPath = app.LastPathDebug;
-                return true;
-            }, TimeSpan.FromSeconds(1), "capture path after Right")
+            
+            // Open File menu
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Recent") && s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open with all items")
+            
+            // Navigate to "Recent" (New -> Open -> [separator] -> Recent)
+            .Down()  // New -> Open
+            .Down()  // Open -> Recent (separators are skipped)
+            
+            // Verify "Recent" is focused before pressing Right
+            .WaitUntil(s => IsMenuItemSelected(s, "Recent"), TimeSpan.FromSeconds(2), "Recent item to be focused")
+            
+            // Press Right to open the submenu
+            .Right()
+            
+            // Wait for submenu to open with Doc1.txt focused (black background) and Doc2.txt visible but not focused
+            .WaitUntil(s => 
+            {
+                var doc1Result = s.SearchPattern(doc1Pattern);
+                var doc2Result = s.SearchPattern(doc2Pattern);
+                
+                if (!doc1Result.HasMatches || !doc2Result.HasMatches)
+                    return false;
+                
+                // Doc1.txt should have focused background (black = RGB 0,0,0)
+                var doc1Cell = doc1Result.First!.Cells.First();
+                var doc1Focused = doc1Cell.Cell.Background is not null &&
+                                  doc1Cell.Cell.Background.Value.R == 0 &&
+                                  doc1Cell.Cell.Background.Value.G == 0 &&
+                                  doc1Cell.Cell.Background.Value.B == 0;
+                
+                // Doc2.txt should NOT have focused background
+                var doc2Cell = doc2Result.First!.Cells.First();
+                var doc2Focused = doc2Cell.Cell.Background is not null &&
+                                  doc2Cell.Cell.Background.Value.R == 0 &&
+                                  doc2Cell.Cell.Background.Value.G == 0 &&
+                                  doc2Cell.Cell.Background.Value.B == 0;
+                
+                return doc1Focused && !doc2Focused;
+            }, 
+            TimeSpan.FromSeconds(2), 
+            "submenu to open with Doc1.txt focused (black bg) and Doc2.txt unfocused")
+            
+            // Clean exit
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
-        
-        var focusedLabel = (focusedBeforeRight as MenuNode)?.Label ?? 
-                           (focusedBeforeRight as MenuItemNode)?.Label ?? 
-                           focusedBeforeRight?.GetType().Name ?? "null";
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        var hasDoc1 = snapshot.ContainsText("Doc1.txt");
-        
-        Assert.True(hasDoc1, 
-            $"Submenu didn't open. Focus before Right: {focusedLabel}, Parent: {focusedParentType}. " +
-            $"LastPath: {lastPath ?? "null"}. " +
-            $"Screen has Doc1.txt: {hasDoc1}");
     }
     
     #endregion

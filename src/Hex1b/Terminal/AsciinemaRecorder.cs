@@ -340,7 +340,7 @@ public sealed class AsciinemaRecorderOptions
     /// When false, events are buffered until <see cref="AsciinemaRecorder.FlushAsync"/> is called
     /// or the recorder is disposed.
     /// </summary>
-    public bool AutoFlush { get; set; }
+    public bool AutoFlush { get; set; } = true;
 
     /// <summary>
     /// Terminal color theme for playback.

@@ -14,6 +14,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 {
     private readonly IConsoleDriver _driver;
     private readonly bool _enableMouse;
+    private readonly bool _preserveOPost;
     private readonly CancellationTokenSource _disposeCts = new();
     private bool _disposed;
     private bool _inRawMode;
@@ -22,12 +23,18 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     /// Creates a new console presentation adapter with raw mode support.
     /// </summary>
     /// <param name="enableMouse">Whether to enable mouse tracking.</param>
+    /// <param name="preserveOPost">
+    /// If true, preserve output post-processing (LF→CRLF conversion) in raw mode.
+    /// This is useful for WithProcess scenarios where child programs expect normal output handling.
+    /// Defaults to false for full raw mode (required for terminal emulators and Hex1bApp).
+    /// </param>
     /// <exception cref="PlatformNotSupportedException">
     /// Thrown if raw mode is not supported on the current platform.
     /// </exception>
-    public ConsolePresentationAdapter(bool enableMouse = false)
+    public ConsolePresentationAdapter(bool enableMouse = false, bool preserveOPost = false)
     {
         _enableMouse = enableMouse;
+        _preserveOPost = preserveOPost;
         
         // Create platform-specific driver
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
@@ -123,7 +130,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 
         // Enter raw mode for proper input capture
         // No escape sequences - screen mode is controlled by the workload
-        _driver.EnterRawMode();
+        _driver.EnterRawMode(_preserveOPost);
 
         return ValueTask.CompletedTask;
     }

@@ -94,7 +94,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public event Action<int, int>? Resized;
     
-    public void EnterRawMode()
+    public void EnterRawMode(bool preserveOPost = false)
     {
         if (_inRawMode) return;
         
@@ -110,6 +110,14 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         // Copy and use cfmakeraw() directly - this is the canonical way and matches SimplePty
         // cfmakeraw() clears OPOST which disables output post-processing (no LF->CRLF conversion)
         var rawTermios = (byte[])_originalTermios.Clone();
+        cfmakeraw(rawTermios);
+        
+        // If preserveOPost is requested, re-enable OPOST for output post-processing (LF→CRLF)
+        // This is useful for WithProcess scenarios where child programs expect normal output handling
+        if (preserveOPost)
+        {
+            ModifyFlag(rawTermios, OFLAG_OFFSET, OPOST, clear: false);
+        }
         cfmakeraw(rawTermios);
         
         // Apply to stdin (for input handling)

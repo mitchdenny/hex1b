@@ -35,11 +35,12 @@ public sealed class Hex1bTerminalBuilder
     private readonly List<IHex1bTerminalWorkloadFilter> _workloadFilters = [];
     private readonly List<IHex1bTerminalPresentationFilter> _presentationFilters = [];
     private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory = 
-        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse);
+        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost);
     private int _width = 80;
     private int _height = 24;
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
+    private bool _preserveOPost;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -432,6 +433,10 @@ public sealed class Hex1bTerminalBuilder
     public Hex1bTerminalBuilder WithProcess(ProcessStartInfo startInfo)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
+
+        // For simple process I/O, preserve OPOST so LF→CRLF conversion works
+        // This ensures child process output displays correctly on the terminal
+        _preserveOPost = true;
 
         SetWorkloadFactory(presentation =>
         {

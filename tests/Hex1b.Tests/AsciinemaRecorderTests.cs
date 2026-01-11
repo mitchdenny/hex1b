@@ -191,7 +191,7 @@ public class AsciinemaRecorderTests : IDisposable
             Height = 24,
             WorkloadAdapter = workload
         };
-        var recorder = new AsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { AutoFlush = false });
         options.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(options);
 
@@ -305,7 +305,7 @@ public class AsciinemaRecorderTests : IDisposable
     {
         // Arrange
         var tempFile = GetTempFile();
-        var recorder = new AsciinemaRecorder(tempFile);
+        var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { AutoFlush = false });
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
         await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);

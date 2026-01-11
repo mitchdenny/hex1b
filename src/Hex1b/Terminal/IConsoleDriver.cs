@@ -15,7 +15,8 @@ internal interface IConsoleDriver : IDisposable
     /// <summary>
     /// Enter raw mode - disable line buffering, echo, signal handling.
     /// </summary>
-    void EnterRawMode();
+    /// <param name="preserveOPost">If true, preserve output post-processing (LF→CRLF). Useful for WithProcess scenarios.</param>
+    void EnterRawMode(bool preserveOPost = false);
     
     /// <summary>
     /// Exit raw mode - restore original terminal settings.
