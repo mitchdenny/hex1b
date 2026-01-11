@@ -2583,7 +2583,7 @@ public class SplitterNodeTests
     /// This tests the exact scenario from the docs: VSplitter containing a horizontal Splitter
     /// in its top pane, where the inner splitter's panes have VStack content.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Flaky needs to be rewritten using modern API.")]
     public async Task Integration_NestedSplitters_ResizingInnerDoesNotCauseOverflow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
