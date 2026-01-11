@@ -10,7 +10,7 @@ Hex1b has a layered and extensible architecture. It includes everything you need
 
 At the core of the stack is Hex1bTerminal which  is a pluggable terminal emulator.
 
-### Workload Adapeters
+### Workload Adapters
 
 Workload adapters allow you plug the Hex1bTerminal into any source. You can connect to a .NET process, or spawn a real shell with a PTY attached or even connect a network stream. For building TUI applications we have the Hex1bApp workload adapter which allows you to conenct Hex1b's own TUI framework to the Hex1bTerminal.
 
@@ -18,7 +18,14 @@ Workload adapters allow you plug the Hex1bTerminal into any source. You can conn
 Presentation adapeters connect the terminal to the end user whether it is a real terminal emualtor such as GNOME Termina, Xterm, or Windows Terminal, or even remote terminals such as xterm.js.
 
 ### Input Sequencers & Pattern Matchers
-fsdfs
+
+Input sequencers and pattern matches allow you to write automation that interacts with the workload that is plugged into the terminal. An input sequence allows you to send a sequence of keystrokes and wait for pre-conditions on output before sending the next sequence. Sequencers are defined using a "builder" and the output of the builder can be reused multiple times.
+
+Because terminal interfaces can contain quite rich information doing a simple text search over the contents of the screen often isn't sufficient. So the pattern matching API comes into play which allows you to walk the screen to find patterns of output you define and return matches along with the matching terminal cells. Think of it as a regex for 2D grid of terminal cells but that can query for more than text!
+
+### Workload and Presentation Filters
+
+Filters provide a hook for developers to intercept input and output as it flows from the terminal and workload and presentation adapters. This is used within Hex1b today to do things like optimize output for TUI applications by only sending the delta of screen updates to the upstream terminal (render optimization filter) or recording input and output from the workload into an Asciinema file.
 
 <div class="architecture-diagram">
 <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg">
