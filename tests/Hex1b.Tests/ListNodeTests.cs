@@ -130,26 +130,22 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
+        // Wait for all items to appear and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("Item 1") && 
+                s.ContainsText("Item 2") && 
+                s.ContainsText("Item 3"), 
+                TimeSpan.FromSeconds(2),
+                "all items visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("Item 1"));
+        Assert.True(snapshot.ContainsText("Item 2"));
+        Assert.True(snapshot.ContainsText("Item 3"));
     }
 
     [Fact]
@@ -183,16 +179,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Only Item"), TimeSpan.FromSeconds(1))
+        // Wait for the item and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Only Item"), TimeSpan.FromSeconds(2), "item visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Only Item"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("Only Item"));
     }
 
     #endregion
@@ -210,17 +205,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Default selected indicator is "> "
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(2), "selected indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 1"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("> Item 1"));
     }
 
     [Fact]
@@ -234,17 +227,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Default unselected indicator is "  " (two spaces)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  Item 2"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("  Item 2"), TimeSpan.FromSeconds(2), "unselected indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  Item 2"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("  Item 2"));
     }
 
     [Fact]
@@ -258,26 +249,22 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
+        // Wait for all indicators and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("  First") && 
+                s.ContainsText("> Second") && 
+                s.ContainsText("  Third"), 
+                TimeSpan.FromSeconds(2),
+                "all indicators visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Second"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  Third"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  Third"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("  First"));
+        Assert.True(snapshot.ContainsText("> Second"));
+        Assert.True(snapshot.ContainsText("  Third"));
     }
 
     [Fact]
@@ -291,26 +278,22 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
+        // Wait for all indicators and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("  First") && 
+                s.ContainsText("  Second") && 
+                s.ContainsText("> Third"), 
+                TimeSpan.FromSeconds(2),
+                "all indicators visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  Second"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  Second"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Third"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("  First"));
+        Assert.True(snapshot.ContainsText("  Second"));
+        Assert.True(snapshot.ContainsText("> Third"));
     }
 
     #endregion
@@ -328,13 +311,16 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "item visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // The output should contain colors for the focused+selected item
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor() || terminal.CreateSnapshot().HasBackgroundColor() || terminal.CreateSnapshot().HasAttribute(CellAttributes.Reverse));
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     [Fact]
@@ -348,17 +334,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Still shows indicator but without selection colors
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(2), "indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 1"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("> Item 1"));
     }
 
     #endregion
@@ -376,17 +360,15 @@ public class ListNodeTests
         node.Arrange(new Rect(5, 3, 20, 5));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Check that content is rendered - the terminal places it at the right position internally
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test Item"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test Item"), TimeSpan.FromSeconds(2), "item visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Test Item"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("Test Item"));
     }
 
     [Fact]
@@ -403,27 +385,22 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        // All items should be rendered
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item A"), TimeSpan.FromSeconds(1))
+        // All items should be rendered - wait for all and capture atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("Item A") && 
+                s.ContainsText("Item B") && 
+                s.ContainsText("Item C"), 
+                TimeSpan.FromSeconds(2),
+                "all items visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item A"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item B"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item B"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item C"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item C"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("Item A"));
+        Assert.True(snapshot.ContainsText("Item B"));
+        Assert.True(snapshot.ContainsText("Item C"));
     }
 
     #endregion
@@ -444,15 +421,18 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "item visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Yellow foreground
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(255, 255, 0)));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 0)));
         // Red background
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)));
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)));
     }
 
     [Fact]
@@ -468,16 +448,14 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(2), "custom indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("► Item 1"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("► Item 1"));
     }
 
     [Fact]
@@ -493,16 +471,14 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("- Item 2"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("- Item 2"), TimeSpan.FromSeconds(2), "custom unselected indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("- Item 2"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("- Item 2"));
     }
 
     [Fact]
@@ -516,17 +492,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // HighContrast theme uses "► " indicator
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(2), "high contrast indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("► Item 1"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("► Item 1"));
     }
 
     #endregion
@@ -548,17 +522,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Content is rendered, at least the beginning of the text should be visible
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Very"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Very"), TimeSpan.FromSeconds(2), "truncated content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Very"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText("Very"));
     }
 
     [Fact]
@@ -572,17 +544,15 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 5, 5));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
         
         // Should still render the indicator
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText(">"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText(">"), TimeSpan.FromSeconds(2), "indicator visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText(">"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot.ContainsText(">"));
     }
 
     #endregion
@@ -1433,15 +1403,20 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 3));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Use Capture inside the sequencer to avoid race conditions
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("Item 1") && 
+                s.ContainsText("Item 2") && 
+                s.ContainsText("Item 3") &&
+                !s.ContainsText("Item 4") && 
+                !s.ContainsText("Item 5"), 
+                TimeSpan.FromSeconds(2),
+                "Items 1-3 visible, Items 4-5 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should show first 3 items
         Assert.True(snapshot.ContainsText("Item 1"));
@@ -1471,15 +1446,20 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 3));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Use Capture inside the sequencer to avoid race conditions
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("Item 3") && 
+                s.ContainsText("Item 4") && 
+                s.ContainsText("Item 5") &&
+                !s.ContainsText("Item 1") && 
+                !s.ContainsText("Item 2"), 
+                TimeSpan.FromSeconds(2),
+                "Items 3-5 visible, Items 1-2 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should show items 3, 4, 5 (scroll offset = 2)
         Assert.True(snapshot.ContainsText("Item 3"));
@@ -1673,11 +1653,17 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 15"), TimeSpan.FromSeconds(2), "Item 15 to be selected")
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("> Item 15") && 
+                !s.ContainsText("Item 01") && 
+                !s.ContainsText("Item 02"), 
+                TimeSpan.FromSeconds(2), 
+                "Item 15 selected, Items 01-02 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Item 15 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 15"));
         // Items around it should also be visible
@@ -1718,11 +1704,16 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 20"), TimeSpan.FromSeconds(2), "Item 20 to be selected")
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("> Item 20") && 
+                !s.ContainsText("Item 01"), 
+                TimeSpan.FromSeconds(2), 
+                "Item 20 selected, Item 01 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Item 20 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 20"));
         // Early items should NOT be visible
@@ -1762,11 +1753,12 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2), "selection indicator to render")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Should have selected an item in the scrolled region (item 4-6 range visible)
         // The clicked item should now be selected with ">"
         Assert.True(snapshot.ContainsText("> Item"), "An item should be selected with indicator");
@@ -1797,15 +1789,18 @@ public class ListNodeTests
         Assert.Equal(16, node.ScrollOffset);
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Use Capture inside the sequencer to avoid race conditions when taking snapshot
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => 
+                s.ContainsText("> Item 25") && 
+                !s.ContainsText("Item 00") && 
+                !s.ContainsText("Item 49"), 
+                TimeSpan.FromSeconds(2),
+                "Item 25 selected, Items 00 and 49 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Item 25 should be visible and selected
         Assert.True(snapshot.ContainsText("> Item 25"));
