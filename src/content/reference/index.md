@@ -39,12 +39,6 @@ Browse the API by namespace:
 | [Hex1b.Theming](Hex1b.Theming.md) | Theme system for customizing colors and characters |
 | [Hex1b.Tokens](Hex1b.Tokens.md) | Design tokens for consistent theming |
 
-### Terminal
-
-| Namespace | Description |
-|-----------|-------------|
-| [Hex1b.Terminal](Hex1b.Terminal.md) | Terminal abstraction layer and implementations |
-
 ---
 
 ## Quick Links
