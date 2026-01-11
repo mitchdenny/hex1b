@@ -4,6 +4,22 @@ Hex1b is a comprehensive .NET terminal application stack. Whether you're buildin
 
 ## Architecture
 
+Hex1b has a layered and extensible architecture. It includes everything you need for most scenarios, or it can be extended to support your specific scenarios.
+
+### Hex1bTerminal
+
+At the core of the stack is Hex1bTerminal which  is a pluggable terminal emulator.
+
+### Workload Adapeters
+
+Workload adapters allow you plug the Hex1bTerminal into any source. You can connect to a .NET process, or spawn a real shell with a PTY attached or even connect a network stream. For building TUI applications we have the Hex1bApp workload adapter which allows you to conenct Hex1b's own TUI framework to the Hex1bTerminal.
+
+### Presentation Adapters
+Presentation adapeters connect the terminal to the end user whether it is a real terminal emualtor such as GNOME Termina, Xterm, or Windows Terminal, or even remote terminals such as xterm.js.
+
+### Input Sequencers & Pattern Matchers
+fsdfs
+
 <div class="architecture-diagram">
 <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg">
   <defs>
