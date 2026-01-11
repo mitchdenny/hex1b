@@ -434,10 +434,10 @@ public class Hex1bAppIntegrationTests
         await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Send CTRL-C after the first render to exercise the default binding
-        new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
             .Build()
-            .Apply(terminal);
+            .ApplyAsync(terminal);
 
         var completed = await Task.WhenAny(runTask, Task.Delay(2000, TestContext.Current.CancellationToken));
         Assert.True(completed == runTask, "Expected CTRL-C to exit the application after the initial render.");
@@ -476,17 +476,13 @@ public class Hex1bAppIntegrationTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        // Wait for initial render
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        
-        // Send CTRL-C
-        new Hex1bTerminalInputSequenceBuilder()
+        // Wait for initial render, send CTRL-C, and wait for processing
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .WaitUntil(_ => ctrlCPressed, TimeSpan.FromSeconds(2), "ctrlCPressed to be true")
             .Build()
-            .Apply(terminal);
-        
-        // Wait for processing
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal);
         
         // The custom binding should have been called
         Assert.True(ctrlCPressed);
@@ -527,17 +523,13 @@ public class Hex1bAppIntegrationTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        // Wait for initial render
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        
-        // Send CTRL-C
-        new Hex1bTerminalInputSequenceBuilder()
+        // Wait for initial render, send CTRL-C, and wait for processing
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .WaitUntil(_ => customHandlerCalled, TimeSpan.FromSeconds(2), "customHandlerCalled to be true")
             .Build()
-            .Apply(terminal);
-        
-        // Wait for processing
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal);
         
         // The custom handler should have been called
         Assert.True(customHandlerCalled);

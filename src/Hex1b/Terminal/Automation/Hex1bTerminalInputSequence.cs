@@ -42,16 +42,4 @@ public sealed class Hex1bTerminalInputSequence
         }
         return terminal.CreateSnapshot();
     }
-
-    /// <summary>
-    /// Applies this test sequence synchronously.
-    /// Only works correctly for sequences without delays or wait conditions.
-    /// Returns a snapshot of the terminal state after the sequence completes.
-    /// </summary>
-    /// <param name="terminal">The terminal to apply the sequence to.</param>
-    /// <returns>A snapshot of the terminal state after all steps have been executed.</returns>
-    public Hex1bTerminalSnapshot Apply(Hex1bTerminal terminal)
-    {
-        return ApplyAsync(terminal, CancellationToken.None).GetAwaiter().GetResult();
-    }
 }

@@ -549,7 +549,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         
         // Send Ctrl+C
-        new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().Apply(terminal);
+        await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().ApplyAsync(terminal);
         
         // App should stop within reasonable time
         var completed = await Task.WhenAny(runTask, Task.Delay(1000, TestContext.Current.CancellationToken)) == runTask;

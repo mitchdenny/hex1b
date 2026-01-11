@@ -536,7 +536,7 @@ public class Hex1bTestSequenceTests
     }
 
     [Fact]
-    public void Apply_SynchronousVersion_Works()
+    public async Task ApplyAsync_WithoutAppRunning_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -546,8 +546,8 @@ public class Hex1bTestSequenceTests
             .Type("Test")
             .Build();
 
-        // Should not throw - just verifies Apply works without an app running
-        sequence.Apply(terminal);
+        // Should not throw - just verifies ApplyAsync works without an app running
+        await sequence.ApplyAsync(terminal);
     }
 
     #endregion
