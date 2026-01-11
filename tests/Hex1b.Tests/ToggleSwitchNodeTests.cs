@@ -137,11 +137,11 @@ public class ToggleSwitchNodeTests
         node.Render(context);
 
         // Should contain ANSI escape codes for styling (foreground or background colors)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("On") && s.ContainsText("Off"), TimeSpan.FromSeconds(1), "On/Off options visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 

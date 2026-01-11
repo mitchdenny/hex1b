@@ -174,12 +174,13 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Visible"), TimeSpan.FromSeconds(1), "Visible text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var screenText = terminal.CreateSnapshot().GetScreenText();
+        var screenText = snapshot.GetScreenText();
         Assert.Contains("Visible", screenText);
         Assert.DoesNotContain("Hidden", screenText);
     }
@@ -451,12 +452,13 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(1), "Inner text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Inner", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Inner", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -485,12 +487,13 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Fallback"), TimeSpan.FromSeconds(1), "Fallback text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Fallback", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Fallback", snapshot.GetScreenText());
     }
 
     #region Integration Tests with Fluent API

@@ -21,10 +21,11 @@ public class CellPatternSearcherTests
         }
 
         // Wait for content to be processed by the output pump
+        var firstLine = lines.Length > 0 ? lines[0] : "";
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => string.IsNullOrEmpty(firstLine) || s.ContainsText(firstLine), TimeSpan.FromSeconds(1), "first line content")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         return terminal.CreateSnapshot();
     }
@@ -41,19 +42,20 @@ public class CellPatternSearcherTests
                 .Wait(TimeSpan.FromMilliseconds(50))
                 .Build()
                 .ApplyAsync(terminal);
+            return terminal.CreateSnapshot();
         }
         else
         {
             workload.Write(content);
             
-            // Wait for content to be processed by the output pump
+            // Wait for specific content to be processed by the output pump
             await new Hex1bTerminalInputSequenceBuilder()
-                .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+                .WaitUntil(s => s.ContainsText(content.Substring(0, Math.Min(content.Length, 10))), TimeSpan.FromSeconds(1), "written content")
                 .Build()
-                .ApplyAsync(terminal);
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            
+            return terminal.CreateSnapshot();
         }
-        
-        return terminal.CreateSnapshot();
     }
 
     #endregion

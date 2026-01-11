@@ -276,13 +276,14 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(1), "Left and Right text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Left", terminal.CreateSnapshot().GetScreenText());
-        Assert.Contains("Right", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Left", snapshot.GetScreenText());
+        Assert.Contains("Right", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -306,12 +307,13 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "AAA BBB CCC on same line")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("AAA", line);
         Assert.Contains("BBB", line);
         Assert.Contains("CCC", line);
@@ -337,13 +339,14 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(8, 10));
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(1), "AAAA text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content wraps at terminal edge
-        Assert.Contains("AAAA", terminal.CreateSnapshot().GetLine(0));
+        Assert.Contains("AAAA", snapshot.GetLine(0));
     }
 
     #endregion

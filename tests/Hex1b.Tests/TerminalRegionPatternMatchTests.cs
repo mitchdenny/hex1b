@@ -44,11 +44,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Test Pattern\r\n");
         workload.Write("Another line");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(1), "wait for Another line")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindPattern(@"Test");
         
         Assert.Single(matches);
@@ -66,11 +66,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("cat and dog and cat again");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("cat again"), TimeSpan.FromSeconds(1), "wait for cat again")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindPattern(@"cat");
         
         Assert.Equal(2, matches.Count);
@@ -90,11 +90,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Warning: deprecated\r\n");
         workload.Write("Error: permission denied");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("permission denied"), TimeSpan.FromSeconds(1), "wait for permission denied")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindPattern(@"Error");
         
         Assert.Equal(2, matches.Count);
@@ -110,11 +110,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Case sensitive (default) - should not match
         var matches = snapshot.FindPattern(@"hello");
@@ -134,11 +134,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Value: 12345");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("12345"), TimeSpan.FromSeconds(1), "wait for value 12345")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"\d+");
         var matches = snapshot.FindPattern(regex);
         
@@ -155,11 +155,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindPattern(@"NotFound");
         
         Assert.Empty(matches);
@@ -174,11 +174,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Email: user@example.com\r\n");
         workload.Write("Contact: admin@test.org");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("admin@test.org"), TimeSpan.FromSeconds(1), "wait for admin@test.org")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindPattern(@"\w+@\w+\.\w+");
         
         Assert.Equal(2, matches.Count);
@@ -199,11 +199,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("First match\r\n");
         workload.Write("Second match");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Second match"), TimeSpan.FromSeconds(1), "wait for Second match")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstPattern(@"match");
         
         Assert.NotNull(match);
@@ -219,11 +219,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstPattern(@"NotFound");
         
         Assert.Null(match);
@@ -237,11 +237,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("HELLO World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("HELLO World"), TimeSpan.FromSeconds(1), "wait for HELLO World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstPattern(@"hello", RegexOptions.IgnoreCase);
         
         Assert.NotNull(match);
@@ -256,11 +256,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Price: $99.99");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("$99.99"), TimeSpan.FromSeconds(1), "wait for $99.99")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"\$[\d.]+");
         var match = snapshot.FindFirstPattern(regex);
         
@@ -280,11 +280,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World Test");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(1), "wait for World Test")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetTextAt(line: 0, startColumn: 6, endColumn: 11);
         
         Assert.Equal("World", text);
@@ -298,11 +298,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("ID: 12345 Name: John");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Name: John"), TimeSpan.FromSeconds(1), "wait for Name: John")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstPattern(@"\d+");
         
         Assert.NotNull(match);
@@ -319,11 +319,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetTextAt(line: 100, startColumn: 0, endColumn: 5);
         
         Assert.Equal("", text);
@@ -337,11 +337,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Request beyond end of line
         var text = snapshot.GetTextAt(line: 0, startColumn: 6, endColumn: 100);
         
@@ -357,11 +357,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Request with negative start
         var text = snapshot.GetTextAt(line: 0, startColumn: -5, endColumn: 5);
         
@@ -381,11 +381,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Error: Something went wrong");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("went wrong"), TimeSpan.FromSeconds(1), "wait for went wrong")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(snapshot.ContainsPattern(@"Error"));
         Assert.True(snapshot.ContainsPattern(@"went \w+"));
     }
@@ -398,11 +398,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Success: All tests passed");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("tests passed"), TimeSpan.FromSeconds(1), "wait for tests passed")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.False(snapshot.ContainsPattern(@"Error"));
         Assert.False(snapshot.ContainsPattern(@"\d{5}"));
     }
@@ -415,11 +415,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("SUCCESS");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("SUCCESS"), TimeSpan.FromSeconds(1), "wait for SUCCESS")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.False(snapshot.ContainsPattern(@"success"));
         Assert.True(snapshot.ContainsPattern(@"success", RegexOptions.IgnoreCase));
     }
@@ -432,11 +432,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Version: 2.0.1");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("2.0.1"), TimeSpan.FromSeconds(1), "wait for version 2.0.1")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"\d+\.\d+\.\d+");
         Assert.True(snapshot.ContainsPattern(regex));
     }
@@ -456,11 +456,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Match: 456\r\n");
         workload.Write("Footer line");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Footer line"), TimeSpan.FromSeconds(1), "wait for Footer line")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Get a region excluding header and footer
         var region = snapshot.GetRegion(new Hex1b.Layout.Rect(0, 1, 40, 2));
         
@@ -482,11 +482,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 1: BBB\r\n");
         workload.Write("Line 2: CCC");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 2: CCC"), TimeSpan.FromSeconds(1), "wait for Line 2: CCC")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var region = snapshot.GetRegion(new Hex1b.Layout.Rect(8, 1, 10, 2));
         
         var text = region.GetTextAt(0, 0, 3);
@@ -507,11 +507,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Progress: 75%\r\n");
         workload.Write("ETA: 5 minutes");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ETA: 5 minutes"), TimeSpan.FromSeconds(1), "wait for ETA")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Find and extract the progress value
         var progressMatch = snapshot.FindFirstPattern(@"Progress: (\d+)%");
@@ -534,11 +534,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[INFO] Retrying...\r\n");
         workload.Write("[ERROR] Connection failed");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Connection failed"), TimeSpan.FromSeconds(1), "wait for Connection failed")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var errors = snapshot.FindPattern(@"\[ERROR\].*");
         
         Assert.Equal(2, errors.Count);
@@ -594,11 +594,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Test Pattern\r\n");
         workload.Write("Another line");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(1), "wait for Another line")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"Test");
         
         Assert.Single(matches);
@@ -619,11 +619,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Start here\r\n");
         workload.Write("End here");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("End here"), TimeSpan.FromSeconds(1), "wait for End here")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Match pattern that spans from "here" on line 0 to "End" on line 1
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"here\nEnd", RegexOptions.None, trimLines: true);
@@ -647,11 +647,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("more content\r\n");
         workload.Write("END");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Use Singleline option so . matches newlines
         var matches = snapshot.FindMultiLinePattern(@"BEGIN.*?END", RegexOptions.Singleline);
         
@@ -675,11 +675,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("content2\r\n");
         workload.Write("</div>");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("content2"), TimeSpan.FromSeconds(1), "wait for content2")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"<div>.*?</div>", RegexOptions.Singleline);
         
         Assert.Equal(2, matches.Count);
@@ -697,11 +697,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 2\r\n");
         workload.Write("Line 3");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(1), "wait for Line 3")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Match explicit newline pattern
         var matches = snapshot.FindMultiLinePattern(@"Line 1\s*\nLine 2");
         
@@ -720,11 +720,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("BBB\r\n");
         workload.Write("CCC");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "wait for CCC")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"^AAA.*CCC", RegexOptions.Singleline);
         
         Assert.Single(matches);
@@ -740,11 +740,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"NotFound\nAnywhere");
         
         Assert.Empty(matches);
@@ -760,11 +760,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Middle\r\n");
         workload.Write("End");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(1), "wait for End")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"Start.*End", RegexOptions.Singleline);
         var matches = snapshot.FindMultiLinePattern(regex);
         
@@ -783,11 +783,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("  \"value\": 123\r\n");
         workload.Write("}");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("\"value\": 123"), TimeSpan.FromSeconds(1), "wait for JSON value")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"\{[^}]+\}", RegexOptions.Singleline);
         
         Assert.Single(matches);
@@ -805,11 +805,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("    return true;\r\n");
         workload.Write("}");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("return true"), TimeSpan.FromSeconds(1), "wait for return true")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"function.*?\}", RegexOptions.Singleline);
         
         Assert.Single(matches);
@@ -833,11 +833,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Block 2\r\n");
         workload.Write("End");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Block 2"), TimeSpan.FromSeconds(1), "wait for Block 2")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstMultiLinePattern(@"Block.*?End", RegexOptions.Singleline);
         
         Assert.NotNull(match);
@@ -853,11 +853,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstMultiLinePattern(@"NotFound\nPattern");
         
         Assert.Null(match);
@@ -873,11 +873,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("content\r\n");
         workload.Write("END");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstMultiLinePattern(@"start.*end", RegexOptions.Singleline | RegexOptions.IgnoreCase);
         
         Assert.NotNull(match);
@@ -894,11 +894,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("B\r\n");
         workload.Write("C");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(1), "wait for C")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"A\nB\nC");
         // Use trimLines: true to avoid matching trailing whitespace padding
         var match = snapshot.FindFirstMultiLinePattern(regex, trimLines: true);
@@ -922,11 +922,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Content\r\n");
         workload.Write("Footer");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(1), "wait for Footer")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(snapshot.ContainsMultiLinePattern(@"Header.*Footer", RegexOptions.Singleline));
     }
 
@@ -938,11 +938,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.False(snapshot.ContainsMultiLinePattern(@"NotFound\nPattern"));
     }
 
@@ -955,11 +955,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line1\r\n");
         workload.Write("Line2");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line2"), TimeSpan.FromSeconds(1), "wait for Line2")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"Line1\nLine2");
         // Use trimLines: true to avoid matching trailing whitespace padding
         Assert.True(snapshot.ContainsMultiLinePattern(regex, trimLines: true));
@@ -977,11 +977,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World Test");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(1), "wait for World Test")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 6, endLine: 0, endColumn: 11);
         
         Assert.Equal("World", text);
@@ -997,11 +997,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 1 content\r\n");
         workload.Write("Line 2 content");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 2 content"), TimeSpan.FromSeconds(1), "wait for Line 2 content")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 7, endLine: 2, endColumn: 7);
         
         Assert.Contains("content", text);
@@ -1018,11 +1018,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("middle\r\n");
         workload.Write("END");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstMultiLinePattern(@"START.*END", RegexOptions.Singleline);
         
         Assert.NotNull(match);
@@ -1043,11 +1043,11 @@ public class TerminalRegionPatternMatchTests
         
         workload.Write("Hello World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetMultiLineTextAt(startLine: 100, startColumn: 0, endLine: 101, endColumn: 5);
         
         Assert.Equal("", text);
@@ -1063,11 +1063,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("BBB\r\n");
         workload.Write("CCC");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "wait for CCC")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Request beyond end of region
         var text = snapshot.GetMultiLineTextAt(startLine: 0, startColumn: 0, endLine: 10, endColumn: 100);
         
@@ -1091,11 +1091,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("\r\n"); // Empty line
         workload.Write("End");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(1), "wait for End")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"Start\n\nEnd", trimLines: true);
         
@@ -1113,11 +1113,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ABC\r\n");
         workload.Write("DEF");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("DEF"), TimeSpan.FromSeconds(1), "wait for DEF")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"^ABC\nDEF", trimLines: true);
         
@@ -1136,11 +1136,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("YYY\r\n");
         workload.Write("ZZZ");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ZZZ"), TimeSpan.FromSeconds(1), "wait for ZZZ")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(@"YYY\nZZZ", trimLines: true);
         
@@ -1158,11 +1158,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ABAB\r\n");
         workload.Write("ABAB");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.GetDisplayText().Contains("ABAB\n") || s.GetDisplayText().Split('\n').Length > 1, TimeSpan.FromSeconds(1), "wait for ABAB on both lines")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Non-overlapping matches
         var matches = snapshot.FindMultiLinePattern(@"AB");
         
@@ -1180,11 +1180,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Stack trace:\r\n");
         workload.Write("  at Main()");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(1), "wait for at Main()")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"\[ERROR\].*Main\(\)", RegexOptions.Singleline);
         
         Assert.Single(matches);
@@ -1200,11 +1200,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 1\r\n");
         workload.Write("Line 2");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(1), "wait for Line 2")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Match at the start of each line using Multiline mode (^ matches start of each line)
         var matches = snapshot.FindMultiLinePattern(@"^", RegexOptions.Multiline);
         
@@ -1224,11 +1224,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello 世界\r\n");
         workload.Write("Привет мир");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("мир"), TimeSpan.FromSeconds(1), "wait for мир")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Use Singleline so . matches newlines and spans the content
         var matches = snapshot.FindMultiLinePattern(@"世界.*мир", RegexOptions.Singleline);
         
@@ -1245,11 +1245,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Name: John\r\n");
         workload.Write("Age: 30");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Age: 30"), TimeSpan.FromSeconds(1), "wait for Age: 30")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var regex = new Regex(@"Name: (\w+)\nAge: (\d+)");
         // Use trimLines: true to avoid matching trailing whitespace padding
         var matches = snapshot.FindMultiLinePattern(regex, trimLines: true);
@@ -1274,11 +1274,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("  at Method2()\r\n");
         workload.Write("  at Main()");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(1), "wait for at Main()")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var match = snapshot.FindFirstMultiLinePattern(@"Error:.*?at Main\(\)", RegexOptions.Singleline);
         
         Assert.NotNull(match);
@@ -1297,11 +1297,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[2024-01-01 10:00:01] DEBUG: Processing\r\n");
         workload.Write("[2024-01-01 10:00:02] INFO: Complete");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("INFO: Complete"), TimeSpan.FromSeconds(1), "wait for INFO: Complete")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var matches = snapshot.FindMultiLinePattern(@"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] INFO:.*");
         
         Assert.Equal(2, matches.Count);
@@ -1318,11 +1318,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Build succeeded.\r\n");
         workload.Write("0 Errors, 0 Warnings");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("0 Errors"), TimeSpan.FromSeconds(1), "wait for 0 Errors")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Check for complete build output
         Assert.True(snapshot.ContainsMultiLinePattern(@"Build started.*Build succeeded", RegexOptions.Singleline));
@@ -1339,11 +1339,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("| Item1 | 100   |\r\n");
         workload.Write("| Item2 | 200   |");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item2"), TimeSpan.FromSeconds(1), "wait for Item2")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         // Match table from header to last row - \s* handles any trailing whitespace
         var match = snapshot.FindFirstMultiLinePattern(@"\|\s*Name.*\|\s*Item2\s*\|\s*200\s*\|", RegexOptions.Singleline);
         
@@ -1360,11 +1360,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[1 ✔] $ \r\n");
         workload.Write("[1 ✘:127] $ \r\n");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(1), "wait for ✘:127")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // The line-by-line FindPattern should work since GetLine doesn't trim
         var regex = new Regex(@"\[\d+ (?:✔|✘:\d+)\] \$ ", RegexOptions.Multiline);
@@ -1384,11 +1384,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[1 ✔] $ \r\n");
         workload.Write("[1 ✘:127] $ \r\n");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(1), "wait for ✘:127")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // FindMultiLinePattern now uses untrimmed lines, so trailing space is preserved
         var regex = new Regex(@"\[\d+ (?:✔|✘:\d+)\] \$ ", RegexOptions.Multiline);
@@ -1409,11 +1409,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line2\r\n");
         workload.Write("Line3");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line3"), TimeSpan.FromSeconds(1), "wait for Line3")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Use custom separator " | " between lines
         var matches = snapshot.FindMultiLinePattern(@"Line1 \| Line2 \| Line3", trimLines: true, lineSeparator: " | ");
@@ -1434,11 +1434,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("DEF\r\n");
         workload.Write("GHI");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("GHI"), TimeSpan.FromSeconds(1), "wait for GHI")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Use null separator to concatenate lines directly
         var matches = snapshot.FindMultiLinePattern(@"ABCDEFGHI", trimLines: true, lineSeparator: null);
@@ -1456,11 +1456,11 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello\r\n");
         workload.Write("World");
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("World"), TimeSpan.FromSeconds(1), "wait for World")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Use empty string separator to concatenate lines directly
         var matches = snapshot.FindMultiLinePattern(@"HelloWorld", trimLines: true, lineSeparator: "");

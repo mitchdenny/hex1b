@@ -227,11 +227,11 @@ public class TerminalFilterTests
         Assert.Contains("World", filter.OutputChunks[0]);
         
         // Verify terminal buffer was updated correctly
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello") && s.ContainsText("Red") && s.ContainsText("World"), TimeSpan.FromSeconds(1), "HelloRedWorld visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.Equal("HelloRedWorld", snapshot.GetLine(0).TrimEnd());
     }
 

@@ -350,12 +350,12 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("▲") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "vertical arrows to render")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("▲"), "Should show up arrow");
         Assert.True(snapshot.ContainsText("▼"), "Should show down arrow");
     }
@@ -377,14 +377,16 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 20));
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▲") && !s.ContainsText("▼"),
+                TimeSpan.FromSeconds(1), "content fits without scrollbar arrows")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content fits, so no scrollbar needed
-        Assert.DoesNotContain("▲", terminal.CreateSnapshot().GetText());
-        Assert.DoesNotContain("▼", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("▲", snapshot.GetText());
+        Assert.DoesNotContain("▼", snapshot.GetText());
     }
 
     [Fact]
@@ -417,11 +419,12 @@ public class ScrollNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Line 2") && !s.ContainsText("Line 6"),
+                TimeSpan.FromSeconds(2), "Lines 1-2 visible, Line 6 clipped")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // First lines should be visible, later lines should be clipped
         Assert.Contains("Line 1", snapshot.GetText());
@@ -468,11 +471,12 @@ public class ScrollNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 6") && s.ContainsText("Line 7") && !s.ContainsText("Line 5"),
+                TimeSpan.FromSeconds(2), "Lines 6-7 visible, Line 5 not visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Lines starting from offset 5 (Line 6) should be visible
         Assert.Contains("Line 6", snapshot.GetText());
@@ -560,13 +564,15 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Cyan),
+                TimeSpan.FromSeconds(1), "Cyan foreground color")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Cyan foreground color should be applied
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Cyan));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Cyan));
     }
 
     [Fact]
@@ -589,13 +595,15 @@ public class ScrollNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Yellow),
+                TimeSpan.FromSeconds(1), "Yellow foreground color")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Yellow foreground color should be applied
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.Yellow));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Yellow));
     }
 
     #endregion
@@ -1227,11 +1235,12 @@ public class ScrollNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test") && s.ContainsText("Header") && s.ContainsText("Footer"),
+                TimeSpan.FromSeconds(1), "border with title, header, and footer")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var text = snapshot.GetText();
         var lines = text.Split('\n');
         

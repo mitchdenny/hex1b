@@ -148,12 +148,13 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ThemePanel Content"), TimeSpan.FromSeconds(1), "ThemePanel Content to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("ThemePanel Content", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("ThemePanel Content", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -181,13 +182,14 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(1), "Test button to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(mutatedThemeCaptured, "ThemeMutator should be called during render");
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
             "Button should have red background from mutated theme");
     }
 
@@ -211,9 +213,10 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(1), "Test text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // After render, context.Theme should be restored to original
         Assert.Same(originalTheme, context.Theme);
@@ -235,12 +238,13 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(20, 5));
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("No Mutator"), TimeSpan.FromSeconds(1), "No Mutator text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("No Mutator", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("No Mutator", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -277,12 +281,13 @@ public class ThemePanelNodeTests
         node.Measure(Constraints.Tight(30, 5));
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Cached"), TimeSpan.FromSeconds(1), "Cached button to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255)),
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255)),
             "Button should use cached theme's blue background");
     }
 
@@ -524,11 +529,11 @@ public class ThemePanelNodeTests
         outerPanel.Render(context);
 
         // Inner button should have red (from inner panel), not blue (from outer)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inner") && s.ContainsText("Outer"), TimeSpan.FromSeconds(1), "Inner and Outer buttons to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
             "Inner button should have red background from inner ThemePanel");
     }

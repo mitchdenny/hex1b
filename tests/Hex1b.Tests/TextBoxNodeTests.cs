@@ -125,12 +125,14 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[test]"), TimeSpan.FromSeconds(2), "bracketed text visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[test]", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("[test]", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -147,12 +149,14 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[]"), TimeSpan.FromSeconds(2), "empty brackets visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[]", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("[]", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -169,12 +173,14 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[This is a longer piece of text]"), TimeSpan.FromSeconds(2), "long text visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[This is a longer piece of text]", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("[This is a longer piece of text]", snapshot.GetLineTrimmed(0));
     }
 
     #endregion
@@ -196,17 +202,16 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 1;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for text content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("a") && s.ContainsText("b") && s.ContainsText("c"), 
+                TimeSpan.FromSeconds(2), "text content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // When focused, the cursor character should be highlighted with ANSI codes
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text content should still be visible
         Assert.Contains("a", snapshot.GetLineTrimmed(0));
@@ -229,17 +234,15 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for text content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(2), "text content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Should have ANSI codes for cursor highlighting
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
     }
@@ -259,17 +262,15 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 4;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for text content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2), "text content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // When cursor is at end, a space is shown as cursor placeholder
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
@@ -288,17 +289,15 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for brackets to appear and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]"), TimeSpan.FromSeconds(2), "brackets visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Should still have the brackets and ANSI codes for cursor
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.Contains("[", snapshot.GetLineTrimmed(0));
         Assert.Contains("]", snapshot.GetLineTrimmed(0));
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
@@ -320,17 +319,16 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 5;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for text content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello") && s.ContainsText("world"), 
+                TimeSpan.FromSeconds(2), "text content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Should have ANSI codes for selection highlighting
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text should still be present
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
@@ -349,17 +347,15 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 5;
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        
+        // Wait for text content and capture snapshot atomically
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("abcdefgh"), TimeSpan.FromSeconds(2), "text content visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         // Should contain the full text
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.Contains("abcdefgh", snapshot.GetLineTrimmed(0));
         // Should have selection ANSI codes
         Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));

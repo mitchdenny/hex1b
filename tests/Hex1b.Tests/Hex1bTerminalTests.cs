@@ -38,14 +38,16 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         
         workload.Write("Hello");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"),
+                TimeSpan.FromSeconds(1), "Hello text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Equal(5, terminal.CreateSnapshot().CursorX);
-        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
+        Assert.Equal("Hello", snapshot.GetLineTrimmed(0));
+        Assert.Equal(5, snapshot.CursorX);
+        Assert.Equal(0, snapshot.CursorY);
     }
 
     [Fact]
@@ -57,14 +59,16 @@ public class Hex1bTerminalTests
         
         // Use \r\n (CRLF) - real terminals expect ONLCR translation to happen in PTY layer
         workload.Write("Line1\r\nLine2\r\nLine3");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line1") && s.ContainsText("Line2") && s.ContainsText("Line3"),
+                TimeSpan.FromSeconds(1), "all three lines")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Line1", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Equal("Line2", terminal.CreateSnapshot().GetLineTrimmed(1));
-        Assert.Equal("Line3", terminal.CreateSnapshot().GetLineTrimmed(2));
+        Assert.Equal("Line1", snapshot.GetLineTrimmed(0));
+        Assert.Equal("Line2", snapshot.GetLineTrimmed(1));
+        Assert.Equal("Line3", snapshot.GetLineTrimmed(2));
     }
 
     [Fact]
@@ -75,13 +79,15 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(5, 3).Build();
         
         workload.Write("HelloWorld");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello") && s.ContainsText("World"),
+                TimeSpan.FromSeconds(1), "wrapped text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Equal("World", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("Hello", snapshot.GetLineTrimmed(0));
+        Assert.Equal("World", snapshot.GetLineTrimmed(1));
     }
 
     [Fact]
@@ -92,7 +98,8 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         workload.Write("Some text");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Some text"),
+                TimeSpan.FromSeconds(1), "initial text")
             .Build()
             .ApplyAsync(terminal);
         
@@ -116,12 +123,14 @@ public class Hex1bTerminalTests
         
         workload.SetCursorPosition(5, 2);
         workload.Write("X");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("X"),
+                TimeSpan.FromSeconds(1), "X at cursor position")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        var line = terminal.CreateSnapshot().GetLine(2);
+        var line = snapshot.GetLine(2);
         Assert.Equal('X', line[5]);
     }
 
@@ -176,13 +185,15 @@ public class Hex1bTerminalTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         workload.Write("Hello World");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"),
+                TimeSpan.FromSeconds(1), "Hello World text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(terminal.CreateSnapshot().ContainsText("World"));
-        Assert.False(terminal.CreateSnapshot().ContainsText("Foo"));
+        Assert.True(snapshot.ContainsText("World"));
+        Assert.False(snapshot.ContainsText("Foo"));
     }
 
     [Fact]
@@ -193,12 +204,14 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         // Use \r\n - terminal emulator expects explicit CR before LF
         workload.Write("Hello World\r\nHello Again");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World") && s.ContainsText("Hello Again"),
+                TimeSpan.FromSeconds(1), "both Hello lines")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        var results = terminal.CreateSnapshot().FindText("Hello");
+        var results = snapshot.FindText("Hello");
         
         Assert.Equal(2, results.Count);
         Assert.Equal((0, 0), results[0]); // (Line, Column) = row 0, col 0
@@ -213,12 +226,14 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         // Use \r\n for proper line endings
         workload.Write("Line 1\r\n\r\nLine 3");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Line 3"),
+                TimeSpan.FromSeconds(1), "Line 1 and Line 3")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        var lines = terminal.CreateSnapshot().GetNonEmptyLines().ToList();
+        var lines = snapshot.GetNonEmptyLines().ToList();
         
         Assert.Equal(2, lines.Count);
         Assert.Equal("Line 1", lines[0]);
@@ -233,9 +248,10 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         workload.Write("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Hello"),
+                TimeSpan.FromSeconds(1), "Hello text")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         terminal.Resize(40, 10);
         
@@ -252,12 +268,14 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
         
         workload.Write("\x1b[31mRed Text\x1b[0m");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Red Text"),
+                TimeSpan.FromSeconds(1), "Red Text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Red Text", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Red Text", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -269,12 +287,14 @@ public class Hex1bTerminalTests
         
         // ANSI positions are 1-based, so row 2, col 5
         workload.Write("\x1b[2;5HX");
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("X"),
+                TimeSpan.FromSeconds(1), "X at ANSI position")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        var line = terminal.CreateSnapshot().GetLine(1); // 0-based
+        var line = snapshot.GetLine(1); // 0-based
         Assert.Equal('X', line[4]); // 0-based
     }
 
@@ -286,9 +306,10 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         workload.Write("Some content");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Some content"),
+                TimeSpan.FromSeconds(1), "initial content")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         workload.Write("\x1b[2J");
         await new Hex1bTerminalInputSequenceBuilder()
@@ -307,9 +328,10 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         workload.Write("\x1b[38;2;255;0;0mR\x1b[0m");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("R"),
+                TimeSpan.FromSeconds(1), "R with red color")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         var buffer = terminal.GetScreenBuffer();
         

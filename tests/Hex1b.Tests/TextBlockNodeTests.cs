@@ -166,12 +166,13 @@ public class TextBlockNodeTests
         var node = new TextBlockNode { Text = "Hello World" };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -202,12 +203,13 @@ public class TextBlockNodeTests
         var node = new TextBlockNode { Text = "Hello → World ← Test" };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello → World ← Test"), TimeSpan.FromSeconds(1), "special characters text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello → World ← Test", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello → World ← Test", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -221,15 +223,16 @@ public class TextBlockNodeTests
         var node = new TextBlockNode { Text = "This is a long text" };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("This is a") && s.ContainsText("long text"), TimeSpan.FromSeconds(1), "wrapped text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // The first line should contain the first 10 characters
-        Assert.Equal("This is a ", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("This is a ", snapshot.GetLine(0));
         // The rest wraps to the next line (terminal behavior, not widget)
-        Assert.Equal("long text", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("long text", snapshot.GetLineTrimmed(1));
     }
 
     [Fact]
@@ -243,13 +246,14 @@ public class TextBlockNodeTests
 
         context.SetCursorPosition(5, 3);
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Positioned"), TimeSpan.FromSeconds(1), "Positioned text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Check that text appears at the right position
-        var line = terminal.CreateSnapshot().GetLine(3);
+        var line = snapshot.GetLine(3);
         Assert.Equal("     Positioned", line.TrimEnd());
     }
 
@@ -264,15 +268,16 @@ public class TextBlockNodeTests
         var node = new TextBlockNode { Text = longText };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ABCDEFGHIJKLMNOPQRST") && s.ContainsText("UVWXYZ"), TimeSpan.FromSeconds(1), "wrapped alphabet to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // First 20 chars on line 0
-        Assert.Equal("ABCDEFGHIJKLMNOPQRST", terminal.CreateSnapshot().GetLine(0));
+        Assert.Equal("ABCDEFGHIJKLMNOPQRST", snapshot.GetLine(0));
         // Remaining chars on line 1
-        Assert.Equal("UVWXYZ", terminal.CreateSnapshot().GetLineTrimmed(1));
+        Assert.Equal("UVWXYZ", snapshot.GetLineTrimmed(1));
     }
 
     #endregion
@@ -301,13 +306,14 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello Worl"), TimeSpan.FromSeconds(1), "clipped text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Text should be clipped to 10 characters
-        Assert.Equal("Hello Worl", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello Worl", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -331,13 +337,14 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 26, 1));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("FGHIJKLMNO"), TimeSpan.FromSeconds(1), "clipped alphabet section to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
-        var line = terminal.CreateSnapshot().GetLine(0);
+        var line = snapshot.GetLine(0);
         Assert.Equal("     FGHIJKLMNO", line.Substring(0, 15));
     }
 
@@ -361,13 +368,14 @@ public class TextBlockNodeTests
         node.Arrange(new Rect(0, 0, 20, 1));
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "full Hello World text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear (no clipping)
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -382,13 +390,14 @@ public class TextBlockNodeTests
         var node = new TextBlockNode { Text = "Hello World" };
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear
-        Assert.Equal("Hello World", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     #endregion

@@ -124,12 +124,11 @@ public class HyperlinkNodeTests
         var context = new Hex1bRenderContext(workload);
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(1), "Link text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // The visible text should be "Link"
         Assert.Contains("Link", snapshot.GetLineTrimmed(0));
@@ -152,12 +151,11 @@ public class HyperlinkNodeTests
         var context = new Hex1bRenderContext(workload);
         
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(1), "Link text with parameters")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Check that the link text is rendered
         Assert.Contains("Link", snapshot.GetLineTrimmed(0));

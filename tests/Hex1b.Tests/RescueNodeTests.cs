@@ -47,16 +47,13 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1), "Hello text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
+        Assert.True(snapshot.ContainsText("Hello"));
     }
 
     #endregion
@@ -119,9 +116,10 @@ public class RescueNodeTests
         // This should not throw - the error should be captured
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "error fallback to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(node.HasError);
         Assert.Equal(RescueErrorPhase.Render, node.ErrorPhase);
@@ -147,17 +145,14 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "UNHANDLED EXCEPTION fallback to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show error message
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("UNHANDLED EXCEPTION"));
+        Assert.True(snapshot.ContainsText("UNHANDLED EXCEPTION"));
     }
 
     [Fact]
@@ -180,17 +175,14 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Custom error: Test exception"), TimeSpan.FromSeconds(1), "custom fallback message to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show custom error message
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Custom error: Test exception"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Custom error: Test exception"));
+        Assert.True(snapshot.ContainsText("Custom error: Test exception"));
     }
 
     [Fact]
@@ -209,17 +201,14 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Stack Trace"), TimeSpan.FromSeconds(1), "Stack Trace details to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show stack trace in details mode
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Stack Trace"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Stack Trace"));
+        Assert.True(snapshot.ContainsText("Stack Trace"));
     }
 
     [Fact]
@@ -238,18 +227,15 @@ public class RescueNodeTests
         node.Measure(new Constraints(0, 100, 0, 50));
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Something went wrong"), TimeSpan.FromSeconds(1), "friendly error message to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should show friendly message without details
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Something went wrong"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Something went wrong"));
-        Assert.False(terminal.CreateSnapshot().ContainsText("Stack Trace"));
+        Assert.True(snapshot.ContainsText("Something went wrong"));
+        Assert.False(snapshot.ContainsText("Stack Trace"));
     }
 
     #endregion

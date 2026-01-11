@@ -99,12 +99,13 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(1), "Ready text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Ready", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("Ready", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -126,12 +127,13 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(60, 1));
         node.Arrange(new Rect(0, 0, 60, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Mode: Normal") && s.ContainsText("Line 1, Col 15"), TimeSpan.FromSeconds(1), "all info bar sections to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var screenText = terminal.CreateSnapshot().GetScreenText();
+        var screenText = snapshot.GetScreenText();
         Assert.Contains("Mode: Normal", screenText);
         Assert.Contains("|", screenText);
         Assert.Contains("Line 1, Col 15", screenText);
@@ -157,16 +159,17 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Inverted"), TimeSpan.FromSeconds(1), "Inverted text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // With inversion: foreground becomes background (White -> foreground uses Black)
         // and background becomes foreground (Black -> background uses White)
         // So we should see white background and black foreground
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 0, 0)));
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 0, 0)));
     }
 
     [Fact]
@@ -189,14 +192,15 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Normal"), TimeSpan.FromSeconds(1), "Normal text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should use the specified colors directly
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0))); // Green foreground
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255))); // Blue background
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0))); // Green foreground
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255))); // Blue background
     }
 
     [Fact]
@@ -219,14 +223,15 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(40, 1));
         node.Arrange(new Rect(0, 0, 40, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Error!"), TimeSpan.FromSeconds(1), "Error! text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Error section should have its own colors
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0))); // Red foreground
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 0))); // Yellow background
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0))); // Red foreground
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 0))); // Yellow background
     }
 
     [Fact]
@@ -245,13 +250,14 @@ public class InfoBarNodeTests
         node.Measure(Constraints.Tight(20, 1));
         node.Arrange(new Rect(0, 0, 20, 1));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("This text is way too"), TimeSpan.FromSeconds(1), "truncated text to appear")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Text should be truncated to fit
-        var screenText = terminal.CreateSnapshot().GetScreenText();
+        var screenText = snapshot.GetScreenText();
         Assert.DoesNotContain("for the bar", screenText);
     }
 

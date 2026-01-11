@@ -87,13 +87,14 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1), "button with OK label")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Theme-dependent bracket style, but should contain label
-        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("OK", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -110,12 +111,13 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]") && s.ContainsText("Test"), TimeSpan.FromSeconds(1), "brackets and Test label")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
@@ -134,12 +136,13 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]"), TimeSpan.FromSeconds(1), "brackets in empty button")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = terminal.CreateSnapshot().GetLineTrimmed(0);
+        var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("[", line);
         Assert.Contains("]", line);
     }
@@ -162,14 +165,15 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1), "focused button with OK label")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should contain styling for focus
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor() || terminal.CreateSnapshot().HasBackgroundColor() || terminal.CreateSnapshot().HasAttribute(CellAttributes.Reverse));
-        Assert.Contains("OK", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.Contains("OK", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -186,12 +190,13 @@ public class ButtonNodeTests
         };
 
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(1), "button with Submit Form label")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("Submit Form", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.Contains("Submit Form", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]

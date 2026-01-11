@@ -779,7 +779,7 @@ public class MenuBarIntegrationTests
 
         // Act - Navigate into submenu and activate an item
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
@@ -788,6 +788,7 @@ public class MenuBarIntegrationTests
             .WaitUntil(s => s.ContainsText("Doc1.txt"), TimeSpan.FromSeconds(2), "Recent submenu to open")
             .Enter()  // Activate Doc1.txt
             .WaitUntil(s => !s.ContainsText("Doc1.txt") && !s.ContainsText("Save"), TimeSpan.FromSeconds(2), "all menus to close")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -796,11 +797,6 @@ public class MenuBarIntegrationTests
         // Assert
         Assert.Equal("File > Recent > Doc1.txt", lastAction);
         // All menus should be closed
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.False(snapshot.ContainsText("Doc1.txt"));
         Assert.False(snapshot.ContainsText("Save"));
     }
@@ -913,7 +909,7 @@ public class MenuBarIntegrationTests
 
         // Act - Open Edit menu, click away, then click on Help menu
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Edit") && s.ContainsText("Help"), TimeSpan.FromSeconds(2), "menu bar to render")
             // Click on Edit menu to open it (Edit is around position 6-9)
             .ClickAt(7, 0, MouseButton.Left)
@@ -924,17 +920,13 @@ public class MenuBarIntegrationTests
             // Now click on Help menu (Help is around position 11-14)
             .ClickAt(13, 0, MouseButton.Left)
             .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - Help menu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"));
     }
     
@@ -1390,23 +1382,19 @@ public class MenuBarIntegrationTests
 
         // Act - Open File menu, then press Left to wrap to Help
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
             .Left()   // Should close File and wrap to Help
             .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open after wrapping")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - Help menu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible after wrap");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
     }
@@ -1459,7 +1447,7 @@ public class MenuBarIntegrationTests
 
         // Act - Open File, Right to Edit, Right to Help
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(2), "File menu to open")
@@ -1467,17 +1455,13 @@ public class MenuBarIntegrationTests
             .WaitUntil(s => s.ContainsText("Undo"), TimeSpan.FromSeconds(2), "Edit menu to open")
             .Right()  // Navigate to Help menu
             .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - Help menu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
         Assert.False(snapshot.ContainsText("Paste"), "Edit menu should be closed");
@@ -1533,7 +1517,7 @@ public class MenuBarIntegrationTests
 
         // Act - Open File menu, navigate to "Recent" (submenu trigger), then Left
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
             .Enter()  // Open File menu
             .WaitUntil(s => s.ContainsText("Recent"), TimeSpan.FromSeconds(2), "File menu to open")
@@ -1541,17 +1525,13 @@ public class MenuBarIntegrationTests
             .Wait(TimeSpan.FromMilliseconds(50))
             .Left()   // Should navigate to Help menu (previous with wrap)
             .WaitUntil(s => s.ContainsText("About"), TimeSpan.FromSeconds(2), "Help menu to open after Left from submenu trigger")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - Help menu should be open (not File menu)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
         Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
     }
@@ -1621,23 +1601,19 @@ public class MenuBarIntegrationTests
 
         // Act - Tab to the TextBox, then press Alt+F
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Type here"), TimeSpan.FromSeconds(2), "menu bar and textbox to render")
             .Tab()  // Move focus to the TextBox
             .WaitUntil(s => true, TimeSpan.FromMilliseconds(100), "focus to move")
             .Alt().Key(Hex1bKey.F)  // Global accelerator should still open File menu
             .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Open"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - File menu should be open
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
         Assert.True(snapshot.ContainsText("Open"), "File menu item 'Open' should be visible");
     }

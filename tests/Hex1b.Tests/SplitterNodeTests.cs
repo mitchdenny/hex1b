@@ -161,17 +161,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-
         // Default divider character is "│"
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("│"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("│"),
+                TimeSpan.FromSeconds(1), "divider character")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("│"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot.ContainsText("│"));
     }
 
     [Fact]
@@ -191,16 +189,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Left Pane Content"),
+                TimeSpan.FromSeconds(1), "left pane content")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left Pane Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Left Pane Content"));
+        Assert.True(snapshot.ContainsText("Left Pane Content"));
     }
 
     [Fact]
@@ -220,16 +216,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right Pane Content"),
+                TimeSpan.FromSeconds(1), "right pane content")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right Pane Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Right Pane Content"));
+        Assert.True(snapshot.ContainsText("Right Pane Content"));
     }
 
     [Fact]
@@ -249,18 +243,16 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 5));
         node.Arrange(new Rect(0, 0, 50, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-
+        
         // Count occurrences of divider chars in screen text - should be 5 (one per row)
         // 3 regular dividers + 2 arrow characters (← and →) at midpoint
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("│") || s.ContainsText("←") || s.ContainsText("→"),
+                TimeSpan.FromSeconds(2), "divider characters visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         var screenText = snapshot.GetScreenText();
         var dividerCount = screenText.Split("│").Length - 1;
         var leftArrowCount = screenText.Split("←").Length - 1;
@@ -291,13 +283,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)),
+                TimeSpan.FromSeconds(1), "Cyan foreground color")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Cyan is RGB(0, 255, 255)
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)));
     }
 
     [Fact]
@@ -319,16 +313,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("║"),
+                TimeSpan.FromSeconds(1), "custom divider character")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("║"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("║"));
+        Assert.True(snapshot.ContainsText("║"));
     }
 
     [Fact]
@@ -349,13 +341,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(50, 10));
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasBackgroundColor(),
+                TimeSpan.FromSeconds(1), "background color on focused divider")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // When focused, should have background color on divider
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
+        Assert.True(snapshot.HasBackgroundColor());
     }
 
     #endregion
@@ -1230,17 +1224,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-
         // Default horizontal divider character is "─"
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("─"), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("─"),
+                TimeSpan.FromSeconds(1), "horizontal divider character")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("─"));
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot.ContainsText("─"));
     }
 
     [Fact]
@@ -1261,16 +1253,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top Content"),
+                TimeSpan.FromSeconds(1), "top pane content")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Top Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Top Content"));
+        Assert.True(snapshot.ContainsText("Top Content"));
     }
 
     [Fact]
@@ -1291,16 +1281,14 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Bottom Content"),
+                TimeSpan.FromSeconds(1), "bottom pane content")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Bottom Content"));
+        Assert.True(snapshot.ContainsText("Bottom Content"));
     }
 
     [Fact]
@@ -1322,13 +1310,15 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(30, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.HasBackgroundColor(),
+                TimeSpan.FromSeconds(1), "background color on focused vertical divider")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // When focused, should have background color on divider
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor());
+        Assert.True(snapshot.HasBackgroundColor());
     }
 
     #endregion
@@ -2500,16 +2490,12 @@ public class SplitterNodeTests
         node.Measure(Constraints.Tight(40, 5));
         node.Arrange(new Rect(0, 0, 40, 5));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Right") && !s.ContainsText("OVERFLOW_TEXT_THAT_IS_MUCH_LONGER_THAN_10_CHARS"),
+                TimeSpan.FromSeconds(1), "right pane visible, left clipped")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var screenText = snapshot.GetScreenText();
 
         // The full text should NOT be visible

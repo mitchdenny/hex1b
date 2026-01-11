@@ -301,13 +301,14 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First") && s.ContainsText("Second"), TimeSpan.FromSeconds(1), "First and Second text")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("First", terminal.CreateSnapshot().GetScreenText());
-        Assert.Contains("Second", terminal.CreateSnapshot().GetScreenText());
+        Assert.Contains("First", snapshot.GetScreenText());
+        Assert.Contains("Second", snapshot.GetScreenText());
     }
 
     [Fact]
@@ -371,9 +372,10 @@ public class VStackNodeTests
         await runTask;
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !string.IsNullOrWhiteSpace(s.GetDisplayText()), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(1), "Long text visible")
+            .Capture("final")
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         var snapshot = terminal.CreateSnapshot();
         
         // Text clips at terminal edge (not wraps)
