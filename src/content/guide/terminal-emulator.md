@@ -19,104 +19,9 @@ This architecture enables:
 - **Embedding**: Host shells, editors, or other terminal programs inside your application
 - **Remote terminals**: Stream terminal state to web clients or other processes
 
-## Quick Start: Quad Terminal Demo
-
-Here's a web app with 4 independent terminals in a grid—each WebSocket connection spawns its own Docker container. Resize the browser and all terminals resize together:
-
-```csharp
-using System.Net.WebSockets;
-using Hex1b;
-
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-
-app.UseWebSockets();
-
-// Serve HTML with 4 xterm.js terminals in a 2x2 grid
-app.MapGet("/", () => Results.Content("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Quad Terminal Demo</title>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { height: 100%; background: #0a0a12; overflow: hidden; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 100%; gap: 2px; }
-            .terminal-pane { background: #0f0f1a; overflow: hidden; }
-        </style>
-    </head>
-    <body>
-        <div class="grid">
-            <div id="term1" class="terminal-pane"></div>
-            <div id="term2" class="terminal-pane"></div>
-            <div id="term3" class="terminal-pane"></div>
-            <div id="term4" class="terminal-pane"></div>
-        </div>
-        <script type="module">
-            import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm';
-            import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm';
-
-            const theme = { background: '#0f0f1a', foreground: '#e0e0e0' };
-            const terminals = [];
-
-            function createTerminal(containerId) {
-                const term = new Terminal({ cursorBlink: true, theme });
-                const fitAddon = new FitAddon();
-                term.loadAddon(fitAddon);
-                term.open(document.getElementById(containerId));
-                fitAddon.fit();
-
-                const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-                ws.onmessage = e => term.write(e.data);
-                ws.onopen = () => ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-                term.onData(data => ws.send(data));
-                
-                // Send resize when terminal dimensions actually change
-                term.onResize(({ cols, rows }) => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-                    }
-                });
-                
-                return { term, fitAddon, ws };
-            }
-
-            ['term1', 'term2', 'term3', 'term4'].forEach(id => terminals.push(createTerminal(id)));
-
-            window.onresize = () => terminals.forEach(({ fitAddon }) => fitAddon.fit());
-        </script>
-    </body>
-    </html>
-    """, "text/html"));
-
-// WebSocket endpoint - each connection gets its own Docker container
-app.Map("/ws", async context =>
-{
-    if (!context.WebSockets.IsWebSocketRequest) { context.Response.StatusCode = 400; return; }
-
-    using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-    await using var presentation = new WebSocketPresentationAdapter(webSocket, 80, 24);
-    
-    using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithPresentation(presentation)
-        .WithPtyProcess("docker", "run", "--rm", "-it", "joonas/pipes.sh")
-        .Build();
-
-    await terminal.RunAsync(context.RequestAborted);
-});
-
-app.Run();
-```
-
-This demonstrates:
-- **Multiple independent terminals**: Each WebSocket spawns its own PTY process
-- **Grid layout with resize**: All 4 terminals resize together when the window changes
-- **WebSocket streaming**: Real-time terminal output to xterm.js
-- **Isolated containers**: 4 Docker containers running independently
-
-See the full working sample in [`samples/QuadTerminalDemo`](https://github.com/mitchdenny/hex1b/tree/main/samples/QuadTerminalDemo).
+::: tip Tutorial: Build a Web Terminal
+For a hands-on walkthrough building a multi-terminal web app with WebSocket streaming and xterm.js, see [Using the Emulator](./pluggable-terminal-emulator).
+:::
 
 ## Key Features
 
@@ -179,6 +84,7 @@ Since `Hex1bTerminal` is headless, you need a presentation adapter to display it
 
 - **`ConsolePresentationAdapter`** — Render to `System.Console` (the default)
 - **`HeadlessPresentationAdapter`** — No rendering (for testing/automation)
+- **`WebSocketPresentationAdapter`** — Stream to WebSocket clients (xterm.js, etc.)
 - **Custom adapters** — Implement your own for GUIs, web, etc.
 
 See [Presentation Adapters](./presentation-adapters) for details.
@@ -225,7 +131,7 @@ See the [Automation & Testing](/guide/testing) guide for using the terminal emul
 
 ## Related Topics
 
-- [Pluggable Terminal Emulator](./pluggable-terminal-emulator) — Architecture overview
+- [Using the Emulator](./pluggable-terminal-emulator) — Step-by-step tutorial
 - [Presentation Adapters](./presentation-adapters) — Custom display handling
 - [Workload Adapters](./workload-adapters) — Custom workload types
 - [MCP Server](/guide/mcp-server) — Expose terminals to AI agents

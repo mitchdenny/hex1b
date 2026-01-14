@@ -145,4 +145,4 @@ Filters are useful for:
 ## Next Steps
 
 - Learn about [Workload Adapters](./workload-adapters) for different workload types
-- Return to [Pluggable Terminal Emulator](./pluggable-terminal-emulator) for the architecture overview
+- See [Using the Emulator](./pluggable-terminal-emulator) for a step-by-step tutorial

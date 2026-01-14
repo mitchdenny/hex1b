@@ -197,4 +197,4 @@ public class MultiplexerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 ## Next Steps
 
 - Learn about [Presentation Adapters](./presentation-adapters) for custom display handling
-- Return to [Pluggable Terminal Emulator](./pluggable-terminal-emulator) for the architecture overview
+- See [Using the Emulator](./pluggable-terminal-emulator) for a step-by-step tutorial

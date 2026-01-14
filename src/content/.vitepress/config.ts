@@ -51,7 +51,7 @@ export default defineConfig({
         {
           text: 'Terminal Stack',
           items: [
-            { text: 'Pluggable Terminal Emulator', link: '/guide/pluggable-terminal-emulator' },
+            { text: 'Using the Emulator', link: '/guide/pluggable-terminal-emulator' },
             { text: 'Presentation Adapters', link: '/guide/presentation-adapters' },
             { text: 'Workload Adapters', link: '/guide/workload-adapters' }
           ]
@@ -59,7 +59,8 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
-            { text: 'Widgets', link: '/guide/widgets/' }
+            { text: 'Widgets', link: '/guide/widgets/' },
+            { text: 'API Docs', link: '/reference/' }
           ]
         },
         {
