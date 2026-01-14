@@ -4,28 +4,11 @@ Hex1b is a comprehensive .NET terminal application stack. Whether you're buildin
 
 ## Architecture
 
-Hex1b has a layered and extensible architecture. It includes everything you need for most scenarios, or it can be extended to support your specific scenarios.
+Hex1b is built around **Hex1bTerminal**, a pluggable terminal emulator at the core of the stack. On one side, **workload adapters** connect the terminal to data sources—whether that's a real shell with PTY, a child process, a network stream, or Hex1b's own TUI framework. On the other side, **presentation adapters** connect to display targets like native terminals, xterm.js in the browser, or a headless buffer for testing.
 
-### Hex1bTerminal
+Sitting alongside the terminal core are tools for automation: **input sequencers** send scripted keystrokes with wait conditions, while **pattern matchers** search the 2D screen buffer for text, colors, and attributes—think regex, but for terminal cells. **Filters** intercept the data flow for tasks like render optimization or recording sessions to Asciinema files.
 
-At the core of the stack is Hex1bTerminal which  is a pluggable terminal emulator.
-
-### Workload Adapters
-
-Workload adapters allow you plug the Hex1bTerminal into any source. You can connect to a .NET process, or spawn a real shell with a PTY attached or even connect a network stream. For building TUI applications we have the Hex1bApp workload adapter which allows you to conenct Hex1b's own TUI framework to the Hex1bTerminal.
-
-### Presentation Adapters
-Presentation adapeters connect the terminal to the end user whether it is a real terminal emualtor such as GNOME Termina, Xterm, or Windows Terminal, or even remote terminals such as xterm.js.
-
-### Input Sequencers & Pattern Matchers
-
-Input sequencers and pattern matches allow you to write automation that interacts with the workload that is plugged into the terminal. An input sequence allows you to send a sequence of keystrokes and wait for pre-conditions on output before sending the next sequence. Sequencers are defined using a "builder" and the output of the builder can be reused multiple times.
-
-Because terminal interfaces can contain quite rich information doing a simple text search over the contents of the screen often isn't sufficient. So the pattern matching API comes into play which allows you to walk the screen to find patterns of output you define and return matches along with the matching terminal cells. Think of it as a regex for 2D grid of terminal cells but that can query for more than text!
-
-### Workload and Presentation Filters
-
-Filters provide a hook for developers to intercept input and output as it flows from the terminal and workload and presentation adapters. This is used within Hex1b today to do things like optimize output for TUI applications by only sending the delta of screen updates to the upstream terminal (render optimization filter) or recording input and output from the workload into an Asciinema file.
+Hover over the diagram below to explore each component.
 
 <div class="architecture-diagram">
 <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg">
@@ -38,8 +21,19 @@ Filters provide a hook for developers to intercept input and output as it flows 
       <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#0d0d18;stop-opacity:1" />
     </linearGradient>
+    <linearGradient id="boxGradHover" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2a2a4e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:1" />
+    </linearGradient>
     <filter id="glow">
       <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowHover">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -48,17 +42,23 @@ Filters provide a hook for developers to intercept input and output as it flows 
   </defs>
   
   <!-- Top row: Presentation Adapter outputs (y=10, height=50) -->
-  <rect x="65" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="120" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Console</text>
-  <text x="120" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Native Terminal</text>
+  <g class="arch-tile" data-component="console">
+    <rect x="65" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="120" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Console</text>
+    <text x="120" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Native Terminal</text>
+  </g>
   
-  <rect x="205" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="260" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Web</text>
-  <text x="260" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">xterm.js</text>
+  <g class="arch-tile" data-component="web">
+    <rect x="205" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="260" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Web</text>
+    <text x="260" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">xterm.js</text>
+  </g>
   
-  <rect x="345" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="400" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Headless</text>
-  <text x="400" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Testing</text>
+  <g class="arch-tile" data-component="headless">
+    <rect x="345" y="10" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="400" y="35" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Headless</text>
+    <text x="400" y="50" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">Testing</text>
+  </g>
   
   <!-- Lines from Presentation Adapters to top outputs (bidirectional) -->
   <g style="animation: adapterCycle 6s ease-in-out infinite;">
@@ -111,9 +111,11 @@ Filters provide a hook for developers to intercept input and output as it flows 
   </g>
   
   <!-- Presentation Adapters Box (y=110, height=60) -->
-  <rect x="60" y="110" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
-  <text x="260" y="138" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Presentation Adapters</text>
-  <text x="260" y="156" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalPresentationAdapter</text>
+  <g class="arch-tile" data-component="presentation-adapters">
+    <rect x="60" y="110" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5" class="tile-bg"/>
+    <text x="260" y="138" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Presentation Adapters</text>
+    <text x="260" y="156" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalPresentationAdapter</text>
+  </g>
   
   <!-- Connection lines between Terminal and Presentation Adapters (bidirectional) -->
   <!-- Up arrow (left) -->
@@ -154,19 +156,25 @@ Filters provide a hook for developers to intercept input and output as it flows 
   </g>
   
   <!-- Central Terminal Box (y=220, height=80) - centered at x=260 -->
-  <rect x="135" y="220" width="250" height="80" rx="12" fill="url(#boxGrad)" stroke="#4ecdc4" stroke-width="2" filter="url(#glow)"/>
-  <text x="260" y="255" text-anchor="middle" fill="#4ecdc4" font-family="monospace" font-size="18" font-weight="bold">Hex1bTerminal</text>
-  <text x="260" y="280" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="12">Terminal Emulator Core</text>
+  <g class="arch-tile" data-component="hex1b-terminal">
+    <rect x="135" y="220" width="250" height="80" rx="12" fill="url(#boxGrad)" stroke="#4ecdc4" stroke-width="2" filter="url(#glow)" class="tile-bg tile-bg-core"/>
+    <text x="260" y="255" text-anchor="middle" fill="#4ecdc4" font-family="monospace" font-size="18" font-weight="bold">Hex1bTerminal</text>
+    <text x="260" y="280" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="sans-serif" font-size="12">Terminal Emulator Core</text>
+  </g>
   
   <!-- Input Sequencer (top left of Terminal) -->
-  <rect x="5" y="200" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="55" y="220" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Input Sequencer</text>
-  <text x="55" y="233" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Keyboard/Mouse</text>
+  <g class="arch-tile" data-component="input-sequencer">
+    <rect x="5" y="200" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="55" y="220" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Input Sequencer</text>
+    <text x="55" y="233" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Keyboard/Mouse</text>
+  </g>
   
   <!-- Pattern Searcher (bottom left of Terminal) -->
-  <rect x="5" y="275" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="55" y="295" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Pattern Searcher</text>
-  <text x="55" y="308" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Cell Content</text>
+  <g class="arch-tile" data-component="pattern-searcher">
+    <rect x="5" y="275" width="100" height="45" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="55" y="295" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">Pattern Searcher</text>
+    <text x="55" y="308" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="7">Cell Content</text>
+  </g>
   
   <!-- Connection lines between Workload Adapters and Terminal (bidirectional) -->
   <!-- Up arrow (left) -->
@@ -185,9 +193,11 @@ Filters provide a hook for developers to intercept input and output as it flows 
   <circle cx="270" cy="325" r="3" fill="#4ecdc4" style="animation: flowDown 1.5s ease-in-out infinite 1s;"/>
   
   <!-- Workload Adapters Box (y=350, height=60) -->
-  <rect x="60" y="350" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5"/>
-  <text x="260" y="378" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Workload Adapters</text>
-  <text x="260" y="396" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalWorkloadAdapter</text>
+  <g class="arch-tile" data-component="workload-adapters">
+    <rect x="60" y="350" width="400" height="60" rx="10" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.7)" stroke-width="1.5" class="tile-bg"/>
+    <text x="260" y="378" text-anchor="middle" fill="#fff" font-family="monospace" font-size="15" font-weight="bold">Workload Adapters</text>
+    <text x="260" y="396" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="10">IHex1bTerminalWorkloadAdapter</text>
+  </g>
   
   <!-- Connection lines from bottom to Workload Adapters (bidirectional) -->
   <g style="animation: adapterCycle 6s ease-in-out infinite 3s;">
@@ -240,68 +250,193 @@ Filters provide a hook for developers to intercept input and output as it flows 
   </g>
   
   <!-- Hex1bApp Box (y=460, height=50) -->
-  <rect x="65" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="120" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Hex1bApp</text>
-  <text x="120" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">TUI Framework</text>
+  <g class="arch-tile" data-component="hex1b-app">
+    <rect x="65" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="120" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Hex1bApp</text>
+    <text x="120" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">TUI Framework</text>
+  </g>
   
   <!-- Shells Box -->
-  <rect x="205" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="260" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Shells</text>
-  <text x="260" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">bash, pwsh, zsh</text>
+  <g class="arch-tile" data-component="shells">
+    <rect x="205" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="260" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Shells</text>
+    <text x="260" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">bash, pwsh, zsh</text>
+  </g>
   
   <!-- Other Processes Box -->
-  <rect x="345" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5"/>
-  <text x="400" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Processes</text>
-  <text x="400" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">htop, vim, any CLI</text>
+  <g class="arch-tile" data-component="processes">
+    <rect x="345" y="460" width="110" height="50" rx="8" fill="url(#boxGrad)" stroke="rgba(78,205,196,0.5)" stroke-width="1.5" class="tile-bg"/>
+    <text x="400" y="485" text-anchor="middle" fill="#fff" font-family="monospace" font-size="12" font-weight="bold">Processes</text>
+    <text x="400" y="500" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-family="sans-serif" font-size="9">htop, vim, any CLI</text>
+  </g>
 </svg>
+
+<div class="arch-info-panel" id="arch-info-panel">
+  <div class="arch-info-default">
+    <span class="arch-info-hint">👆 Hover over any component to learn more, click to lock</span>
+  </div>
+  <div class="arch-info-content" id="arch-info-content" style="display: none;">
+    <h4 id="arch-info-title"></h4>
+    <p id="arch-info-description"></p>
+    <a id="arch-info-link" href="#" class="arch-info-link">Learn more →</a>
+  </div>
+</div>
 </div>
 
-## Feature Areas
+<script setup>
+import { onMounted } from 'vue'
 
-<div class="feature-cards">
+const componentInfo = {
+  'console': {
+    title: 'Console Presentation',
+    description: 'Connects Hex1bTerminal to native terminal emulators like GNOME Terminal, Windows Terminal, or iTerm2. Uses standard input/output streams and ANSI escape sequences for rendering.',
+    link: '/guide/terminal-emulator#console-adapter'
+  },
+  'web': {
+    title: 'Web Presentation (xterm.js)',
+    description: 'Enables browser-based terminal interfaces using xterm.js. Perfect for building web-based developer tools, SSH clients, or cloud IDE terminal panels.',
+    link: '/guide/terminal-emulator#web-adapter'
+  },
+  'headless': {
+    title: 'Headless Presentation',
+    description: 'A virtual terminal for testing and automation. Captures all output without displaying it, enabling programmatic assertions on terminal content in unit tests.',
+    link: '/guide/testing'
+  },
+  'presentation-adapters': {
+    title: 'Presentation Adapters',
+    description: 'The abstraction layer that connects Hex1bTerminal to any display target. Implement IHex1bTerminalPresentationAdapter to create custom presentation targets like web sockets, SSH connections, or file logging.',
+    link: '/guide/terminal-emulator#presentation-adapters'
+  },
+  'hex1b-terminal': {
+    title: 'Hex1bTerminal',
+    description: 'The core terminal emulator that processes ANSI escape sequences, manages screen buffer state, cursor positioning, colors, and text attributes. This is the heart of the Hex1b stack.',
+    link: '/guide/terminal-emulator'
+  },
+  'input-sequencer': {
+    title: 'Input Sequencer',
+    description: 'Automates keyboard and mouse input to the terminal. Define sequences of keystrokes with wait conditions to script complex terminal interactions for testing or automation.',
+    link: '/guide/testing#input-sequencer'
+  },
+  'pattern-searcher': {
+    title: 'Pattern Searcher',
+    description: 'A 2D pattern matching engine for terminal screens. Search for text, colors, attributes, or complex patterns across the terminal buffer. Think regex, but for terminal cells.',
+    link: '/guide/testing#pattern-matching'
+  },
+  'workload-adapters': {
+    title: 'Workload Adapters',
+    description: 'Connect any process or data source to the terminal. Implement IHex1bTerminalWorkloadAdapter to pipe data from shells, child processes, network streams, or the Hex1bApp TUI framework.',
+    link: '/guide/terminal-emulator#workload-adapters'
+  },
+  'hex1b-app': {
+    title: 'Hex1bApp TUI Framework',
+    description: 'A React-inspired declarative framework for building terminal user interfaces. Compose widgets, handle input, manage focus, and render rich layouts with a familiar component model.',
+    link: '/guide/tui'
+  },
+  'shells': {
+    title: 'Shell Processes',
+    description: 'Run real shell processes (bash, PowerShell, zsh) through Hex1bTerminal with full PTY support. Capture output, send input, and automate shell interactions.',
+    link: '/guide/terminal-emulator#child-processes'
+  },
+  'processes': {
+    title: 'External Processes',
+    description: 'Host any CLI application—htop, vim, tmux, or custom tools—inside Hex1bTerminal. Full support for cursor-addressed applications and alternate screen buffers.',
+    link: '/guide/terminal-emulator#child-processes'
+  }
+}
 
-<a href="/guide/tui" class="feature-card">
-  <div class="feature-icon">🖥️</div>
-  <h3>Terminal User Interfaces</h3>
-  <p>Build rich, interactive TUIs with a React-inspired declarative API. Create dashboards, dev tools, and CLI experiences that go beyond simple text output.</p>
-</a>
+onMounted(() => {
+  const tiles = document.querySelectorAll('.arch-tile')
+  const infoPanel = document.getElementById('arch-info-panel')
+  const infoContent = document.getElementById('arch-info-content')
+  const infoDefault = document.querySelector('.arch-info-default')
+  const infoTitle = document.getElementById('arch-info-title')
+  const infoDescription = document.getElementById('arch-info-description')
+  const infoLink = document.getElementById('arch-info-link')
+  const diagram = document.querySelector('.architecture-diagram')
 
-<a href="/guide/terminal-emulator" class="feature-card">
-  <div class="feature-icon">⌨️</div>
-  <h3>Terminal Emulator</h3>
-  <p>Embed a fully-featured terminal emulator in your .NET applications. Host shells, run commands, and build developer tools with complete terminal control.</p>
-</a>
+  if (!tiles.length || !infoPanel) return
 
-<a href="/guide/testing" class="feature-card">
-  <div class="feature-icon">🧪</div>
-  <h3>Automation & Testing</h3>
-  <p>Test terminal applications programmatically. Assert on screen content, simulate user input, and integrate with your CI/CD pipeline.</p>
-</a>
+  let lockedComponent = null
 
-<a href="/guide/mcp-server" class="feature-card">
-  <div class="feature-icon">🤖</div>
-  <h3>MCP Server</h3>
-  <p>Expose terminal sessions to AI agents via the Model Context Protocol. Let LLMs interact with your terminal applications programmatically.</p>
-</a>
+  function showInfo(component, tile) {
+    const info = componentInfo[component]
+    if (info) {
+      infoTitle.textContent = info.title
+      infoDescription.textContent = info.description
+      infoLink.href = info.link
+      infoDefault.style.display = 'none'
+      infoContent.style.display = 'block'
+      infoPanel.classList.add('active')
+      
+      tiles.forEach(t => t.classList.remove('highlighted'))
+      tile.classList.add('highlighted')
+    }
+  }
 
-</div>
+  tiles.forEach(tile => {
+    tile.addEventListener('mouseenter', function() {
+      if (lockedComponent) return
+      showInfo(this.dataset.component, this)
+    })
+
+    tile.addEventListener('mouseleave', function() {
+      if (lockedComponent) return
+      this.classList.remove('highlighted')
+    })
+
+    tile.addEventListener('click', function() {
+      const component = this.dataset.component
+      
+      if (lockedComponent === component) {
+        // Clicking the locked tile unlocks it
+        lockedComponent = null
+        tiles.forEach(t => t.classList.remove('locked'))
+        infoPanel.classList.remove('locked')
+      } else {
+        // Lock to this tile
+        lockedComponent = component
+        tiles.forEach(t => t.classList.remove('locked', 'highlighted'))
+        this.classList.add('locked', 'highlighted')
+        infoPanel.classList.add('locked')
+        showInfo(component, this)
+      }
+    })
+  })
+
+  if (diagram) {
+    diagram.addEventListener('mouseleave', function() {
+      if (lockedComponent) return
+      infoDefault.style.display = 'block'
+      infoContent.style.display = 'none'
+      infoPanel.classList.remove('active')
+      tiles.forEach(t => t.classList.remove('highlighted'))
+    })
+  }
+})
+</script>
+
+## Features
+
+- **[Terminal User Interfaces](/guide/tui)** — Build rich, interactive TUIs with a React-inspired declarative API for dashboards, dev tools, and CLI experiences.
+- **[Terminal Emulator](/guide/terminal-emulator)** — Embed a programmable terminal emulator in your .NET applications to host shells and run commands.
+- **[Automation & Testing](/guide/testing)** — Test terminal applications programmatically with input sequencing, pattern matching, and CI/CD integration.
+- **[MCP Server](/guide/mcp-server)** — Expose terminal sessions to AI agents via the Model Context Protocol for LLM-driven automation.
 
 ## Quick Start
 
 New to Hex1b? Start here:
 
-1. **[Getting Started](/guide/getting-started)** — Install Hex1b and build your first app
-2. **[Your First App](/guide/first-app)** — A step-by-step walkthrough
-3. **[Widgets & Nodes](/guide/widgets-and-nodes)** — Understand the core architecture
+1. **[Your First App](/guide/getting-started)** — Install Hex1b and build your first app
+2. **[Widgets & Nodes](/guide/widgets-and-nodes)** — Understand the core architecture
+3. **[Widget Reference](/guide/widgets/)** — Explore all available widgets
 
-## Core Concepts
+## Building TUIs
 
 Once you're comfortable with the basics, dive deeper:
 
 - **[Layout System](/guide/layout)** — Master constraint-based layouts with `HStack`, `VStack`, and more
 - **[Input Handling](/guide/input)** — Keyboard navigation, focus management, and shortcuts
 - **[Theming](/guide/theming)** — Customize colors, borders, and styles
-- **[Widget Reference](/guide/widgets/align)** — Explore all available widgets
 
 ## API Reference
 
@@ -326,6 +461,108 @@ Looking for detailed API documentation?
   margin: 0 auto;
 }
 
+/* Interactive tile styles */
+.arch-tile {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.arch-tile .tile-bg {
+  transition: all 0.2s ease;
+}
+
+.arch-tile:hover .tile-bg,
+.arch-tile.highlighted .tile-bg {
+  fill: url(#boxGradHover);
+  stroke: #4ecdc4;
+  stroke-width: 2;
+}
+
+.arch-tile.locked .tile-bg {
+  fill: url(#boxGradHover);
+  stroke: #4ecdc4;
+  stroke-width: 2.5;
+}
+
+.arch-tile:hover .tile-bg-core,
+.arch-tile.highlighted .tile-bg-core {
+  filter: url(#glowHover);
+  stroke-width: 3;
+}
+
+.arch-tile.locked .tile-bg-core {
+  filter: url(#glowHover);
+  stroke-width: 3.5;
+}
+
+/* Info panel styles */
+.arch-info-panel {
+  margin-top: 16px;
+  padding: 16px 20px;
+  background: rgba(26, 26, 46, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(78, 205, 196, 0.3);
+  min-height: 80px;
+  transition: all 0.3s ease;
+}
+
+.arch-info-panel.active {
+  border-color: rgba(78, 205, 196, 0.6);
+  background: rgba(26, 26, 46, 0.95);
+}
+
+.arch-info-panel.locked {
+  border-color: #4ecdc4;
+  box-shadow: 0 0 12px rgba(78, 205, 196, 0.3);
+}
+
+.arch-info-panel.locked .arch-info-content h4::after {
+  content: ' 🔒';
+  font-size: 12px;
+}
+
+.arch-info-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.arch-info-hint {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.arch-info-content h4 {
+  margin: 0 0 8px 0;
+  color: #4ecdc4;
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.arch-info-content p {
+  margin: 0 0 12px 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.arch-info-link {
+  display: inline-block;
+  color: #4ecdc4;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.arch-info-link:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
 @keyframes rotateClockwise {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -344,57 +581,5 @@ Looking for detailed API documentation?
 @keyframes flowDown {
   0% { transform: translateY(-20px); }
   100% { transform: translateY(20px); }
-}
-
-.feature-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  margin: 24px 0;
-}
-
-.feature-card {
-  display: block;
-  padding: 24px;
-  border-radius: 12px;
-  border: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
-  text-decoration: none !important;
-  transition: all 0.2s ease;
-}
-
-.feature-card,
-.feature-card *,
-.feature-card h3,
-.feature-card p {
-  text-decoration: none !important;
-}
-
-.feature-card:hover {
-  border-color: var(--vp-c-brand-1);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-}
-
-.dark .feature-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-}
-
-.feature-icon {
-  font-size: 2rem;
-  margin-bottom: 12px;
-}
-
-.feature-card h3 {
-  color: var(--vp-c-text-1);
-  margin: 0 0 8px 0;
-  font-size: 1.1rem;
-}
-
-.feature-card p {
-  color: var(--vp-c-text-2);
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
 }
 </style>

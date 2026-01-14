@@ -27,23 +27,21 @@ export default defineConfig({
         {
           text: 'Overview',
           items: [
-            { text: 'Guide', link: '/guide/' },
+            { text: 'Guide', link: '/guide/' }
+          ]
+        },
+        {
+          text: 'Features',
+          items: [
             { text: 'Terminal UIs', link: '/guide/tui' },
             { text: 'Terminal Emulator', link: '/guide/terminal-emulator' },
-            { text: 'Automation & Testing', link: '/guide/testing' },
-            { text: 'MCP Server', link: '/guide/mcp-server' }
+            { text: 'Automation & Testing', link: '/guide/testing' }
           ]
         },
         {
-          text: 'Getting Started',
+          text: 'Building TUIs',
           items: [
-            { text: 'Installation', link: '/guide/getting-started' },
-            { text: 'Your First App', link: '/guide/first-app' }
-          ]
-        },
-        {
-          text: 'Core Concepts',
-          items: [
+            { text: 'Your First App', link: '/guide/getting-started' },
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },
@@ -51,25 +49,23 @@ export default defineConfig({
           ]
         },
         {
-          text: 'Widgets',
+          text: 'Terminal Stack',
           items: [
-            { text: 'Align', link: '/guide/widgets/align' },
-            { text: 'Border & ThemePanel', link: '/guide/widgets/containers' },
-            { text: 'Button', link: '/guide/widgets/button' },
-            { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
-            { text: 'List', link: '/guide/widgets/list' },
-            { text: 'Navigator', link: '/guide/widgets/navigator' },
-            { text: 'Picker', link: '/guide/widgets/picker' },
-            { text: 'Progress', link: '/guide/widgets/progress' },
-            { text: 'Rescue', link: '/guide/widgets/rescue' },
-            { text: 'Responsive', link: '/guide/widgets/responsive' },
-            { text: 'Scroll', link: '/guide/widgets/scroll' },
-            { text: 'Splitter', link: '/guide/widgets/splitter' },
-            { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
-            { text: 'Text', link: '/guide/widgets/text' },
-            { text: 'TextBox', link: '/guide/widgets/textbox' },
-            { text: 'ThemePanel', link: '/guide/widgets/themepanel' },
-            { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' }
+            { text: 'Pluggable Terminal Emulator', link: '/guide/pluggable-terminal-emulator' },
+            { text: 'Presentation Adapters', link: '/guide/presentation-adapters' },
+            { text: 'Workload Adapters', link: '/guide/workload-adapters' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Widgets', link: '/guide/widgets/' }
+          ]
+        },
+        {
+          text: 'Tools',
+          items: [
+            { text: 'MCP Server', link: '/guide/mcp-server' }
           ]
         }
       ],
