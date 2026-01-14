@@ -3,18 +3,17 @@ import basicSnippet from './snippets/border-basic.cs?raw'
 import titleSnippet from './snippets/border-title.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.Text("Welcome to Hex1b!"),
         b.Text(""),
         b.Text("This content is wrapped"),
         b.Text("in a border widget.")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # BorderWidget
@@ -64,9 +63,14 @@ var theme = Hex1bTheme.Create()
     .Set(BorderTheme.HorizontalLine, "═")
     .Set(BorderTheme.VerticalLine, "║");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ## Layout Behavior

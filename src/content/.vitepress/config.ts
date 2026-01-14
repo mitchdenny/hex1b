@@ -51,7 +51,7 @@ export default defineConfig({
         {
           text: 'Terminal Stack',
           items: [
-            { text: 'Using the Emulator', link: '/guide/pluggable-terminal-emulator' },
+            { text: 'Using the Emulator', link: '/guide/using-the-emulator' },
             { text: 'Presentation Adapters', link: '/guide/presentation-adapters' },
             { text: 'Workload Adapters', link: '/guide/workload-adapters' }
           ]

@@ -1,3 +1,4 @@
+using Hex1b;
 
 if (!OperatingSystem.IsWindows())
 {
@@ -10,10 +11,12 @@ var height = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
 
 try
 {
-    await Hex1bTerminal.CreateBuilder()
+    await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithPtyProcess("pwsh.exe")
         .WithDimensions(width, height)
-        .RunAsync();
+        .Build();
+
+    await terminal.RunAsync();
 }
 catch (Exception ex)
 {

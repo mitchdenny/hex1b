@@ -132,4 +132,3 @@ void ToggleDarkMode(WidgetContext<AppState> ctx)
 ## Next Steps
 
 - [Widgets Reference](/guide/widgets/text) - Complete widget documentation
-- [Terminal Rendering](/deep-dives/terminal-rendering) - How colors work

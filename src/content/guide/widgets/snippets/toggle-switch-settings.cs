@@ -1,11 +1,10 @@
 using Hex1b;
-using Hex1b.Widgets;
 
 string theme = "Light";
 string sound = "On";
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Settings Panel"),
         v.Text(""),
         v.HStack(h => [
@@ -18,7 +17,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             h.ToggleSwitch(["Off", "On"], selectedIndex: 1)
                 .OnSelectionChanged(args => sound = args.SelectedOption)
         ])
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

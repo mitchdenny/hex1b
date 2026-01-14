@@ -3,21 +3,20 @@ import basicSnippet from './snippets/vstack-basic.cs?raw'
 import fillSnippet from './snippets/vstack-fill.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new AppState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Welcome to My App"),
         v.Text(""),
         v.Button("Start").OnClick(_ => state.Start()),
         v.Button("Settings").OnClick(_ => state.ShowSettings()),
         v.Button("Quit").OnClick(args => args.Context.RequestStop())
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class AppState
 {

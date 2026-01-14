@@ -20,7 +20,7 @@ This architecture enables:
 - **Remote terminals**: Stream terminal state to web clients or other processes
 
 ::: tip Tutorial: Build a Web Terminal
-For a hands-on walkthrough building a multi-terminal web app with WebSocket streaming and xterm.js, see [Using the Emulator](./pluggable-terminal-emulator).
+For a hands-on walkthrough building a multi-terminal web app with WebSocket streaming and xterm.js, see [Using the Emulator](./using-the-emulator).
 :::
 
 ## Key Features
@@ -41,15 +41,21 @@ Run any command with proper PTY (pseudo-terminal) support:
 
 ```csharp
 // Start an interactive shell with PTY
-await Hex1bTerminal.CreateBuilder()
+await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithPtyProcess("bash", "-i")
-    .RunAsync();
+    .Build();
 
+await terminal.RunAsync();
+```
+
+```csharp
 // Or run a command without PTY (for build tools, scripts)
-await Hex1bTerminal.CreateBuilder()
+await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithProcess("dotnet", "build")
     .WithHeadless()
-    .RunAsync();
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Programmatic Control
@@ -131,7 +137,7 @@ See the [Automation & Testing](/guide/testing) guide for using the terminal emul
 
 ## Related Topics
 
-- [Using the Emulator](./pluggable-terminal-emulator) — Step-by-step tutorial
+- [Using the Emulator](./using-the-emulator) — Step-by-step tutorial
 - [Presentation Adapters](./presentation-adapters) — Custom display handling
 - [Workload Adapters](./workload-adapters) — Custom workload types
 - [MCP Server](/guide/mcp-server) — Expose terminals to AI agents

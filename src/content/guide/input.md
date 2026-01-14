@@ -144,4 +144,3 @@ Try the input handling:
 ## Next Steps
 
 - [Theming](/guide/theming) - Customize colors and styles
-- [Focus System Deep Dive](/deep-dives/focus-system) - How focus really works

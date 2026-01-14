@@ -11,10 +11,9 @@
 import noScrollbarSnippet from './snippets/scroll-no-scrollbar.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(
         ctx.VScroll(
             v => [
                 v.Text("═══ Scrollable Content ═══"),
@@ -34,16 +33,15 @@ var app = new Hex1bApp(ctx =>
             ]
         ),
         title: "Scroll Demo"
-    )
-);
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const horizontalCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(
         ctx.VStack(v => [
             v.Text("Wide content below - use ← → to scroll:"),
             v.Text(""),
@@ -54,21 +52,20 @@ var app = new Hex1bApp(ctx =>
             ),
         ]),
         title: "Horizontal Scroll"
-    )
-);
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const eventCode = `using Hex1b;
-using Hex1b.Widgets;
 
 int currentOffset = 0;
 int maxOffset = 0;
 int contentSize = 0;
 int viewportSize = 0;
 
-var app = new Hex1bApp(ctx =>
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text($"Position: {currentOffset}/{maxOffset}"),
         v.Text($"Content: {contentSize} lines, Viewport: {viewportSize} lines"),
         v.Text(""),
@@ -96,48 +93,49 @@ var app = new Hex1bApp(ctx =>
             }),
             title: "Scrollable Area"
         )
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const trackingCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var items = Enumerable.Range(1, 50).Select(i => $"Item {i}").ToList();
 int scrollPosition = 0;
 int viewportSize = 0;
 
-var app = new Hex1bApp(ctx => {
-    var totalContent = items.Count;
-    var endVisible = Math.Min(scrollPosition + viewportSize, totalContent);
-    
-    return ctx.VStack(v => [
-        v.Text($"Viewing: {scrollPosition + 1} - {endVisible} of {totalContent}"),
-        v.Text(""),
-        v.Border(
-            v.VScroll(
-                inner => items.Select(item => inner.Text(item)).ToArray()
-            ).OnScroll(args => {
-                scrollPosition = args.Offset;
-                viewportSize = args.ViewportSize;
-            }),
-            title: "Scrollable List"
-        )
-    ]);
-});
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        var totalContent = items.Count;
+        var endVisible = Math.Min(scrollPosition + viewportSize, totalContent);
+        
+        return ctx.VStack(v => [
+            v.Text($"Viewing: {scrollPosition + 1} - {endVisible} of {totalContent}"),
+            v.Text(""),
+            v.Border(
+                v.VScroll(
+                    inner => items.Select(item => inner.Text(item)).ToArray()
+                ).OnScroll(args => {
+                    scrollPosition = args.Offset;
+                    viewportSize = args.ViewportSize;
+                }),
+                title: "Scrollable List"
+            )
+        ]);
+    })
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const infiniteCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var loadedItems = Enumerable.Range(1, 20).Select(i => $"Item {i}").ToList();
 int loadCount = 1;
 string status = "Scroll down to load more...";
 
-var app = new Hex1bApp(ctx =>
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text($"Loaded: {loadedItems.Count} items (batch {loadCount})"),
         v.Text(status),
         v.Text(""),
@@ -159,10 +157,10 @@ var app = new Hex1bApp(ctx =>
             }),
             title: "Infinite Scroll"
         )
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # Scroll
@@ -310,9 +308,15 @@ var theme = Hex1bTheme.Create()
     .Set(ScrollTheme.FocusedThumbColor, Hex1bColor.Yellow)
     .Set(ScrollTheme.TrackColor, Hex1bColor.DarkGray);
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

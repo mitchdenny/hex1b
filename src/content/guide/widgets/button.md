@@ -13,17 +13,19 @@ const basicCode = `using Hex1b;
 
 var state = new ButtonState();
 
-var app = new Hex1bApp(ctx => ctx.VStack(v => [
-    v.Text("Button Examples"),
-    v.Text(""),
-    v.Text($"Button clicked {state.ClickCount} times"),
-    v.Text(""),
-    v.Button("Click me!").OnClick(_ => state.ClickCount++),
-    v.Text(""),
-    v.Text("Press Tab to focus, Enter or Space to activate")
-]));
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.Text("Button Examples"),
+        v.Text(""),
+        v.Text($"Button clicked {state.ClickCount} times"),
+        v.Text(""),
+        v.Button("Click me!").OnClick(_ => state.ClickCount++),
+        v.Text(""),
+        v.Text("Press Tab to focus, Enter or Space to activate")
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class ButtonState
 {
@@ -34,21 +36,23 @@ const counterCode = `using Hex1b;
 
 var state = new CounterState();
 
-var app = new Hex1bApp(ctx => ctx.Border(b => [
-    b.VStack(v => [
-        v.Text($"Count: {state.Count}"),
-        v.Text(""),
-        v.HStack(h => [
-            h.Button("- Decrement").OnClick(_ => state.Count--),
-            h.Text(" "),
-            h.Button("+ Increment").OnClick(_ => state.Count++)
-        ]),
-        v.Text(""),
-        v.Button("Reset").OnClick(_ => state.Count = 0)
-    ])
-], title: "Counter"));
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+        b.VStack(v => [
+            v.Text($"Count: {state.Count}"),
+            v.Text(""),
+            v.HStack(h => [
+                h.Button("- Decrement").OnClick(_ => state.Count--),
+                h.Text(" "),
+                h.Button("+ Increment").OnClick(_ => state.Count++)
+            ]),
+            v.Text(""),
+            v.Button("Reset").OnClick(_ => state.Count = 0)
+        ])
+    ], title: "Counter"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class CounterState
 {
@@ -59,25 +63,29 @@ const asyncCode = `using Hex1b;
 
 var state = new LoaderState();
 
-var app = new Hex1bApp(ctx => ctx.Border(b => [
-    b.VStack(v => [
-        v.Text("Async Background Work Demo"),
-        v.Text(""),
-        v.Text($"Status: {state.Status}"),
-        v.Progress(state.Progress),
-        v.Text(""),
-        state.Result != null 
-            ? v.Text($"Result: {state.Result}") 
-            : v.Text(""),
-        v.Text(""),
-        v.Button(state.IsLoading ? "Loading..." : "Load Data")
-            .OnClick(_ => state.StartLoading())
-    ])
-], title: "Background Work"));
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        state.App = app;
+        return ctx => ctx.Border(b => [
+            b.VStack(v => [
+                v.Text("Async Background Work Demo"),
+                v.Text(""),
+                v.Text($"Status: {state.Status}"),
+                v.Progress(state.Progress),
+                v.Text(""),
+                state.Result != null 
+                    ? v.Text($"Result: {state.Result}") 
+                    : v.Text(""),
+                v.Text(""),
+                v.Button(state.IsLoading ? "Loading..." : "Load Data")
+                    .OnClick(_ => state.StartLoading())
+            ])
+        ], title: "Background Work");
+    })
+    .Build();
 
-state.App = app;
-
-await app.RunAsync();
+await terminal.RunAsync();
 
 class LoaderState
 {
@@ -231,12 +239,15 @@ var theme = new Hex1bTheme("Custom")
     .Set(ButtonTheme.LeftBracket, "< ")
     .Set(ButtonTheme.RightBracket, " >");
 
-var app = new Hex1bApp(
-    ctx => ctx.Button("Themed Button"),
-    new Hex1bAppOptions { Theme = theme }
-);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => ctx.Button("Themed Button");
+    })
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

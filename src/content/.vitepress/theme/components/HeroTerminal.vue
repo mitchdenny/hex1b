@@ -9,14 +9,15 @@ const lines = [
   { text: '// Program.cs', type: 'comment', delay: 1800 },
   { text: 'using Hex1b;', type: 'code', delay: 2000 },
   { text: '', type: 'blank', delay: 2200 },
-  { text: 'var app = new Hex1bApp(ctx =>', type: 'code', delay: 2400 },
-  { text: '    ctx.Border(b => [', type: 'code', delay: 2600 },
-  { text: '        b.Text("Hello, Terminal!"),', type: 'code', delay: 2800 },
-  { text: '        b.Button("Click me!")', type: 'code', delay: 3000 },
-  { text: '    ], title: "My App")', type: 'code', delay: 3200 },
-  { text: ');', type: 'code', delay: 3400 },
-  { text: '', type: 'blank', delay: 3600 },
-  { text: 'await app.RunAsync();', type: 'code', delay: 3800 },
+  { text: 'await using var terminal = Hex1bTerminal.CreateBuilder()', type: 'code', delay: 2400 },
+  { text: '    .WithHex1bApp((app, options) => ctx =>', type: 'code', delay: 2600 },
+  { text: '        ctx.Border(b => [', type: 'code', delay: 2800 },
+  { text: '            b.Text("Hello, Terminal!"),', type: 'code', delay: 3000 },
+  { text: '            b.Button("Click me!")', type: 'code', delay: 3200 },
+  { text: '        ], title: "My App"))', type: 'code', delay: 3400 },
+  { text: '    .Build();', type: 'code', delay: 3600 },
+  { text: '', type: 'blank', delay: 3800 },
+  { text: 'await terminal.RunAsync();', type: 'code', delay: 4000 },
 ]
 
 const visibleLines = ref<typeof lines>([])

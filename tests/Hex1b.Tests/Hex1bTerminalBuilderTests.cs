@@ -185,7 +185,7 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public async Task BuilderRunAsync_BuildsAndRunsTerminal()
+    public async Task Build_ThenRunAsync_BuildsAndRunsTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         var callbackExecuted = false;
@@ -201,7 +201,8 @@ public class Hex1bTerminalBuilderTests
                 return 99;
             }));
         
-        var exitCode = await builder.RunAsync();
+        await using var terminal = builder.Build();
+        var exitCode = await terminal.RunAsync();
         
         Assert.True(callbackExecuted);
         Assert.Equal(99, exitCode);
@@ -282,7 +283,8 @@ public class Hex1bTerminalBuilderTests
         
         // The TestPresentationAdapter returns empty input, which should
         // cause the app to exit naturally
-        var exitCode = await builder.RunAsync(cts.Token);
+        await using var terminal = builder.Build();
+        var exitCode = await terminal.RunAsync(cts.Token);
         
         Assert.True(builderCalled);
         Assert.Equal(0, exitCode);
@@ -302,7 +304,8 @@ public class Hex1bTerminalBuilderTests
             })
             .WithPresentation(new TestPresentationAdapter());
         
-        var exitCode = await builder.RunAsync(cts.Token);
+        await using var terminal = builder.Build();
+        var exitCode = await terminal.RunAsync(cts.Token);
         
         Assert.True(builderCalled);
         Assert.Equal(0, exitCode);
@@ -330,7 +333,8 @@ public class Hex1bTerminalBuilderTests
             .AddWorkloadFilter(filter)
             .WithPresentation(new TestPresentationAdapter());
         
-        await builder.RunAsync(cts.Token);
+        await using var terminal = builder.Build();
+        await terminal.RunAsync(cts.Token);
         
         Assert.True(filter.SessionStartCalled);
     }

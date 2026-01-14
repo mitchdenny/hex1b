@@ -1,10 +1,9 @@
 using Hex1b;
-using Hex1b.Widgets;
 
 string power = "Off";
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Binary Toggle Example"),
         v.Text(""),
         v.HStack(h => [
@@ -13,7 +12,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                 .OnSelectionChanged(args => power = args.SelectedOption)
         ]),
         v.Text($"Current: {power}")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

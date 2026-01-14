@@ -1,7 +1,7 @@
 using Hex1b;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Responsive(r => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Responsive(r => [
         // Custom condition: Both width and height
         r.When(
             (width, height) => width >= 100 && height >= 20,
@@ -19,7 +19,7 @@ var app = new Hex1bApp(ctx =>
         
         // Fallback
         r.Otherwise(r => r.Text("Small terminal"))
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

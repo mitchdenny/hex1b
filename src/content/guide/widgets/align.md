@@ -4,25 +4,23 @@ import bottomRightSnippet from './snippets/align-bottom-right.cs?raw'
 import topCenterSnippet from './snippets/align-top-center.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.Align(Alignment.Center,
             b.Text("Hello, World!")
         )
-    ], title: "Centered Content")
-));
+    ], title: "Centered Content"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const demoCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var selectedAlignment = Alignment.Center;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.HSplitter(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.HSplitter(
         // Left panel: alignment selector
         ctx.Border(b => [
             b.List(["Top Left", "Top Center", "Top Right",
@@ -52,10 +50,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             )
         ], title: "Preview"),
         leftWidth: 22
-    )
-));
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # AlignWidget

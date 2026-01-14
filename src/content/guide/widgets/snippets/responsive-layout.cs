@@ -1,7 +1,7 @@
 using Hex1b;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Responsive(r => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Responsive(r => [
         // Wide layout: Horizontal split
         r.WhenMinWidth(100, r =>
             r.HStack(h => [
@@ -33,7 +33,7 @@ var app = new Hex1bApp(ctx =>
                 ], title: "Info")
             ])
         )
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

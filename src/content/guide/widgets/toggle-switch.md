@@ -13,12 +13,11 @@ import modesSnippet from './snippets/toggle-switch-modes.cs?raw'
 import settingsSnippet from './snippets/toggle-switch-settings.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
 string currentSelection = "Off";
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("ToggleSwitch Examples"),
         v.Text(""),
         v.Text($"Power: {currentSelection}"),
@@ -30,18 +29,17 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         ]),
         v.Text(""),
         v.Text("Use Left/Right arrows or click to toggle")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const multiOptionCode = `using Hex1b;
-using Hex1b.Widgets;
 
 string currentSpeed = "Normal";
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Speed Settings"),
             v.Text(""),
@@ -55,18 +53,17 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text(""),
             v.Text("Use arrow keys to cycle through options")
         ])
-    ], title: "Configuration")
-));
+    ], title: "Configuration"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const eventCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var eventLog = new List<string>();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Settings Panel"),
             v.Text(""),
@@ -91,10 +88,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text("Event Log:"),
             ..eventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
         ])
-    ], title: "User Preferences")
-));
+    ], title: "User Preferences"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # ToggleSwitchWidget
@@ -189,9 +186,15 @@ var theme = Hex1bTheme.Create()
     .Set(ToggleSwitchTheme.LeftBracket, "[ ")
     .Set(ToggleSwitchTheme.RightBracket, " ]");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

@@ -16,7 +16,7 @@ var wordWrapIndex = 1;
 var fontSizes = new[] { "Small", "Medium", "Large", "Extra Large" };
 var selectedFontSize = 1; // Medium
 
-await Hex1bTerminal.CreateBuilder()
+await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     ctx.VStack(main => [
         // Menu bar at the top
@@ -192,4 +192,6 @@ await Hex1bTerminal.CreateBuilder()
     ]))
     .WithMouse()
     .WithRenderOptimization()
-    .RunAsync();
+    .Build();
+
+await terminal.RunAsync();

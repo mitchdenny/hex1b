@@ -11,22 +11,20 @@ import ellipsisSnippet from './snippets/text-ellipsis.cs?raw'
 import unicodeSnippet from './snippets/text-unicode.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Welcome to Hex1b"),
         v.Text("Build beautiful terminal UIs")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const overflowCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("═══ Text Overflow Modes ═══"),
         v.Text(""),
         v.Text("Wrap Mode:"),
@@ -50,10 +48,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             "This text extends beyond its allocated bounds and " +
             "will be clipped by the parent container if clipping is enabled"
         )
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 </script>
 

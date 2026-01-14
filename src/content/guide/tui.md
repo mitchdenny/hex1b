@@ -17,13 +17,15 @@ Traditional terminal UI libraries require you to manage low-level screen updates
 You provide a builder function that returns widgets. Hex1b handles the rest:
 
 ```csharp
-await Hex1bTerminal.CreateBuilder()
+await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
         ctx.Border(b => [
             b.Text("Hello from Hex1b!"),
             b.Button("Click me").OnClick(_ => Console.Beep())
         ], title: "My App"))
-    .RunAsync();
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ## Building TUIs

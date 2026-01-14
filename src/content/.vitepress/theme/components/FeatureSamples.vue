@@ -22,15 +22,15 @@ const samples: FeatureSample[] = [
     example: 'minimal',
     code: `var clickCount = 0;
 
-using var app = new Hex1bApp(
-    ctx => ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Hello, Hex1b!"),
         v.Text($"Clicks: {clickCount}"),
         v.Button("Click me", _ => clickCount++)
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
   },
   {
     id: 'layout',
@@ -46,8 +46,8 @@ await app.RunAsync();`
 IReadOnlyList<string> Format() =>
     items.Select(i => $"[{(i.Done ? "✓" : " ")}] {i.Text}").ToList();
 
-using var app = new Hex1bApp(
-    ctx => ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.HStack(h => [
             h.Text("New task: "),
             h.TextBox(newItem, e => newItem = e.NewText),
@@ -56,10 +56,10 @@ using var app = new Hex1bApp(
         new SeparatorWidget(),
         b.List(Format(), null, e =>
             items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
-    ], title: "📋 Todo")
-);
+    ], title: "📋 Todo"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
   },
   {
     id: 'input',
