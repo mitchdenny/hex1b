@@ -7,10 +7,9 @@
 -->
 <script setup>
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Select a fruit:"),
             v.Text(""),
@@ -19,18 +18,17 @@ var app = new Hex1bApp(ctx =>
                 h.Picker(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
             ])
         ])
-    ], title: "Fruit Picker")
-);
+    ], title: "Fruit Picker"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const selectionCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new PickerState();
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text($"Selected fruit: {state.SelectedFruit}"),
             v.Text(""),
@@ -40,10 +38,10 @@ var app = new Hex1bApp(ctx =>
                     .OnSelectionChanged(e => state.SelectedFruit = e.SelectedText)
             ])
         ])
-    ], title: "Selection Demo")
-);
+    ], title: "Selection Demo"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class PickerState
 {
@@ -51,12 +49,11 @@ class PickerState
 }`
 
 const initialCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new FormState();
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.HStack(h => [
                 h.Text("Size:     "),
@@ -71,10 +68,10 @@ var app = new Hex1bApp(ctx =>
             v.Text(""),
             v.Text($"Order: {state.Size} priority {state.Priority}")
         ])
-    ], title: "Order Form")
-);
+    ], title: "Order Form"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class FormState
 {
@@ -83,13 +80,12 @@ class FormState
 }`
 
 const themingCode = `using Hex1b;
-using Hex1b.Widgets;
 using Hex1b.Theming;
 
 var state = new ThemeState();
 
-var app = new Hex1bApp(ctx =>
-    ctx.ThemePanel(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.ThemePanel(
         theme => theme
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.Yellow)
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Yellow)
@@ -112,10 +108,10 @@ var app = new Hex1bApp(ctx =>
                 ])
             ], title: "Theme Demo")
         ]
-    )
-);
+    ))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class ThemeState
 {
@@ -213,9 +209,15 @@ var theme = Hex1bTheme.Create()
     // Border appearance (around the popup)
     .Set(BorderTheme.BorderColor, Hex1bColor.Magenta);
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Picker-Specific Theme Elements

@@ -24,35 +24,39 @@ while (true)
     // Step 1: Show a Hex1bApp with a centered list to select what to launch
     SubProcessOption? selectedOption = null;
     
-    await Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp((app, appOptions) =>
-        {
-            return ctx => ctx
-                .ZStack(z =>
-                [
-                    // Background
-                    z.Text(" "),
-                    
-                    // Centered menu
-                    z.Align(Alignment.Center,
-                        z.Border(
-                            z.VStack(v =>
-                            [
-                                v.Text("Select a subprocess to launch:"),
-                                v.Text(""),
-                                v.List(options.Select(o => o.Label).ToArray())
-                                    .OnItemActivated(args =>
-                                    {
-                                        selectedOption = options[args.ActivatedIndex];
-                                        app.RequestStop();
-                                    }),
-                            ]),
-                            title: "SubProcess Demo"
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, appOptions) =>
+            {
+                return ctx => ctx
+                    .ZStack(z =>
+                    [
+                        // Background
+                        z.Text(" "),
+                        
+                        // Centered menu
+                        z.Align(Alignment.Center,
+                            z.Border(
+                                z.VStack(v =>
+                                [
+                                    v.Text("Select a subprocess to launch:"),
+                                    v.Text(""),
+                                    v.List(options.Select(o => o.Label).ToArray())
+                                        .OnItemActivated(args =>
+                                        {
+                                            selectedOption = options[args.ActivatedIndex];
+                                            app.RequestStop();
+                                        }),
+                                ]),
+                                title: "SubProcess Demo"
+                            )
                         )
-                    )
-                ]);
-        })
-        .RunAsync();
+                    ]);
+            })
+            .Build();
+
+        await terminal.RunAsync();
+    }
     
     // Step 2: Handle the selection
     if (selectedOption == null || selectedOption.Type == SubProcessType.Exit)
@@ -84,7 +88,10 @@ while (true)
             break;
     }
     
-    await builder.RunAsync();
+    {
+        await using var terminal = builder.Build();
+        await terminal.RunAsync();
+    }
     
     // Loop back to menu after subprocess exits
     Console.WriteLine($"\nSubprocess exited. Recording saved to: {recordingFile}");

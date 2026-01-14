@@ -145,7 +145,7 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
 
 try
 {
-    await Hex1bTerminal.CreateBuilder()
+    await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithHex1bApp((app, options) =>
             ctx => ctx.VStack(root => [
             // Main content wrapped in a border
@@ -183,7 +183,9 @@ try
         ]))
         .WithMouse()
         .WithRenderOptimization()
-        .RunAsync();
+        .Build();
+
+    await terminal.RunAsync();
 }
 catch (Exception ex)
 {

@@ -162,4 +162,3 @@ Hex1bNode ReconcileProgressBar(ProgressBarWidget widget, Hex1bNode? existing)
 ## Next Steps
 
 - [Layout System](/guide/layout) - How Measure and Arrange work
-- [Reconciliation Deep Dive](/deep-dives/reconciliation) - The algorithm in detail

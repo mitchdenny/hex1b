@@ -1,11 +1,10 @@
 using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Speed Settings:"),
         v.ToggleSwitch(["Slow", "Normal", "Fast"], selectedIndex: 1)
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

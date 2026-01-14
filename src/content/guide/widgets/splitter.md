@@ -7,10 +7,9 @@
 -->
 <script setup>
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.HSplitter(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.HSplitter(
         ctx.Panel(left => [
             left.VStack(v => [
                 v.Text("Left Pane"),
@@ -34,16 +33,15 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             ])
         ]),
         leftWidth: 25
-    )
-));
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const verticalCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VSplitter(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VSplitter(
         ctx.Panel(top => [
             top.VStack(v => [
                 v.Text("Top Pane"),
@@ -62,16 +60,15 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             ])
         ]),
         topHeight: 5
-    )
-));
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const nestedCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VSplitter(
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VSplitter(
         // Top: horizontal splitter
         ctx.HSplitter(
             ctx.Panel(tl => [
@@ -103,10 +100,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             ])
         ]),
         topHeight: 6
-    )
-));
+    ))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # SplitterWidget
@@ -146,10 +143,6 @@ You can nest splitters in any combination:
 - Horizontal inside vertical (editor layout with sidebar)
 - Vertical inside horizontal (file tree + editor + terminal)
 - Multiple levels deep for quad-split layouts
-
-::: tip More Complex Examples
-Check out the [Splitters example](/gallery) in the gallery to see various nesting patterns including horizontal-in-vertical, vertical-in-horizontal, and quad-split layouts.
-:::
 
 ## Resizing Behavior
 
@@ -252,9 +245,15 @@ var theme = Hex1bTheme.Create()
     .Set(SplitterTheme.LeftArrowCharacter, "◀")
     .Set(SplitterTheme.RightArrowCharacter, "▶");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

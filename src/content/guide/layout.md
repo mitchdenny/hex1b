@@ -176,4 +176,3 @@ new VStackWidget([
 ## Next Steps
 
 - [Input Handling](/guide/input) - Keyboard and focus
-- [Render Loop Deep Dive](/deep-dives/render-loop) - The complete cycle

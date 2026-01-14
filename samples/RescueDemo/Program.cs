@@ -6,7 +6,7 @@ var shouldThrowOnBuild = false;
 var throwCount = 0;
 var lastAction = "Ready";
 
-await Hex1bTerminal.CreateBuilder()
+await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
         ctx.VStack(v => [
             v.Text("RescueWidget Demo"),
@@ -69,4 +69,6 @@ await Hex1bTerminal.CreateBuilder()
         ]))
     .WithMouse()
     .WithRenderOptimization()
-    .RunAsync();
+    .Build();
+
+await terminal.RunAsync();

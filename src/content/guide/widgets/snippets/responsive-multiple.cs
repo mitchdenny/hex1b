@@ -1,7 +1,7 @@
 using Hex1b;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Responsive(r => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Responsive(r => [
         // Extra wide: Three columns
         r.WhenMinWidth(120, r =>
             r.HStack(h => [
@@ -25,8 +25,8 @@ var app = new Hex1bApp(ctx =>
         // Medium: Single column with details
         r.WhenMinWidth(40, r =>
             r.VStack(v => [
-                h.Text("Single Column"),
-                h.Text("Detailed view")
+                v.Text("Single Column"),
+                v.Text("Detailed view")
             ])
         ),
         
@@ -34,7 +34,7 @@ var app = new Hex1bApp(ctx =>
         r.Otherwise(r =>
             r.Text("Compact")
         )
-    ])
-);
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();

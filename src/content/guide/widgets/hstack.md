@@ -3,12 +3,11 @@ import basicSnippet from './snippets/hstack-basic.cs?raw'
 import fillSnippet from './snippets/hstack-fill.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new FormState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.HStack(h => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.HStack(h => [
         h.Text("Name:"),
         h.Text("  "),
         h.TextBox(state.Name)
@@ -16,10 +15,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             .Fill(),
         h.Text("  "),
         h.Button("Save").OnClick(_ => state.Save())
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class FormState
 {

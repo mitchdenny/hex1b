@@ -13,26 +13,24 @@ import withIdSnippet from './snippets/hyperlink-with-id.cs?raw'
 import paramsSnippet from './snippets/hyperlink-params.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Hyperlink Examples"),
         v.Text(""),
         v.Hyperlink("Visit Hex1b Docs", "https://hex1b.dev"),
         v.Hyperlink("GitHub Repository", "https://github.com/mitchdenny/hex1b"),
         v.Text(""),
         v.Text("Press Tab to navigate, Enter to activate")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const overflowCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("═══ Hyperlink Overflow Modes ═══"),
         v.Text(""),
         v.Text("Default (Truncate):"),
@@ -53,18 +51,17 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             "This hyperlink shows ellipsis when text is too long to fit in the available space",
             "https://example.com"
         ).Ellipsis().FixedWidth(50)
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const clickHandlerCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var clickCount = 0;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text($"Link clicked {clickCount} times"),
         v.Text(""),
         v.Hyperlink("Click me!", "https://example.com")
@@ -72,10 +69,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
                 clickCount++;
                 Console.WriteLine($"Navigating to: {e.Uri}");
             })
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # HyperlinkWidget

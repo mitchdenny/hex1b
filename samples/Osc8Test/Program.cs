@@ -14,7 +14,7 @@ var lastClickedUri = "(none)";
 
 try
 {
-    await Hex1bTerminal.CreateBuilder()
+    await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithHex1bApp((app, options) => ctx => ctx.VStack(root => [
             root.Border(
                 root.VStack(content => [
@@ -92,7 +92,9 @@ try
         ]))
         .WithMouse()
         .WithRenderOptimization()
-        .RunAsync();
+        .Build();
+
+    await terminal.RunAsync();
 }
 catch (Exception ex)
 {

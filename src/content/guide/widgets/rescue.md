@@ -14,10 +14,9 @@ import customFallbackSnippet from './snippets/rescue-custom-fallback.cs?raw'
 import friendlySnippet from './snippets/rescue-friendly.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Rescue(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Rescue(v => [
         v.Text("Application content here"),
         v.Text(""),
         v.Text("Click the button to trigger an error."),
@@ -28,16 +27,15 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             // If this throws, Rescue catches it
             throw new InvalidOperationException("Oops! Something went wrong.");
         })
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const customFallbackCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Rescue(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Rescue(v => [
         v.Text("Custom Fallback Demo"),
         v.Text(""),
         v.Text("This uses WithFallback() to provide"),
@@ -59,18 +57,17 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             inner.Text(""),
             inner.Button("🔄 Try Again").OnClick(_ => rescue.Reset()),
         ])
-    ], title: "Oops!"))
-));
+    ], title: "Oops!")))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const eventHandlersCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new EventState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Event Handlers Demo"),
         v.Text(""),
         v.Text(\$"Errors caught: {state.ErrorCount}"),
@@ -92,10 +89,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             state.ResetCount++;
             // In a real app: ResetApplicationState();
         })
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class EventState
 {
@@ -306,9 +303,15 @@ var theme = Hex1bTheme.Create()
     .Set(RescueTheme.BackgroundColor, Hex1bColor.FromRgb(50, 0, 0))
     .Set(RescueTheme.BorderColor, Hex1bColor.Yellow);
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ## Common Patterns
@@ -318,12 +321,14 @@ var app = new Hex1bApp(options => {
 Wrap your entire application to catch any unhandled errors:
 
 ```csharp
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Rescue(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Rescue(v => [
         v.Navigator(/* your app routes */)
     ])
-    .OnRescue(e => logger.LogCritical(e.Exception, "Unhandled error"))
-));
+    .OnRescue(e => logger.LogCritical(e.Exception, "Unhandled error")))
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Component-Level Boundaries

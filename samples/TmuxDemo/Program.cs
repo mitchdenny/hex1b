@@ -1,3 +1,4 @@
+using Hex1b;
 
 if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
 {
@@ -19,7 +20,7 @@ AsciinemaRecorder? recorder = null;
 
 try
 {
-    await Hex1bTerminal.CreateBuilder()
+    await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithPtyProcess("/bin/bash", "--norc", "--noprofile")
         .WithDimensions(width, height)
         .WithAsciinemaRecording(castFile, r => recorder = r, new AsciinemaRecorderOptions
@@ -27,7 +28,9 @@ try
             Title = "Tmux Demo",
             CaptureInput = true
         })
-        .RunAsync();
+        .Build();
+
+    await terminal.RunAsync();
     
     if (recorder != null)
     {

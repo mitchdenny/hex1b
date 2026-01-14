@@ -471,20 +471,51 @@ public partial class YamlToMarkdownConverter
 
     private string FormatTypeLink(string uid)
     {
-        // Handle generic parameters in uid like System.Func{T,TResult}
+        // Handle generic parameters in uid like System.IEquatable{Hex1b.Input.Hex1bEvent}
         var displayUid = uid.Replace('{', '<').Replace('}', '>');
-        var displayName = displayUid.Split('.').Last();
+        
+        // Extract the base type name (before generic params) and the generic params separately
+        var genericStart = uid.IndexOf('{');
+        var baseUid = genericStart >= 0 ? uid[..genericStart] : uid;
+        var genericParams = genericStart >= 0 ? uid[genericStart..].Replace('{', '<').Replace('}', '>') : "";
+        
+        // Get the short name of the base type (last segment before generics)
+        var baseDisplayName = baseUid.Split('.').Last();
+        
+        // Format the generic type arguments nicely
+        var formattedGenericParams = "";
+        if (!string.IsNullOrEmpty(genericParams))
+        {
+            // Extract the inner types and format them with short names
+            var innerTypes = genericParams[1..^1].Split(',');
+            var formattedInner = innerTypes.Select(t => t.Trim().Split('.').Last());
+            formattedGenericParams = $"<{string.Join(", ", formattedInner)}>";
+        }
+        
+        var displayName = baseDisplayName + formattedGenericParams;
         
         // External types (System.*)
         if (uid.StartsWith("System."))
         {
-            // Convert to MS Docs format: remove generic params for URL
-            var baseType = uid.Split('{')[0].Split('`')[0];
+            // Convert to MS Docs format: handle generic arity for URL
+            var baseType = baseUid.Split('`')[0];
             var msDocsUid = baseType.ToLowerInvariant();
+            // For generic types, add -1, -2 etc. suffix based on arity
+            if (genericStart >= 0)
+            {
+                var arity = genericParams.Count(c => c == ',') + 1;
+                msDocsUid += $"-{arity}";
+            }
             return $"[{EscapeGenerics(displayName)}](https://learn.microsoft.com/dotnet/api/{msDocsUid})";
         }
 
-        // Internal types
+        // Internal types - try the base type without generics first
+        if (_items.ContainsKey(baseUid))
+        {
+            return $"[{EscapeGenerics(displayName)}]({SanitizeFileName(baseUid)}.md)";
+        }
+        
+        // Try with full uid
         if (_items.ContainsKey(uid))
         {
             return $"[{EscapeGenerics(displayName)}]({SanitizeFileName(uid)}.md)";

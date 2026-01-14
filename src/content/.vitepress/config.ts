@@ -18,62 +18,55 @@ export default defineConfig({
     logo: '/logo.svg',
     
     nav: [
-      { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Deep Dives', link: '/deep-dives/reconciliation' },
-      { text: 'API Reference', link: '/reference/' },
-      { text: 'Gallery', link: '/gallery' }
+      { text: 'Guide', link: '/guide/' },
+      { text: 'API Reference', link: '/reference/' }
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: 'Introduction',
+          text: 'Overview',
           items: [
-            { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Your First App', link: '/guide/first-app' }
+            { text: 'Guide', link: '/guide/' }
           ]
         },
         {
-          text: 'Core Concepts',
+          text: 'Features',
           items: [
+            { text: 'Terminal UIs', link: '/guide/tui' },
+            { text: 'Terminal Emulator', link: '/guide/terminal-emulator' },
+            { text: 'Automation & Testing', link: '/guide/testing' }
+          ]
+        },
+        {
+          text: 'Building TUIs',
+          items: [
+            { text: 'Your First App', link: '/guide/getting-started' },
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },
-            { text: 'Theming', link: '/guide/theming' },
-            { text: 'Testing', link: '/guide/testing' }
+            { text: 'Theming', link: '/guide/theming' }
           ]
         },
         {
-          text: 'Widgets',
+          text: 'Terminal Stack',
           items: [
-            { text: 'Align', link: '/guide/widgets/align' },
-            { text: 'Border & ThemePanel', link: '/guide/widgets/containers' },
-            { text: 'Button', link: '/guide/widgets/button' },
-            { text: 'Hyperlink', link: '/guide/widgets/hyperlink' },
-            { text: 'List', link: '/guide/widgets/list' },
-            { text: 'Navigator', link: '/guide/widgets/navigator' },
-            { text: 'Picker', link: '/guide/widgets/picker' },
-            { text: 'Progress', link: '/guide/widgets/progress' },
-            { text: 'Rescue', link: '/guide/widgets/rescue' },
-            { text: 'Responsive', link: '/guide/widgets/responsive' },
-            { text: 'Scroll', link: '/guide/widgets/scroll' },
-            { text: 'Splitter', link: '/guide/widgets/splitter' },
-            { text: 'Stacks (HStack/VStack)', link: '/guide/widgets/stacks' },
-            { text: 'Text', link: '/guide/widgets/text' },
-            { text: 'TextBox', link: '/guide/widgets/textbox' },
-            { text: 'ThemePanel', link: '/guide/widgets/themepanel' },
-            { text: 'ToggleSwitch', link: '/guide/widgets/toggle-switch' }
+            { text: 'Using the Emulator', link: '/guide/using-the-emulator' },
+            { text: 'Presentation Adapters', link: '/guide/presentation-adapters' },
+            { text: 'Workload Adapters', link: '/guide/workload-adapters' }
           ]
-        }
-      ],
-      '/deep-dives/': [
+        },
         {
-          text: 'Deep Dives',
+          text: 'Reference',
           items: [
-            { text: 'Reconciliation', link: '/deep-dives/reconciliation' },
-            { text: 'The Render Loop', link: '/deep-dives/render-loop' },
-            { text: 'Focus System', link: '/deep-dives/focus-system' },
-            { text: 'ANSI & Terminal Rendering', link: '/deep-dives/terminal-rendering' }
+            { text: 'Widgets', link: '/guide/widgets/' },
+            { text: 'API Docs', link: '/reference/' }
+          ]
+        },
+        {
+          text: 'Tools',
+          items: [
+            { text: 'MCP Server', link: '/guide/mcp-server' }
           ]
         }
       ],

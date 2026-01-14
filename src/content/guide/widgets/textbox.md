@@ -12,12 +12,11 @@ import focusSnippet from './snippets/textbox-focus.cs?raw'
 import selectionSnippet from './snippets/textbox-selection.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new InputState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("TextBox Widget Demo"),
         v.Text("────────────────────"),
         v.Text(""),
@@ -27,10 +26,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         v.Text($"You typed: {state.Input}"),
         v.Text(""),
         v.Text("Try typing, using arrow keys, Home/End, etc.")
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class InputState
 {
@@ -38,12 +37,11 @@ class InputState
 }`
 
 const submitCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new ChatState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Chat Demo"),
         v.Text("──────────"),
         v.Text(""),
@@ -60,10 +58,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         v.Text(""),
         v.Text("Messages:"),
         ..state.Messages.TakeLast(5).Select(m => v.Text($"  • {m}"))
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class ChatState
 {
@@ -72,12 +70,11 @@ class ChatState
 }`
 
 const formCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new FormState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.HStack(h => [
                 h.Text("First Name: ").FixedWidth(12),
@@ -99,10 +96,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
             v.Text(""),
             v.Text("Use Tab to navigate between fields")
         ])
-    ], title: "Registration Form")
-));
+    ], title: "Registration Form"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class FormState
 {
@@ -113,13 +110,12 @@ class FormState
 }`
 
 const unicodeCode = `using Hex1b;
-using Hex1b.Widgets;
 
 const string DefaultText = "Hello 🎉 日本語 émoji 🚀 中文 ✨";
 var state = new UnicodeState();
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Unicode Text Editing"),
         v.Text("─────────────────────"),
         v.Text(""),
@@ -129,10 +125,10 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
         v.Text("or adding your own Unicode characters!"),
         v.Text(""),
         v.Button("Reset to Default").OnClick(_ => state.Input = DefaultText)
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class UnicodeState
 {
@@ -283,9 +279,15 @@ var theme = Hex1bTheme.Create()
     .Set(TextBoxTheme.LeftBracket, "< ")
     .Set(TextBoxTheme.RightBracket, " >");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

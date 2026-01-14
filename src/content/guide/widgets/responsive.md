@@ -6,81 +6,82 @@ import customSnippet from './snippets/responsive-custom.cs?raw'
 
 const basicCode = `using Hex1b;
 using Hex1b.Theming;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx =>
-{
-    var navPanel = ctx.ThemePanel(theme => theme
-        .Set(BorderTheme.BorderColor, Hex1bColor.Cyan),
-        t => [
-            t.Border(b => [
-                b.Text("📋 Navigation"),
-                b.Text("• Dashboard"),
-                b.Text("• Settings")
-            ], title: "Menu")
-        ]);
-    
-    var primaryPanel = ctx.ThemePanel(theme => theme
-        .Set(BorderTheme.BorderColor, Hex1bColor.Green),
-        t => [
-            t.Border(b => [
-                b.Text("📊 Primary Content"),
-                b.Text("Main view - always visible"),
-                b.Text("💚 Breakpoint: >= 100")
-            ], title: "Dashboard")
-        ]);
-    
-    var secondaryPanel = ctx.ThemePanel(theme => theme
-        .Set(BorderTheme.BorderColor, Hex1bColor.Yellow),
-        t => [
-            t.Border(b => [
-                b.Text("📈 Secondary Content"),
-                b.Text("Visible when width >= 120"),
-                b.Text("💛 Breakpoint: >= 120")
-            ], title: "Analytics")
-        ]);
-    
-    return ctx.Responsive(r => [
-        // Extra Wide: Nav | Primary + Secondary side-by-side
-        r.WhenMinWidth(120, r =>
-            r.HSplitter(
-                navPanel,
-                r.HStack(h => [
-                    h.Layout(primaryPanel).FillWidth(3),
-                    h.Layout(secondaryPanel).FillWidth(2)
-                ]),
-                leftWidth: 25
-            )
-        ),
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        var navPanel = ctx.ThemePanel(theme => theme
+            .Set(BorderTheme.BorderColor, Hex1bColor.Cyan),
+            t => [
+                t.Border(b => [
+                    b.Text("📋 Navigation"),
+                    b.Text("• Dashboard"),
+                    b.Text("• Settings")
+                ], title: "Menu")
+            ]);
         
-        // Wide: Nav | Primary + Secondary stacked
-        r.WhenMinWidth(100, r =>
-            r.HSplitter(
-                navPanel,
+        var primaryPanel = ctx.ThemePanel(theme => theme
+            .Set(BorderTheme.BorderColor, Hex1bColor.Green),
+            t => [
+                t.Border(b => [
+                    b.Text("📊 Primary Content"),
+                    b.Text("Main view - always visible"),
+                    b.Text("💚 Breakpoint: >= 100")
+                ], title: "Dashboard")
+            ]);
+        
+        var secondaryPanel = ctx.ThemePanel(theme => theme
+            .Set(BorderTheme.BorderColor, Hex1bColor.Yellow),
+            t => [
+                t.Border(b => [
+                    b.Text("📈 Secondary Content"),
+                    b.Text("Visible when width >= 120"),
+                    b.Text("💛 Breakpoint: >= 120")
+                ], title: "Analytics")
+            ]);
+        
+        return ctx.Responsive(r => [
+            // Extra Wide: Nav | Primary + Secondary side-by-side
+            r.WhenMinWidth(120, r =>
+                r.HSplitter(
+                    navPanel,
+                    r.HStack(h => [
+                        h.Layout(primaryPanel).FillWidth(3),
+                        h.Layout(secondaryPanel).FillWidth(2)
+                    ]),
+                    leftWidth: 25
+                )
+            ),
+            
+            // Wide: Nav | Primary + Secondary stacked
+            r.WhenMinWidth(100, r =>
+                r.HSplitter(
+                    navPanel,
+                    r.VStack(v => [
+                        v.Layout(primaryPanel).FillHeight(3),
+                        v.Layout(secondaryPanel).FillHeight(2)
+                    ]),
+                    leftWidth: 25
+                )
+            ),
+            
+            // Medium: Nav | Primary only
+            r.WhenMinWidth(80, r =>
+                r.HSplitter(navPanel, primaryPanel, leftWidth: 25)
+            ),
+            
+            // Narrow: All stacked
+            r.Otherwise(r =>
                 r.VStack(v => [
-                    v.Layout(primaryPanel).FillHeight(3),
-                    v.Layout(secondaryPanel).FillHeight(2)
-                ]),
-                leftWidth: 25
+                    v.Layout(navPanel).FixedHeight(10),
+                    v.Layout(primaryPanel).FillHeight()
+                ])
             )
-        ),
-        
-        // Medium: Nav | Primary only
-        r.WhenMinWidth(80, r =>
-            r.HSplitter(navPanel, primaryPanel, leftWidth: 25)
-        ),
-        
-        // Narrow: All stacked
-        r.Otherwise(r =>
-            r.VStack(v => [
-                v.Layout(navPanel).FixedHeight(10),
-                v.Layout(primaryPanel).FillHeight()
-            ])
-        )
-    ]);
-});
+        ]);
+    })
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # ResponsiveWidget
@@ -372,16 +373,20 @@ Test your responsive layouts at different terminal sizes:
 [InlineData(120, 30)]  // Wide
 [InlineData(80, 30)]   // Medium  
 [InlineData(40, 30)]   // Narrow
-public void ResponsiveLayout_AdaptsToTerminalSize(int width, int height)
+public async Task ResponsiveLayout_AdaptsToTerminalSize(int width, int height)
 {
-    using var terminal = new Hex1bTerminal(width, height);
-    using var app = new Hex1bApp(ctx =>
-        ctx.Responsive(r => [
-            r.WhenMinWidth(100, r => r.Text("Wide")),
-            r.WhenMinWidth(60, r => r.Text("Medium")),
-            r.Otherwise(r => r.Text("Narrow"))
-        ])
-    );
+    await using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithTestTerminal(width, height)
+        .WithHex1bApp((app, options) => ctx =>
+            ctx.Responsive(r => [
+                r.WhenMinWidth(100, r => r.Text("Wide")),
+                r.WhenMinWidth(60, r => r.Text("Medium")),
+                r.Otherwise(r => r.Text("Narrow"))
+            ])
+        )
+        .Build();
+    
+    await terminal.RunAsync();
     
     // Verify the correct layout is active
     // ...

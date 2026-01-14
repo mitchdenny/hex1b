@@ -11,44 +11,45 @@ import indeterminateSnippet from './snippets/progress-indeterminate.cs?raw'
 import themingSnippet from './snippets/progress-theming.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Download Progress"),
         v.Progress(75),
         v.Text(""),
         v.Text("Upload Progress"),
         v.Progress(30)
-    ])
-));
+    ]))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const indeterminateCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var animationPos = 0.0;
 var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
-    ctx.VStack(v => [
-        v.Text("Loading..."),
-        v.ProgressIndeterminate(animationPos)
-    ])
-));
-
-// Animate the progress bar
-_ = Task.Run(async () =>
-{
-    while (await timer.WaitForNextTickAsync())
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
     {
-        animationPos = (animationPos + 0.02) % 1.0;
-        app.Invalidate();
-    }
-});
+        // Animate the progress bar
+        _ = Task.Run(async () =>
+        {
+            while (await timer.WaitForNextTickAsync())
+            {
+                animationPos = (animationPos + 0.02) % 1.0;
+                app.Invalidate();
+            }
+        });
 
-await app.RunAsync();`
+        return ctx => ctx.VStack(v => [
+            v.Text("Loading..."),
+            v.ProgressIndeterminate(animationPos)
+        ]);
+    })
+    .Build();
+
+await terminal.RunAsync();`
 
 </script>
 

@@ -10,37 +10,35 @@
 import focusSnippet from './snippets/list-focus.cs?raw'
 
 const basicCode = `using Hex1b;
-using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Select a fruit:"),
             v.Text(""),
             v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
         ])
-    ], title: "Fruit List")
-);
+    ], title: "Fruit List"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 
 const selectionCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new ListSelectionState();
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text($"Selected: {state.SelectedItem ?? "None"}"),
             v.Text(""),
             v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
                 .OnSelectionChanged(e => state.SelectedItem = e.SelectedText)
         ])
-    ], title: "Selection Demo")
-);
+    ], title: "Selection Demo"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class ListSelectionState
 {
@@ -48,22 +46,21 @@ class ListSelectionState
 }`
 
 const activateCode = `using Hex1b;
-using Hex1b.Widgets;
 
 var state = new TodoState();
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Press Enter or Space to toggle items:"),
             v.Text(""),
             v.List(state.GetFormattedItems())
                 .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
         ])
-    ], title: "Todo List")
-);
+    ], title: "Todo List"))
+    .Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class TodoState
 {
@@ -88,7 +85,6 @@ class TodoState
 }`
 
 const longListCode = `using Hex1b;
-using Hex1b.Widgets;
 
 // Generate a list of 50 countries
 var countries = new List<string>
@@ -105,17 +101,17 @@ var countries = new List<string>
     "Turkey", "Ukraine", "United Kingdom", "United States", "Vietnam"
 };
 
-var app = new Hex1bApp(ctx =>
-    ctx.Border(b => [
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
         b.VStack(v => [
             v.Text("Select a country (scroll with arrow keys or mouse wheel):"),
             v.Text(""),
             v.List(countries).FixedHeight(10)
         ])
-    ], title: "Country Selector")
-);
+    ], title: "Country Selector"))
+    .Build();
 
-await app.RunAsync();`
+await terminal.RunAsync();`
 </script>
 
 # ListWidget
@@ -257,9 +253,15 @@ var theme = Hex1bTheme.Create()
     .Set(ListTheme.SelectedIndicator, "▶ ")
     .Set(ListTheme.UnselectedIndicator, "  ");
 
-var app = new Hex1bApp(options => {
-    options.Theme = theme;
-}, ctx => /* ... */);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =>
+    {
+        options.Theme = theme;
+        return ctx => /* ... */;
+    })
+    .Build();
+
+await terminal.RunAsync();
 ```
 
 ### Available Theme Elements

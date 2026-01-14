@@ -16,16 +16,20 @@ namespace Hex1b;
 /// <example>
 /// <para>Simple Hex1bApp:</para>
 /// <code>
-/// await Hex1bTerminal.CreateBuilder()
+/// await using var terminal = Hex1bTerminal.CreateBuilder()
 ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello, World!"))
-///     .RunAsync();
+///     .Build();
+/// 
+/// await terminal.RunAsync();
 /// </code>
 /// <para>Shell with recording:</para>
 /// <code>
-/// await Hex1bTerminal.CreateBuilder()
+/// await using var terminal = Hex1bTerminal.CreateBuilder()
 ///     .WithShellProcess("/bin/bash")
 ///     .WithAsciinemaRecording("session.cast")
-///     .RunAsync();
+///     .Build();
+/// 
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 /// </remarks>
@@ -76,22 +80,26 @@ public sealed class Hex1bTerminalBuilder
     /// <example>
     /// <para>Simple usage:</para>
     /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello, World!"))
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// <para>With app capture and theming:</para>
     /// <code>
     /// Hex1bApp? capturedApp = null;
     /// 
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithHex1bApp((app, options) =>
     ///     {
     ///         capturedApp = app;
     ///         options.Theme = MyCustomTheme;
     ///         return ctx => ctx.Text("Hello");
     ///     })
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithHex1bApp(
@@ -238,10 +246,12 @@ public sealed class Hex1bTerminalBuilder
     /// </remarks>
     /// <example>
     /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithProcess("dotnet", "build")
     ///     .WithHeadless()
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithProcess(string fileName, params string[] arguments)
@@ -290,9 +300,11 @@ public sealed class Hex1bTerminalBuilder
     /// </remarks>
     /// <example>
     /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithPtyProcess("htop")
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithPtyProcess(string fileName, params string[] arguments)
@@ -342,7 +354,7 @@ public sealed class Hex1bTerminalBuilder
     /// </remarks>
     /// <example>
     /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithPtyProcess(options =>
     ///     {
     ///         options.FileName = "/bin/bash";
@@ -350,7 +362,9 @@ public sealed class Hex1bTerminalBuilder
     ///         options.WorkingDirectory = "/home/user";
     ///         options.Environment["TERM"] = "xterm-256color";
     ///     })
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithPtyProcess(Action<Hex1bTerminalProcessOptions> configure)
@@ -425,10 +439,12 @@ public sealed class Hex1bTerminalBuilder
     ///     WorkingDirectory = "/path/to/project"
     /// };
     /// 
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithProcess(startInfo)
     ///     .WithHeadless()
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithProcess(ProcessStartInfo startInfo)
@@ -492,10 +508,12 @@ public sealed class Hex1bTerminalBuilder
     /// </remarks>
     /// <example>
     /// <code>
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithPtyProcess("/bin/bash")
     ///     .WithAsciinemaRecording("session.cast")
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     /// <seealso href="https://docs.asciinema.org/manual/asciicast/v2/"/>
@@ -528,10 +546,12 @@ public sealed class Hex1bTerminalBuilder
     /// <code>
     /// AsciinemaRecorder? recorder = null;
     /// 
-    /// await Hex1bTerminal.CreateBuilder()
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithPtyProcess("/bin/bash")
     ///     .WithAsciinemaRecording("session.cast", r => recorder = r)
-    ///     .RunAsync();
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
     /// 
     /// // Add markers during execution
     /// recorder?.AddMarker("command-executed");
@@ -758,17 +778,6 @@ public sealed class Hex1bTerminalBuilder
         }
 
         return new Hex1bTerminal(options);
-    }
-
-    /// <summary>
-    /// Builds and runs the terminal in one step.
-    /// </summary>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>The exit code from the workload.</returns>
-    public async Task<int> RunAsync(CancellationToken ct = default)
-    {
-        await using var terminal = Build();
-        return await terminal.RunAsync(ct);
     }
 
     // === Internal for factory pattern ===

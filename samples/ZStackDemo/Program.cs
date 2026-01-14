@@ -31,7 +31,7 @@ var allItems = new[]
 
 try
 {
-    await Hex1bTerminal.CreateBuilder()
+    await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithHex1bApp((app, options) =>
             ctx => ctx.ThemePanel(
             theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
@@ -83,7 +83,9 @@ try
         }))
         .WithMouse()
         .WithRenderOptimization()
-        .RunAsync();
+        .Build();
+
+    await terminal.RunAsync();
 }
 catch (Exception ex)
 {
