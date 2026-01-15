@@ -67,6 +67,51 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         return this;
     }
 
+    /// <summary>
+    /// Waits until an async condition is met on the terminal.
+    /// </summary>
+    /// <param name="predicate">The async condition to wait for. Receives a snapshot of the terminal state.</param>
+    /// <param name="timeout">Maximum time to wait before throwing TimeoutException.</param>
+    /// <param name="description">Optional description for error messages.</param>
+    public Hex1bTerminalInputSequenceBuilder WaitUntilAsync(
+        Func<Hex1bTerminalSnapshot, Task<bool>> predicate,
+        TimeSpan timeout,
+        string? description = null)
+    {
+        _steps.Add(new WaitUntilAsyncStep(predicate, timeout, description));
+        return this;
+    }
+
+    /// <summary>
+    /// Waits while a condition is true on the terminal. Completes when the condition becomes false.
+    /// </summary>
+    /// <param name="predicate">The condition to wait while true. Receives a snapshot of the terminal state.</param>
+    /// <param name="timeout">Maximum time to wait before throwing TimeoutException.</param>
+    /// <param name="description">Optional description for error messages.</param>
+    public Hex1bTerminalInputSequenceBuilder WaitWhile(
+        Func<Hex1bTerminalSnapshot, bool> predicate,
+        TimeSpan timeout,
+        string? description = null)
+    {
+        _steps.Add(new WaitWhileStep(predicate, timeout, description));
+        return this;
+    }
+
+    /// <summary>
+    /// Waits while an async condition is true on the terminal. Completes when the condition becomes false.
+    /// </summary>
+    /// <param name="predicate">The async condition to wait while true. Receives a snapshot of the terminal state.</param>
+    /// <param name="timeout">Maximum time to wait before throwing TimeoutException.</param>
+    /// <param name="description">Optional description for error messages.</param>
+    public Hex1bTerminalInputSequenceBuilder WaitWhileAsync(
+        Func<Hex1bTerminalSnapshot, Task<bool>> predicate,
+        TimeSpan timeout,
+        string? description = null)
+    {
+        _steps.Add(new WaitWhileAsyncStep(predicate, timeout, description));
+        return this;
+    }
+
     // ========================================
     // Modifier prefixes
     // ========================================
