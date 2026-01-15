@@ -20,6 +20,7 @@ var rightTask = rightTerminal.RunAsync(cts.Token);
 
 // Create the TUI app that displays both terminals side by side
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bApp((app, options) =>
     {
         return ctx => ctx.VStack(v =>
@@ -30,7 +31,7 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             v.Separator(),
             
             // Two terminals in a horizontal splitter
-            v.Splitter(
+            v.HSplitter(
                 // Left pane: first terminal
                 v.Border(
                     v.Terminal(leftHandle),
@@ -41,8 +42,7 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
                     v.Terminal(rightHandle),
                     title: "Terminal 2"
                 ),
-                firstSize: 45,
-                orientation: Hex1b.Widgets.SplitterOrientation.Horizontal
+                leftWidth: 45
             ).Fill()
         ]);
     })

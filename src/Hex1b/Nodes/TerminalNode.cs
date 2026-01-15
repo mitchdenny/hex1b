@@ -127,8 +127,8 @@ public sealed class TerminalNode : Hex1bNode
                     needsReset = true;
                 }
                 
-                // Check if colors changed
-                if (cell.Foreground != lastFg || cell.Background != lastBg)
+                // Check if colors changed (nullable struct comparison)
+                if (!Nullable.Equals(cell.Foreground, lastFg) || !Nullable.Equals(cell.Background, lastBg))
                 {
                     needsReset = true;
                 }

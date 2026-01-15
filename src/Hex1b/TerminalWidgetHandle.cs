@@ -662,7 +662,7 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
                     
                 // Basic foreground colors (30-37)
                 case >= 30 and <= 37:
-                    _currentForeground = Hex1b.Theming.Hex1bColor.FromAnsi256(code - 30);
+                    _currentForeground = StandardColorFromCode(code - 30);
                     break;
                 case 39:
                     _currentForeground = null;
@@ -670,7 +670,7 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
                     
                 // Basic background colors (40-47)
                 case >= 40 and <= 47:
-                    _currentBackground = Hex1b.Theming.Hex1bColor.FromAnsi256(code - 40);
+                    _currentBackground = StandardColorFromCode(code - 40);
                     break;
                 case 49:
                     _currentBackground = null;
@@ -678,57 +678,106 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
                     
                 // Bright foreground colors (90-97)
                 case >= 90 and <= 97:
-                    _currentForeground = Hex1b.Theming.Hex1bColor.FromAnsi256(code - 90 + 8);
+                    _currentForeground = BrightColorFromCode(code - 90);
                     break;
                     
                 // Bright background colors (100-107)
                 case >= 100 and <= 107:
-                    _currentBackground = Hex1b.Theming.Hex1bColor.FromAnsi256(code - 100 + 8);
+                    _currentBackground = BrightColorFromCode(code - 100);
                     break;
                     
                 // 256-color and RGB colors
                 case 38:
-                    if (i + 1 < parts.Length && parts[i + 1] == "5" && i + 2 < parts.Length)
+                    if (i + 2 < parts.Length && parts[i + 1] == "5")
                     {
                         if (int.TryParse(parts[i + 2], out var colorIndex))
                         {
-                            _currentForeground = Hex1b.Theming.Hex1bColor.FromAnsi256(colorIndex);
+                            _currentForeground = Color256FromIndex(colorIndex);
                         }
                         i += 2;
                     }
-                    else if (i + 1 < parts.Length && parts[i + 1] == "2" && i + 4 < parts.Length)
+                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
                     {
                         if (int.TryParse(parts[i + 2], out var r) &&
                             int.TryParse(parts[i + 3], out var g) &&
                             int.TryParse(parts[i + 4], out var b))
                         {
-                            _currentForeground = Hex1b.Theming.Hex1bColor.FromRgb(r, g, b);
+                            _currentForeground = Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
                         }
                         i += 4;
                     }
                     break;
                     
                 case 48:
-                    if (i + 1 < parts.Length && parts[i + 1] == "5" && i + 2 < parts.Length)
+                    if (i + 2 < parts.Length && parts[i + 1] == "5")
                     {
                         if (int.TryParse(parts[i + 2], out var colorIndex))
                         {
-                            _currentBackground = Hex1b.Theming.Hex1bColor.FromAnsi256(colorIndex);
+                            _currentBackground = Color256FromIndex(colorIndex);
                         }
                         i += 2;
                     }
-                    else if (i + 1 < parts.Length && parts[i + 1] == "2" && i + 4 < parts.Length)
+                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
                     {
                         if (int.TryParse(parts[i + 2], out var r) &&
                             int.TryParse(parts[i + 3], out var g) &&
                             int.TryParse(parts[i + 4], out var b))
                         {
-                            _currentBackground = Hex1b.Theming.Hex1bColor.FromRgb(r, g, b);
+                            _currentBackground = Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
                         }
                         i += 4;
                     }
                     break;
             }
+        }
+    }
+    
+    // === Color Helpers ===
+    
+    private static Hex1b.Theming.Hex1bColor StandardColorFromCode(int code) => code switch
+    {
+        0 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 0),
+        1 => Hex1b.Theming.Hex1bColor.FromRgb(128, 0, 0),
+        2 => Hex1b.Theming.Hex1bColor.FromRgb(0, 128, 0),
+        3 => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 0),
+        4 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 128),
+        5 => Hex1b.Theming.Hex1bColor.FromRgb(128, 0, 128),
+        6 => Hex1b.Theming.Hex1bColor.FromRgb(0, 128, 128),
+        7 => Hex1b.Theming.Hex1bColor.FromRgb(192, 192, 192),
+        _ => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 128)
+    };
+
+    private static Hex1b.Theming.Hex1bColor BrightColorFromCode(int code) => code switch
+    {
+        0 => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 128),
+        1 => Hex1b.Theming.Hex1bColor.FromRgb(255, 0, 0),
+        2 => Hex1b.Theming.Hex1bColor.FromRgb(0, 255, 0),
+        3 => Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 0),
+        4 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 255),
+        5 => Hex1b.Theming.Hex1bColor.FromRgb(255, 0, 255),
+        6 => Hex1b.Theming.Hex1bColor.FromRgb(0, 255, 255),
+        7 => Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 255),
+        _ => Hex1b.Theming.Hex1bColor.FromRgb(192, 192, 192)
+    };
+
+    private static Hex1b.Theming.Hex1bColor Color256FromIndex(int index)
+    {
+        if (index < 16)
+        {
+            return index < 8 ? StandardColorFromCode(index) : BrightColorFromCode(index - 8);
+        }
+        else if (index < 232)
+        {
+            index -= 16;
+            var r = (index / 36) * 51;
+            var g = ((index / 6) % 6) * 51;
+            var b = (index % 6) * 51;
+            return Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+        }
+        else
+        {
+            var gray = (index - 232) * 10 + 8;
+            return Hex1b.Theming.Hex1bColor.FromRgb((byte)gray, (byte)gray, (byte)gray);
         }
     }
 }
