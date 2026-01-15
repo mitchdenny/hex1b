@@ -40,6 +40,12 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         node.Handle = Handle;
         node.SourceWidget = this;
         
+        // Set the invalidate callback so the node can trigger re-renders when output arrives
+        if (context.InvalidateCallback != null)
+        {
+            node.SetInvalidateCallback(context.InvalidateCallback);
+        }
+        
         // Bind to the new handle
         node.Bind();
         

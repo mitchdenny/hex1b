@@ -936,7 +936,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
 
         // Create the root reconcile context
-        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken);
+        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
         // Delegate to the widget's own ReconcileAsync method

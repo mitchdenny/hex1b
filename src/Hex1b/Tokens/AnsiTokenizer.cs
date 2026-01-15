@@ -138,6 +138,13 @@ public static class AnsiTokenizer
                 tokens.Add(ControlCharacterToken.Tab);
                 i++;
             }
+            else if (text[i] == '\b')
+            {
+                // Backspace (0x08) - moves cursor left
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ControlCharacterToken.Backspace);
+                i++;
+            }
             else if (text[i] == '\x1b')
             {
                 // Unrecognized escape sequence - capture the ESC and following character if any

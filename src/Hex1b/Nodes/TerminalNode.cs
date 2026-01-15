@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -12,6 +13,10 @@ namespace Hex1b.Nodes;
 /// It subscribes to the handle's OutputReceived event to trigger re-renders when
 /// new output arrives.
 /// </para>
+/// <para>
+/// The node is focusable and forwards all keyboard input to the child terminal.
+/// Mouse clicks within the terminal's bounds will focus the terminal.
+/// </para>
 /// </remarks>
 public sealed class TerminalNode : Hex1bNode
 {
@@ -19,6 +24,7 @@ public sealed class TerminalNode : Hex1bNode
     private bool _isBound;
     private Action? _outputReceivedHandler;
     private Action? _invalidateCallback;
+    private bool _isFocused;
     
     /// <summary>
     /// Gets or sets the terminal handle this node renders from.
@@ -41,6 +47,23 @@ public sealed class TerminalNode : Hex1bNode
     /// </summary>
     public TerminalWidget? SourceWidget { get; set; }
     
+    /// <inheritdoc />
+    public override bool IsFocusable => true;
+    
+    /// <inheritdoc />
+    public override bool IsFocused
+    {
+        get => _isFocused;
+        set
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
+    
     /// <summary>
     /// Sets the callback to invoke when the terminal needs to be re-rendered.
     /// Typically set to <c>app.Invalidate</c> by the framework.
@@ -48,6 +71,18 @@ public sealed class TerminalNode : Hex1bNode
     internal void SetInvalidateCallback(Action callback)
     {
         _invalidateCallback = callback;
+    }
+    
+    /// <inheritdoc />
+    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+    {
+        // For now, forward ALL input to the terminal (including Tab)
+        // In a future phase, we'll intercept Tab for focus navigation
+        if (_handle == null) return InputResult.NotHandled;
+        
+        // Fire and forget - we don't want to block the input loop
+        _ = _handle.SendKeyEventAsync(keyEvent);
+        return InputResult.Handled;
     }
     
     /// <summary>
@@ -86,14 +121,22 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override Size Measure(Constraints constraints)
     {
-        // Use the handle's dimensions as the preferred size
-        if (_handle != null)
-        {
-            return constraints.Constrain(new Size(_handle.Width, _handle.Height));
-        }
-        
-        // If no handle, take all available space
+        // The terminal should fill the available space
+        // We use constraints as the preferred size, not the handle's current dimensions
         return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
+    }
+    
+    /// <inheritdoc />
+    public override void Arrange(Rect bounds)
+    {
+        var previousBounds = Bounds;
+        base.Arrange(bounds);
+        
+        // If size changed, resize the handle (which propagates to the child terminal's PTY)
+        if (_handle != null && (bounds.Width != previousBounds.Width || bounds.Height != previousBounds.Height))
+        {
+            _handle.Resize(bounds.Width, bounds.Height);
+        }
     }
     
     /// <inheritdoc />

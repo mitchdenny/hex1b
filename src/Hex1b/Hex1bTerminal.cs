@@ -145,6 +145,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
         
+        // If presentation is a TerminalWidgetHandle, give it a reference back to us for input forwarding
+        if (presentation is TerminalWidgetHandle handle)
+        {
+            handle.SetTerminal(this);
+        }
+        
         // Get dimensions from presentation adapter (it's the source of truth)
         _width = _presentation.Width > 0 ? _presentation.Width : options.Width;
         _height = _presentation.Height > 0 ? _presentation.Height : options.Height;
@@ -802,9 +808,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
                 
-                // FAST PATH: If no filters are active, apply tokens to buffer and forward bytes directly
+                // FAST PATH: If no filters are active AND presentation doesn't need cell impacts,
+                // apply tokens to buffer and forward bytes directly.
                 // This is crucial for programs like tmux that are sensitive to output timing
-                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0)
+                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 
+                    && _presentation is not ICellImpactAwarePresentationAdapter)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
@@ -826,9 +834,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
+                    // Check if presentation adapter wants cell impacts directly
+                    if (_presentation is ICellImpactAwarePresentationAdapter impactAware)
+                    {
+                        // Run through presentation filters first if any
+                        if (_presentationFilters.Count > 0)
+                        {
+                            await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        }
+                        // Send applied tokens with impacts directly to the adapter
+                        await impactAware.WriteOutputWithImpactsAsync(appliedTokens, ct);
+                    }
                     // If there are no presentation filters, pass through original bytes directly
                     // to preserve exact escape sequence syntax
-                    if (_presentationFilters.Count == 0)
+                    else if (_presentationFilters.Count == 0)
                     {
                         var originalBytes = Encoding.UTF8.GetBytes(completeText);
                         await _presentation.WriteOutputAsync(originalBytes);
@@ -1467,7 +1486,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case ControlCharacterToken controlToken:
-                ApplyControlCharacter(controlToken);
+                ApplyControlCharacter(controlToken, impacts);
                 break;
                 
             case SgrToken sgrToken:
@@ -1692,7 +1711,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
             {
-                ScrollUp();
+                ScrollUp(impacts);
                 _cursorY = _height - 1;
             }
             
@@ -1737,7 +1756,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyControlCharacter(ControlCharacterToken token)
+    private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
         {
@@ -1757,7 +1776,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
                 if (_cursorY >= _scrollBottom)
                 {
-                    ScrollUp();
+                    ScrollUp(impacts);
                     // Cursor stays at _scrollBottom
                 }
                 else if (_cursorY < _height - 1)
@@ -1776,6 +1795,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case '\t':
                 // Move to next tab stop (every 8 columns)
                 _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+                
+            case '\b':
+                // Backspace - move cursor left (non-destructive)
+                _pendingWrap = false;
+                if (_cursorX > 0)
+                {
+                    _cursorX--;
+                }
                 break;
         }
     }
@@ -2359,7 +2387,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if needed
             if (_cursorY >= _height)
             {
-                ScrollUp();
+                ScrollUp(impacts);
                 _cursorY = _height - 1;
             }
             

@@ -1,4 +1,4 @@
-using System.Text;
+using Hex1b.Input;
 using Hex1b.Tokens;
 
 namespace Hex1b;
@@ -9,10 +9,10 @@ namespace Hex1b;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The TerminalWidgetHandle acts as an <see cref="IHex1bTerminalPresentationAdapter"/>
-/// for the child terminal while maintaining a screen buffer that the TerminalWidget
-/// can render from. This allows the child terminal to continue running and capturing
-/// output even when the widget is not mounted in the tree.
+/// The TerminalWidgetHandle implements <see cref="ICellImpactAwarePresentationAdapter"/>
+/// to receive pre-processed cell impacts directly from the terminal's ANSI parsing logic.
+/// This eliminates the need to duplicate parsing code while maintaining a screen buffer 
+/// that the TerminalWidget can render from.
 /// </para>
 /// <para>
 /// Usage:
@@ -29,7 +29,7 @@ namespace Hex1b;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IAsyncDisposable
+public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -42,14 +42,8 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
     private bool _cursorVisible = true;
     private bool _disposed;
     
-    // Current SGR state for parsing
-    private Hex1b.Theming.Hex1bColor? _currentForeground;
-    private Hex1b.Theming.Hex1bColor? _currentBackground;
-    private CellAttributes _currentAttributes;
-    
-    // Scroll region (0-based)
-    private int _scrollTop;
-    private int _scrollBottom;
+    // Reference to the owning terminal for forwarding input
+    private Hex1bTerminal? _terminal;
     
     /// <summary>
     /// Creates a new TerminalWidgetHandle with the specified dimensions.
@@ -63,7 +57,6 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
         
         _width = width;
         _height = height;
-        _scrollBottom = height - 1;
         _screenBuffer = new TerminalCell[height, width];
         ClearBuffer();
     }
@@ -98,6 +91,26 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
     /// TerminalNode subscribes to this to trigger re-renders.
     /// </summary>
     public event Action? OutputReceived;
+    
+    /// <summary>
+    /// Sets the terminal that owns this handle. Called by Hex1bTerminal constructor.
+    /// </summary>
+    internal void SetTerminal(Hex1bTerminal terminal)
+    {
+        _terminal = terminal;
+    }
+    
+    /// <summary>
+    /// Sends a key event to the terminal's workload (e.g., child process).
+    /// </summary>
+    /// <param name="keyEvent">The key event to send.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when the event has been sent.</returns>
+    public async Task SendKeyEventAsync(Hex1bKeyEvent keyEvent, CancellationToken ct = default)
+    {
+        if (_terminal == null || _disposed) return;
+        await _terminal.SendEventAsync(keyEvent, ct);
+    }
     
     /// <summary>
     /// Gets a copy of the current screen buffer.
@@ -135,9 +148,6 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
                 _screenBuffer[y, x] = TerminalCell.Empty;
             }
         }
-        _currentForeground = null;
-        _currentBackground = null;
-        _currentAttributes = CellAttributes.None;
     }
     
     // === IHex1bTerminalPresentationAdapter Implementation ===
@@ -159,19 +169,49 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
     /// <inheritdoc />
     public event Action? Disconnected;
     
-    /// <inheritdoc />
+    /// <summary>
+    /// Fallback for when the terminal doesn't support cell impacts.
+    /// This should rarely be called since ICellImpactAwarePresentationAdapter.WriteOutputWithImpactsAsync
+    /// is the preferred path.
+    /// </summary>
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (_disposed || data.IsEmpty) return ValueTask.CompletedTask;
-        
-        var text = Encoding.UTF8.GetString(data.Span);
-        var tokens = AnsiTokenizer.Tokenize(text);
+        // This is the fallback path - the terminal should prefer WriteOutputWithImpactsAsync
+        // when it detects we implement ICellImpactAwarePresentationAdapter.
+        // For now, just notify that something happened (display may be incomplete).
+        if (!_disposed && !data.IsEmpty)
+        {
+            OutputReceived?.Invoke();
+        }
+        return ValueTask.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Receives pre-processed cell impacts from the terminal's ANSI parsing logic.
+    /// This is the main entry point for output - the terminal calls this instead of
+    /// WriteOutputAsync when it detects we implement ICellImpactAwarePresentationAdapter.
+    /// </summary>
+    public ValueTask WriteOutputWithImpactsAsync(IReadOnlyList<AppliedToken> appliedTokens, CancellationToken ct = default)
+    {
+        if (_disposed || appliedTokens.Count == 0) 
+            return ValueTask.CompletedTask;
         
         lock (_bufferLock)
         {
-            foreach (var token in tokens)
+            foreach (var applied in appliedTokens)
             {
-                ApplyToken(token);
+                // Apply each cell impact to our buffer
+                foreach (var impact in applied.CellImpacts)
+                {
+                    if (impact.X >= 0 && impact.X < _width && impact.Y >= 0 && impact.Y < _height)
+                    {
+                        _screenBuffer[impact.Y, impact.X] = impact.Cell;
+                    }
+                }
+                
+                // Update cursor position from the last token
+                _cursorX = Math.Clamp(applied.CursorXAfter, 0, _width - 1);
+                _cursorY = Math.Clamp(applied.CursorYAfter, 0, _height - 1);
             }
         }
         
@@ -215,6 +255,7 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
     public void Resize(int newWidth, int newHeight)
     {
         if (newWidth <= 0 || newHeight <= 0) return;
+        if (newWidth == _width && newHeight == _height) return; // No change
         
         lock (_bufferLock)
         {
@@ -245,7 +286,6 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
             _height = newHeight;
             _cursorX = Math.Min(_cursorX, newWidth - 1);
             _cursorY = Math.Min(_cursorY, newHeight - 1);
-            _scrollBottom = newHeight - 1;
         }
         
         Resized?.Invoke(newWidth, newHeight);
@@ -261,523 +301,5 @@ public sealed class TerminalWidgetHandle : IHex1bTerminalPresentationAdapter, IA
         _disconnected.TrySetResult();
         
         return ValueTask.CompletedTask;
-    }
-    
-    // === Token Processing (simplified version of Hex1bTerminal's logic) ===
-    
-    private void ApplyToken(AnsiToken token)
-    {
-        switch (token)
-        {
-            case TextToken textToken:
-                ApplyText(textToken.Text);
-                break;
-                
-            case ControlCharacterToken controlToken:
-                ApplyControlCharacter(controlToken.Character);
-                break;
-                
-            case SgrToken sgrToken:
-                ProcessSgr(sgrToken.Parameters);
-                break;
-                
-            case CursorPositionToken cursorToken:
-                _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
-                _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
-                break;
-                
-            case ClearScreenToken clearToken:
-                ApplyClearScreen(clearToken.Mode);
-                break;
-                
-            case ClearLineToken clearLineToken:
-                ApplyClearLine(clearLineToken.Mode);
-                break;
-                
-            case CursorMoveToken moveToken:
-                ApplyCursorMove(moveToken);
-                break;
-                
-            case CursorColumnToken columnToken:
-                _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
-                break;
-                
-            case ScrollRegionToken scrollToken:
-                if (scrollToken.Bottom == 0)
-                {
-                    _scrollTop = 0;
-                    _scrollBottom = _height - 1;
-                }
-                else
-                {
-                    _scrollTop = Math.Clamp(scrollToken.Top - 1, 0, _height - 1);
-                    _scrollBottom = Math.Clamp(scrollToken.Bottom - 1, _scrollTop, _height - 1);
-                }
-                _cursorX = 0;
-                _cursorY = 0;
-                break;
-                
-            case ScrollUpToken scrollUpToken:
-                for (int i = 0; i < scrollUpToken.Count; i++)
-                    ScrollUp();
-                break;
-                
-            case ScrollDownToken scrollDownToken:
-                for (int i = 0; i < scrollDownToken.Count; i++)
-                    ScrollDown();
-                break;
-                
-            case PrivateModeToken privateModeToken:
-                if (privateModeToken.Mode == 25) // Cursor visibility
-                {
-                    _cursorVisible = privateModeToken.Enable;
-                }
-                else if (privateModeToken.Mode == 1049) // Alternate screen
-                {
-                    if (privateModeToken.Enable)
-                    {
-                        ClearBuffer();
-                        _cursorX = 0;
-                        _cursorY = 0;
-                    }
-                }
-                break;
-                
-            case DeleteCharacterToken deleteCharToken:
-                DeleteCharacters(deleteCharToken.Count);
-                break;
-                
-            case InsertCharacterToken insertCharToken:
-                InsertCharacters(insertCharToken.Count);
-                break;
-                
-            case EraseCharacterToken eraseCharToken:
-                EraseCharacters(eraseCharToken.Count);
-                break;
-                
-            case InsertLinesToken insertLinesToken:
-                InsertLines(insertLinesToken.Count);
-                break;
-                
-            case DeleteLinesToken deleteLinesToken:
-                DeleteLines(deleteLinesToken.Count);
-                break;
-        }
-    }
-    
-    private void ApplyText(string text)
-    {
-        foreach (var c in text)
-        {
-            if (_cursorX >= _width)
-            {
-                _cursorX = 0;
-                _cursorY++;
-                if (_cursorY > _scrollBottom)
-                {
-                    ScrollUp();
-                    _cursorY = _scrollBottom;
-                }
-            }
-            
-            if (_cursorY >= 0 && _cursorY < _height && _cursorX >= 0 && _cursorX < _width)
-            {
-                _screenBuffer[_cursorY, _cursorX] = new TerminalCell(
-                    c.ToString(),
-                    _currentForeground,
-                    _currentBackground,
-                    _currentAttributes);
-                _cursorX++;
-            }
-        }
-    }
-    
-    private void ApplyControlCharacter(char c)
-    {
-        switch (c)
-        {
-            case '\n':
-                if (_cursorY >= _scrollBottom)
-                {
-                    ScrollUp();
-                }
-                else if (_cursorY < _height - 1)
-                {
-                    _cursorY++;
-                }
-                break;
-                
-            case '\r':
-                _cursorX = 0;
-                break;
-                
-            case '\t':
-                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
-                break;
-                
-            case '\b':
-                if (_cursorX > 0)
-                    _cursorX--;
-                break;
-        }
-    }
-    
-    private void ApplyCursorMove(CursorMoveToken token)
-    {
-        switch (token.Direction)
-        {
-            case CursorMoveDirection.Up:
-                _cursorY = Math.Max(0, _cursorY - token.Count);
-                break;
-            case CursorMoveDirection.Down:
-                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
-                break;
-            case CursorMoveDirection.Forward:
-                _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
-                break;
-            case CursorMoveDirection.Back:
-                _cursorX = Math.Max(0, _cursorX - token.Count);
-                break;
-            case CursorMoveDirection.NextLine:
-                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
-                _cursorX = 0;
-                break;
-            case CursorMoveDirection.PreviousLine:
-                _cursorY = Math.Max(0, _cursorY - token.Count);
-                _cursorX = 0;
-                break;
-        }
-    }
-    
-    private void ApplyClearScreen(ClearMode mode)
-    {
-        switch (mode)
-        {
-            case ClearMode.ToEnd:
-                // Clear from cursor to end
-                for (int x = _cursorX; x < _width; x++)
-                    _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-                for (int y = _cursorY + 1; y < _height; y++)
-                    for (int x = 0; x < _width; x++)
-                        _screenBuffer[y, x] = TerminalCell.Empty;
-                break;
-                
-            case ClearMode.ToStart:
-                // Clear from start to cursor
-                for (int y = 0; y < _cursorY; y++)
-                    for (int x = 0; x < _width; x++)
-                        _screenBuffer[y, x] = TerminalCell.Empty;
-                for (int x = 0; x <= _cursorX; x++)
-                    _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-                break;
-                
-            case ClearMode.All:
-            case ClearMode.AllAndScrollback:
-                ClearBuffer();
-                break;
-        }
-    }
-    
-    private void ApplyClearLine(ClearMode mode)
-    {
-        switch (mode)
-        {
-            case ClearMode.ToEnd:
-                for (int x = _cursorX; x < _width; x++)
-                    _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-                break;
-                
-            case ClearMode.ToStart:
-                for (int x = 0; x <= _cursorX; x++)
-                    _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-                break;
-                
-            case ClearMode.All:
-                for (int x = 0; x < _width; x++)
-                    _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-                break;
-        }
-    }
-    
-    private void ScrollUp()
-    {
-        for (int y = _scrollTop; y < _scrollBottom; y++)
-        {
-            for (int x = 0; x < _width; x++)
-            {
-                _screenBuffer[y, x] = _screenBuffer[y + 1, x];
-            }
-        }
-        for (int x = 0; x < _width; x++)
-        {
-            _screenBuffer[_scrollBottom, x] = TerminalCell.Empty;
-        }
-    }
-    
-    private void ScrollDown()
-    {
-        for (int y = _scrollBottom; y > _scrollTop; y--)
-        {
-            for (int x = 0; x < _width; x++)
-            {
-                _screenBuffer[y, x] = _screenBuffer[y - 1, x];
-            }
-        }
-        for (int x = 0; x < _width; x++)
-        {
-            _screenBuffer[_scrollTop, x] = TerminalCell.Empty;
-        }
-    }
-    
-    private void DeleteCharacters(int count)
-    {
-        for (int i = 0; i < count && _cursorX + i < _width; i++)
-        {
-            for (int x = _cursorX; x < _width - 1; x++)
-            {
-                _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x + 1];
-            }
-            _screenBuffer[_cursorY, _width - 1] = TerminalCell.Empty;
-        }
-    }
-    
-    private void InsertCharacters(int count)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            for (int x = _width - 1; x > _cursorX; x--)
-            {
-                _screenBuffer[_cursorY, x] = _screenBuffer[_cursorY, x - 1];
-            }
-            _screenBuffer[_cursorY, _cursorX] = TerminalCell.Empty;
-        }
-    }
-    
-    private void EraseCharacters(int count)
-    {
-        for (int i = 0; i < count && _cursorX + i < _width; i++)
-        {
-            _screenBuffer[_cursorY, _cursorX + i] = TerminalCell.Empty;
-        }
-    }
-    
-    private void InsertLines(int count)
-    {
-        if (_cursorY < _scrollTop || _cursorY > _scrollBottom) return;
-        
-        for (int i = 0; i < count; i++)
-        {
-            for (int y = _scrollBottom; y > _cursorY; y--)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    _screenBuffer[y, x] = _screenBuffer[y - 1, x];
-                }
-            }
-            for (int x = 0; x < _width; x++)
-            {
-                _screenBuffer[_cursorY, x] = TerminalCell.Empty;
-            }
-        }
-    }
-    
-    private void DeleteLines(int count)
-    {
-        if (_cursorY < _scrollTop || _cursorY > _scrollBottom) return;
-        
-        for (int i = 0; i < count; i++)
-        {
-            for (int y = _cursorY; y < _scrollBottom; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    _screenBuffer[y, x] = _screenBuffer[y + 1, x];
-                }
-            }
-            for (int x = 0; x < _width; x++)
-            {
-                _screenBuffer[_scrollBottom, x] = TerminalCell.Empty;
-            }
-        }
-    }
-    
-    private void ProcessSgr(string parameters)
-    {
-        if (string.IsNullOrEmpty(parameters) || parameters == "0")
-        {
-            _currentForeground = null;
-            _currentBackground = null;
-            _currentAttributes = CellAttributes.None;
-            return;
-        }
-        
-        var parts = parameters.Split(';');
-        for (int i = 0; i < parts.Length; i++)
-        {
-            if (!int.TryParse(parts[i], out var code))
-                continue;
-            
-            switch (code)
-            {
-                case 0:
-                    _currentForeground = null;
-                    _currentBackground = null;
-                    _currentAttributes = CellAttributes.None;
-                    break;
-                    
-                case 1:
-                    _currentAttributes |= CellAttributes.Bold;
-                    break;
-                case 2:
-                    _currentAttributes |= CellAttributes.Dim;
-                    break;
-                case 3:
-                    _currentAttributes |= CellAttributes.Italic;
-                    break;
-                case 4:
-                    _currentAttributes |= CellAttributes.Underline;
-                    break;
-                case 7:
-                    _currentAttributes |= CellAttributes.Reverse;
-                    break;
-                case 9:
-                    _currentAttributes |= CellAttributes.Strikethrough;
-                    break;
-                    
-                case 22:
-                    _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
-                    break;
-                case 23:
-                    _currentAttributes &= ~CellAttributes.Italic;
-                    break;
-                case 24:
-                    _currentAttributes &= ~CellAttributes.Underline;
-                    break;
-                case 27:
-                    _currentAttributes &= ~CellAttributes.Reverse;
-                    break;
-                case 29:
-                    _currentAttributes &= ~CellAttributes.Strikethrough;
-                    break;
-                    
-                // Basic foreground colors (30-37)
-                case >= 30 and <= 37:
-                    _currentForeground = StandardColorFromCode(code - 30);
-                    break;
-                case 39:
-                    _currentForeground = null;
-                    break;
-                    
-                // Basic background colors (40-47)
-                case >= 40 and <= 47:
-                    _currentBackground = StandardColorFromCode(code - 40);
-                    break;
-                case 49:
-                    _currentBackground = null;
-                    break;
-                    
-                // Bright foreground colors (90-97)
-                case >= 90 and <= 97:
-                    _currentForeground = BrightColorFromCode(code - 90);
-                    break;
-                    
-                // Bright background colors (100-107)
-                case >= 100 and <= 107:
-                    _currentBackground = BrightColorFromCode(code - 100);
-                    break;
-                    
-                // 256-color and RGB colors
-                case 38:
-                    if (i + 2 < parts.Length && parts[i + 1] == "5")
-                    {
-                        if (int.TryParse(parts[i + 2], out var colorIndex))
-                        {
-                            _currentForeground = Color256FromIndex(colorIndex);
-                        }
-                        i += 2;
-                    }
-                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
-                    {
-                        if (int.TryParse(parts[i + 2], out var r) &&
-                            int.TryParse(parts[i + 3], out var g) &&
-                            int.TryParse(parts[i + 4], out var b))
-                        {
-                            _currentForeground = Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
-                        }
-                        i += 4;
-                    }
-                    break;
-                    
-                case 48:
-                    if (i + 2 < parts.Length && parts[i + 1] == "5")
-                    {
-                        if (int.TryParse(parts[i + 2], out var colorIndex))
-                        {
-                            _currentBackground = Color256FromIndex(colorIndex);
-                        }
-                        i += 2;
-                    }
-                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
-                    {
-                        if (int.TryParse(parts[i + 2], out var r) &&
-                            int.TryParse(parts[i + 3], out var g) &&
-                            int.TryParse(parts[i + 4], out var b))
-                        {
-                            _currentBackground = Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
-                        }
-                        i += 4;
-                    }
-                    break;
-            }
-        }
-    }
-    
-    // === Color Helpers ===
-    
-    private static Hex1b.Theming.Hex1bColor StandardColorFromCode(int code) => code switch
-    {
-        0 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 0),
-        1 => Hex1b.Theming.Hex1bColor.FromRgb(128, 0, 0),
-        2 => Hex1b.Theming.Hex1bColor.FromRgb(0, 128, 0),
-        3 => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 0),
-        4 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 128),
-        5 => Hex1b.Theming.Hex1bColor.FromRgb(128, 0, 128),
-        6 => Hex1b.Theming.Hex1bColor.FromRgb(0, 128, 128),
-        7 => Hex1b.Theming.Hex1bColor.FromRgb(192, 192, 192),
-        _ => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 128)
-    };
-
-    private static Hex1b.Theming.Hex1bColor BrightColorFromCode(int code) => code switch
-    {
-        0 => Hex1b.Theming.Hex1bColor.FromRgb(128, 128, 128),
-        1 => Hex1b.Theming.Hex1bColor.FromRgb(255, 0, 0),
-        2 => Hex1b.Theming.Hex1bColor.FromRgb(0, 255, 0),
-        3 => Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 0),
-        4 => Hex1b.Theming.Hex1bColor.FromRgb(0, 0, 255),
-        5 => Hex1b.Theming.Hex1bColor.FromRgb(255, 0, 255),
-        6 => Hex1b.Theming.Hex1bColor.FromRgb(0, 255, 255),
-        7 => Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 255),
-        _ => Hex1b.Theming.Hex1bColor.FromRgb(192, 192, 192)
-    };
-
-    private static Hex1b.Theming.Hex1bColor Color256FromIndex(int index)
-    {
-        if (index < 16)
-        {
-            return index < 8 ? StandardColorFromCode(index) : BrightColorFromCode(index - 8);
-        }
-        else if (index < 232)
-        {
-            index -= 16;
-            var r = (index / 36) * 51;
-            var g = ((index / 6) % 6) * 51;
-            var b = (index % 6) * 51;
-            return Hex1b.Theming.Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
-        }
-        else
-        {
-            var gray = (index - 232) * 10 + 8;
-            return Hex1b.Theming.Hex1bColor.FromRgb((byte)gray, (byte)gray, (byte)gray);
-        }
     }
 }

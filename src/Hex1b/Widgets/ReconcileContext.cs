@@ -24,6 +24,13 @@ public sealed class ReconcileContext
     private readonly IReadOnlyList<Hex1bNode> _ancestors;
 
     internal FocusRing FocusRing { get; }
+    
+    /// <summary>
+    /// Callback to invalidate the app and trigger a re-render.
+    /// Nodes that receive asynchronous updates (like TerminalNode) use this to
+    /// trigger re-renders when new content arrives.
+    /// </summary>
+    internal Action? InvalidateCallback { get; }
 
     /// <summary>
     /// Whether this is a new node being created (vs updating an existing one).
@@ -42,20 +49,21 @@ public sealed class ReconcileContext
     /// </summary>
     public CancellationToken CancellationToken { get; }
 
-    private ReconcileContext(Hex1bNode? parent, FocusRing focusRing, CancellationToken cancellationToken, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null)
+    private ReconcileContext(Hex1bNode? parent, FocusRing focusRing, CancellationToken cancellationToken, IReadOnlyList<Hex1bNode>? ancestors = null, LayoutAxis? layoutAxis = null, Action? invalidateCallback = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
         LayoutAxis = layoutAxis;
         FocusRing = focusRing;
         CancellationToken = cancellationToken;
+        InvalidateCallback = invalidateCallback;
     }
 
     /// <summary>
     /// Creates a root reconcile context (no parent).
     /// </summary>
-    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null, CancellationToken cancellationToken = default) 
-        => new(null, focusRing ?? new FocusRing(), cancellationToken);
+    internal static ReconcileContext CreateRoot(FocusRing? focusRing = null, CancellationToken cancellationToken = default, Action? invalidateCallback = null) 
+        => new(null, focusRing ?? new FocusRing(), cancellationToken, invalidateCallback: invalidateCallback);
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -66,7 +74,7 @@ public sealed class ReconcileContext
         // Build the new ancestor list: [parent, ...current ancestors]
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
-        return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis);
+        return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback);
     }
     
     /// <summary>
@@ -75,7 +83,7 @@ public sealed class ReconcileContext
     /// </summary>
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
-        return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis) { IsNew = IsNew };
+        return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback) { IsNew = IsNew };
     }
 
     /// <summary>

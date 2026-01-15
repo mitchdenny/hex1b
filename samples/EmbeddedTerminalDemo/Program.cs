@@ -1,24 +1,17 @@
 using Hex1b;
 
-// Create two terminal sessions with their handles
-var leftTerminal = Hex1bTerminal.CreateBuilder()
-    .WithDimensions(40, 20)
+// Create a single terminal session with its handle
+var childTerminal = Hex1bTerminal.CreateBuilder()
+    .WithDimensions(80, 24)
     .WithPtyProcess("bash", "--norc")
-    .WithTerminalWidget(out var leftHandle)
+    .WithTerminalWidget(out var childHandle)
     .Build();
 
-var rightTerminal = Hex1bTerminal.CreateBuilder()
-    .WithDimensions(40, 20)
-    .WithPtyProcess("bash", "--norc")
-    .WithTerminalWidget(out var rightHandle)
-    .Build();
-
-// Start both terminals in the background
+// Start the terminal in the background
 using var cts = new CancellationTokenSource();
-var leftTask = leftTerminal.RunAsync(cts.Token);
-var rightTask = rightTerminal.RunAsync(cts.Token);
+var childTask = childTerminal.RunAsync(cts.Token);
 
-// Create the TUI app that displays both terminals side by side
+// Create the TUI app that displays the terminal
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((app, options) =>
@@ -26,23 +19,14 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
         return ctx => ctx.VStack(v =>
         [
             // Header
-            v.Text("Embedded Terminal Demo - Two bash sessions side by side"),
+            v.Text("Embedded Terminal Demo - Single bash session"),
             v.Text("Press Ctrl+C to exit"),
             v.Separator(),
             
-            // Two terminals in a horizontal splitter
-            v.HSplitter(
-                // Left pane: first terminal
-                v.Border(
-                    v.Terminal(leftHandle),
-                    title: "Terminal 1"
-                ),
-                // Right pane: second terminal
-                v.Border(
-                    v.Terminal(rightHandle),
-                    title: "Terminal 2"
-                ),
-                leftWidth: 45
+            // Single terminal with border
+            v.Border(
+                v.Terminal(childHandle).Fill(),
+                title: "Bash"
             ).Fill()
         ]);
     })
@@ -56,7 +40,6 @@ finally
 {
     cts.Cancel();
     
-    // Clean up the child terminals
-    await leftTerminal.DisposeAsync();
-    await rightTerminal.DisposeAsync();
+    // Clean up the child terminal
+    await childTerminal.DisposeAsync();
 }
