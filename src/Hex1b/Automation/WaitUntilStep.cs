@@ -2,9 +2,10 @@ namespace Hex1b.Automation;
 
 /// <summary>
 /// A step that waits until a condition is met on the terminal.
+/// Supports both sync and async predicates (sync predicates are wrapped as async).
 /// </summary>
 public sealed record WaitUntilStep(
-    Func<Hex1bTerminalSnapshot, bool> Predicate,
+    Func<Hex1bTerminalSnapshot, Task<bool>> Predicate,
     TimeSpan Timeout,
     string? Description = null) : TestStep
 {
@@ -23,7 +24,7 @@ public sealed record WaitUntilStep(
             // CreateSnapshot auto-flushes pending output
             var snapshot = terminal.CreateSnapshot();
 
-            if (Predicate(snapshot))
+            if (await Predicate(snapshot).ConfigureAwait(false))
                 return;
 
             await DelayAsync(timeProvider, options.PollInterval, ct);

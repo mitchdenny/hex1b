@@ -184,6 +184,12 @@ public class WaitConditionTests
         
         workload.Write("Async persistent content");
         
+        // First wait for the content to appear
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Async persistent"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
         await Assert.ThrowsAsync<TimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()

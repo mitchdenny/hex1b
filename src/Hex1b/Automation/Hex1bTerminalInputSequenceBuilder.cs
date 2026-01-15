@@ -63,7 +63,7 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         TimeSpan timeout,
         string? description = null)
     {
-        _steps.Add(new WaitUntilStep(predicate, timeout, description));
+        _steps.Add(new WaitUntilStep(s => Task.FromResult(predicate(s)), timeout, description));
         return this;
     }
 
@@ -78,7 +78,7 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         TimeSpan timeout,
         string? description = null)
     {
-        _steps.Add(new WaitUntilAsyncStep(predicate, timeout, description));
+        _steps.Add(new WaitUntilStep(predicate, timeout, description));
         return this;
     }
 
@@ -93,7 +93,7 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         TimeSpan timeout,
         string? description = null)
     {
-        _steps.Add(new WaitWhileStep(predicate, timeout, description));
+        _steps.Add(new WaitWhileStep(s => Task.FromResult(predicate(s)), timeout, description));
         return this;
     }
 
@@ -108,7 +108,7 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         TimeSpan timeout,
         string? description = null)
     {
-        _steps.Add(new WaitWhileAsyncStep(predicate, timeout, description));
+        _steps.Add(new WaitWhileStep(predicate, timeout, description));
         return this;
     }
 
