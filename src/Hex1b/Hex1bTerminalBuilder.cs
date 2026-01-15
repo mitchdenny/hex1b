@@ -639,6 +639,40 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures the terminal to use a <see cref="TerminalWidgetHandle"/> as the presentation adapter.
+    /// This allows embedding the terminal output within a TUI application using <see cref="Widgets.TerminalWidget"/>.
+    /// </summary>
+    /// <param name="handle">When this method returns, contains the handle that can be passed to <c>ctx.Terminal(...)</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// The handle maintains a screen buffer that is updated as the terminal produces output.
+    /// When the TerminalWidget is mounted in a Hex1bApp, it renders from this buffer.
+    /// When the widget is unmounted (e.g., navigated away), the buffer continues to be updated.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithTerminalWidget(out var bashHandle)
+    ///     .Build();
+    /// 
+    /// _ = terminal.RunAsync(appCt);
+    /// 
+    /// // In widget tree:
+    /// ctx.Terminal(bashHandle);
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithTerminalWidget(out TerminalWidgetHandle handle)
+    {
+        handle = new TerminalWidgetHandle(_width, _height);
+        var capturedHandle = handle; // Capture for lambda
+        _presentationFactory = _ => capturedHandle;
+        return this;
+    }
+
+    /// <summary>
     /// Adds a workload filter to the terminal.
     /// </summary>
     /// <param name="filter">The filter to add.</param>
