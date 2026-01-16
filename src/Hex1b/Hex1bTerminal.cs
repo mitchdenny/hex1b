@@ -1640,6 +1640,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _pendingWrap = false; // Explicit column movement clears pending wrap
                 _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
                 break;
+            
+            case CursorRowToken rowToken:
+                _pendingWrap = false; // Explicit row movement clears pending wrap
+                // VPA respects origin mode like CUP
+                if (_originMode)
+                {
+                    _cursorY = Math.Clamp(_scrollTop + rowToken.Row - 1, _scrollTop, _scrollBottom);
+                }
+                else
+                {
+                    _cursorY = Math.Clamp(rowToken.Row - 1, 0, _height - 1);
+                }
+                break;
                 
             case ScrollUpToken scrollUpToken:
                 for (int i = 0; i < scrollUpToken.Count; i++)

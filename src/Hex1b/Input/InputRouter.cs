@@ -69,6 +69,18 @@ public static class InputRouter
             return InputResult.Handled;
         }
 
+        // Check if the focused node wants to capture all input (e.g., embedded terminals)
+        // This bypasses normal binding processing so raw input reaches the node
+        var focusedNode = path[^1];
+        if (focusedNode.IsFocusable && focusedNode.IsFocused && focusedNode.CapturesAllInput)
+        {
+            var captureResult = focusedNode.HandleInput(keyEvent);
+            if (captureResult == InputResult.Handled)
+            {
+                return InputResult.Handled;
+            }
+        }
+
         // If mid-chord but focus changed, cancel the chord
         if (state.ChordNode != null && !PathsMatch(state.ChordAnchorPath, path))
         {

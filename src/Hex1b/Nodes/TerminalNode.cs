@@ -69,6 +69,14 @@ public sealed class TerminalNode : Hex1bNode
     /// this returns false so that focus navigation can reach the fallback's children.
     /// </remarks>
     public override bool IsFocusable => _handle == null || _handle.State == TerminalState.Running || FallbackChild == null;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The terminal captures all input when focused and running, bypassing
+    /// normal input binding processing so that all keys (including Ctrl+C)
+    /// are forwarded to the child process.
+    /// </remarks>
+    public override bool CapturesAllInput => _handle != null && _handle.State == TerminalState.Running && IsFocused;
     
     /// <inheritdoc />
     /// <remarks>

@@ -38,6 +38,7 @@ public static class AnsiTokenSerializer
             CursorShapeToken shape => SerializeCursorShape(shape),
             CursorMoveToken move => SerializeCursorMove(move),
             CursorColumnToken col => SerializeCursorColumn(col),
+            CursorRowToken row => SerializeCursorRow(row),
             ClearScreenToken clear => SerializeClearScreen(clear),
             ClearLineToken clear => SerializeClearLine(clear),
             ScrollRegionToken scroll => SerializeScrollRegion(scroll),
@@ -140,6 +141,12 @@ public static class AnsiTokenSerializer
     {
         // ESC [ n G (CHA)
         return token.Column == 1 ? "\x1b[G" : $"\x1b[{token.Column}G";
+    }
+    
+    private static string SerializeCursorRow(CursorRowToken token)
+    {
+        // ESC [ n d (VPA)
+        return token.Row == 1 ? "\x1b[d" : $"\x1b[{token.Row}d";
     }
 
     private static string SerializeClearScreen(ClearScreenToken token)

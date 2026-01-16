@@ -218,6 +218,17 @@ public abstract class Hex1bNode
     public virtual CursorShape PreferredCursorShape => CursorShape.SteadyBlock;
 
     /// <summary>
+    /// When true, this node receives all keyboard input directly via HandleInput,
+    /// bypassing the normal input binding checks. Use this for nodes that need to
+    /// forward raw input to external systems (e.g., embedded terminals).
+    /// </summary>
+    /// <remarks>
+    /// This property only takes effect when the node is focused. Global bindings
+    /// are still processed before the node receives input.
+    /// </remarks>
+    public virtual bool CapturesAllInput => false;
+
+    /// <summary>
     /// Gets or sets whether this node is currently focused.
     /// Only meaningful for focusable nodes (where IsFocusable is true).
     /// </summary>

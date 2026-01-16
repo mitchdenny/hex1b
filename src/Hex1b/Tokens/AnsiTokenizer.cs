@@ -333,6 +333,11 @@ public static class AnsiTokenizer
                 // Cursor Horizontal Absolute (CHA)
                 tokens.Add(new CursorColumnToken(ParseMoveCount(parameters)));
                 break;
+            
+            case 'd':
+                // Vertical Position Absolute (VPA) - move cursor to absolute row
+                tokens.Add(new CursorRowToken(ParseMoveCount(parameters)));
+                break;
                 
             case 'S':
                 // Scroll Up (SU) - scroll content up n lines

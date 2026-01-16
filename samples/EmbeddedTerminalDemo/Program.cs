@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
@@ -6,6 +7,8 @@ using Hex1b.Widgets;
 var terminals = new List<TerminalSession>();
 var terminalLock = new object();
 var nextTerminalId = 1;
+var activeTerminalId = 0; // ID of the currently displayed terminal (0 = none)
+var statusMessage = "Ready"; // Status bar message
 
 // Cancellation for the entire demo
 using var cts = new CancellationTokenSource();
@@ -19,6 +22,12 @@ void RemoveTerminal(TerminalSession session)
     lock (terminalLock)
     {
         terminals.Remove(session);
+        
+        // If we removed the active terminal, switch to another one
+        if (activeTerminalId == session.Id)
+        {
+            activeTerminalId = terminals.Count > 0 ? terminals[^1].Id : 0;
+        }
     }
     _ = session.Terminal.DisposeAsync();
     displayApp?.Invalidate();
@@ -39,6 +48,7 @@ void AddTerminal()
     lock (terminalLock)
     {
         terminals.Add(session);
+        activeTerminalId = id; // Make new terminal the active one
     }
     
     // Start the terminal in the background
@@ -85,6 +95,7 @@ void RestartTerminal(TerminalSession oldSession)
     lock (terminalLock)
     {
         terminals.Add(newSession);
+        activeTerminalId = newSession.Id; // Keep this terminal active
     }
     
     // Start the terminal
@@ -108,6 +119,141 @@ void RestartTerminal(TerminalSession oldSession)
     });
     
     displayApp?.Invalidate();
+}
+
+// Predefined automation sequences organized by category
+var basicShellSequences = new Dictionary<string, Func<Hex1bTerminalInputSequence>>
+{
+    ["List Files"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("ls -la")
+        .Enter()
+        .Build(),
+        
+    ["Show Current Directory"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("pwd")
+        .Enter()
+        .Build(),
+        
+    ["Clear Screen"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("clear")
+        .Enter()
+        .Build(),
+        
+    ["System Info"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("uname -a")
+        .Enter()
+        .Build(),
+        
+    ["Disk Usage"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("df -h")
+        .Enter()
+        .Build(),
+        
+    ["Process List"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("ps aux | head -20")
+        .Enter()
+        .Build(),
+        
+    ["Hello World Echo"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("echo 'Hello from automation!'")
+        .Enter()
+        .Build(),
+        
+    ["Create Test File"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("echo 'Test content' > /tmp/hex1b_test.txt && cat /tmp/hex1b_test.txt")
+        .Enter()
+        .Build()
+};
+
+var asciiArtSequences = new Dictionary<string, Func<Hex1bTerminalInputSequence>>
+{
+    ["Star Wars (SSH)"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("ssh starwarstel.net")
+        .Enter()
+        .Build(),
+        
+    ["CMatrix (Docker)"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("docker run -it --rm --log-driver none --net none --read-only --cap-drop=ALL willh/cmatrix")
+        .Enter()
+        .Build(),
+        
+    ["Pipes (Docker)"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("docker run --rm -it joonas/pipes.sh")
+        .Enter()
+        .Build(),
+        
+    ["Asciiquarium (Docker)"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("docker run -it --rm vanessa/asciiquarium")
+        .Enter()
+        .Build(),
+        
+    ["SL Train"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("sl")
+        .Enter()
+        .Build(),
+        
+    ["Fortune + Cowsay"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("fortune | cowsay")
+        .Enter()
+        .Build(),
+        
+    ["Figlet Banner"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("figlet 'Hex1b'")
+        .Enter()
+        .Build(),
+        
+    ["Mapscii"] = () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("npx mapscii")
+        .Enter()
+        .Build()
+};
+
+// Combined sequences for lookup
+var allSequences = basicShellSequences
+    .Concat(asciiArtSequences)
+    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+// Helper to run an automation sequence on the active terminal
+void RunAutomation(string sequenceName)
+{
+    TerminalSession? activeSession;
+    lock (terminalLock)
+    {
+        activeSession = terminals.FirstOrDefault(s => s.Id == activeTerminalId);
+    }
+    
+    if (activeSession == null)
+    {
+        statusMessage = "No active terminal to run automation";
+        displayApp?.Invalidate();
+        return;
+    }
+    
+    if (!allSequences.TryGetValue(sequenceName, out var sequenceFactory))
+    {
+        statusMessage = $"Unknown sequence: {sequenceName}";
+        displayApp?.Invalidate();
+        return;
+    }
+    
+    statusMessage = $"Running: {sequenceName}...";
+    displayApp?.Invalidate();
+    
+    // Run the sequence in the background
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            var sequence = sequenceFactory();
+            await sequence.ApplyAsync(activeSession.Terminal);
+            statusMessage = $"Completed: {sequenceName}";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error: {ex.Message}";
+        }
+        displayApp?.Invalidate();
+    });
 }
 
 // Build the widget tree based on current terminals
@@ -146,63 +292,95 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
         );
     }
     
-    return ctx.VStack(v =>
+    // Build the main content area - only show the active terminal
+    Hex1bWidget BuildMainContent<TParent>(WidgetContext<TParent> v) where TParent : Hex1bWidget
     {
-        var children = new List<Hex1bWidget>
-        {
-            // Header with instructions
-            v.Text($"Embedded Terminal Demo - {currentTerminals.Count} terminal(s)"),
-            v.Text("Press Ctrl+N to add a terminal, Ctrl+Q to quit"),
-            v.Separator()
-        };
-        
         if (currentTerminals.Count == 0)
         {
             // No terminals - show placeholder
-            children.Add(
-                v.Align(Alignment.Center,
-                    v.Border(
-                        v.VStack(vv =>
-                        [
-                            vv.Text("No terminals running"),
-                            vv.Text(""),
-                            vv.Text("Press Ctrl+N to add a terminal")
-                        ]),
-                        title: "Welcome"
-                    )
-                ).Fill()
-            );
-        }
-        else if (currentTerminals.Count == 1)
-        {
-            // Single terminal - no splitter needed
-            var session = currentTerminals[0];
-            children.Add(BuildTerminalPane(v, session).Fill());
-        }
-        else
-        {
-            // Multiple terminals - build nested splitters
-            // Start with the first terminal
-            Hex1bWidget result = BuildTerminalPane(v, currentTerminals[0]);
-            
-            // Add remaining terminals with splitters
-            for (int i = 1; i < currentTerminals.Count; i++)
-            {
-                var session = currentTerminals[i];
-                var rightPane = BuildTerminalPane(v, session);
-                
-                // Calculate proportional width for left pane
-                var leftRatio = (double)i / (i + 1);
-                var leftWidth = (int)(80 * leftRatio); // Base width scaled by ratio
-                
-                result = v.HSplitter(result, rightPane, leftWidth: leftWidth);
-            }
-            
-            children.Add(result.Fill());
+            return v.Align(Alignment.Center,
+                v.Border(
+                    v.VStack(vv =>
+                    [
+                        vv.Text("No terminals running"),
+                        vv.Text(""),
+                        vv.Text("Use File → New Terminal or press Ctrl+N")
+                    ]),
+                    title: "Welcome"
+                )
+            ).Fill();
         }
         
-        return [.. children];
-    }).WithInputBindings(bindings =>
+        // Find the active terminal
+        var activeSession = currentTerminals.FirstOrDefault(s => s.Id == activeTerminalId) 
+                         ?? currentTerminals[0];
+        
+        return BuildTerminalPane(v, activeSession).Fill();
+    }
+    
+    return ctx.VStack(v =>
+    [
+        // Menu bar at the top
+        v.MenuBar(m =>
+        [
+            m.Menu("File", m =>
+            [
+                m.MenuItem("New Terminal").OnActivated(_ => AddTerminal()),
+                m.Separator(),
+                m.MenuItem("Quit").OnActivated(_ => displayApp?.RequestStop())
+            ]),
+            m.Menu("Terminals", m =>
+            [
+                // List each existing terminal with a checkmark for the active one
+                // TODO: Terminal title semantics need to flow through to Hex1bTerminal
+                ..currentTerminals.Select(session =>
+                    m.MenuItem($"{(session.Id == activeTerminalId ? "● " : "  ")}Terminal {session.Id}")
+                        .OnActivated(_ => 
+                        {
+                            activeTerminalId = session.Id;
+                            displayApp?.Invalidate();
+                        })
+                ),
+                // Show placeholder if no terminals
+                ..(currentTerminals.Count == 0 
+                    ? [m.MenuItem("(No terminals)").Disabled()]
+                    : Array.Empty<MenuItemWidget>())
+            ]),
+            m.Menu("Automation", m =>
+            [
+                // Basic Shell submenu
+                m.Menu("Basic Shell", m =>
+                [
+                    ..basicShellSequences.Keys.Select(name =>
+                        m.MenuItem(name).OnActivated(_ => RunAutomation(name))
+                    )
+                ]),
+                // ASCII Art submenu
+                m.Menu("ASCII Art", m =>
+                [
+                    ..asciiArtSequences.Keys.Select(name =>
+                        m.MenuItem(name).OnActivated(_ => RunAutomation(name))
+                    )
+                ])
+            ]),
+            m.Menu("Help", m =>
+            [
+                m.MenuItem("Keyboard Shortcuts").OnActivated(_ => { /* TODO: show shortcuts */ }),
+                m.Separator(),
+                m.MenuItem("About").OnActivated(_ => { /* TODO: show about */ })
+            ])
+        ]),
+        
+        // Main content
+        BuildMainContent(v),
+        
+        // Status bar at the bottom
+        v.InfoBar([
+            "Ctrl+N", "New Terminal",
+            "Ctrl+Q", "Quit",
+            "", statusMessage
+        ])
+    ]).WithInputBindings(bindings =>
     {
         bindings.Ctrl().Key(Hex1bKey.N).Action(_ => AddTerminal(), "Add terminal");
         bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => displayApp?.RequestStop(), "Quit");
