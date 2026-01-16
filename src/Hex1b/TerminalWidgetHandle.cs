@@ -4,6 +4,27 @@ using Hex1b.Tokens;
 namespace Hex1b;
 
 /// <summary>
+/// Represents the lifecycle state of a terminal session.
+/// </summary>
+public enum TerminalState
+{
+    /// <summary>
+    /// The terminal session has not started yet.
+    /// </summary>
+    NotStarted,
+    
+    /// <summary>
+    /// The terminal session is currently running.
+    /// </summary>
+    Running,
+    
+    /// <summary>
+    /// The terminal session has completed (process exited).
+    /// </summary>
+    Completed
+}
+
+/// <summary>
 /// A handle that connects a Hex1bTerminal to a TerminalWidget for embedding
 /// child terminal sessions within a TUI application.
 /// </summary>
@@ -52,6 +73,10 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     
     // Reference to the owning terminal for forwarding input
     private Hex1bTerminal? _terminal;
+    
+    // Terminal lifecycle state
+    private TerminalState _state = TerminalState.NotStarted;
+    private int? _exitCode;
     
     /// <summary>
     /// Creates a new TerminalWidgetHandle with the specified dimensions.
@@ -106,6 +131,26 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public bool MouseTrackingEnabled => _mouseTrackingEnabled;
     
     /// <summary>
+    /// Gets the current lifecycle state of the terminal session.
+    /// </summary>
+    public TerminalState State => _state;
+    
+    /// <summary>
+    /// Gets the exit code of the terminal process, if it has completed.
+    /// </summary>
+    public int? ExitCode => _exitCode;
+    
+    /// <summary>
+    /// Gets whether the terminal is currently running.
+    /// </summary>
+    public bool IsRunning => _state == TerminalState.Running;
+    
+    /// <summary>
+    /// Event raised when the terminal state changes.
+    /// </summary>
+    public event Action<TerminalState>? StateChanged;
+    
+    /// <summary>
     /// Event raised when new output has been written to the buffer.
     /// TerminalNode subscribes to this to trigger re-renders.
     /// </summary>
@@ -117,6 +162,49 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     internal void SetTerminal(Hex1bTerminal terminal)
     {
         _terminal = terminal;
+    }
+    
+    /// <summary>
+    /// Marks the terminal as started/running. Called by Hex1bTerminal.RunAsync.
+    /// </summary>
+    internal void NotifyStarted()
+    {
+        if (_state == TerminalState.NotStarted)
+        {
+            _state = TerminalState.Running;
+            StateChanged?.Invoke(_state);
+            OutputReceived?.Invoke(); // Trigger re-render to switch from fallback to terminal
+        }
+    }
+    
+    /// <summary>
+    /// Marks the terminal as completed. Called by Hex1bTerminal.RunAsync when the process exits.
+    /// </summary>
+    /// <param name="exitCode">The exit code of the process.</param>
+    internal void NotifyCompleted(int exitCode)
+    {
+        if (_state != TerminalState.Completed)
+        {
+            _exitCode = exitCode;
+            _state = TerminalState.Completed;
+            StateChanged?.Invoke(_state);
+            OutputReceived?.Invoke(); // Trigger re-render to switch from terminal to fallback
+        }
+    }
+    
+    /// <summary>
+    /// Resets the terminal state to NotStarted. Used when restarting a terminal.
+    /// </summary>
+    public void Reset()
+    {
+        lock (_bufferLock)
+        {
+            _state = TerminalState.NotStarted;
+            _exitCode = null;
+            ClearBuffer();
+        }
+        StateChanged?.Invoke(_state);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>

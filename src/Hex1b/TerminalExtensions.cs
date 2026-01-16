@@ -31,4 +31,37 @@ public static class TerminalExtensions
         TerminalWidgetHandle handle)
         where TParent : Hex1bWidget
         => new(handle);
+    
+    /// <summary>
+    /// Specifies a fallback widget to display when the terminal is not running.
+    /// </summary>
+    /// <param name="widget">The TerminalWidget to configure.</param>
+    /// <param name="builder">A callback that builds the fallback widget. 
+    /// Receives the terminal state and exit code (if completed).</param>
+    /// <returns>The configured TerminalWidget.</returns>
+    /// <remarks>
+    /// <para>
+    /// This enables post-exit interactivity. When the terminal process exits,
+    /// the fallback widget is displayed instead of the terminal buffer.
+    /// Common use cases include:
+    /// <list type="bullet">
+    ///   <item>Showing the exit code</item>
+    ///   <item>Providing a "restart" button</item>
+    ///   <item>Displaying a message while waiting for the terminal to start</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// ctx.Terminal(bashHandle)
+    ///    .WhenNotRunning(args => ctx.VStack(v => [
+    ///        v.Text($"Terminal exited with code {args.ExitCode}"),
+    ///        v.Button("Restart").OnClick(_ => RestartTerminal())
+    ///    ]));
+    /// </code>
+    /// </example>
+    public static TerminalWidget WhenNotRunning(
+        this TerminalWidget widget,
+        Func<TerminalNotRunningArgs, Hex1bWidget> builder)
+        => widget with { NotRunningBuilder = builder };
 }

@@ -13,6 +13,17 @@ using var cts = new CancellationTokenSource();
 // Reference to the app for invalidation
 Hex1bApp? displayApp = null;
 
+// Helper to remove a terminal from the collection
+void RemoveTerminal(TerminalSession session)
+{
+    lock (terminalLock)
+    {
+        terminals.Remove(session);
+    }
+    _ = session.Terminal.DisposeAsync();
+    displayApp?.Invalidate();
+}
+
 // Helper to add a new terminal
 void AddTerminal()
 {
@@ -30,27 +41,69 @@ void AddTerminal()
         terminals.Add(session);
     }
     
-    // Start the terminal and remove it when it exits
+    // Start the terminal in the background
+    // When it exits normally, the WhenNotRunning callback will be shown
+    // Only on cancellation (app shutdown) do we remove immediately
     _ = Task.Run(async () =>
     {
         try
         {
             await terminal.RunAsync(cts.Token);
+            // Normal exit - WhenNotRunning callback will handle the UI
+            // Just trigger a re-render so the fallback shows
+            displayApp?.Invalidate();
         }
         catch (OperationCanceledException)
         {
-            // Normal shutdown
+            // App shutdown - remove immediately without showing exit UI
+            RemoveTerminal(session);
         }
-        finally
+    });
+    
+    displayApp?.Invalidate();
+}
+
+// Helper to restart a terminal session
+void RestartTerminal(TerminalSession oldSession)
+{
+    // Remove the old session
+    lock (terminalLock)
+    {
+        terminals.Remove(oldSession);
+    }
+    _ = oldSession.Terminal.DisposeAsync();
+    
+    // Create a new one with the same ID
+    var terminal = Hex1bTerminal.CreateBuilder()
+        .WithDimensions(40, 24)
+        .WithPtyProcess("bash", "--norc")
+        .WithTerminalWidget(out var handle)
+        .Build();
+    
+    var newSession = new TerminalSession(oldSession.Id, terminal, handle);
+    
+    lock (terminalLock)
+    {
+        terminals.Add(newSession);
+    }
+    
+    // Start the terminal
+    _ = Task.Run(async () =>
+    {
+        try
         {
+            await terminal.RunAsync(cts.Token);
+            // Normal exit - WhenNotRunning callback will handle the UI
+            displayApp?.Invalidate();
+        }
+        catch (OperationCanceledException)
+        {
+            // App shutdown - remove immediately
             lock (terminalLock)
             {
-                terminals.Remove(session);
+                terminals.Remove(newSession);
             }
             await terminal.DisposeAsync();
-            
-            // Re-render the UI to reflect the removed terminal
-            displayApp?.Invalidate();
         }
     });
     
@@ -64,6 +117,33 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
     lock (terminalLock)
     {
         currentTerminals = [.. terminals];
+    }
+    
+    // Helper to build a terminal widget with exit handling
+    Hex1bWidget BuildTerminalPane<TParent>(WidgetContext<TParent> v, TerminalSession session) where TParent : Hex1bWidget
+    {
+        return v.Border(
+            v.Terminal(session.Handle)
+                .WhenNotRunning(args => v.VStack(vv =>
+                [
+                    vv.Text(""),
+                    vv.Align(Alignment.Center, 
+                        vv.VStack(center =>
+                        [
+                            center.Text($"Terminal exited with code {args.ExitCode ?? 0}"),
+                            center.Text(""),
+                            center.HStack(buttons =>
+                            [
+                                buttons.Button("Restart").OnClick(_ => RestartTerminal(session)),
+                                buttons.Text("  "),
+                                buttons.Button("Close").OnClick(_ => RemoveTerminal(session))
+                            ])
+                        ])
+                    )
+                ]))
+                .Fill(),
+            title: $"Terminal {session.Id}"
+        );
     }
     
     return ctx.VStack(v =>
@@ -97,30 +177,19 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
         {
             // Single terminal - no splitter needed
             var session = currentTerminals[0];
-            children.Add(
-                v.Border(
-                    v.Terminal(session.Handle).Fill(),
-                    title: $"Terminal {session.Id}"
-                ).Fill()
-            );
+            children.Add(BuildTerminalPane(v, session).Fill());
         }
         else
         {
             // Multiple terminals - build nested splitters
             // Start with the first terminal
-            Hex1bWidget result = v.Border(
-                v.Terminal(currentTerminals[0].Handle).Fill(),
-                title: $"Terminal {currentTerminals[0].Id}"
-            );
+            Hex1bWidget result = BuildTerminalPane(v, currentTerminals[0]);
             
             // Add remaining terminals with splitters
             for (int i = 1; i < currentTerminals.Count; i++)
             {
                 var session = currentTerminals[i];
-                var rightPane = v.Border(
-                    v.Terminal(session.Handle).Fill(),
-                    title: $"Terminal {session.Id}"
-                );
+                var rightPane = BuildTerminalPane(v, session);
                 
                 // Calculate proportional width for left pane
                 var leftRatio = (double)i / (i + 1);

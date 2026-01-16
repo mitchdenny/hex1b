@@ -279,6 +279,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             // Start I/O pumps
             Start();
+            
+            // Notify TerminalWidgetHandle that the terminal has started
+            if (_presentation is TerminalWidgetHandle widgetHandle)
+            {
+                widgetHandle.NotifyStarted();
+            }
 
             // Execute the run callback or wait for workload disconnect
             int exitCode = 0;
@@ -290,6 +296,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 // No run callback - wait for workload to disconnect
                 await WaitForWorkloadDisconnectAsync(ct);
+            }
+            
+            // Notify TerminalWidgetHandle that the terminal has completed
+            if (_presentation is TerminalWidgetHandle completedHandle)
+            {
+                completedHandle.NotifyCompleted(exitCode);
             }
 
             return exitCode;

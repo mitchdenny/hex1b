@@ -53,8 +53,28 @@ public sealed class TerminalNode : Hex1bNode
     /// </summary>
     public TerminalWidget? SourceWidget { get; set; }
     
+    /// <summary>
+    /// Gets or sets the callback that builds a fallback widget when the terminal is not running.
+    /// </summary>
+    internal Func<TerminalNotRunningArgs, Hex1bWidget>? NotRunningBuilder { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the reconciled fallback child node when the terminal is not running.
+    /// </summary>
+    internal Hex1bNode? FallbackChild { get; set; }
+    
     /// <inheritdoc />
-    public override bool IsFocusable => true;
+    /// <remarks>
+    /// When the terminal is not running and a fallback child is displayed,
+    /// this returns false so that focus navigation can reach the fallback's children.
+    /// </remarks>
+    public override bool IsFocusable => _handle == null || _handle.State == TerminalState.Running || FallbackChild == null;
+    
+    /// <inheritdoc />
+    /// <remarks>
+    /// Returns true when showing the fallback widget tree, so this node manages focus for its children.
+    /// </remarks>
+    public override bool ManagesChildFocus => FallbackChild != null && _handle?.State != TerminalState.Running;
     
     /// <inheritdoc />
     public override bool IsFocused
@@ -82,8 +102,14 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
     {
-        // For now, forward ALL input to the terminal (including Tab)
-        // In a future phase, we'll intercept Tab for focus navigation
+        // If terminal is not running and we have a fallback, don't forward to terminal
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            // Let the input router handle it - it will route to focused nodes in the fallback tree
+            return InputResult.NotHandled;
+        }
+        
+        // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
         
         // Fire and forget - we don't want to block the input loop
@@ -113,8 +139,48 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
     {
+        // If terminal is not running and we have a fallback, let mouse events go to fallback
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            // Let the input router handle it - it will route to nodes in the fallback tree
+            return InputResult.NotHandled;
+        }
+        
         // Forward click events to the child terminal (same as other mouse events)
         return HandleMouseEvent(localX, localY, mouseEvent);
+    }
+    
+    /// <inheritdoc />
+    /// <remarks>
+    /// When the terminal is not running and a fallback child is displayed,
+    /// this returns the fallback child so that focus navigation and input routing work.
+    /// </remarks>
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            yield return FallbackChild;
+        }
+    }
+    
+    /// <inheritdoc />
+    /// <remarks>
+    /// When the terminal is not running, returns the fallback child's focusable nodes.
+    /// When running, returns this node if focusable.
+    /// </remarks>
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            foreach (var focusable in FallbackChild.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
+        else if (IsFocusable)
+        {
+            yield return this;
+        }
     }
     
     /// <summary>
@@ -194,6 +260,12 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override Size Measure(Constraints constraints)
     {
+        // If terminal is not running and we have a fallback child, measure the fallback
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            return FallbackChild.Measure(constraints);
+        }
+        
         // The terminal should ideally fill the available space, but we need to handle
         // unbounded constraints safely. Use the handle's current dimensions as a hint.
         var preferredWidth = _handle?.Width ?? 80;
@@ -214,6 +286,13 @@ public sealed class TerminalNode : Hex1bNode
         var previousBounds = Bounds;
         base.Arrange(bounds);
         
+        // If terminal is not running and we have a fallback child, arrange the fallback
+        if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            FallbackChild.Arrange(bounds);
+            return;
+        }
+        
         // Safety: clamp unreasonable bounds to handle dimensions
         // This prevents OOM when parent passes huge values
         const int MaxReasonableSize = 10000;
@@ -231,6 +310,13 @@ public sealed class TerminalNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         if (_handle == null) return;
+        
+        // If terminal is not running and we have a fallback child, render the fallback instead
+        if (_handle.State != TerminalState.Running && FallbackChild != null)
+        {
+            FallbackChild.Render(context);
+            return;
+        }
         
         // Capture the current output version BEFORE taking the snapshot
         // This ensures we detect any output that arrives during render
