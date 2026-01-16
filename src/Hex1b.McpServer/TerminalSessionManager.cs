@@ -24,6 +24,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     /// <param name="environment">Additional environment variables.</param>
     /// <param name="width">Terminal width in columns.</param>
     /// <param name="height">Terminal height in rows.</param>
+    /// <param name="asciinemaFilePath">Optional path to save an asciinema recording.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The created terminal session.</returns>
     public async Task<TerminalSession> StartSessionAsync(
@@ -33,10 +34,11 @@ public sealed class TerminalSessionManager : IAsyncDisposable
         Dictionary<string, string>? environment = null,
         int width = 80,
         int height = 24,
+        string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
         var id = GenerateSessionId();
-        return await StartSessionAsync(id, command, arguments, workingDirectory, environment, width, height, ct);
+        return await StartSessionAsync(id, command, arguments, workingDirectory, environment, width, height, asciinemaFilePath, ct);
     }
 
     /// <summary>
@@ -49,6 +51,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     /// <param name="environment">Additional environment variables.</param>
     /// <param name="width">Terminal width in columns.</param>
     /// <param name="height">Terminal height in rows.</param>
+    /// <param name="asciinemaFilePath">Optional path to save an asciinema recording.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The created terminal session.</returns>
     /// <exception cref="InvalidOperationException">A session with the given ID already exists.</exception>
@@ -60,6 +63,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
         Dictionary<string, string>? environment = null,
         int width = 80,
         int height = 24,
+        string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
         if (_disposed)
@@ -73,6 +77,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
             environment,
             width,
             height,
+            asciinemaFilePath,
             ct);
 
         if (!_sessions.TryAdd(id, session))
@@ -121,7 +126,8 @@ public sealed class TerminalSessionManager : IAsyncDisposable
             StartedAt = s.StartedAt,
             HasExited = s.HasExited,
             ExitCode = s.HasExited ? s.ExitCode : null,
-            ProcessId = s.ProcessId
+            ProcessId = s.ProcessId,
+            AsciinemaFilePath = s.AsciinemaFilePath
         }).ToList();
     }
 
@@ -283,4 +289,9 @@ public class SessionInfo
     /// The process ID of the child process.
     /// </summary>
     public required int ProcessId { get; init; }
+
+    /// <summary>
+    /// The path to the asciinema recording file, if recording is enabled.
+    /// </summary>
+    public string? AsciinemaFilePath { get; init; }
 }

@@ -12,6 +12,7 @@ public sealed class TerminalSession : IAsyncDisposable
     private readonly Hex1bTerminalChildProcess _process;
     private readonly Hex1bTerminal _terminal;
     private readonly CapturingPresentationAdapter _presentation;
+    private readonly AsciinemaRecorder? _asciinemaRecorder;
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
     private int _width;
@@ -67,11 +68,17 @@ public sealed class TerminalSession : IAsyncDisposable
     /// </summary>
     public int ExitCode => _process.ExitCode;
 
+    /// <summary>
+    /// Gets the path to the asciinema recording file, if recording is enabled.
+    /// </summary>
+    public string? AsciinemaFilePath { get; }
+
     private TerminalSession(
         string id,
         Hex1bTerminalChildProcess process,
         Hex1bTerminal terminal,
         CapturingPresentationAdapter presentation,
+        AsciinemaRecorder? asciinemaRecorder,
         string command,
         IReadOnlyList<string> arguments,
         string? workingDirectory,
@@ -82,11 +89,13 @@ public sealed class TerminalSession : IAsyncDisposable
         _process = process;
         _terminal = terminal;
         _presentation = presentation;
+        _asciinemaRecorder = asciinemaRecorder;
         _width = width;
         _height = height;
         Command = command;
         Arguments = arguments;
         WorkingDirectory = workingDirectory;
+        AsciinemaFilePath = asciinemaRecorder?.FilePath;
         StartedAt = DateTimeOffset.UtcNow;
     }
 
@@ -100,6 +109,7 @@ public sealed class TerminalSession : IAsyncDisposable
     /// <param name="environment">Additional environment variables.</param>
     /// <param name="width">Terminal width in columns.</param>
     /// <param name="height">Terminal height in rows.</param>
+    /// <param name="asciinemaFilePath">Optional path to save an asciinema recording.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A started terminal session.</returns>
     public static async Task<TerminalSession> StartAsync(
@@ -110,6 +120,7 @@ public sealed class TerminalSession : IAsyncDisposable
         Dictionary<string, string>? environment = null,
         int width = 80,
         int height = 24,
+        string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
         // Create the child process with PTY
@@ -125,19 +136,39 @@ public sealed class TerminalSession : IAsyncDisposable
         // Create a capturing presentation adapter so the terminal's output pump runs
         var presentation = new CapturingPresentationAdapter(width, height);
 
+        // Create asciinema recorder if path is specified
+        AsciinemaRecorder? asciinemaRecorder = null;
+        if (!string.IsNullOrWhiteSpace(asciinemaFilePath))
+        {
+            asciinemaRecorder = new AsciinemaRecorder(asciinemaFilePath, new AsciinemaRecorderOptions
+            {
+                AutoFlush = true,
+                Title = $"{command} session",
+                Command = command
+            });
+        }
+
         // Create the virtual terminal with presentation adapter to enable output pumping
-        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        var terminalOptions = new Hex1bTerminalOptions
         {
             PresentationAdapter = presentation,
             WorkloadAdapter = process,
             Width = width,
             Height = height
-        });
+        };
+
+        // Add asciinema recorder as a workload filter if configured
+        if (asciinemaRecorder != null)
+        {
+            terminalOptions.WorkloadFilters.Add(asciinemaRecorder);
+        }
+
+        var terminal = new Hex1bTerminal(terminalOptions);
 
         // Start the process
         await process.StartAsync(ct);
 
-        return new TerminalSession(id, process, terminal, presentation, command, arguments, workingDirectory, width, height);
+        return new TerminalSession(id, process, terminal, presentation, asciinemaRecorder, command, arguments, workingDirectory, width, height);
     }
 
     /// <summary>
@@ -327,6 +358,12 @@ public sealed class TerminalSession : IAsyncDisposable
         if (!_process.HasExited)
         {
             _process.Kill();
+        }
+
+        // Dispose asciinema recorder first to flush any remaining events
+        if (_asciinemaRecorder != null)
+        {
+            await _asciinemaRecorder.DisposeAsync();
         }
 
         // Dispose process, terminal, and presentation adapter

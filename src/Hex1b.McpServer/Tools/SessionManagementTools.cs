@@ -17,9 +17,10 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
         [Description("Optional working directory for the bash session")] string? workingDirectory = null,
         [Description("Terminal width in columns (default: 80)")] int width = 80,
         [Description("Terminal height in rows (default: 24)")] int height = 24,
+        [Description("Optional path to save an asciinema recording file (.cast extension recommended)")] string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
-        return await StartShellAsync("bash", [], workingDirectory, width, height, ct);
+        return await StartShellAsync("bash", [], workingDirectory, width, height, asciinemaFilePath, ct);
     }
 
     /// <summary>
@@ -30,9 +31,10 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
         [Description("Optional working directory for the PowerShell session")] string? workingDirectory = null,
         [Description("Terminal width in columns (default: 80)")] int width = 80,
         [Description("Terminal height in rows (default: 24)")] int height = 24,
+        [Description("Optional path to save an asciinema recording file (.cast extension recommended)")] string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
-        return await StartShellAsync("pwsh", [], workingDirectory, width, height, ct);
+        return await StartShellAsync("pwsh", [], workingDirectory, width, height, asciinemaFilePath, ct);
     }
 
     private async Task<StartTerminalResult> StartShellAsync(
@@ -41,6 +43,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
         string? workingDirectory,
         int width,
         int height,
+        string? asciinemaFilePath,
         CancellationToken ct)
     {
         try
@@ -52,6 +55,7 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 environment: null,
                 width,
                 height,
+                asciinemaFilePath,
                 ct);
 
             return new StartTerminalResult
@@ -59,12 +63,15 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 Success = true,
                 SessionId = session.Id,
                 ProcessId = session.ProcessId,
-                Message = $"Terminal session started successfully.",
+                Message = asciinemaFilePath != null 
+                    ? $"Terminal session started successfully. Recording to: {asciinemaFilePath}"
+                    : "Terminal session started successfully.",
                 Command = session.Command,
                 Arguments = session.Arguments.ToArray(),
                 WorkingDirectory = session.WorkingDirectory,
                 Width = session.Width,
-                Height = session.Height
+                Height = session.Height,
+                AsciinemaFilePath = session.AsciinemaFilePath
             };
         }
         catch (Exception ex)
@@ -79,7 +86,8 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 Arguments = arguments,
                 WorkingDirectory = workingDirectory,
                 Width = width,
-                Height = height
+                Height = height,
+                AsciinemaFilePath = null
             };
         }
     }
@@ -104,21 +112,30 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
 
         var hadExited = session.HasExited;
         var exitCode = hadExited ? session.ExitCode : (int?)null;
+        var asciinemaPath = session.AsciinemaFilePath;
 
         if (!hadExited)
         {
             sessionManager.StopSession(sessionId);
         }
 
+        var message = hadExited 
+            ? $"Process had already exited with code {exitCode}." 
+            : "Process stopped. Use remove_session to clean up the session.";
+        
+        if (asciinemaPath != null)
+        {
+            message += $" Asciinema recording: {asciinemaPath}";
+        }
+
         return new StopTerminalResult
         {
             Success = true,
             SessionId = sessionId,
-            Message = hadExited 
-                ? $"Process had already exited with code {exitCode}." 
-                : "Process stopped. Use remove_session to clean up the session.",
+            Message = message,
             HadAlreadyExited = hadExited,
-            ExitCode = exitCode
+            ExitCode = exitCode,
+            AsciinemaFilePath = asciinemaPath
         };
     }
 
@@ -145,7 +162,8 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 StartedAt = s.StartedAt,
                 HasExited = s.HasExited,
                 ExitCode = s.ExitCode,
-                RunningFor = s.HasExited ? null : DateTimeOffset.UtcNow - s.StartedAt
+                RunningFor = s.HasExited ? null : DateTimeOffset.UtcNow - s.StartedAt,
+                AsciinemaFilePath = s.AsciinemaFilePath
             }).ToArray()
         };
     }
