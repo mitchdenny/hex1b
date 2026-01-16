@@ -57,6 +57,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     // Hover tracking
     private Hex1bNode? _hoveredNode;
     
+    // Cursor state tracking for mouse cursor rendering - only update when changed
+    private int _lastRenderedCursorX = -1;
+    private int _lastRenderedCursorY = -1;
+    private CursorShape _lastRenderedCursorShape = CursorShape.Default;
+    private bool _lastRenderedCursorVisible = false;
+    
     // Click tracking for double/triple click detection
     private DateTime _lastClickTime;
     private int _lastClickX = -1;
@@ -466,52 +472,56 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 6.5: Hide cursor during rendering to prevent flicker
-        if (_mouseEnabled)
+        // Check if anything needs rendering before doing expensive output operations
+        var needsRender = _isFirstFrame || (_rootNode?.NeedsRender() ?? false);
+        
+        // Step 6.5-9: Only do render output if something actually changed
+        if (needsRender)
         {
-            _context.Write("\x1b[?25l"); // Hide cursor
-        }
+            // Hide cursor during rendering to prevent flicker
+            if (_mouseEnabled)
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
 
-        // Step 6.6: Begin frame buffering - all changes from here until EndFrame
-        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
-        _context.BeginFrame();
+            // Begin frame buffering - all changes from here until EndFrame
+            // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
+            _context.BeginFrame();
 
-        // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
-        // On first frame or when root is new, do a full clear
-        if (_isFirstFrame)
-        {
-            _context.Clear();
-            _isFirstFrame = false;
+            // Clear dirty regions (instead of global clear to reduce flicker)
+            // On first frame or when root is new, do a full clear
+            if (_isFirstFrame)
+            {
+                _context.Clear();
+                _isFirstFrame = false;
+            }
+            else if (_rootNode != null)
+            {
+                ClearDirtyRegions(_rootNode);
+            }
+            
+            // Render the node tree to the terminal (only dirty nodes)
+            if (_rootNode != null)
+            {
+                RenderTree(_rootNode);
+            }
+            
+            // End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
+            // the net changes (e.g., clear + re-render same content = no output)
+            _context.EndFrame();
+            
+            // Clear dirty flags on all nodes (they've been rendered)
+            // Nodes with async content (like TerminalNode) may override ClearDirty()
+            // to keep themselves dirty if new content arrived during the render frame.
+            if (_rootNode != null)
+            {
+                ClearDirtyFlags(_rootNode);
+            }
         }
-        else if (_rootNode != null)
-        {
-            ClearDirtyRegions(_rootNode);
-        }
         
-        // Step 8: Render the node tree to the terminal (only dirty nodes)
-        if (_rootNode != null)
-        {
-            RenderTree(_rootNode);
-        }
-        
-        // Step 9: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
-        // the net changes (e.g., clear + re-render same content = no output)
-        _context.EndFrame();
-        
-        // Step 9.5: Ensure cursor is hidden after rendering to prevent it showing at last write position
-        _context.Write("\x1b[?25l");
-        
-        // Step 9.6: Render mouse cursor overlay if enabled (after hiding default cursor)
-        // This positions and shows the cursor at the mouse location
-        RenderMouseCursor();
-        
-        // Step 10: Clear dirty flags on all nodes (they've been rendered)
-        // Nodes with async content (like TerminalNode) may override ClearDirty()
-        // to keep themselves dirty if new content arrived during the render frame.
-        if (_rootNode != null)
-        {
-            ClearDirtyFlags(_rootNode);
-        }
+        // Render hardware cursor - for focused TerminalNode uses child's cursor,
+        // otherwise uses mouse position if mouse cursor is enabled
+        RenderCursor();
     }
     
     /// <summary>
@@ -754,24 +764,92 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Renders the mouse cursor overlay at the current mouse position.
+    /// Renders the hardware cursor at the appropriate position.
+    /// For focused TerminalNode: uses child terminal's cursor position/shape/visibility.
+    /// For other nodes: uses mouse position if mouse cursor is enabled.
+    /// Only emits cursor updates when position or shape has changed to reduce flicker.
     /// </summary>
-    private void RenderMouseCursor()
+    private void RenderCursor()
     {
+        // Check if a TerminalNode is focused - if so, use its cursor
+        var focusedNode = _focusRing.FocusedNode;
+        if (focusedNode is Nodes.TerminalNode terminalNode && terminalNode.Handle != null)
+        {
+            var handle = terminalNode.Handle;
+            
+            // Translate child cursor position to screen coordinates
+            var screenCursorX = terminalNode.Bounds.X + handle.CursorX;
+            var screenCursorY = terminalNode.Bounds.Y + handle.CursorY;
+            var shape = handle.CursorShape;
+            var visible = handle.CursorVisible;
+            
+            // Check if anything changed
+            if (screenCursorX == _lastRenderedCursorX && 
+                screenCursorY == _lastRenderedCursorY && 
+                shape == _lastRenderedCursorShape &&
+                visible == _lastRenderedCursorVisible)
+            {
+                return;
+            }
+            
+            // Update tracking state
+            _lastRenderedCursorX = screenCursorX;
+            _lastRenderedCursorY = screenCursorY;
+            _lastRenderedCursorShape = shape;
+            _lastRenderedCursorVisible = visible;
+            
+            if (visible && 
+                screenCursorX >= 0 && screenCursorX < _context.Width &&
+                screenCursorY >= 0 && screenCursorY < _context.Height)
+            {
+                _context.SetCursorPosition(screenCursorX, screenCursorY);
+                _context.Write("\x1b[?25h"); // Show cursor
+                WriteCursorShape(shape);
+            }
+            else
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
+            return;
+        }
+        
+        // Fall back to mouse cursor behavior for non-terminal nodes
         if (!_mouseEnabled || _mouseX < 0 || _mouseY < 0) return;
         if (_mouseX >= _context.Width || _mouseY >= _context.Height) return;
         
         var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
         if (!showCursor) return;
         
+        // Determine the cursor shape based on the node at cursor position
+        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
+        var mouseShape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        
+        // Check if anything changed - if not, skip the update to reduce flicker
+        if (_mouseX == _lastRenderedCursorX && 
+            _mouseY == _lastRenderedCursorY && 
+            mouseShape == _lastRenderedCursorShape &&
+            _lastRenderedCursorVisible)
+        {
+            return;
+        }
+        
+        // Update tracking state
+        _lastRenderedCursorX = _mouseX;
+        _lastRenderedCursorY = _mouseY;
+        _lastRenderedCursorShape = mouseShape;
+        _lastRenderedCursorVisible = true;
+        
         // Use the terminal's native cursor - just position it and show it
-        // This avoids overwriting cell content and eliminates flicker
         _context.SetCursorPosition(_mouseX, _mouseY);
         _context.Write("\x1b[?25h"); // Show cursor
-        
-        // Set cursor shape based on the node's preferred cursor
-        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
-        var shape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        WriteCursorShape(mouseShape);
+    }
+    
+    /// <summary>
+    /// Writes the escape sequence to set the cursor shape.
+    /// </summary>
+    private void WriteCursorShape(CursorShape shape)
+    {
         var cursorEscape = shape switch
         {
             CursorShape.BlinkingBlock => "\x1b[1 q",

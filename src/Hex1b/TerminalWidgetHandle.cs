@@ -47,6 +47,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private bool _mouseTrackingEnabled;  // Mode 1000, 1002, or 1003
     private bool _sgrMouseModeEnabled;   // Mode 1006
     
+    // Cursor shape (from CursorShapeToken)
+    private CursorShape _cursorShape = CursorShape.Default;
+    
     // Reference to the owning terminal for forwarding input
     private Hex1bTerminal? _terminal;
     
@@ -92,6 +95,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public bool CursorVisible => _cursorVisible;
     
     /// <summary>
+    /// Gets the current cursor shape requested by the child process.
+    /// </summary>
+    public CursorShape CursorShape => _cursorShape;
+    
+    /// <summary>
     /// Gets whether the child process has enabled mouse tracking.
     /// Mouse events are only forwarded to the child when this is true.
     /// </summary>
@@ -132,12 +140,17 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     }
     
     /// <summary>
-    /// Handles private mode tokens to track mouse state changes.
+    /// Handles private mode tokens to track mouse and cursor state changes.
     /// </summary>
     private void HandlePrivateModeToken(PrivateModeToken pm)
     {
         switch (pm.Mode)
         {
+            // Cursor visibility
+            case 25:
+                _cursorVisible = pm.Enable;
+                break;
+            
             // Mouse tracking modes
             case 1000: // X11 mouse - basic button tracking
             case 1002: // Button event tracking (motion while button held)
@@ -267,10 +280,23 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         {
             foreach (var applied in appliedTokens)
             {
-                // Check for mouse mode changes from the child process
+                // Check for mode changes from the child process
                 if (applied.Token is PrivateModeToken pm)
                 {
                     HandlePrivateModeToken(pm);
+                }
+                else if (applied.Token is CursorShapeToken cst)
+                {
+                    _cursorShape = cst.Shape switch
+                    {
+                        1 => CursorShape.BlinkingBlock,
+                        2 => CursorShape.SteadyBlock,
+                        3 => CursorShape.BlinkingUnderline,
+                        4 => CursorShape.SteadyUnderline,
+                        5 => CursorShape.BlinkingBar,
+                        6 => CursorShape.SteadyBar,
+                        _ => CursorShape.Default
+                    };
                 }
                 
                 // Apply each cell impact to our buffer
@@ -293,13 +319,12 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             }
         }
         
-        if (maxY >= 0 || droppedCount > 0)
+        // Only notify bound nodes when there are actual cell changes
+        // Cursor-only updates don't require a full repaint - RenderCursor handles that
+        if (maxY >= 0)
         {
-            System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] WriteOutputWithImpacts: maxY={maxY} height={_height} dropped={droppedCount}\n");
+            OutputReceived?.Invoke();
         }
-        
-        // Notify any bound nodes that output is available
-        OutputReceived?.Invoke();
         
         return ValueTask.CompletedTask;
     }
