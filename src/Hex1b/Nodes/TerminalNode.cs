@@ -85,6 +85,9 @@ public sealed class TerminalNode : Hex1bNode
         return InputResult.Handled;
     }
     
+    private static void Log(string msg) =>
+        System.IO.File.AppendAllText("/tmp/hex1b-crash.log", $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
+    
     /// <summary>
     /// Binds this node to the current handle, subscribing to output events.
     /// </summary>
@@ -92,6 +95,7 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (_isBound || _handle == null) return;
         
+        Log($"TerminalNode.Bind: Subscribing to OutputReceived, hasCallback={_invalidateCallback != null}");
         _outputReceivedHandler = OnOutputReceived;
         _handle.OutputReceived += _outputReceivedHandler;
         _isBound = true;
@@ -104,6 +108,7 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (!_isBound || _handle == null) return;
         
+        Log("TerminalNode.Unbind: Unsubscribing from OutputReceived");
         if (_outputReceivedHandler != null)
         {
             _handle.OutputReceived -= _outputReceivedHandler;
@@ -114,6 +119,7 @@ public sealed class TerminalNode : Hex1bNode
     
     private void OnOutputReceived()
     {
+        Log($"TerminalNode.OnOutputReceived: hasCallback={_invalidateCallback != null}");
         MarkDirty();
         _invalidateCallback?.Invoke();
     }
@@ -144,10 +150,9 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (_handle == null) return;
         
-        // Get the current screen buffer from the handle
-        var buffer = _handle.GetScreenBuffer();
-        var handleWidth = _handle.Width;
-        var handleHeight = _handle.Height;
+        // Get the current screen buffer with dimensions atomically
+        // This prevents race conditions where dimensions change between getting buffer and reading Width/Height
+        var (buffer, handleWidth, handleHeight) = _handle.GetScreenBufferSnapshot();
         
         // Render each row that fits within our bounds
         for (int y = 0; y < Math.Min(Bounds.Height, handleHeight); y++)

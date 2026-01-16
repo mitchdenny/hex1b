@@ -184,12 +184,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private int _width;
     private int _height;
+    
+    private static void LogResize(string msg) =>
+        System.IO.File.AppendAllText("/tmp/hex1b-crash.log", $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
 
     private void OnPresentationResized(int width, int height)
     {
+        LogResize($"Terminal.OnPresentationResized: {width}x{height}");
+        
         // IMPORTANT: Call Resize() first before updating _width/_height
         // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
+        
+        LogResize($"Terminal.OnPresentationResized: Resize complete, notifying filters and workload");
         
         // Notify filters of resize
         _ = NotifyPresentationFiltersResizeAsync(width, height);
@@ -197,6 +204,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);
+        
+        LogResize($"Terminal.OnPresentationResized: All notifications sent");
     }
 
     // === Configuration ===
@@ -1521,9 +1530,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (privateModeToken.Mode == 1049)
                 {
                     if (privateModeToken.Enable)
-                        DoEnterAlternateScreen();
+                        DoEnterAlternateScreen(impacts);
                     else
-                        DoExitAlternateScreen();
+                        DoExitAlternateScreen(impacts);
                 }
                 else if (privateModeToken.Mode == 6)
                 {
@@ -1939,17 +1948,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return end + 1;
     }
 
-    private void DoEnterAlternateScreen()
+    private void DoEnterAlternateScreen(List<CellImpact>? impacts = null)
     {
         _inAlternateScreen = true;
-        ClearBuffer();
+        ClearBuffer(impacts);
         _cursorX = 0;
         _cursorY = 0;
     }
 
-    private void DoExitAlternateScreen()
+    private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
         _inAlternateScreen = false;
+        // When exiting alternate screen, we should restore the main screen
+        // For now, just clear to show something changed
+        ClearBuffer(impacts);
     }
 
     private void ProcessSgr(string parameters)
