@@ -20,6 +20,7 @@ var rightTask = rightTerminal.RunAsync(cts.Token);
 
 // Create the TUI app that displays both terminals
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
+    .WithRenderOptimization()
     .WithMouse()
     .WithHex1bApp((app, options) =>
     {
