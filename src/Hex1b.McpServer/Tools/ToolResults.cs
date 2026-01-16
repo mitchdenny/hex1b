@@ -30,6 +30,10 @@ public class StartTerminalResult
 
     [JsonPropertyName("height")]
     public required int Height { get; init; }
+
+    [JsonPropertyName("asciinemaFilePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AsciinemaFilePath { get; init; }
 }
 
 public class StopTerminalResult
@@ -48,6 +52,10 @@ public class StopTerminalResult
 
     [JsonPropertyName("exitCode")]
     public int? ExitCode { get; init; }
+
+    [JsonPropertyName("asciinemaFilePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AsciinemaFilePath { get; init; }
 }
 
 public class RemoveSessionResult
@@ -223,4 +231,8 @@ public class TerminalSessionInfo
     [JsonPropertyName("runningFor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TimeSpan? RunningFor { get; init; }
+
+    [JsonPropertyName("asciinemaFilePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AsciinemaFilePath { get; init; }
 }
