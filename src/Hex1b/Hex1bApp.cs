@@ -501,6 +501,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         RenderMouseCursor();
         
         // Step 10: Clear dirty flags on all nodes (they've been rendered)
+        // Nodes with async content (like TerminalNode) may override ClearDirty()
+        // to keep themselves dirty if new content arrived during the render frame.
         if (_rootNode != null)
         {
             ClearDirtyFlags(_rootNode);

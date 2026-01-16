@@ -246,7 +246,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         if (_masterFd < 0 || _disposed)
             return;
         
-        _ = pty_resize(_masterFd, width, height);
+        pty_resize(_masterFd, width, height);
     }
     
     public void Kill(int signal = 15)

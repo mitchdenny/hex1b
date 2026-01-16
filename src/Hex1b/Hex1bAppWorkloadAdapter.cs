@@ -191,6 +191,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// </summary>
     public void SetCursorPosition(int left, int top)
     {
+        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] SetCursorPosition({left}, {top}) -> ESC[{top + 1};{left + 1}H\\n");
         Write($"\x1b[{top + 1};{left + 1}H");
     }
 

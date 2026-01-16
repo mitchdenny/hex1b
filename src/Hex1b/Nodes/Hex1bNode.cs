@@ -90,7 +90,11 @@ public abstract class Hex1bNode
     /// <summary>
     /// Clears the dirty flag after rendering. Called by the framework.
     /// </summary>
-    internal void ClearDirty()
+    /// <remarks>
+    /// Nodes with asynchronous content (like TerminalNode) can override this
+    /// to prevent clearing the dirty flag if new content arrived during render.
+    /// </remarks>
+    internal virtual void ClearDirty()
     {
         IsDirty = false;
     }

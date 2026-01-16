@@ -26,6 +26,12 @@ public sealed class TerminalNode : Hex1bNode
     private Action? _invalidateCallback;
     private bool _isFocused;
     
+    // Tracks output version to detect if output arrived during render
+    // This prevents the race condition where output arrives after snapshot
+    // but before ClearDirtyFlags, causing the new content to be lost
+    private volatile int _outputVersion;
+    private int _lastRenderedVersion;
+    
     /// <summary>
     /// Gets or sets the terminal handle this node renders from.
     /// </summary>
@@ -85,9 +91,6 @@ public sealed class TerminalNode : Hex1bNode
         return InputResult.Handled;
     }
     
-    private static void Log(string msg) =>
-        System.IO.File.AppendAllText("/tmp/hex1b-crash.log", $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
-    
     /// <summary>
     /// Binds this node to the current handle, subscribing to output events.
     /// </summary>
@@ -95,7 +98,6 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (_isBound || _handle == null) return;
         
-        Log($"TerminalNode.Bind: Subscribing to OutputReceived, hasCallback={_invalidateCallback != null}");
         _outputReceivedHandler = OnOutputReceived;
         _handle.OutputReceived += _outputReceivedHandler;
         _isBound = true;
@@ -108,7 +110,6 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (!_isBound || _handle == null) return;
         
-        Log("TerminalNode.Unbind: Unsubscribing from OutputReceived");
         if (_outputReceivedHandler != null)
         {
             _handle.OutputReceived -= _outputReceivedHandler;
@@ -119,17 +120,66 @@ public sealed class TerminalNode : Hex1bNode
     
     private void OnOutputReceived()
     {
-        Log($"TerminalNode.OnOutputReceived: hasCallback={_invalidateCallback != null}");
+        // Increment output version to track that new content arrived
+        // This is checked in NeedsRender to ensure we don't miss content
+        // that arrived during a render frame
+        System.Threading.Interlocked.Increment(ref _outputVersion);
+        
+        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] TerminalNode.OnOutputReceived: hasCallback={_invalidateCallback != null} version={_outputVersion}\n");
         MarkDirty();
         _invalidateCallback?.Invoke();
+    }
+    
+    /// <summary>
+    /// Gets whether there is pending output that hasn't been rendered yet.
+    /// </summary>
+    /// <remarks>
+    /// This handles the race condition where output arrives during a render frame
+    /// after the buffer snapshot is taken but before the dirty flag is cleared.
+    /// </remarks>
+    public bool HasPendingOutput => _outputVersion != _lastRenderedVersion;
+    
+    /// <summary>
+    /// Overrides dirty flag clearing to preserve the flag if pending output exists.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Terminal output arrives asynchronously from the child process. If output
+    /// arrives during a render frame (after snapshot taken but before this method
+    /// is called), we must NOT clear the dirty flag or that content will be lost.
+    /// </para>
+    /// <para>
+    /// The version tracking ensures we detect this scenario: <see cref="_outputVersion"/>
+    /// is incremented on each <see cref="OnOutputReceived"/>, and <see cref="_lastRenderedVersion"/>
+    /// is set in <see cref="Render"/> after taking the snapshot. If they don't match,
+    /// more output arrived and we need another render.
+    /// </para>
+    /// </remarks>
+    internal override void ClearDirty()
+    {
+        // Only clear the dirty flag if we've rendered all pending output
+        // If output arrived during the render frame, keep the flag set
+        if (!HasPendingOutput)
+        {
+            base.ClearDirty();
+        }
     }
     
     /// <inheritdoc />
     public override Size Measure(Constraints constraints)
     {
-        // The terminal should fill the available space
-        // We use constraints as the preferred size, not the handle's current dimensions
-        return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
+        // The terminal should ideally fill the available space, but we need to handle
+        // unbounded constraints safely. Use the handle's current dimensions as a hint.
+        var preferredWidth = _handle?.Width ?? 80;
+        var preferredHeight = _handle?.Height ?? 24;
+        
+        // Use handle dimensions as preferred size, but respect bounded constraints.
+        // Consider values over 10000 as "unbounded" since no terminal is that big.
+        const int UnboundedThreshold = 10000;
+        var width = constraints.MaxWidth < UnboundedThreshold ? constraints.MaxWidth : preferredWidth;
+        var height = constraints.MaxHeight < UnboundedThreshold ? constraints.MaxHeight : preferredHeight;
+        
+        return constraints.Constrain(new Size(width, height));
     }
     
     /// <inheritdoc />
@@ -138,10 +188,16 @@ public sealed class TerminalNode : Hex1bNode
         var previousBounds = Bounds;
         base.Arrange(bounds);
         
+        // Safety: clamp unreasonable bounds to handle dimensions
+        // This prevents OOM when parent passes huge values
+        const int MaxReasonableSize = 10000;
+        var safeWidth = bounds.Width > MaxReasonableSize ? (_handle?.Width ?? 80) : bounds.Width;
+        var safeHeight = bounds.Height > MaxReasonableSize ? (_handle?.Height ?? 24) : bounds.Height;
+        
         // If size changed, resize the handle (which propagates to the child terminal's PTY)
-        if (_handle != null && (bounds.Width != previousBounds.Width || bounds.Height != previousBounds.Height))
+        if (_handle != null && (safeWidth != previousBounds.Width || safeHeight != previousBounds.Height))
         {
-            _handle.Resize(bounds.Width, bounds.Height);
+            _handle.Resize(safeWidth, safeHeight);
         }
     }
     
@@ -150,9 +206,18 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (_handle == null) return;
         
+        // Capture the current output version BEFORE taking the snapshot
+        // This ensures we detect any output that arrives during render
+        var currentVersion = _outputVersion;
+        
         // Get the current screen buffer with dimensions atomically
         // This prevents race conditions where dimensions change between getting buffer and reading Width/Height
         var (buffer, handleWidth, handleHeight) = _handle.GetScreenBufferSnapshot();
+        
+        // Mark this version as rendered (we'll check if more output arrived after this)
+        _lastRenderedVersion = currentVersion;
+        
+        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] TerminalNode.Render: Bounds={Bounds.X},{Bounds.Y},{Bounds.Width}x{Bounds.Height} Buffer={handleWidth}x{handleHeight} version={currentVersion}\\n");
         
         // Render each row that fits within our bounds
         for (int y = 0; y < Math.Min(Bounds.Height, handleHeight); y++)

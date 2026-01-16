@@ -211,6 +211,8 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         if (_disposed || appliedTokens.Count == 0) 
             return ValueTask.CompletedTask;
         
+        int maxY = -1;
+        int droppedCount = 0;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
@@ -221,6 +223,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                     if (impact.X >= 0 && impact.X < _width && impact.Y >= 0 && impact.Y < _height)
                     {
                         _screenBuffer[impact.Y, impact.X] = impact.Cell;
+                        if (impact.Y > maxY) maxY = impact.Y;
+                    }
+                    else if (impact.Y >= _height)
+                    {
+                        droppedCount++;
                     }
                 }
                 
@@ -228,6 +235,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                 _cursorX = Math.Clamp(applied.CursorXAfter, 0, _width - 1);
                 _cursorY = Math.Clamp(applied.CursorYAfter, 0, _height - 1);
             }
+        }
+        
+        if (maxY >= 0 || droppedCount > 0)
+        {
+            System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] WriteOutputWithImpacts: maxY={maxY} height={_height} dropped={droppedCount}\n");
         }
         
         // Notify any bound nodes that output is available
@@ -264,30 +276,16 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// <inheritdoc />
     public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
     
-    private static void LogResize(string msg) =>
-        System.IO.File.AppendAllText("/tmp/hex1b-crash.log", $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
-    
     /// <summary>
     /// Resizes the terminal buffer.
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
-        LogResize($"Handle.Resize: {_width}x{_height} -> {newWidth}x{newHeight}");
-        
-        if (newWidth <= 0 || newHeight <= 0)
-        {
-            LogResize($"Handle.Resize: Rejected invalid dimensions");
-            return;
-        }
-        if (newWidth == _width && newHeight == _height)
-        {
-            LogResize($"Handle.Resize: No change, skipping");
-            return;
-        }
+        if (newWidth <= 0 || newHeight <= 0) return;
+        if (newWidth == _width && newHeight == _height) return;
         
         lock (_bufferLock)
         {
-            LogResize($"Handle.Resize: Acquired lock, resizing buffer");
             var newBuffer = new TerminalCell[newHeight, newWidth];
             
             // Initialize with empty cells
@@ -315,20 +313,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             _height = newHeight;
             _cursorX = Math.Min(_cursorX, newWidth - 1);
             _cursorY = Math.Min(_cursorY, newHeight - 1);
-            LogResize($"Handle.Resize: Buffer resized, releasing lock");
         }
         
-        try
-        {
-            LogResize($"Handle.Resize: Firing Resized event");
-            Resized?.Invoke(newWidth, newHeight);
-            LogResize($"Handle.Resize: Resized event complete");
-        }
-        catch (Exception ex)
-        {
-            // Log but don't throw - resize should not crash the app
-            LogResize($"Handle.Resize event handler error: {ex}");
-        }
+        Resized?.Invoke(newWidth, newHeight);
     }
     
     /// <inheritdoc />

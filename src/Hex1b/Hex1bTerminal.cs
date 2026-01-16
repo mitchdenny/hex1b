@@ -184,19 +184,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private int _width;
     private int _height;
-    
-    private static void LogResize(string msg) =>
-        System.IO.File.AppendAllText("/tmp/hex1b-crash.log", $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
 
     private void OnPresentationResized(int width, int height)
     {
-        LogResize($"Terminal.OnPresentationResized: {width}x{height}");
-        
         // IMPORTANT: Call Resize() first before updating _width/_height
         // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
-        
-        LogResize($"Terminal.OnPresentationResized: Resize complete, notifying filters and workload");
         
         // Notify filters of resize
         _ = NotifyPresentationFiltersResizeAsync(width, height);
@@ -204,8 +197,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         // Notify workload of resize
         _ = _workload.ResizeAsync(width, height);
-        
-        LogResize($"Terminal.OnPresentationResized: All notifications sent");
     }
 
     // === Configuration ===
@@ -1281,6 +1272,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _marginRight = newWidth - 1;
             if (_marginLeft > _marginRight)
                 _marginLeft = 0;
+            
+            // Reset scroll region on resize - this matches xterm behavior
+            // The scroll region should cover the full new screen height
+            _scrollTop = 0;
+            _scrollBottom = newHeight - 1;
         }
     }
 
@@ -1513,7 +1509,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 else
                 {
                     // Normal mode: positions are absolute
-                    _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                    var requestedRow = cursorToken.Row - 1;
+                    var clampedRow = Math.Clamp(requestedRow, 0, _height - 1);
+                    _cursorY = clampedRow;
                     _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
                 }
                 break;
@@ -1875,21 +1873,33 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int effectiveLeft = _declrmm ? _marginLeft : 0;
         int effectiveRight = _declrmm ? _marginRight : _width - 1;
         
+        int clearedCount = 0;
         switch (mode)
         {
             case ClearMode.ToEnd:
                 for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
             case ClearMode.ToStart:
                 for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
             case ClearMode.All:
                 for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
         }
+        
+        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] ApplyClearLine: mode={mode} row={_cursorY} cleared={clearedCount} hasImpacts={impacts != null}\n");
     }
 
     /// <summary>
