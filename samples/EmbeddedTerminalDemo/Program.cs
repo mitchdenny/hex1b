@@ -1,52 +1,47 @@
 using Hex1b;
 
-// Create a single terminal session with its handle
-var childTerminal = Hex1bTerminal.CreateBuilder()
-    .WithDimensions(80, 24)
+// Create two terminal sessions with their handles
+var leftTerminal = Hex1bTerminal.CreateBuilder()
+    .WithDimensions(40, 24)
     .WithPtyProcess("bash", "--norc")
-    .WithTerminalWidget(out var childHandle)
+    .WithTerminalWidget(out var leftHandle)
     .Build();
 
-// Start the terminal in the background
+var rightTerminal = Hex1bTerminal.CreateBuilder()
+    .WithDimensions(40, 24)
+    .WithPtyProcess("bash", "--norc")
+    .WithTerminalWidget(out var rightHandle)
+    .Build();
+
+// Start the terminals in the background
 using var cts = new CancellationTokenSource();
-var childTask = childTerminal.RunAsync(cts.Token);
+var leftTask = leftTerminal.RunAsync(cts.Token);
+var rightTask = rightTerminal.RunAsync(cts.Token);
 
-// State for displaying sizes
-string sizeInfo = "Click to get sizes";
-int resizeCount = 0;
-
-// Track resizes on the handle
-childHandle.Resized += (w, h) =>
-{
-    resizeCount++;
-    sizeInfo = $"Resize #{resizeCount}: {w}x{h}";
-};
-
-// Create the TUI app that displays the terminal
+// Create the TUI app that displays both terminals
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((app, options) =>
     {
         return ctx => ctx.VStack(v =>
         [
-            // Header (3 lines)
-            v.Text("Embedded Terminal Demo - Single bash session"),
-            v.Text($"Handle: {childHandle.Width}x{childHandle.Height} | Resizes: {resizeCount}"),
+            // Header
+            v.Text("Embedded Terminal Demo - Two bash sessions with splitter"),
             v.Separator(),
             
-            // Single terminal with border - Fill to take remaining space
-            v.Border(
-                v.VStack(inner => [
-                    inner.Terminal(childHandle).Fill(),
-                    inner.HStack(h => [
-                        h.Button("Get Sizes").OnClick(_ => 
-                        {
-                            sizeInfo = $"Handle: {childHandle.Width}x{childHandle.Height}";
-                        }),
-                        h.Text($" {sizeInfo}")
-                    ])
-                ]),
-                title: "Bash"
+            // Horizontal splitter with two terminals
+            v.HSplitter(
+                // Left pane
+                v.Border(
+                    v.Terminal(leftHandle).Fill(),
+                    title: "Left Terminal"
+                ),
+                // Right pane
+                v.Border(
+                    v.Terminal(rightHandle).Fill(),
+                    title: "Right Terminal"
+                ),
+                leftWidth: 40
             ).Fill()
         ]);
     })
@@ -59,5 +54,6 @@ try
 finally
 {
     cts.Cancel();
-    await childTerminal.DisposeAsync();
+    await leftTerminal.DisposeAsync();
+    await rightTerminal.DisposeAsync();
 }

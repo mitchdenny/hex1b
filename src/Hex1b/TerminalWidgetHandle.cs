@@ -42,6 +42,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private bool _cursorVisible = true;
     private bool _disposed;
     
+    // Mouse tracking state - tracks whether the child process has enabled mouse
+    // These are set when we receive PrivateModeToken from the child's output
+    private bool _mouseTrackingEnabled;  // Mode 1000, 1002, or 1003
+    private bool _sgrMouseModeEnabled;   // Mode 1006
+    
     // Reference to the owning terminal for forwarding input
     private Hex1bTerminal? _terminal;
     
@@ -87,6 +92,12 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public bool CursorVisible => _cursorVisible;
     
     /// <summary>
+    /// Gets whether the child process has enabled mouse tracking.
+    /// Mouse events are only forwarded to the child when this is true.
+    /// </summary>
+    public bool MouseTrackingEnabled => _mouseTrackingEnabled;
+    
+    /// <summary>
     /// Event raised when new output has been written to the buffer.
     /// TerminalNode subscribes to this to trigger re-renders.
     /// </summary>
@@ -101,16 +112,55 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     }
     
     /// <summary>
+    /// Sends an input event (key or mouse) to the terminal's workload (e.g., child process).
+    /// Mouse events are only forwarded if the child process has enabled mouse tracking.
+    /// </summary>
+    /// <param name="evt">The event to send.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when the event has been sent.</returns>
+    public async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+    {
+        if (_terminal == null || _disposed) return;
+        
+        // Only forward mouse events if the child has enabled mouse tracking
+        if (evt is Hex1bMouseEvent && !_mouseTrackingEnabled)
+        {
+            return;
+        }
+        
+        await _terminal.SendEventAsync(evt, ct);
+    }
+    
+    /// <summary>
+    /// Handles private mode tokens to track mouse state changes.
+    /// </summary>
+    private void HandlePrivateModeToken(PrivateModeToken pm)
+    {
+        switch (pm.Mode)
+        {
+            // Mouse tracking modes
+            case 1000: // X11 mouse - basic button tracking
+            case 1002: // Button event tracking (motion while button held)
+            case 1003: // Any event tracking (all motion)
+                _mouseTrackingEnabled = pm.Enable;
+                break;
+            
+            // SGR extended mouse mode (extended coordinates)
+            case 1006:
+                _sgrMouseModeEnabled = pm.Enable;
+                break;
+        }
+    }
+    
+    /// <summary>
     /// Sends a key event to the terminal's workload (e.g., child process).
     /// </summary>
     /// <param name="keyEvent">The key event to send.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A task that completes when the event has been sent.</returns>
-    public async Task SendKeyEventAsync(Hex1bKeyEvent keyEvent, CancellationToken ct = default)
-    {
-        if (_terminal == null || _disposed) return;
-        await _terminal.SendEventAsync(keyEvent, ct);
-    }
+    [Obsolete("Use SendEventAsync instead.")]
+    public Task SendKeyEventAsync(Hex1bKeyEvent keyEvent, CancellationToken ct = default)
+        => SendEventAsync(keyEvent, ct);
     
     /// <summary>
     /// Gets a copy of the current screen buffer.
@@ -217,6 +267,12 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         {
             foreach (var applied in appliedTokens)
             {
+                // Check for mouse mode changes from the child process
+                if (applied.Token is PrivateModeToken pm)
+                {
+                    HandlePrivateModeToken(pm);
+                }
+                
                 // Apply each cell impact to our buffer
                 foreach (var impact in applied.CellImpacts)
                 {

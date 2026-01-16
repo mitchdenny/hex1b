@@ -87,8 +87,34 @@ public sealed class TerminalNode : Hex1bNode
         if (_handle == null) return InputResult.NotHandled;
         
         // Fire and forget - we don't want to block the input loop
-        _ = _handle.SendKeyEventAsync(keyEvent);
+        _ = _handle.SendEventAsync(keyEvent);
         return InputResult.Handled;
+    }
+    
+    /// <summary>
+    /// Handles mouse events by forwarding them to the child terminal with translated coordinates.
+    /// </summary>
+    /// <param name="localX">X coordinate relative to this node's bounds.</param>
+    /// <param name="localY">Y coordinate relative to this node's bounds.</param>
+    /// <param name="mouseEvent">The mouse event.</param>
+    /// <returns>Handled if the event was forwarded, NotHandled otherwise.</returns>
+    public InputResult HandleMouseEvent(int localX, int localY, Hex1bMouseEvent mouseEvent)
+    {
+        if (_handle == null) return InputResult.NotHandled;
+        
+        // Create a translated event with local coordinates for the child terminal
+        var translatedEvent = mouseEvent with { X = localX, Y = localY };
+        
+        // Fire and forget - we don't want to block the input loop
+        _ = _handle.SendEventAsync(translatedEvent);
+        return InputResult.Handled;
+    }
+    
+    /// <inheritdoc />
+    public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
+    {
+        // Forward click events to the child terminal (same as other mouse events)
+        return HandleMouseEvent(localX, localY, mouseEvent);
     }
     
     /// <summary>

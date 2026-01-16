@@ -374,6 +374,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 {
                     await HandleMouseClickAsync(mouseEvent, cancellationToken);
                 }
+                // Forward mouse events to focused TerminalNode if mouse is within its bounds
+                else
+                {
+                    await ForwardMouseEventToFocusedTerminalAsync(mouseEvent);
+                }
                 break;
         }
     }
@@ -861,6 +866,37 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // No binding matched - call the node's HandleMouseClick with local coordinates
         hitNode.HandleMouseClick(localX, localY, eventWithClickCount);
+    }
+    
+    /// <summary>
+    /// Forwards mouse events (move, drag, scroll, up) to the focused TerminalNode if the mouse is within its bounds.
+    /// This enables embedded terminals to receive mouse input for applications that use mouse tracking.
+    /// </summary>
+    private Task ForwardMouseEventToFocusedTerminalAsync(Hex1bMouseEvent mouseEvent)
+    {
+        // Get the currently focused node
+        var focusedNode = _focusRing.FocusedNode;
+        
+        // Only forward to TerminalNode
+        if (focusedNode is not Nodes.TerminalNode terminalNode)
+            return Task.CompletedTask;
+        
+        // Check if mouse is within the terminal's bounds
+        var bounds = terminalNode.Bounds;
+        if (mouseEvent.X < bounds.X || mouseEvent.X >= bounds.X + bounds.Width ||
+            mouseEvent.Y < bounds.Y || mouseEvent.Y >= bounds.Y + bounds.Height)
+        {
+            return Task.CompletedTask;
+        }
+        
+        // Calculate local coordinates
+        var localX = mouseEvent.X - bounds.X;
+        var localY = mouseEvent.Y - bounds.Y;
+        
+        // Forward to the terminal node
+        terminalNode.HandleMouseEvent(localX, localY, mouseEvent);
+        
+        return Task.CompletedTask;
     }
     
     /// <summary>
