@@ -208,8 +208,14 @@ public class EmbeddedTerminalResizeDiagnosticTests
     /// are not properly filling their enclosing border or receiving 
     /// PTY content after creation.
     /// </para>
+    /// <para>
+    /// FIXED: The issue was that TerminalNode.Arrange() only resized the handle
+    /// when bounds changed. When switching terminals (same node, different handle),
+    /// bounds stayed the same so resize was skipped. The fix tracks handle changes
+    /// separately and resizes on handle swap.
+    /// </para>
     /// </remarks>
-    [Fact(Skip = "BUG REPRODUCED: Second terminal shows empty content - see diagnostic captures")]
+    [Fact]
     public async Task Diagnostic_SecondTerminal_SttySize_ReportsCorrectDimensions()
     {
         // Arrange

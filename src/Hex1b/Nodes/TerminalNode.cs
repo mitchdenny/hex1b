@@ -25,6 +25,7 @@ public sealed class TerminalNode : Hex1bNode
     private Action? _outputReceivedHandler;
     private Action? _invalidateCallback;
     private bool _isFocused;
+    private bool _handleChanged; // Tracks if handle was changed since last Arrange
     
     // Tracks output version to detect if output arrived during render
     // This prevents the race condition where output arrives after snapshot
@@ -43,6 +44,7 @@ public sealed class TerminalNode : Hex1bNode
             if (_handle != value)
             {
                 _handle = value;
+                _handleChanged = true; // Mark that we need to resize the new handle
                 MarkDirty();
             }
         }
@@ -307,10 +309,17 @@ public sealed class TerminalNode : Hex1bNode
         var safeWidth = bounds.Width > MaxReasonableSize ? (_handle?.Width ?? 80) : bounds.Width;
         var safeHeight = bounds.Height > MaxReasonableSize ? (_handle?.Height ?? 24) : bounds.Height;
         
-        // If size changed, resize the handle (which propagates to the child terminal's PTY)
-        if (_handle != null && (safeWidth != previousBounds.Width || safeHeight != previousBounds.Height))
+        // Resize the handle if:
+        // 1. The bounds changed (normal resize scenario), OR
+        // 2. The handle was just changed (new handle may have different dimensions than node bounds)
+        // This ensures that when switching between terminals, the new handle gets resized
+        // to match the node's current layout bounds, even if those bounds didn't change.
+        var needsResize = safeWidth != previousBounds.Width || safeHeight != previousBounds.Height || _handleChanged;
+        
+        if (_handle != null && needsResize)
         {
             _handle.Resize(safeWidth, safeHeight);
+            _handleChanged = false;
         }
     }
     
