@@ -1,6 +1,7 @@
 using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Input;
+using Hex1b.Nodes;
 using Hex1b.Widgets;
 
 // State: collection of active terminals
@@ -70,6 +71,8 @@ void AddTerminal()
         }
     });
     
+    // Request focus on the new terminal (will be applied after next render)
+    displayApp?.RequestFocus(node => node is TerminalNode terminalNode && terminalNode.Handle == handle);
     displayApp?.Invalidate();
 }
 
@@ -118,6 +121,8 @@ void RestartTerminal(TerminalSession oldSession)
         }
     });
     
+    // Request focus on the restarted terminal (will be applied after next render)
+    displayApp?.RequestFocus(node => node is TerminalNode terminalNode && terminalNode.Handle == handle);
     displayApp?.Invalidate();
 }
 

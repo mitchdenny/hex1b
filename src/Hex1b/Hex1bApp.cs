@@ -104,6 +104,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     // Stop request flag - set by InputBindingActionContext.RequestStop()
     private volatile bool _stopRequested;
     
+    // Pending focus request - will be processed after next render
+    private Func<Hex1bNode, bool>? _pendingFocusPredicate;
+    
     // Default CTRL-C binding option
     private readonly bool _enableDefaultCtrlCExit;
     
@@ -221,6 +224,42 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Useful for testing focus navigation.
     /// </summary>
     public string? LastFocusChange => _focusRing.LastFocusChange;
+
+    /// <summary>
+    /// Focuses the first node in the focus ring that matches the given predicate.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <returns>True if a matching node was found and focused, false otherwise.</returns>
+    /// <remarks>
+    /// This is useful for programmatically setting focus, for example after creating a new
+    /// focusable widget. The focus ring is rebuilt after each render, so this should be called
+    /// after the app has rendered at least once with the target widget present.
+    /// </remarks>
+    public bool FocusWhere(Func<Hex1bNode, bool> predicate)
+    {
+        return _focusRing.FocusWhere(predicate);
+    }
+
+    /// <summary>
+    /// Requests that focus be set to the first node matching the predicate after the next render.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <remarks>
+    /// <para>
+    /// This is useful when adding a new focusable widget and wanting to focus it immediately.
+    /// Since the node doesn't exist in the focus ring until after the render cycle, calling
+    /// <see cref="FocusWhere"/> directly won't work. Instead, use this method to queue the
+    /// focus request, then call <see cref="Invalidate"/> to trigger a render.
+    /// </para>
+    /// <para>
+    /// After the render completes and the focus ring is rebuilt, the pending focus request
+    /// will be processed before <c>EnsureFocus()</c> is called.
+    /// </para>
+    /// </remarks>
+    public void RequestFocus(Func<Hex1bNode, bool> predicate)
+    {
+        _pendingFocusPredicate = predicate;
+    }
 
     /// <summary>
     /// Gets the last path debug info from input routing.
@@ -466,6 +505,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
 
         // Step 5: Rebuild focus ring from the current node tree
         _focusRing.Rebuild(_rootNode);
+        
+        // Step 5.5: Process any pending focus request
+        if (_pendingFocusPredicate != null)
+        {
+            _focusRing.FocusWhere(_pendingFocusPredicate);
+            _pendingFocusPredicate = null;
+        }
+        
         _focusRing.EnsureFocus();
 
         // Step 6: Update render context with mouse position for hover rendering
