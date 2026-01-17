@@ -71,6 +71,13 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     // Cursor shape (from CursorShapeToken)
     private CursorShape _cursorShape = CursorShape.Default;
     
+    // Terminal title (OSC 0/2) and icon name (OSC 0/1)
+    private string _windowTitle = "";
+    private string _iconName = "";
+    
+    // Title stack for OSC 22/23 (push/pop)
+    private readonly Stack<(string Title, string IconName)> _titleStack = new();
+    
     // Reference to the owning terminal for forwarding input
     private Hex1bTerminal? _terminal;
     
@@ -146,6 +153,16 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public bool IsRunning => _state == TerminalState.Running;
     
     /// <summary>
+    /// Gets the current window title set by OSC 0 or OSC 2 sequences from the child process.
+    /// </summary>
+    public string WindowTitle => _windowTitle;
+
+    /// <summary>
+    /// Gets the current icon name set by OSC 0 or OSC 1 sequences from the child process.
+    /// </summary>
+    public string IconName => _iconName;
+    
+    /// <summary>
     /// Event raised when the terminal state changes.
     /// </summary>
     public event Action<TerminalState>? StateChanged;
@@ -155,6 +172,16 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// TerminalNode subscribes to this to trigger re-renders.
     /// </summary>
     public event Action? OutputReceived;
+    
+    /// <summary>
+    /// Event raised when the window title changes (OSC 0 or OSC 2 from child process).
+    /// </summary>
+    public event Action<string>? WindowTitleChanged;
+
+    /// <summary>
+    /// Event raised when the icon name changes (OSC 0 or OSC 1 from child process).
+    /// </summary>
+    public event Action<string>? IconNameChanged;
     
     /// <summary>
     /// Sets the terminal that owns this handle. Called by Hex1bTerminal constructor.
@@ -253,6 +280,92 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         }
     }
     
+    /// <summary>
+    /// Handles OSC tokens for title sequences.
+    /// </summary>
+    private void HandleOscToken(OscToken osc)
+    {
+        switch (osc.Command)
+        {
+            case "0":
+                // OSC 0: Set both icon name and window title
+                SetIconName(osc.Payload);
+                SetWindowTitle(osc.Payload);
+                break;
+                
+            case "1":
+                // OSC 1: Set icon name only
+                SetIconName(osc.Payload);
+                break;
+                
+            case "2":
+                // OSC 2: Set window title only
+                SetWindowTitle(osc.Payload);
+                break;
+                
+            case "22":
+                // OSC 22: Push title onto stack
+                PushTitleStack(osc.Payload);
+                break;
+                
+            case "23":
+                // OSC 23: Pop title from stack
+                PopTitleStack();
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Sets the window title and fires the WindowTitleChanged event if changed.
+    /// </summary>
+    private void SetWindowTitle(string title)
+    {
+        if (_windowTitle != title)
+        {
+            _windowTitle = title;
+            WindowTitleChanged?.Invoke(title);
+        }
+    }
+    
+    /// <summary>
+    /// Sets the icon name and fires the IconNameChanged event if changed.
+    /// </summary>
+    private void SetIconName(string name)
+    {
+        if (_iconName != name)
+        {
+            _iconName = name;
+            IconNameChanged?.Invoke(name);
+        }
+    }
+    
+    /// <summary>
+    /// Pushes the current title and icon name onto the stack (OSC 22).
+    /// </summary>
+    private void PushTitleStack(string payload)
+    {
+        _titleStack.Push((_windowTitle, _iconName));
+        
+        // If payload is not empty and not just a mode specifier, treat it as a new title
+        if (!string.IsNullOrEmpty(payload) && payload != "0" && payload != "1" && payload != "2")
+        {
+            SetWindowTitle(payload);
+            SetIconName(payload);
+        }
+    }
+    
+    /// <summary>
+    /// Pops the title and icon name from the stack (OSC 23).
+    /// </summary>
+    private void PopTitleStack()
+    {
+        if (_titleStack.Count == 0) return;
+        
+        var (savedTitle, savedIconName) = _titleStack.Pop();
+        SetWindowTitle(savedTitle);
+        SetIconName(savedIconName);
+    }
+
     /// <summary>
     /// Sends a key event to the terminal's workload (e.g., child process).
     /// </summary>
@@ -385,6 +498,10 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                         6 => CursorShape.SteadyBar,
                         _ => CursorShape.Default
                     };
+                }
+                else if (applied.Token is OscToken osc)
+                {
+                    HandleOscToken(osc);
                 }
                 
                 // Apply each cell impact to our buffer

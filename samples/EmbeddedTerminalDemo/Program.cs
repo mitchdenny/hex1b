@@ -46,6 +46,9 @@ void AddTerminal()
     
     var session = new TerminalSession(id, terminal, handle);
     
+    // Subscribe to title changes to update the UI
+    handle.WindowTitleChanged += _ => displayApp?.Invalidate();
+    
     lock (terminalLock)
     {
         terminals.Add(session);
@@ -94,6 +97,9 @@ void RestartTerminal(TerminalSession oldSession)
         .Build();
     
     var newSession = new TerminalSession(oldSession.Id, terminal, handle);
+    
+    // Subscribe to title changes to update the UI
+    handle.WindowTitleChanged += _ => displayApp?.Invalidate();
     
     lock (terminalLock)
     {
@@ -273,6 +279,11 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
     // Helper to build a terminal widget with exit handling
     Hex1bWidget BuildTerminalPane<TParent>(WidgetContext<TParent> v, TerminalSession session) where TParent : Hex1bWidget
     {
+        // Build the border title - use the terminal's window title if set, otherwise fall back to default
+        var terminalTitle = !string.IsNullOrEmpty(session.Handle.WindowTitle) 
+            ? $"Terminal {session.Id}: {session.Handle.WindowTitle}"
+            : $"Terminal {session.Id}";
+        
         return v.Border(
             v.Terminal(session.Handle)
                 .WhenNotRunning(args => v.VStack(vv =>
@@ -293,7 +304,7 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
                     )
                 ]))
                 .Fill(),
-            title: $"Terminal {session.Id}"
+            title: terminalTitle
         );
     }
     
@@ -337,15 +348,19 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
             m.Menu("Terminals", m =>
             [
                 // List each existing terminal with a checkmark for the active one
-                // TODO: Terminal title semantics need to flow through to Hex1bTerminal
+                // Uses the terminal's WindowTitle from OSC 0/2 sequences if set
                 ..currentTerminals.Select(session =>
-                    m.MenuItem($"{(session.Id == activeTerminalId ? "● " : "  ")}Terminal {session.Id}")
+                {
+                    var menuLabel = !string.IsNullOrEmpty(session.Handle.WindowTitle)
+                        ? $"{(session.Id == activeTerminalId ? "● " : "  ")}{session.Handle.WindowTitle}"
+                        : $"{(session.Id == activeTerminalId ? "● " : "  ")}Terminal {session.Id}";
+                    return m.MenuItem(menuLabel)
                         .OnActivated(_ => 
                         {
                             activeTerminalId = session.Id;
                             displayApp?.Invalidate();
-                        })
-                ),
+                        });
+                }),
                 // Show placeholder if no terminals
                 ..(currentTerminals.Count == 0 
                     ? [m.MenuItem("(No terminals)").Disabled()]

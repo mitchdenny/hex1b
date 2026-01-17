@@ -111,6 +111,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
+    
+    // Terminal title (OSC 0/2) and icon name (OSC 0/1)
+    // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
+    private string _windowTitle = "";
+    private string _iconName = "";
+    
+    // Title stack for OSC 22/23 (push/pop)
+    // When OSC 22 is received, current (title, iconName) is pushed onto stack
+    // When OSC 23 is received, (title, iconName) is popped and restored
+    // OSC 0/1/2 do NOT affect the stack - they only change current values
+    private readonly Stack<(string Title, string IconName)> _titleStack = new();
 
     // === Static Factory ===
 
@@ -222,6 +233,53 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _presentation?.Capabilities 
         ?? (_workload as IHex1bAppTerminalWorkloadAdapter)?.Capabilities 
         ?? TerminalCapabilities.Modern;
+
+    // === Title Properties ===
+
+    /// <summary>
+    /// Gets the current window title set by OSC 0 or OSC 2 sequences.
+    /// </summary>
+    /// <remarks>
+    /// <para>The window title can be set by the workload (e.g., a shell or TUI application) using:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Sets both window title and icon name</item>
+    ///   <item>OSC 2 - Sets window title only</item>
+    /// </list>
+    /// </remarks>
+    public string WindowTitle => _windowTitle;
+
+    /// <summary>
+    /// Gets the current icon name set by OSC 0 or OSC 1 sequences.
+    /// </summary>
+    /// <remarks>
+    /// <para>The icon name is a historical X11 concept. In modern terminals it may be used for:</para>
+    /// <list type="bullet">
+    ///   <item>Tab titles (when different from window title)</item>
+    ///   <item>Taskbar/dock tooltips</item>
+    /// </list>
+    /// <para>The icon name can be set by the workload using:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Sets both window title and icon name</item>
+    ///   <item>OSC 1 - Sets icon name only</item>
+    /// </list>
+    /// </remarks>
+    public string IconName => _iconName;
+
+    /// <summary>
+    /// Event raised when the window title changes (OSC 0 or OSC 2).
+    /// </summary>
+    /// <remarks>
+    /// The event provides the new window title as a string.
+    /// </remarks>
+    public event Action<string>? WindowTitleChanged;
+
+    /// <summary>
+    /// Event raised when the icon name changes (OSC 0 or OSC 1).
+    /// </summary>
+    /// <remarks>
+    /// The event provides the new icon name as a string.
+    /// </remarks>
+    public event Action<string>? IconNameChanged;
 
     // === Terminal Control ===
 
@@ -2836,37 +2894,166 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes an OSC sequence, handling OSC 8 hyperlinks.
+    /// Processes an OSC sequence, handling title sequences (0/1/2/22/23) and hyperlinks (8).
     /// </summary>
+    /// <remarks>
+    /// <para>Supported OSC sequences:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Set icon name AND window title</item>
+    ///   <item>OSC 1 - Set icon name only</item>
+    ///   <item>OSC 2 - Set window title only</item>
+    ///   <item>OSC 8 - Hyperlinks</item>
+    ///   <item>OSC 22 - Push current title/icon onto stack, optionally set new values</item>
+    ///   <item>OSC 23 - Pop title/icon from stack and restore</item>
+    /// </list>
+    /// <para>
+    /// OSC 0/1/2 do NOT affect the title stack - they only modify current values.
+    /// The stack is independent: push saves current state, pop restores regardless of
+    /// what changes were made with 0/1/2 in between.
+    /// </para>
+    /// </remarks>
     private void ProcessOscSequence(string command, string parameters, string payload)
     {
-        // OSC 8 is for hyperlinks
-        if (command == "8")
+        switch (command)
         {
-            // Empty payload means end of hyperlink
-            if (string.IsNullOrEmpty(payload))
-            {
-                // Release current hyperlink if any
-                if (_currentHyperlink is not null)
-                {
-                    _currentHyperlink.Release();
-                    _currentHyperlink = null;
-                }
-            }
-            else
-            {
-                // Start a new hyperlink
-                // Release any previous hyperlink first
-                if (_currentHyperlink is not null)
-                {
-                    _currentHyperlink.Release();
-                }
+            case "0":
+                // OSC 0: Set both icon name and window title
+                SetIconName(payload);
+                SetWindowTitle(payload);
+                break;
                 
-                // Create or get existing hyperlink
-                _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(payload, parameters);
+            case "1":
+                // OSC 1: Set icon name only
+                SetIconName(payload);
+                break;
+                
+            case "2":
+                // OSC 2: Set window title only
+                SetWindowTitle(payload);
+                break;
+                
+            case "8":
+                // OSC 8: Hyperlinks
+                ProcessOsc8Hyperlink(parameters, payload);
+                break;
+                
+            case "22":
+                // OSC 22: Push title onto stack
+                // Format: OSC 22 ; Pt ST or OSC 22 ; 0 ST or OSC 22 ; 1 ST or OSC 22 ; 2 ST
+                // If Pt is "0", "1", or "2", it indicates which to push (icon, title, or both)
+                // For simplicity, we push both (XTerm behavior)
+                PushTitleStack(payload);
+                break;
+                
+            case "23":
+                // OSC 23: Pop title from stack
+                // Format: OSC 23 ; Pt ST
+                // Similar to 22, Pt can specify which to pop
+                PopTitleStack(payload);
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Processes OSC 8 hyperlink sequences.
+    /// </summary>
+    private void ProcessOsc8Hyperlink(string parameters, string payload)
+    {
+        // Empty payload means end of hyperlink
+        if (string.IsNullOrEmpty(payload))
+        {
+            // Release current hyperlink if any
+            if (_currentHyperlink is not null)
+            {
+                _currentHyperlink.Release();
+                _currentHyperlink = null;
             }
         }
-        // Other OSC commands can be added here in the future
+        else
+        {
+            // Start a new hyperlink
+            // Release any previous hyperlink first
+            if (_currentHyperlink is not null)
+            {
+                _currentHyperlink.Release();
+            }
+            
+            // Create or get existing hyperlink
+            _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(payload, parameters);
+        }
+    }
+    
+    /// <summary>
+    /// Sets the window title and fires the WindowTitleChanged event if changed.
+    /// </summary>
+    private void SetWindowTitle(string title)
+    {
+        if (_windowTitle != title)
+        {
+            _windowTitle = title;
+            WindowTitleChanged?.Invoke(title);
+        }
+    }
+    
+    /// <summary>
+    /// Sets the icon name and fires the IconNameChanged event if changed.
+    /// </summary>
+    private void SetIconName(string name)
+    {
+        if (_iconName != name)
+        {
+            _iconName = name;
+            IconNameChanged?.Invoke(name);
+        }
+    }
+    
+    /// <summary>
+    /// Pushes the current title and icon name onto the stack (OSC 22).
+    /// </summary>
+    /// <param name="payload">The payload from the OSC sequence. Can specify what to push:
+    /// "0" = icon name, "1" = window title, "2" or empty = both.
+    /// Can also contain a new title to set after pushing.</param>
+    private void PushTitleStack(string payload)
+    {
+        // XTerm behavior: push current state, then optionally set new values
+        // The payload can be:
+        // - Empty: push both
+        // - "0": push icon name only (but we still push both for simplicity)
+        // - "1": push title only (but we still push both for simplicity)  
+        // - "2": push both (explicit)
+        // - A string: push both, then set title to this string
+        
+        // Always push current state
+        _titleStack.Push((_windowTitle, _iconName));
+        
+        // If payload is not empty and not just a mode specifier, treat it as a new title
+        if (!string.IsNullOrEmpty(payload) && payload != "0" && payload != "1" && payload != "2")
+        {
+            // Set new title (some terminals support OSC 22 ; text ST to push and set)
+            SetWindowTitle(payload);
+            SetIconName(payload);
+        }
+    }
+    
+    /// <summary>
+    /// Pops the title and icon name from the stack (OSC 23).
+    /// </summary>
+    /// <param name="payload">The payload from the OSC sequence. Can specify what to pop:
+    /// "0" = icon name, "1" = window title, "2" or empty = both.</param>
+    private void PopTitleStack(string payload)
+    {
+        if (_titleStack.Count == 0)
+        {
+            // Nothing to pop - some terminals reset to default, we just ignore
+            return;
+        }
+        
+        var (savedTitle, savedIconName) = _titleStack.Pop();
+        
+        // Restore based on payload (for simplicity, we always restore both)
+        // payload "0" = restore icon only, "1" = restore title only, "2" or empty = both
+        SetWindowTitle(savedTitle);
+        SetIconName(savedIconName);
     }
 
     // === Static Input Parsing Helpers ===
