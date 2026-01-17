@@ -196,6 +196,13 @@ public sealed class TerminalNode : Hex1bNode
     /// <summary>
     /// Binds this node to the current handle, subscribing to output events.
     /// </summary>
+    /// <remarks>
+    /// After subscribing to the handle's OutputReceived event, we immediately
+    /// mark the node dirty and trigger an invalidation. This ensures that any
+    /// output that arrived before binding (e.g., bash prompt) will be rendered
+    /// on the next frame. Without this, the terminal would appear empty until
+    /// user interaction triggers a re-render.
+    /// </remarks>
     internal void Bind()
     {
         if (_isBound || _handle == null) return;
@@ -203,6 +210,12 @@ public sealed class TerminalNode : Hex1bNode
         _outputReceivedHandler = OnOutputReceived;
         _handle.OutputReceived += _outputReceivedHandler;
         _isBound = true;
+        
+        // Mark dirty and invalidate to render any output that arrived before binding.
+        // This handles the race condition where the terminal starts outputting
+        // (e.g., bash prompt) before the UI has reconciled and bound the node.
+        MarkDirty();
+        _invalidateCallback?.Invoke();
     }
     
     /// <summary>
