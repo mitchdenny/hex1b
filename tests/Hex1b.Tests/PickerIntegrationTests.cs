@@ -13,61 +13,56 @@ public class PickerIntegrationTests
     [Fact]
     public async Task Picker_EnterKey_OpensPopup()
     {
-        // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        // Arrange & Act
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
-        // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - The popup should have opened showing all items
-        // (We verified this via the WaitUntil condition)
+        Assert.True(snapshot.ContainsText("Banana"));
+        Assert.True(snapshot.ContainsText("Cherry"));
     }
 
     [Fact]
     public async Task Picker_SelectItem_ClosesPopupAndUpdatesSelection()
     {
         // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                        .OnSelectionChanged(e => { selectedText = e.SelectedText; })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+                    .OnSelectionChanged(e => { selectedText = e.SelectedText; })
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Down()   // Navigate to Banana
             .Enter()  // Select Banana
             .WaitUntil(s => s.ContainsText("Banana ▼") && !s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to close")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -76,36 +71,34 @@ public class PickerIntegrationTests
         // Assert
         Assert.Equal("Banana", selectedText);
         // The picker should now show "Banana ▼" and the popup should be closed
-        Assert.True(terminal.CreateSnapshot().ContainsText("Banana"));
+        Assert.True(snapshot.ContainsText("Banana"));
     }
 
     [Fact]
     public async Task Picker_EscapeKey_ClosesPopupWithoutChangingSelection()
     {
         // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectionChangedCount = 0;
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                        .OnSelectionChanged(e => { selectionChangedCount++; })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+                    .OnSelectionChanged(e => { selectionChangedCount++; })
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Down()   // Navigate to Banana (but don't select)
             .Escape() // Dismiss without selecting
             .WaitUntil(s => s.ContainsText("Apple ▼") && !s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to close")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -114,37 +107,39 @@ public class PickerIntegrationTests
         // Assert - Selection should not have changed
         Assert.Equal(0, selectionChangedCount);
         // The picker should still show "Apple ▼"
-        Assert.True(terminal.CreateSnapshot().ContainsText("Apple"));
+        Assert.True(snapshot.ContainsText("Apple"));
     }
 
     [Fact]
     public async Task Picker_ClickAwayOnBackdrop_ClosesPopupWithoutChangingSelection()
     {
         // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectionChangedCount = 0;
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) =>
+            {
+                options.EnableMouse = true;
+                return ctx => new VStackWidget([
                     new TextBlockWidget("Click here to dismiss"),
                     new PickerWidget(["Apple", "Banana", "Cherry"])
                         .OnSelectionChanged(e => { selectionChangedCount++; })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
-        );
+                ]);
+            })
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             // Click on the backdrop area (top-left corner, far from the popup content)
             .ClickAt(1, 1, MouseButton.Left)
             .WaitUntil(s => s.ContainsText("Apple ▼") && !s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to close after click-away")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -153,27 +148,26 @@ public class PickerIntegrationTests
         // Assert - Selection should not have changed
         Assert.Equal(0, selectionChangedCount);
         // The picker should still show "Apple ▼"
-        Assert.True(terminal.CreateSnapshot().ContainsText("Apple"));
+        Assert.True(snapshot.ContainsText("Apple"));
     }
 
     [Fact]
     public async Task Picker_ClickOnPopupContent_DoesNotDismiss()
     {
-        // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
+        // Arrange & Act
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) =>
+            {
+                options.EnableMouse = true;
+                return ctx => new VStackWidget([
                     new PickerWidget(["Apple", "Banana", "Cherry"])
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
-        );
+                ]);
+            })
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
-        // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
@@ -198,22 +192,19 @@ public class PickerIntegrationTests
     public async Task Picker_DownArrow_OpensPopupWithNextItemSelected()
     {
         // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                        .OnSelectionChanged(e => { selectedText = e.SelectedText; })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+                    .OnSelectionChanged(e => { selectedText = e.SelectedText; })
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Down()  // Open popup with next item (Banana) pre-selected
@@ -233,22 +224,19 @@ public class PickerIntegrationTests
     public async Task Picker_UpArrow_OpensPopupWithPreviousItemSelected()
     {
         // Arrange - Start with Cherry selected (index 2)
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedText = "";
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"]) { InitialSelectedIndex = 2 }
-                        .OnSelectionChanged(e => { selectedText = e.SelectedText; })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"]) { InitialSelectedIndex = 2 }
+                    .OnSelectionChanged(e => { selectedText = e.SelectedText; })
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "picker to render with Cherry")
             .Up()    // Open popup with previous item (Banana) pre-selected
@@ -267,55 +255,48 @@ public class PickerIntegrationTests
     [Fact]
     public async Task Picker_PopupOpened_FocusMovesToList()
     {
-        // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        // Arrange & Act
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act - Open popup and verify navigation works (proving focus moved to list)
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("> Apple"), TimeSpan.FromSeconds(2), "popup to open with selection indicator")
             .Down()   // Navigate down in the list
             .WaitUntil(s => s.ContainsText("> Banana"), TimeSpan.FromSeconds(2), "list selection to move")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Assert - If we got here, the list received focus and responded to Down arrow
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Banana"));
+        Assert.True(snapshot.ContainsText("> Banana"));
     }
 
     [Fact]
     public async Task Picker_PopupDismissed_FocusRestoresToPicker()
     {
-        // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new PickerWidget(["Apple", "Banana", "Cherry"])
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        // Arrange & Act
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new PickerWidget(["Apple", "Banana", "Cherry"])
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act - Open popup, dismiss it, then open again to verify focus returned to picker
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
@@ -323,43 +304,43 @@ public class PickerIntegrationTests
             .WaitUntil(s => !s.ContainsText("Cherry") || s.ContainsText("Apple ▼"), TimeSpan.FromSeconds(2), "popup to close")
             .Enter()  // Open again - this proves focus returned to picker
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to reopen")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - If we got here, focus was restored and picker could be reopened
+        // Assert - Focus was restored and picker could be reopened
+        Assert.True(snapshot.ContainsText("Banana"));
+        Assert.True(snapshot.ContainsText("Cherry"));
     }
 
     [Fact]
     public async Task Picker_MultiplePickersOnScreen_TabNavigatesBetweenThem()
     {
         // Arrange
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var selectedFruit = "Apple";
         var selectedColor = "Red";
         
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new HStackWidget([
-                        new TextBlockWidget("Fruit: "),
-                        new PickerWidget(["Apple", "Banana", "Cherry"])
-                            .OnSelectionChanged(e => { selectedFruit = e.SelectedText; })
-                    ]),
-                    new HStackWidget([
-                        new TextBlockWidget("Color: "),
-                        new PickerWidget(["Red", "Green", "Blue"])
-                            .OnSelectionChanged(e => { selectedColor = e.SelectedText; })
-                    ])
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new HStackWidget([
+                    new TextBlockWidget("Fruit: "),
+                    new PickerWidget(["Apple", "Banana", "Cherry"])
+                        .OnSelectionChanged(e => { selectedFruit = e.SelectedText; })
+                ]),
+                new HStackWidget([
+                    new TextBlockWidget("Color: "),
+                    new PickerWidget(["Red", "Green", "Blue"])
+                        .OnSelectionChanged(e => { selectedColor = e.SelectedText; })
                 ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
         // Act - Select from first picker, tab to second, select from second
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple") && s.ContainsText("Red"), TimeSpan.FromSeconds(2), "pickers to render")
             // Select Banana from first picker
