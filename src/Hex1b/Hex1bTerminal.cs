@@ -3195,6 +3195,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen
             await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
