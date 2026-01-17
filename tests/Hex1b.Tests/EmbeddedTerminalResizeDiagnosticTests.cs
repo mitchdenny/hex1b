@@ -26,7 +26,7 @@ public class EmbeddedTerminalResizeDiagnosticTests
     /// Diagnostic test 1: Open a terminal via Alt+F menu and verify bash prompt appears.
     /// Uses 150x40 terminal size with asciinema recording.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
     public async Task Diagnostic_OpenTerminalViaMenu_BashPromptAppears()
     {
         // Arrange - Create temp file for recording
@@ -215,7 +215,7 @@ public class EmbeddedTerminalResizeDiagnosticTests
     /// separately and resizes on handle swap.
     /// </para>
     /// </remarks>
-    [Fact]
+    [Fact(Skip = "Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
     public async Task Diagnostic_SecondTerminal_SttySize_ReportsCorrectDimensions()
     {
         // Arrange
@@ -476,7 +476,7 @@ public class EmbeddedTerminalResizeDiagnosticTests
     /// Expected behavior: Second terminal should show bash prompt like the first one.
     /// </para>
     /// </remarks>
-    [Fact]
+    [Fact(Skip = "Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
     public async Task Diagnostic_SecondTerminal_ContentIsEmpty_BugRepro()
     {
         // Arrange

@@ -64,8 +64,8 @@ public class ThemingExhibitRepro
         // Start the app first, then interact with it
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for the content to render, then exit
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for the content to render, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -76,20 +76,16 @@ public class ThemingExhibitRepro
 
         // Debug: Print all non-empty lines
         Console.WriteLine("=== Screen output ===");
-        foreach (var line in terminal.CreateSnapshot().GetNonEmptyLines())
+        foreach (var line in snapshot.GetNonEmptyLines())
         {
             Console.WriteLine(line);
         }
         
         Console.WriteLine("\n=== Raw output (to check for ANSI codes) ===");
-        Console.WriteLine(terminal.CreateSnapshot().GetScreenText());
+        Console.WriteLine(snapshot.GetScreenText());
         
         // The List should have focus (first focusable in the splitter)
         // The TextBox should NOT show cursor styling
-        
-        // Look for cursor color codes in the raw output
-        // Default cursor colors: black foreground (38;2;0;0;0), white background (48;2;255;255;255)
-        var snapshot = terminal.CreateSnapshot();
         
         // Check that our text appears in the screen (without ANSI codes)
         var screenText = snapshot.GetScreenText();
@@ -228,8 +224,9 @@ public class ThemingExhibitRepro
 
         // Act - Run app, wait for TextBox text to appear, then check for cursor colors
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2), "TextBox content to appear")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -237,7 +234,6 @@ public class ThemingExhibitRepro
 
         // Assert - The cursor background color (white) should be in the snapshot
         // Default cursor colors: foreground=Black, background=White (255,255,255)
-        var snapshot = terminal.CreateSnapshot();
         Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
             "TextBox should render cursor with white background when focused");
     }
@@ -303,8 +299,8 @@ public class ThemingExhibitRepro
         // Start the app first, then interact with it
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for the content to render, then exit
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for the content to render, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -314,7 +310,6 @@ public class ThemingExhibitRepro
         await runTask;
 
         // Check for cursor colors in the output
-        var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
         
         Console.WriteLine("=== Screen Text ===");

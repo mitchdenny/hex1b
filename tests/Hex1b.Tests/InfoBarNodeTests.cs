@@ -313,7 +313,9 @@ public class InfoBarNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -321,11 +323,7 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Ready"));
+        Assert.True(snapshot.ContainsText("Ready"));
     }
 
     [Fact]
@@ -349,7 +347,9 @@ public class InfoBarNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mode: Insert"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -357,21 +357,9 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Mode: Insert"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Mode: Insert"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("UTF-8"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("UTF-8"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ln 42, Col 7"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Ln 42, Col 7"));
+        Assert.True(snapshot.ContainsText("Mode: Insert"));
+        Assert.True(snapshot.ContainsText("UTF-8"));
+        Assert.True(snapshot.ContainsText("Ln 42, Col 7"));
     }
 
     [Fact]
@@ -392,7 +380,9 @@ public class InfoBarNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Status Bar"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -400,16 +390,8 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Main Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Main Content"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Status Bar"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Status Bar"));
+        Assert.True(snapshot.ContainsText("Main Content"));
+        Assert.True(snapshot.ContainsText("Status Bar"));
     }
 
     [Fact]
@@ -430,7 +412,9 @@ public class InfoBarNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -438,13 +422,9 @@ public class InfoBarNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Themed"));
-        Assert.True(terminal.CreateSnapshot().HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255))); // Cyan
-        Assert.True(terminal.CreateSnapshot().HasBackgroundColor(Hex1bColor.FromRgb(64, 64, 64))); // DarkGray
+        Assert.True(snapshot.ContainsText("Themed"));
+        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255))); // Cyan
+        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(64, 64, 64))); // DarkGray
     }
 
     #endregion

@@ -35,7 +35,9 @@ public class TerminalSvgRenderingTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting (alternate screen buffer is cleared on exit)
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -43,7 +45,7 @@ public class TerminalSvgRenderingTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
+        // Use captured snapshot
         var svg = snapshot.ToSvg();
 
         // Assert
@@ -80,15 +82,15 @@ public class TerminalSvgRenderingTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting (alternate screen buffer is cleared on exit)
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        var snapshot = terminal.CreateSnapshot();
 
         // Extract an arbitrary region (columns 5-35, rows 1-4)
         var region = snapshot.GetRegion(new Rect(5, 1, 30, 4));
@@ -134,15 +136,13 @@ public class TerminalSvgRenderingTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-
-        var snapshot = terminal.CreateSnapshot();
 
         // Find the button by searching for its text and extracting a region around it
         var buttonLocations = snapshot.FindText("Submit Form");

@@ -303,7 +303,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Visit GitHub"), TimeSpan.FromSeconds(2))
             .Capture("single-link")
             .Ctrl().Key(Hex1bKey.C)
@@ -311,8 +313,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Capture snapshots
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-single");
 
         // Verify the link text is rendered
@@ -338,7 +338,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("API Reference"), TimeSpan.FromSeconds(2))
             .Capture("multiple-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -346,8 +348,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Capture snapshots
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-multiple");
 
         // Verify all links are rendered
@@ -378,7 +378,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("inline-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -386,8 +388,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Capture snapshots
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-inline");
 
         // Verify inline layout
@@ -416,7 +416,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Issue Tracker"), TimeSpan.FromSeconds(2))
             .Capture("bordered-links")
             .Ctrl().Key(Hex1bKey.C)
@@ -424,8 +426,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Capture snapshots
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-bordered");
 
         // Verify content
@@ -568,7 +568,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mailto Link"), TimeSpan.FromSeconds(2))
             .Capture("complex-urls")
             .Ctrl().Key(Hex1bKey.C)
@@ -576,8 +578,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Capture snapshots
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-complex-urls");
 
         Assert.True(snapshot.ContainsText("Search Results"));
@@ -602,7 +602,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Links"), TimeSpan.FromSeconds(2))
             .Capture("narrow-terminal")
             .Ctrl().Key(Hex1bKey.C)
@@ -610,7 +612,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-narrow-terminal");
 
         // The text should be truncated, so full text should NOT be present
@@ -641,7 +642,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("splitter-clipping")
             .Ctrl().Key(Hex1bKey.C)
@@ -649,7 +652,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-splitter-clipping");
 
         // Right pane should be fully visible
@@ -710,7 +712,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Tiny"), TimeSpan.FromSeconds(2))
             .Capture("border-clipped")
             .Ctrl().Key(Hex1bKey.C)
@@ -718,7 +722,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-border-clipped");
 
         // Border title should be visible
@@ -747,7 +750,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("hstack-overflow")
             .Ctrl().Key(Hex1bKey.C)
@@ -755,7 +760,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-hstack-overflow");
 
         // First links should be visible
@@ -779,7 +783,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(2))
             .Capture("empty-text")
             .Ctrl().Key(Hex1bKey.C)
@@ -787,7 +793,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-empty-text");
 
         Assert.True(snapshot.ContainsText("Before"));
@@ -812,7 +817,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("ampersand"), TimeSpan.FromSeconds(2))
             .Capture("special-chars")
             .Ctrl().Key(Hex1bKey.C)
@@ -820,7 +827,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-special-chars");
 
         Assert.True(snapshot.ContainsText("angle"));
@@ -846,7 +852,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("same link"), TimeSpan.FromSeconds(2))
             .Capture("with-id")
             .Ctrl().Key(Hex1bKey.C)
@@ -854,7 +862,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-with-id");
 
         Assert.True(snapshot.ContainsText("Part 1 of"));
@@ -882,7 +889,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Clipped Box"), TimeSpan.FromSeconds(2))
             .Capture("clipped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -890,7 +899,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-inside-layout-clipping");
 
         // The hyperlink text should be partially visible (clipped)
@@ -971,7 +979,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("This"), TimeSpan.FromSeconds(2))
             .Capture("wrapped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -979,7 +989,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-text-overflow-wrap");
 
         // The hyperlink should wrap across multiple lines
@@ -1023,7 +1032,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Capture("multi-line-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -1031,7 +1042,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-multi-line-osc8");
 
         // Count cells with hyperlink data - should be substantial

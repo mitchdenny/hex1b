@@ -363,19 +363,16 @@ public class VStackNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(1), "Long text visible")
-            .Capture("final")
-            .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        var snapshot = terminal.CreateSnapshot();
+        
+        await runTask;
         
         // Text clips at terminal edge (not wraps)
         Assert.Equal("LongTextHe", snapshot.GetLineTrimmed(0));
@@ -406,29 +403,21 @@ public class VStackNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(2))
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Body Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Body Content"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Footer"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Header"));
+        Assert.True(snapshot.ContainsText("Body Content"));
+        Assert.True(snapshot.ContainsText("Footer"));
     }
 
     [Fact]
@@ -533,29 +522,21 @@ public class VStackNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Short"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Medium text"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Medium text"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Very long text"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Very long text"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Short"));
+        Assert.True(snapshot.ContainsText("Medium text"));
+        Assert.True(snapshot.ContainsText("Very long text"));
     }
 
     [Fact]
@@ -579,8 +560,9 @@ public class VStackNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
+        // Capture snapshot BEFORE exiting the app
         // Tab to button and click
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
@@ -588,14 +570,12 @@ public class VStackNodeTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
+        // Use captured snapshot for assertions
         Assert.True(clicked);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Title"));
+        Assert.True(snapshot.ContainsText("Title"));
     }
 
     [Fact]
@@ -620,34 +600,22 @@ public class VStackNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer 1"), TimeSpan.FromSeconds(2))
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer 1"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inner 1"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inner 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Inner 2"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Outer 2"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Outer 1"));
+        Assert.True(snapshot.ContainsText("Inner 1"));
+        Assert.True(snapshot.ContainsText("Inner 2"));
+        Assert.True(snapshot.ContainsText("Outer 2"));
     }
 
     [Fact]
@@ -692,29 +660,21 @@ public class VStackNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 3"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Item 1"));
+        Assert.True(snapshot.ContainsText("Item 2"));
+        Assert.True(snapshot.ContainsText("Item 3"));
     }
 
     #endregion

@@ -771,40 +771,24 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Hello World"));
         // Check for border characters
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("└"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("└"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┘"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┘"));
+        Assert.True(snapshot.ContainsText("┌"));
+        Assert.True(snapshot.ContainsText("┐"));
+        Assert.True(snapshot.ContainsText("└"));
+        Assert.True(snapshot.ContainsText("┘"));
     }
 
     [Fact]
@@ -822,25 +806,20 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("My Panel"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        // Check for title and content
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("My Panel"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("My Panel"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("My Panel"));
+        Assert.True(snapshot.ContainsText("Content"));
     }
 
     [Fact]
@@ -862,34 +841,22 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 2"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 3"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("List"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Line 1"));
+        Assert.True(snapshot.ContainsText("Line 2"));
+        Assert.True(snapshot.ContainsText("Line 3"));
+        Assert.True(snapshot.ContainsText("List"));
     }
 
     [Fact]
@@ -940,29 +907,21 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Nested"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Outer"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Inner"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Nested"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Nested"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Outer"));
+        Assert.True(snapshot.ContainsText("Inner"));
+        Assert.True(snapshot.ContainsText("Nested"));
     }
 
     [Fact]
@@ -980,25 +939,20 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        // Border characters should be present
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
+        // Border characters should be present - use captured snapshot
+        Assert.True(snapshot.ContainsText("┌"));
+        Assert.True(snapshot.ContainsText("┐"));
     }
 
     [Fact]
@@ -1019,34 +973,22 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Left"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Right"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("L"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("L"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("R"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("R"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Left"));
+        Assert.True(snapshot.ContainsText("Right"));
+        Assert.True(snapshot.ContainsText("L"));
+        Assert.True(snapshot.ContainsText("R"));
     }
 
     [Fact]
@@ -1129,30 +1071,22 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Header"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Header"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Content"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Header"));
+        Assert.True(snapshot.ContainsText("Content"));
         // Border characters should be present
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
+        Assert.True(snapshot.ContainsText("┌"));
     }
 
     [Fact]
@@ -1170,35 +1104,22 @@ public class BorderNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
 
-        // Should still have complete border
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┐"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┐"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("└"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("└"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┘"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┘"));
+        // Should still have complete border - use captured snapshot
+        Assert.True(snapshot.ContainsText("┌"));
+        Assert.True(snapshot.ContainsText("┐"));
+        Assert.True(snapshot.ContainsText("└"));
+        Assert.True(snapshot.ContainsText("┘"));
     }
 
     #endregion

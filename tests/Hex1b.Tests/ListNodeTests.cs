@@ -798,29 +798,21 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(2))
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Option C"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Option A"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option B"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Option B"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option C"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Option C"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Option A"));
+        Assert.True(snapshot.ContainsText("Option B"));
+        Assert.True(snapshot.ContainsText("Option C"));
     }
 
     [Fact]
@@ -838,31 +830,22 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Navigate down to select second item
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Navigate down to select second item, wait for selection change, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Down()
+            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Second"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  First"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  First"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  Third"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("  Third"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("> Second"));
+        Assert.True(snapshot.ContainsText("  First"));
+        Assert.True(snapshot.ContainsText("  Third"));
     }
 
     [Fact]
@@ -881,30 +864,21 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        // Note: Border title may not render in all configurations
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 1"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Item 2"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("┌"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Item 1"));
+        Assert.True(snapshot.ContainsText("Item 2"));
+        Assert.True(snapshot.ContainsText("┌"));
     }
 
     [Fact]
@@ -922,22 +896,20 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Simulate down arrow
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Simulate down arrow, wait for selection change, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
         // After down arrow, second item should be selected
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 2"));
+        Assert.True(snapshot.ContainsText("> Item 2"));
     }
 
     [Fact]
@@ -989,24 +961,20 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Select an option:"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Menu Item"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Menu Item"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Select an option:"));
+        Assert.True(snapshot.ContainsText("Menu Item"));
     }
 
     [Fact]
@@ -1023,20 +991,19 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        // HighContrast theme uses "► " indicator
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("► Themed Item"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("► Themed Item"));
+        // HighContrast theme uses "► " indicator - use captured snapshot
+        Assert.True(snapshot.ContainsText("► Themed Item"));
     }
 
     [Fact]
@@ -1054,23 +1021,21 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Navigate down twice
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Navigate down twice, wait for selection change, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
+            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        // Third item should be selected
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Third"));
+        // Third item should be selected - use captured snapshot
+        Assert.True(snapshot.ContainsText("> Third"));
     }
 
     [Fact]
@@ -1093,39 +1058,23 @@ public class ListNodeTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting the app
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
         await runTask;
         
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Welcome"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Options"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Options"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option A"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Option A"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option B"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Option B"));
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("OK"));
+        // Use captured snapshot for assertions
+        Assert.True(snapshot.ContainsText("Welcome"));
+        Assert.True(snapshot.ContainsText("Options"));
+        Assert.True(snapshot.ContainsText("Option A"));
+        Assert.True(snapshot.ContainsText("Option B"));
+        Assert.True(snapshot.ContainsText("OK"));
     }
 
     #endregion
@@ -1639,28 +1588,18 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Navigate down to item 15
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Navigate down to item 15, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .Down().Down().Down().Down().Down() // Items 2-6
             .Down().Down().Down().Down().Down() // Items 7-11
             .Down().Down().Down().Down() // Items 12-15
+            .WaitUntil(s => s.ContainsText("> Item 15"), TimeSpan.FromSeconds(2))
             .Capture("at_item_15")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => 
-                s.ContainsText("> Item 15") && 
-                !s.ContainsText("Item 01") && 
-                !s.ContainsText("Item 02"), 
-                TimeSpan.FromSeconds(2), 
-                "Item 15 selected, Items 01-02 not visible")
-            .Capture("final")
-            .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Item 15 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 15"));
@@ -1691,26 +1630,17 @@ public class ListNodeTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Scroll down to the end using mouse wheel
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Scroll down to the end using mouse wheel, capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(10, 5) // Position mouse over list
             .ScrollDown(19) // Scroll down 19 times to reach item 20
+            .WaitUntil(s => s.ContainsText("> Item 20"), TimeSpan.FromSeconds(2))
             .Capture("at_end")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => 
-                s.ContainsText("> Item 20") && 
-                !s.ContainsText("Item 01"), 
-                TimeSpan.FromSeconds(2), 
-                "Item 20 selected, Item 01 not visible")
-            .Capture("final")
-            .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Item 20 should be selected and visible
         Assert.True(snapshot.ContainsText("> Item 20"));
@@ -1739,23 +1669,18 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // First scroll down with mouse wheel to move past item 5
-        // Then click on the second visible row - should select the correct item
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Then click on the second visible row - capture BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(10, 5) // Position over list area
             .ScrollDown(5) // Selection moves to item 6, scroll offset adjusts
             .ClickAt(10, 4) // Click on the item two rows above current selection
+            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2))
             .Capture("after_click")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2), "selection indicator to render")
-            .Capture("final")
-            .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should have selected an item in the scrolled region (item 4-6 range visible)
         // The clicked item should now be selected with ">"
