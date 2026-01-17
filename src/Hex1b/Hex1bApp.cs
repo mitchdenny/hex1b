@@ -62,6 +62,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private int _lastRenderedCursorY = -1;
     private CursorShape _lastRenderedCursorShape = CursorShape.Default;
     private bool _lastRenderedCursorVisible = false;
+    private Hex1bNode? _lastRenderedCursorNode;
     
     // Click tracking for double/triple click detection
     private DateTime _lastClickTime;
@@ -840,11 +841,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             var shape = handle.CursorShape;
             var visible = handle.CursorVisible;
             
-            // Check if anything changed
+            // Check if anything changed (including which node is focused)
             if (screenCursorX == _lastRenderedCursorX && 
                 screenCursorY == _lastRenderedCursorY && 
                 shape == _lastRenderedCursorShape &&
-                visible == _lastRenderedCursorVisible)
+                visible == _lastRenderedCursorVisible &&
+                ReferenceEquals(focusedNode, _lastRenderedCursorNode))
             {
                 return;
             }
@@ -854,6 +856,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             _lastRenderedCursorY = screenCursorY;
             _lastRenderedCursorShape = shape;
             _lastRenderedCursorVisible = visible;
+            _lastRenderedCursorNode = focusedNode;
             
             if (visible && 
                 screenCursorX >= 0 && screenCursorX < _context.Width &&
@@ -882,10 +885,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var mouseShape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
         
         // Check if anything changed - if not, skip the update to reduce flicker
+        // Also check that we're not switching from terminal cursor to mouse cursor
         if (_mouseX == _lastRenderedCursorX && 
             _mouseY == _lastRenderedCursorY && 
             mouseShape == _lastRenderedCursorShape &&
-            _lastRenderedCursorVisible)
+            _lastRenderedCursorVisible &&
+            _lastRenderedCursorNode == null)
         {
             return;
         }
@@ -895,6 +900,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _lastRenderedCursorY = _mouseY;
         _lastRenderedCursorShape = mouseShape;
         _lastRenderedCursorVisible = true;
+        _lastRenderedCursorNode = null;
         
         // Use the terminal's native cursor - just position it and show it
         _context.SetCursorPosition(_mouseX, _mouseY);
