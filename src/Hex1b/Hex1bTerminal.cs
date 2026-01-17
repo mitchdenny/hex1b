@@ -75,6 +75,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
     private bool _inAlternateScreen;
+    private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
+    private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
+    private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
     private long _writeSequence; // Monotonically increasing write order counter
@@ -1434,6 +1437,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _currentForeground = null;
         _currentBackground = null;
     }
+    
+    /// <summary>
+    /// Clears the internal buffer without generating cell impacts.
+    /// Used when the presentation adapter handles alternate screen natively.
+    /// </summary>
+    private void ClearBufferInternal()
+    {
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                // Release any tracked objects
+                _screenBuffer[y, x].TrackedSixel?.Release();
+                _screenBuffer[y, x].TrackedHyperlink?.Release();
+                _screenBuffer[y, x] = TerminalCell.Empty;
+            }
+        }
+        _currentForeground = null;
+        _currentBackground = null;
+    }
 
     /// <summary>
     /// Applies a list of ANSI tokens to the screen buffer.
@@ -1985,8 +2008,38 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoEnterAlternateScreen(List<CellImpact>? impacts = null)
     {
+        // Save cursor position before switching to alternate screen
+        // This uses separate fields from DECSC/DECRC to avoid conflicts
+        _alternateScreenSavedCursorX = _cursorX;
+        _alternateScreenSavedCursorY = _cursorY;
+        
+        // Always save the main screen buffer for internal state (needed for snapshots)
+        // and for presentation adapters that don't handle alternate screen natively
+        _savedMainScreenBuffer = new TerminalCell[_height, _width];
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                _savedMainScreenBuffer[y, x] = _screenBuffer[y, x];
+            }
+        }
+        
         _inAlternateScreen = true;
-        ClearBuffer(impacts);
+        
+        // If the presentation handles alternate screen natively, the real terminal
+        // will clear on entry. We just need to update our internal buffer.
+        // If not, we need to generate impacts so the presentation layer sees the clear.
+        if (Capabilities.HandlesAlternateScreenNatively)
+        {
+            // Just clear internal buffer without generating impacts
+            ClearBufferInternal();
+        }
+        else
+        {
+            // Clear with impacts for presentation adapters that need them
+            ClearBuffer(impacts);
+        }
+        
         _cursorX = 0;
         _cursorY = 0;
     }
@@ -1994,9 +2047,60 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
         _inAlternateScreen = false;
-        // When exiting alternate screen, we should restore the main screen
-        // For now, just clear to show something changed
-        ClearBuffer(impacts);
+        
+        // Only restore if we actually saved state when entering alternate screen
+        // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
+        if (_savedMainScreenBuffer != null)
+        {
+            // If the presentation handles alternate screen natively, the real terminal
+            // will restore its buffer when it receives the escape sequence. We just need
+            // to update our internal buffer to match (for snapshot purposes).
+            // If not, we need to generate impacts so the presentation layer gets restored.
+            bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
+            
+            // Restore the saved buffer (or as much as fits in current dimensions)
+            int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
+            int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
+            
+            for (int y = 0; y < restoreHeight; y++)
+            {
+                for (int x = 0; x < restoreWidth; x++)
+                {
+                    if (generateImpacts)
+                    {
+                        SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
+                    }
+                    else
+                    {
+                        // Direct assignment for internal buffer only
+                        _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
+                    }
+                }
+            }
+            
+            // Clear any remaining area if current dimensions are larger
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
+                {
+                    if (generateImpacts)
+                    {
+                        SetCell(y, x, TerminalCell.Empty, impacts);
+                    }
+                    else
+                    {
+                        _screenBuffer[y, x] = TerminalCell.Empty;
+                    }
+                }
+            }
+            
+            _savedMainScreenBuffer = null;
+            
+            // Restore cursor position from alternate screen save
+            _cursorX = _alternateScreenSavedCursorX;
+            _cursorY = _alternateScreenSavedCursorY;
+        }
+        // If no saved buffer, this is an unbalanced exit - leave everything as-is
     }
 
     private void ProcessSgr(string parameters)

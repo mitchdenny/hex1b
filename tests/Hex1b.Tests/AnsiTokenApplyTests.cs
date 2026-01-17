@@ -312,6 +312,142 @@ public class AnsiTokenApplyTests
         Assert.False(terminal.InAlternateScreen);
     }
 
+    [Fact]
+    public void ApplyTokens_AlternateScreen_SavesAndRestoresCursorPosition()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
+        
+        // Move cursor to a specific position and write some text
+        terminal.ApplyTokens(new AnsiToken[]
+        {
+            new CursorPositionToken(5, 10), // Row 5 (1-based), Column 10 (1-based)
+            new TextToken("Main Screen")
+        });
+        
+        // Cursor should be at end of "Main Screen" (5-1=4, 10-1+11=20, but clamped to 19)
+        var cursorXBeforeAltScreen = terminal.CursorX;
+        var cursorYBeforeAltScreen = terminal.CursorY;
+        
+        // Act - Enter alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
+        
+        // Verify cursor is reset to (0,0) in alternate screen
+        Assert.Equal(0, terminal.CursorX);
+        Assert.Equal(0, terminal.CursorY);
+        
+        // Move cursor in alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(3, 5) });
+        Assert.Equal(4, terminal.CursorX); // 0-based
+        Assert.Equal(2, terminal.CursorY); // 0-based
+        
+        // Exit alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
+        
+        // Assert - Cursor should be restored to position before entering alt screen
+        Assert.Equal(cursorXBeforeAltScreen, terminal.CursorX);
+        Assert.Equal(cursorYBeforeAltScreen, terminal.CursorY);
+    }
+
+    [Fact]
+    public void ApplyTokens_AlternateScreen_SavesAndRestoresMainScreenBuffer()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
+        
+        // Write text to main screen
+        terminal.ApplyTokens(new AnsiToken[] { new TextToken("Main Screen") });
+        var mainScreenText = terminal.CreateSnapshot().GetLine(0);
+        Assert.StartsWith("Main Screen", mainScreenText);
+        
+        // Act - Enter alternate screen and write different text
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
+        terminal.ApplyTokens(new AnsiToken[] { new TextToken("Alt Screen") });
+        
+        // Verify alternate screen has alt text
+        var altScreenText = terminal.CreateSnapshot().GetLine(0);
+        Assert.StartsWith("Alt Screen", altScreenText);
+        
+        // Exit alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
+        
+        // Assert - Main screen text should be restored
+        var restoredText = terminal.CreateSnapshot().GetLine(0);
+        Assert.StartsWith("Main Screen", restoredText);
+    }
+    
+    [Fact]
+    public void ApplyTokens_AlternateScreen_ExitWithoutEnter_DoesNotClearScreen()
+    {
+        // Arrange - create terminal with content
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
+        
+        terminal.ApplyTokens(new AnsiToken[] { new TextToken("Important Data") });
+        var originalText = terminal.CreateSnapshot().GetLine(0);
+        Assert.StartsWith("Important Data", originalText);
+        
+        // Save original cursor position
+        terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(3, 10) });
+        Assert.Equal(9, terminal.CursorX); // 0-based
+        Assert.Equal(2, terminal.CursorY); // 0-based
+        
+        // Act - Exit alternate screen WITHOUT having entered it
+        // This should NOT clear the screen or change cursor position
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
+        
+        // Assert - Content should be preserved
+        var afterText = terminal.CreateSnapshot().GetLine(0);
+        Assert.StartsWith("Important Data", afterText);
+        
+        // Cursor position should also be preserved
+        Assert.Equal(9, terminal.CursorX);
+        Assert.Equal(2, terminal.CursorY);
+    }
+    
+    [Fact]
+    public void ApplyTokens_AlternateScreen_SeparateCursorSaveFromDECSC()
+    {
+        // Arrange - verify alternate screen cursor save doesn't conflict with DECSC
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
+        
+        // Set initial position and use DECSC to save
+        terminal.ApplyTokens(new AnsiToken[] 
+        { 
+            new CursorPositionToken(2, 5), // Row 2, Col 5 -> y=1, x=4
+            new SaveCursorToken(true)      // DECSC saves cursor
+        });
+        
+        // Move to different position for alternate screen entry
+        terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(6, 15) }); // y=5, x=14
+        
+        // Enter alternate screen (should save y=5, x=14 in separate fields)
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
+        
+        // Cursor should be reset to 0,0 on alternate screen
+        Assert.Equal(0, terminal.CursorX);
+        Assert.Equal(0, terminal.CursorY);
+        
+        // Move cursor in alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(4, 10) }); // y=3, x=9
+        
+        // Use DECRC to restore the DECSC position (should be 4, 1 from before)
+        terminal.ApplyTokens(new AnsiToken[] { new RestoreCursorToken(true) });
+        Assert.Equal(4, terminal.CursorX); // from DECSC
+        Assert.Equal(1, terminal.CursorY); // from DECSC
+        
+        // Exit alternate screen
+        terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
+        
+        // Cursor should be restored to position when we ENTERED alternate screen (5, 14 -> y=5, x=14)
+        // NOT the DECSC position
+        Assert.Equal(14, terminal.CursorX);
+        Assert.Equal(5, terminal.CursorY);
+    }
+
     #endregion
 
     #region SaveCursor / RestoreCursor Tests

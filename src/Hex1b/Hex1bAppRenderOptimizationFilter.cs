@@ -141,15 +141,24 @@ public sealed class Hex1bAppRenderOptimizationFilter : IHex1bTerminalPresentatio
                     }
                 }
             
-                // On force refresh (after resize), we must clear the entire screen first.
-                // The terminal's buffer may have old content in newly expanded areas that our
-                // shadow buffers don't know about. 
-                // IMPORTANT: Reset SGR BEFORE clearing, so the clear uses default colors.
-                var result = new List<AnsiToken> 
-                { 
-                    new SgrToken("0"),                     // Reset attributes first!
-                    new ClearScreenToken(ClearMode.All),   // Clear entire terminal buffer (uses current bg)
-                };
+                // Check if we're entering alternate screen - if so, skip the clear screen.
+                // The alternate screen buffer is fresh, and clearing BEFORE entering would
+                // destroy the main screen content that should be restored on exit.
+                var enteringAlternateScreen = appliedTokens
+                    .Any(at => at.Token is PrivateModeToken { Mode: 1049, Enable: true });
+                
+                var result = new List<AnsiToken>();
+                
+                if (!enteringAlternateScreen)
+                {
+                    // On force refresh (after resize), we must clear the entire screen first.
+                    // The terminal's buffer may have old content in newly expanded areas that our
+                    // shadow buffers don't know about. 
+                    // IMPORTANT: Reset SGR BEFORE clearing, so the clear uses default colors.
+                    result.Add(new SgrToken("0"));                     // Reset attributes first!
+                    result.Add(new ClearScreenToken(ClearMode.All));   // Clear entire terminal buffer (uses current bg)
+                }
+                
                 result.AddRange(appliedTokens
                     .Select(at => at.Token)
                     .Where(t => t is not FrameBeginToken and not FrameEndToken));
