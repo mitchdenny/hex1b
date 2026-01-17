@@ -337,6 +337,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                                 break;
                         }
                     }
+                    
+                    // IMPORTANT: If invalidateTask also completed (race condition), the channel
+                    // item is already consumed. We need to "acknowledge" this by awaiting it,
+                    // otherwise the signal is lost. Since we always render after this anyway,
+                    // we just need to ensure we don't leave a completed task unconsumed.
+                    if (invalidateTask.IsCompleted)
+                    {
+                        // Await to properly complete the task (value already consumed from channel)
+                        try { await invalidateTask; } catch (OperationCanceledException) { }
+                    }
                 }
                 // If invalidateTask completed, we just need to re-render (no input to handle)
 
