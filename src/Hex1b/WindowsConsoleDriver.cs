@@ -322,6 +322,21 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             return;
         }
         
+        // Handle Alt+key combinations - emit ESC followed by the character
+        // This matches the VT sequence that Linux terminals generate for Alt+key
+        if (hasAlt && !hasCtrl && ch != 0)
+        {
+            _pendingBytes.Enqueue(0x1B); // ESC
+            Span<byte> utf8 = stackalloc byte[4];
+            var charSpan = new ReadOnlySpan<char>(in ch);
+            var len = Encoding.UTF8.GetBytes(charSpan, utf8);
+            for (int i = 0; i < len; i++)
+            {
+                _pendingBytes.Enqueue(utf8[i]);
+            }
+            return;
+        }
+        
         // Regular character - encode as UTF-8
         if (ch != 0)
         {
