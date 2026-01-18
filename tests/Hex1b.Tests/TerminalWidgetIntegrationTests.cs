@@ -380,22 +380,19 @@ public class TerminalWidgetIntegrationTests
     {
         // Arrange
         var handle = new TerminalWidgetHandle(80, 24);
-        // By default, handle is in NotStarted state - simulate starting it
-        // The handle gets set to Running when NotifyStarted is called, but that's internal
-        // Instead, we can verify the CapturesAllInput behavior by using the actual conditions
+        var focusRing = new FocusRing();
         
-        // For this test, we use reflection or accept that we need to test via integration
-        // Let's just verify the property logic is correct by testing a handle that starts Running
-        // We can do this by checking if CapturesAllInput is false when state is NotStarted
+        // Set up capture callbacks on the node so we can track capture state via FocusRing
         var node = new Hex1b.Nodes.TerminalNode
         {
-            Handle = handle,
-            IsFocused = true
+            Handle = handle
         };
+        node.SetCaptureCallbacks(focusRing.CaptureInput, focusRing.ReleaseCapture);
+        node.IsFocused = true;
         
-        // Handle is NotStarted by default, so CapturesAllInput should be false
+        // Handle is NotStarted by default, so should not capture
         Assert.Equal(TerminalState.NotStarted, handle.State);
-        Assert.False(node.CapturesAllInput, "TerminalNode should not capture input when not in Running state");
+        Assert.Null(focusRing.CapturedNode);
     }
     
     /// <summary>
@@ -406,14 +403,17 @@ public class TerminalWidgetIntegrationTests
     {
         // Arrange
         var handle = new TerminalWidgetHandle(80, 24);
+        var focusRing = new FocusRing();
+        
         var node = new Hex1b.Nodes.TerminalNode
         {
-            Handle = handle,
-            IsFocused = false
+            Handle = handle
         };
+        node.SetCaptureCallbacks(focusRing.CaptureInput, focusRing.ReleaseCapture);
+        node.IsFocused = false;
         
         // Act & Assert
-        Assert.False(node.CapturesAllInput, "TerminalNode should not capture input when not focused");
+        Assert.Null(focusRing.CapturedNode);
     }
     
     /// <summary>
@@ -423,14 +423,16 @@ public class TerminalWidgetIntegrationTests
     public void TerminalNode_WhenNoHandle_DoesNotCaptureInput()
     {
         // Arrange
+        var focusRing = new FocusRing();
         var node = new Hex1b.Nodes.TerminalNode
         {
-            Handle = null,
-            IsFocused = true
+            Handle = null
         };
+        node.SetCaptureCallbacks(focusRing.CaptureInput, focusRing.ReleaseCapture);
+        node.IsFocused = true;
         
         // Act & Assert
-        Assert.False(node.CapturesAllInput, "TerminalNode should not capture input when no handle");
+        Assert.Null(focusRing.CapturedNode);
     }
     
     /// <summary>
@@ -444,21 +446,25 @@ public class TerminalWidgetIntegrationTests
         
         // Track what events are sent to the handle
         var receivedEvents = new List<Hex1bKeyEvent>();
+        var focusRing = new FocusRing();
         
         // Create a node and simulate the Running state via reflection (since NotifyStarted is internal)
         var node = new Hex1b.Nodes.TerminalNode
         {
-            Handle = handle,
-            IsFocused = true
+            Handle = handle
         };
+        node.SetCaptureCallbacks(focusRing.CaptureInput, focusRing.ReleaseCapture);
         
         // Use reflection to set the terminal to Running state
         var stateField = typeof(TerminalWidgetHandle).GetField("_state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         stateField?.SetValue(handle, TerminalState.Running);
         
-        // Verify the state was set
+        // Now set focused - this will trigger capture because state is Running
+        node.IsFocused = true;
+        
+        // Verify the state was set and capture happened
         Assert.Equal(TerminalState.Running, handle.State);
-        Assert.True(node.CapturesAllInput, "Node should capture all input when focused and running");
+        Assert.Same(node, focusRing.CapturedNode);
         
         // Act - Simulate Ctrl+C key event
         var ctrlCEvent = new Hex1bKeyEvent(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
@@ -469,7 +475,7 @@ public class TerminalWidgetIntegrationTests
     }
     
     /// <summary>
-    /// Tests that the InputRouter correctly routes Ctrl+C to a CapturesAllInput node
+    /// Tests that the InputRouter correctly routes Ctrl+C to a captured node
     /// before checking bindings.
     /// </summary>
     [Fact]
@@ -477,6 +483,7 @@ public class TerminalWidgetIntegrationTests
     {
         // Arrange
         var handle = new TerminalWidgetHandle(80, 24);
+        var focusRing = new FocusRing();
         
         // Use reflection to set the terminal to Running state
         var stateField = typeof(TerminalWidgetHandle).GetField("_state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -484,9 +491,10 @@ public class TerminalWidgetIntegrationTests
         
         var terminalNode = new Hex1b.Nodes.TerminalNode
         {
-            Handle = handle,
-            IsFocused = true
+            Handle = handle
         };
+        terminalNode.SetCaptureCallbacks(focusRing.CaptureInput, focusRing.ReleaseCapture);
+        terminalNode.IsFocused = true;
         
         // Create a root container with a Ctrl+C binding that should NOT be triggered
         var ctrlCTriggered = false;
@@ -500,12 +508,11 @@ public class TerminalWidgetIntegrationTests
         terminalNode.Parent = rootNode;
         
         // Verify preconditions
-        Assert.True(terminalNode.CapturesAllInput, "Terminal should capture all input");
+        Assert.Same(terminalNode, focusRing.CapturedNode);
         Assert.True(terminalNode.IsFocused, "Terminal should be focused");
         
         // Act - Route a Ctrl+C through the InputRouter
         var ctrlCEvent = new Hex1bKeyEvent(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
-        var focusRing = new FocusRing();
         var state = new InputRouterState();
         
         var result = await InputRouter.RouteInputAsync(

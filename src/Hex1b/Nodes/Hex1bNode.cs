@@ -188,12 +188,24 @@ public abstract class Hex1bNode
     public abstract void Render(Hex1bRenderContext context);
 
     /// <summary>
-    /// Handles a key input event (after bindings have been checked).
+    /// Handles an input event (after bindings have been checked).
     /// Override this in nodes to handle input that wasn't matched by any binding.
     /// </summary>
-    /// <param name="keyEvent">The key event to handle.</param>
+    /// <param name="inputEvent">The input event to handle (keyboard or mouse).</param>
     /// <returns>Handled if the input was consumed, NotHandled otherwise.</returns>
-    public virtual InputResult HandleInput(Hex1bKeyEvent keyEvent) => InputResult.NotHandled;
+    /// <remarks>
+    /// <para>
+    /// This method receives both keyboard events (<see cref="Hex1bKeyEvent"/>) and mouse events
+    /// (<see cref="Hex1bMouseEvent"/>). For mouse events, the coordinates are local to this node's
+    /// bounds (0,0 is top-left of node).
+    /// </para>
+    /// <para>
+    /// For keyboard events, this is called after input bindings have been checked and no binding matched.
+    /// For mouse events, this is called for all mouse actions (move, drag, scroll, etc.) when the mouse
+    /// is within this node's bounds and the node is focused.
+    /// </para>
+    /// </remarks>
+    public virtual InputResult HandleInput(Hex1bEvent inputEvent) => InputResult.NotHandled;
 
     /// <summary>
     /// Handles a mouse click event (after mouse bindings have been checked).
@@ -204,6 +216,10 @@ public abstract class Hex1bNode
     /// <param name="localY">The Y coordinate relative to this node's bounds.</param>
     /// <param name="mouseEvent">The original mouse event (with absolute coordinates).</param>
     /// <returns>Handled if the click was consumed, NotHandled otherwise.</returns>
+    /// <remarks>
+    /// This method is specifically for click events that trigger focus changes.
+    /// For general mouse handling (move, drag, scroll), override <see cref="HandleInput(Hex1bEvent)"/>.
+    /// </remarks>
     public virtual InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent) => InputResult.NotHandled;
 
     /// <summary>
@@ -216,17 +232,6 @@ public abstract class Hex1bNode
     /// Override this to customize cursor appearance (e.g., text input uses a bar cursor).
     /// </summary>
     public virtual CursorShape PreferredCursorShape => CursorShape.SteadyBlock;
-
-    /// <summary>
-    /// When true, this node receives all keyboard input directly via HandleInput,
-    /// bypassing the normal input binding checks. Use this for nodes that need to
-    /// forward raw input to external systems (e.g., embedded terminals).
-    /// </summary>
-    /// <remarks>
-    /// This property only takes effect when the node is focused. Global bindings
-    /// are still processed before the node receives input.
-    /// </remarks>
-    public virtual bool CapturesAllInput => false;
 
     /// <summary>
     /// Gets or sets whether this node is currently focused.

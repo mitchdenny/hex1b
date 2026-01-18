@@ -11,6 +11,7 @@ public sealed class KeyStepBuilder
     private Hex1bModifiers _currentModifiers = Hex1bModifiers.None;
     private Hex1bKey? _currentKey;
     private bool _isGlobal;
+    private bool _overridesCapture;
 
     internal KeyStepBuilder(InputBindingsBuilder parent)
     {
@@ -25,6 +26,21 @@ public sealed class KeyStepBuilder
     public KeyStepBuilder Global()
     {
         _isGlobal = true;
+        return this;
+    }
+    
+    /// <summary>
+    /// Marks this binding as overriding input capture.
+    /// When another node has captured all input, this binding will still be checked.
+    /// Use for menu accelerators and app-level shortcuts that should always work.
+    /// </summary>
+    /// <remarks>
+    /// This is typically combined with <see cref="Global"/> for bindings that should
+    /// work regardless of both focus and capture state.
+    /// </remarks>
+    public KeyStepBuilder OverridesCapture()
+    {
+        _overridesCapture = true;
         return this;
     }
 
@@ -89,7 +105,9 @@ public sealed class KeyStepBuilder
     public void Action(Action handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
+        binding.OverridesCapture = _overridesCapture;
+        _parent.AddBinding(binding);
     }
 
     /// <summary>
@@ -99,7 +117,9 @@ public sealed class KeyStepBuilder
     public void Action(Action<InputBindingActionContext> handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
+        binding.OverridesCapture = _overridesCapture;
+        _parent.AddBinding(binding);
     }
 
     /// <summary>
@@ -108,7 +128,9 @@ public sealed class KeyStepBuilder
     public void Action(Func<InputBindingActionContext, Task> handler, string? description = null)
     {
         CommitCurrentStep();
-        _parent.AddBinding(new InputBinding([.. _completedSteps], handler, description, _isGlobal));
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
+        binding.OverridesCapture = _overridesCapture;
+        _parent.AddBinding(binding);
     }
 
     private void CommitCurrentStep()

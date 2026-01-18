@@ -24,6 +24,8 @@ public sealed class TerminalNode : Hex1bNode
     private bool _isBound;
     private Action? _outputReceivedHandler;
     private Action? _invalidateCallback;
+    private Action<Hex1bNode>? _captureInputCallback;
+    private Action? _releaseCaptureCallback;
     private bool _isFocused;
     private bool _handleChanged; // Tracks if handle was changed since last Arrange
     
@@ -71,14 +73,6 @@ public sealed class TerminalNode : Hex1bNode
     /// this returns false so that focus navigation can reach the fallback's children.
     /// </remarks>
     public override bool IsFocusable => _handle == null || _handle.State == TerminalState.Running || FallbackChild == null;
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// The terminal captures all input when focused and running, bypassing
-    /// normal input binding processing so that all keys (including Ctrl+C)
-    /// are forwarded to the child process.
-    /// </remarks>
-    public override bool CapturesAllInput => _handle != null && _handle.State == TerminalState.Running && IsFocused;
     
     /// <inheritdoc />
     /// <remarks>
@@ -96,7 +90,28 @@ public sealed class TerminalNode : Hex1bNode
             {
                 _isFocused = value;
                 MarkDirty();
+                
+                // Manage input capture based on focus and terminal state
+                UpdateInputCapture();
             }
+        }
+    }
+    
+    /// <summary>
+    /// Updates input capture based on current focus and terminal state.
+    /// Captures input when focused and terminal is running, releases when not.
+    /// </summary>
+    private void UpdateInputCapture()
+    {
+        var shouldCapture = _isFocused && _handle != null && _handle.State == TerminalState.Running;
+        
+        if (shouldCapture)
+        {
+            _captureInputCallback?.Invoke(this);
+        }
+        else
+        {
+            _releaseCaptureCallback?.Invoke();
         }
     }
     
@@ -109,8 +124,17 @@ public sealed class TerminalNode : Hex1bNode
         _invalidateCallback = callback;
     }
     
+    /// <summary>
+    /// Sets the callbacks to invoke for input capture management.
+    /// </summary>
+    internal void SetCaptureCallbacks(Action<Hex1bNode>? captureInput, Action? releaseCapture)
+    {
+        _captureInputCallback = captureInput;
+        _releaseCaptureCallback = releaseCapture;
+    }
+    
     /// <inheritdoc />
-    public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+    public override InputResult HandleInput(Hex1bEvent inputEvent)
     {
         // If terminal is not running and we have a fallback, don't forward to terminal
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
@@ -123,26 +147,7 @@ public sealed class TerminalNode : Hex1bNode
         if (_handle == null) return InputResult.NotHandled;
         
         // Fire and forget - we don't want to block the input loop
-        _ = _handle.SendEventAsync(keyEvent);
-        return InputResult.Handled;
-    }
-    
-    /// <summary>
-    /// Handles mouse events by forwarding them to the child terminal with translated coordinates.
-    /// </summary>
-    /// <param name="localX">X coordinate relative to this node's bounds.</param>
-    /// <param name="localY">Y coordinate relative to this node's bounds.</param>
-    /// <param name="mouseEvent">The mouse event.</param>
-    /// <returns>Handled if the event was forwarded, NotHandled otherwise.</returns>
-    public InputResult HandleMouseEvent(int localX, int localY, Hex1bMouseEvent mouseEvent)
-    {
-        if (_handle == null) return InputResult.NotHandled;
-        
-        // Create a translated event with local coordinates for the child terminal
-        var translatedEvent = mouseEvent with { X = localX, Y = localY };
-        
-        // Fire and forget - we don't want to block the input loop
-        _ = _handle.SendEventAsync(translatedEvent);
+        _ = _handle.SendEventAsync(inputEvent);
         return InputResult.Handled;
     }
     
@@ -156,8 +161,9 @@ public sealed class TerminalNode : Hex1bNode
             return InputResult.NotHandled;
         }
         
-        // Forward click events to the child terminal (same as other mouse events)
-        return HandleMouseEvent(localX, localY, mouseEvent);
+        // Forward click events to the child terminal via unified HandleInput
+        var localEvent = mouseEvent with { X = localX, Y = localY };
+        return HandleInput(localEvent);
     }
     
     /// <inheritdoc />

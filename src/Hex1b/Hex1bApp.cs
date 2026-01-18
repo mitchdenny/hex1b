@@ -207,6 +207,39 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Also signal invalidation to wake up the main loop immediately
         Invalidate();
     }
+    
+    /// <summary>
+    /// Captures all input to the specified node.
+    /// </summary>
+    /// <param name="node">The node to capture input to.</param>
+    /// <remarks>
+    /// <para>
+    /// When a node captures input, it receives all keyboard and mouse events directly,
+    /// bypassing normal binding lookup. This is used by embedded terminals and other
+    /// controls that need raw input.
+    /// </para>
+    /// <para>
+    /// Only bindings marked with <see cref="InputBinding.OverridesCapture"/> will be
+    /// checked before the captured node receives input. Global bindings always override capture.
+    /// </para>
+    /// </remarks>
+    public void CaptureInput(Hex1bNode node)
+    {
+        _focusRing.CaptureInput(node);
+    }
+    
+    /// <summary>
+    /// Releases input capture, returning to normal input routing.
+    /// </summary>
+    public void ReleaseCapture()
+    {
+        _focusRing.ReleaseCapture();
+    }
+    
+    /// <summary>
+    /// Gets the node that has captured all input, or null if no capture is active.
+    /// </summary>
+    public Hex1bNode? CapturedNode => _focusRing.CapturedNode;
 
     /// <summary>
     /// Gets the currently focused node, or null if no node has focus.
@@ -430,10 +463,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 {
                     await HandleMouseClickAsync(mouseEvent, cancellationToken);
                 }
-                // Forward mouse events to focused TerminalNode if mouse is within its bounds
-                else
+                // Route other mouse events through InputRouter (for nodes that capture all input)
+                else if (_rootNode != null)
                 {
-                    await ForwardMouseEventToFocusedTerminalAsync(mouseEvent);
+                    await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
+                        RequestStop, cancellationToken, CopyToClipboard);
                 }
                 break;
         }
@@ -1010,37 +1044,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Forwards mouse events (move, drag, scroll, up) to the focused TerminalNode if the mouse is within its bounds.
-    /// This enables embedded terminals to receive mouse input for applications that use mouse tracking.
-    /// </summary>
-    private Task ForwardMouseEventToFocusedTerminalAsync(Hex1bMouseEvent mouseEvent)
-    {
-        // Get the currently focused node
-        var focusedNode = _focusRing.FocusedNode;
-        
-        // Only forward to TerminalNode
-        if (focusedNode is not Nodes.TerminalNode terminalNode)
-            return Task.CompletedTask;
-        
-        // Check if mouse is within the terminal's bounds
-        var bounds = terminalNode.Bounds;
-        if (mouseEvent.X < bounds.X || mouseEvent.X >= bounds.X + bounds.Width ||
-            mouseEvent.Y < bounds.Y || mouseEvent.Y >= bounds.Y + bounds.Height)
-        {
-            return Task.CompletedTask;
-        }
-        
-        // Calculate local coordinates
-        var localX = mouseEvent.X - bounds.X;
-        var localY = mouseEvent.Y - bounds.Y;
-        
-        // Forward to the terminal node
-        terminalNode.HandleMouseEvent(localX, localY, mouseEvent);
-        
-        return Task.CompletedTask;
-    }
-    
-    /// <summary>
     /// Computes the click count for a mouse down event based on timing and position.
     /// </summary>
     private int ComputeClickCount(Hex1bMouseEvent mouseEvent)
@@ -1115,7 +1118,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
 
         // Create the root reconcile context
-        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate);
+        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
+            CaptureInput, ReleaseCapture);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
         // Delegate to the widget's own ReconcileAsync method

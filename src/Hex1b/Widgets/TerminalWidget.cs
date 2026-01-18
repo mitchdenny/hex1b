@@ -69,6 +69,9 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
             node.SetInvalidateCallback(context.InvalidateCallback);
         }
         
+        // Set the capture callbacks so the node can manage input capture
+        node.SetCaptureCallbacks(context.CaptureInputCallback, context.ReleaseCaptureCallback);
+        
         // Bind to the new handle
         node.Bind();
         

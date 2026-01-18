@@ -30,6 +30,27 @@ public static class InputRouter
     /// </summary>
     public static async Task<InputResult> RouteInputAsync(
         Hex1bNode root, 
+        Hex1bEvent inputEvent, 
+        FocusRing focusRing,
+        InputRouterState state,
+        Action? requestStop = null,
+        CancellationToken cancellationToken = default,
+        Action<string>? copyToClipboard = null)
+    {
+        // Dispatch based on event type
+        return inputEvent switch
+        {
+            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
+            Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
+            _ => InputResult.NotHandled
+        };
+    }
+    
+    /// <summary>
+    /// Routes a key event through the node tree using layered chord tries.
+    /// </summary>
+    private static async Task<InputResult> RouteKeyInputAsync(
+        Hex1bNode root, 
         Hex1bKeyEvent keyEvent, 
         FocusRing focusRing,
         InputRouterState state,
@@ -46,6 +67,24 @@ public static class InputRouter
         if (globalResult == InputResult.Handled)
         {
             return InputResult.Handled;
+        }
+        
+        // Check capture-override bindings (bindings that work even when input is captured)
+        var capturedNode = focusRing.CapturedNode;
+        if (capturedNode != null)
+        {
+            var overrideResult = await TryHandleCaptureOverrideBindingsAsync(root, keyEvent, actionContext, state);
+            if (overrideResult == InputResult.Handled)
+            {
+                return InputResult.Handled;
+            }
+            
+            // Send input to the captured node (translate mouse coordinates if needed)
+            var captureResult = capturedNode.HandleInput(keyEvent);
+            if (captureResult == InputResult.Handled)
+            {
+                return InputResult.Handled;
+            }
         }
         
         // Build path from root to focused node
@@ -67,18 +106,6 @@ public static class InputRouter
         {
             state.Reset();
             return InputResult.Handled;
-        }
-
-        // Check if the focused node wants to capture all input (e.g., embedded terminals)
-        // This bypasses normal binding processing so raw input reaches the node
-        var focusedNode = path[^1];
-        if (focusedNode.IsFocusable && focusedNode.IsFocused && focusedNode.CapturesAllInput)
-        {
-            var captureResult = focusedNode.HandleInput(keyEvent);
-            if (captureResult == InputResult.Handled)
-            {
-                return InputResult.Handled;
-            }
         }
 
         // If mid-chord but focus changed, cancel the chord
@@ -214,6 +241,47 @@ public static class InputRouter
             if (!ReferenceEquals(a[i], b[i])) return false;
         }
         return true;
+    }
+    
+    /// <summary>
+    /// Routes a mouse event to the captured node (if any).
+    /// Unlike keyboard events, mouse events do not go through binding lookup or chord handling.
+    /// They are forwarded directly to the node that has captured input.
+    /// </summary>
+    private static Task<InputResult> RouteMouseInputAsync(
+        Hex1bNode root,
+        Hex1bMouseEvent mouseEvent,
+        FocusRing focusRing,
+        InputRouterState state,
+        Action? requestStop = null,
+        CancellationToken cancellationToken = default,
+        Action<string>? copyToClipboard = null)
+    {
+        // Check if a node has captured input
+        var capturedNode = focusRing.CapturedNode;
+        if (capturedNode != null)
+        {
+            // Check if mouse is within the captured node's bounds
+            var bounds = capturedNode.Bounds;
+            if (mouseEvent.X >= bounds.X && mouseEvent.X < bounds.X + bounds.Width &&
+                mouseEvent.Y >= bounds.Y && mouseEvent.Y < bounds.Y + bounds.Height)
+            {
+                // Translate to local coordinates
+                var localEvent = mouseEvent with 
+                { 
+                    X = mouseEvent.X - bounds.X, 
+                    Y = mouseEvent.Y - bounds.Y 
+                };
+                
+                var result = capturedNode.HandleInput(localEvent);
+                if (result == InputResult.Handled)
+                {
+                    return Task.FromResult(InputResult.Handled);
+                }
+            }
+        }
+        
+        return Task.FromResult(InputResult.NotHandled);
     }
 
     /// <summary>
@@ -409,6 +477,73 @@ public static class InputRouter
         }
         
         return InputResult.NotHandled;
+    }
+    
+    /// <summary>
+    /// Tries to handle input via capture-override bindings collected from the entire tree.
+    /// These bindings are checked when a node has captured input, before sending to the captured node.
+    /// </summary>
+    private static async Task<InputResult> TryHandleCaptureOverrideBindingsAsync(
+        Hex1bNode root,
+        Hex1bKeyEvent keyEvent,
+        InputBindingActionContext actionContext,
+        InputRouterState state)
+    {
+        // Collect all capture-override bindings from the entire tree
+        var overrideBindings = new List<InputBinding>();
+        CollectCaptureOverrideBindings(root, overrideBindings);
+        
+        if (overrideBindings.Count == 0)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        // Build a trie from override bindings and check for a match
+        var trie = ChordTrie.Build(overrideBindings);
+        var result = trie.Lookup(keyEvent);
+        
+        if (!result.IsNoMatch)
+        {
+            if (result.IsLeaf)
+            {
+                // Override binding matched - execute and done
+                await result.ExecuteAsync(actionContext);
+                state.Reset();
+                return InputResult.Handled;
+            }
+            
+            if (result.HasChildren)
+            {
+                // Override chord started - treat as handled
+                return InputResult.Handled;
+            }
+        }
+        
+        return InputResult.NotHandled;
+    }
+    
+    /// <summary>
+    /// Recursively collects all capture-override bindings from the node tree.
+    /// </summary>
+    private static void CollectCaptureOverrideBindings(Hex1bNode node, List<InputBinding> bindings)
+    {
+        var builder = node.BuildBindings();
+        var nodeBindings = builder.Build();
+        
+        foreach (var binding in nodeBindings)
+        {
+            if (binding.OverridesCapture)
+            {
+                binding.OwnerNode = node;
+                bindings.Add(binding);
+            }
+        }
+        
+        // Recurse into children
+        foreach (var child in node.GetChildren())
+        {
+            CollectCaptureOverrideBindings(child, bindings);
+        }
     }
     
     /// <summary>
