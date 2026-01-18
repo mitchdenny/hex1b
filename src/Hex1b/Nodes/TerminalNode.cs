@@ -240,7 +240,6 @@ public sealed class TerminalNode : Hex1bNode
         // that arrived during a render frame
         System.Threading.Interlocked.Increment(ref _outputVersion);
         
-        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] TerminalNode.OnOutputReceived: hasCallback={_invalidateCallback != null} version={_outputVersion}\n");
         MarkDirty();
         _invalidateCallback?.Invoke();
     }
@@ -358,8 +357,6 @@ public sealed class TerminalNode : Hex1bNode
         
         // Mark this version as rendered (we'll check if more output arrived after this)
         _lastRenderedVersion = currentVersion;
-        
-        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] TerminalNode.Render: Bounds={Bounds.X},{Bounds.Y},{Bounds.Width}x{Bounds.Height} Buffer={handleWidth}x{handleHeight} version={currentVersion}\\n");
         
         // Render each row that fits within our bounds
         for (int y = 0; y < Math.Min(Bounds.Height, handleHeight); y++)

@@ -159,10 +159,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
         
-        // If presentation is a TerminalWidgetHandle, give it a reference back to us for input forwarding
-        if (presentation is TerminalWidgetHandle handle)
+        // Notify lifecycle-aware presentation adapters that the terminal is created
+        if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
         {
-            handle.SetTerminal(this);
+            lifecycleAdapter.TerminalCreated(this);
         }
         
         // Get dimensions from presentation adapter (it's the source of truth)
@@ -341,10 +341,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Start I/O pumps
             Start();
             
-            // Notify TerminalWidgetHandle that the terminal has started
-            if (_presentation is TerminalWidgetHandle widgetHandle)
+            // Notify lifecycle-aware presentation adapters that the terminal has started
+            if (_presentation is ITerminalLifecycleAwarePresentationAdapter startedAdapter)
             {
-                widgetHandle.NotifyStarted();
+                startedAdapter.TerminalStarted();
             }
 
             // Execute the run callback or wait for workload disconnect
@@ -359,10 +359,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await WaitForWorkloadDisconnectAsync(ct);
             }
             
-            // Notify TerminalWidgetHandle that the terminal has completed
-            if (_presentation is TerminalWidgetHandle completedHandle)
+            // Notify lifecycle-aware presentation adapters that the terminal has completed
+            if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             {
-                completedHandle.NotifyCompleted(exitCode);
+                completedAdapter.TerminalCompleted(exitCode);
             }
 
             return exitCode;
@@ -2004,8 +2004,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
         }
-        
-        System.IO.File.AppendAllText("/tmp/hex1b-render.log", $"[{DateTime.Now:HH:mm:ss.fff}] ApplyClearLine: mode={mode} row={_cursorY} cleared={clearedCount} hasImpacts={impacts != null}\n");
     }
 
     /// <summary>

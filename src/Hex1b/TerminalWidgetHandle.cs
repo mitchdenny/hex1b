@@ -50,7 +50,7 @@ public enum TerminalState
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, IAsyncDisposable
+public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -183,18 +183,14 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// </summary>
     public event Action<string>? IconNameChanged;
     
-    /// <summary>
-    /// Sets the terminal that owns this handle. Called by Hex1bTerminal constructor.
-    /// </summary>
-    internal void SetTerminal(Hex1bTerminal terminal)
+    /// <inheritdoc />
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalCreated(Hex1bTerminal terminal)
     {
         _terminal = terminal;
     }
     
-    /// <summary>
-    /// Marks the terminal as started/running. Called by Hex1bTerminal.RunAsync.
-    /// </summary>
-    internal void NotifyStarted()
+    /// <inheritdoc />
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalStarted()
     {
         if (_state == TerminalState.NotStarted)
         {
@@ -204,11 +200,8 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         }
     }
     
-    /// <summary>
-    /// Marks the terminal as completed. Called by Hex1bTerminal.RunAsync when the process exits.
-    /// </summary>
-    /// <param name="exitCode">The exit code of the process.</param>
-    internal void NotifyCompleted(int exitCode)
+    /// <inheritdoc />
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalCompleted(int exitCode)
     {
         if (_state != TerminalState.Completed)
         {
