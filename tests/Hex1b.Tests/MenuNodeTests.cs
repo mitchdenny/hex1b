@@ -218,6 +218,51 @@ public class MenuNodeTests
     }
     
     [Fact]
+    public void MenuSeparatorNode_FallbackFocusable_WhenSet()
+    {
+        var node = new MenuSeparatorNode { IsFallbackFocusable = true };
+        
+        Assert.True(node.IsFocusable);
+    }
+    
+    [Fact]
+    public void MenuSeparatorNode_FallbackFocusable_DefaultsFalse()
+    {
+        var node = new MenuSeparatorNode();
+        
+        Assert.False(node.IsFallbackFocusable);
+        Assert.False(node.IsFocusable);
+    }
+    
+    [Fact]
+    public void MenuItemNode_Disabled_NotFocusable()
+    {
+        var node = new MenuItemNode { Label = "Test", IsDisabled = true };
+        
+        Assert.False(node.IsFocusable);
+    }
+    
+    [Fact]
+    public void MenuItemNode_Disabled_FallbackFocusable_WhenSet()
+    {
+        var node = new MenuItemNode { Label = "Test", IsDisabled = true, IsFallbackFocusable = true };
+        
+        Assert.True(node.IsFocusable);
+    }
+    
+    [Fact]
+    public void MenuItemNode_Enabled_AlwaysFocusable()
+    {
+        var node = new MenuItemNode { Label = "Test", IsDisabled = false };
+        
+        Assert.True(node.IsFocusable);
+        
+        // IsFallbackFocusable shouldn't affect enabled items
+        node.IsFallbackFocusable = true;
+        Assert.True(node.IsFocusable);
+    }
+    
+    [Fact]
     public void MenuNode_Measure_ReturnsLabelWidth()
     {
         var node = new MenuNode { Label = "File" };

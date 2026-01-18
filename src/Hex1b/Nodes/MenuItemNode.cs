@@ -45,6 +45,12 @@ public sealed class MenuItemNode : Hex1bNode
     /// The action to execute when the item is activated.
     /// </summary>
     public Func<InputBindingActionContext, Task>? ActivatedAction { get; set; }
+    
+    /// <summary>
+    /// When true, this disabled item acts as a fallback focus target to allow navigation
+    /// out of a menu that has no other focusable items.
+    /// </summary>
+    public bool IsFallbackFocusable { get; set; }
 
     private bool _isFocused;
     public override bool IsFocused
@@ -74,7 +80,7 @@ public sealed class MenuItemNode : Hex1bNode
         }
     }
 
-    public override bool IsFocusable => !IsDisabled;
+    public override bool IsFocusable => !IsDisabled || IsFallbackFocusable;
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
