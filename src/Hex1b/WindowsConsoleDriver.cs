@@ -382,7 +382,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             VK_F10 => mod == 1 ? "\x1b[21~"u8.ToArray() : Encoding.ASCII.GetBytes($"\x1b[21;{mod}~"),
             VK_F11 => mod == 1 ? "\x1b[23~"u8.ToArray() : Encoding.ASCII.GetBytes($"\x1b[23;{mod}~"),
             VK_F12 => mod == 1 ? "\x1b[24~"u8.ToArray() : Encoding.ASCII.GetBytes($"\x1b[24;{mod}~"),
-            VK_BACK => [(byte)(ctrl ? 0x7F : 0x08)],
+            // PowerShell on Windows expects 0x7F (DEL) for normal backspace, 0x08 (BS) for Ctrl+Backspace
+            VK_BACK => [(byte)(ctrl ? 0x08 : 0x7F)],
             VK_TAB => shift ? "\x1b[Z"u8.ToArray() : [(byte)0x09],
             VK_RETURN => [(byte)0x0D],
             VK_ESCAPE => [(byte)0x1B],

@@ -605,6 +605,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
+            '\x7f' or '\b' => new Hex1bKeyEvent(Hex1bKey.Backspace, token.Character, Hex1bModifiers.None),
             _ => null
         };
     }
@@ -780,7 +781,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
         if (evt.Key == Hex1bKey.Tab) return new ControlCharacterToken('\t');
         if (evt.Key == Hex1bKey.Escape) return new UnrecognizedSequenceToken("\x1b");
-        if (evt.Key == Hex1bKey.Backspace) return new ControlCharacterToken('\x7f');
+        if (evt.Key == Hex1bKey.Backspace)
+        {
+            // Preserve the original backspace character from the host terminal.
+            // Windows sends 0x08 (BS), Unix typically sends 0x7F (DEL).
+            // Child processes expect the same encoding their terminal would normally use.
+            var c = (!string.IsNullOrEmpty(evt.Text) && (evt.Text[0] == '\b' || evt.Text[0] == '\x7f'))
+                ? evt.Text[0]
+                : '\x7f'; // Default to DEL for programmatic events without original text
+            return new ControlCharacterToken(c);
+        }
         
         // Regular text
         if (!string.IsNullOrEmpty(evt.Text))
