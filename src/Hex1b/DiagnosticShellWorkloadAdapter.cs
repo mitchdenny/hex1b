@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.Channels;
 
 namespace Hex1b;
 
@@ -34,10 +35,10 @@ namespace Hex1b;
 /// </remarks>
 public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
-    private readonly StringBuilder _outputBuffer = new();
+    private readonly Channel<byte[]> _outputChannel;
     private readonly List<byte> _capturedInput = [];
     private readonly List<string> _commandHistory = [];
-    private readonly object _lock = new();
+    private readonly object _inputLock = new();
     
     private int _width;
     private int _height;
@@ -47,7 +48,6 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
     private int _historyIndex = -1;
     private string _currentLine = "";
     private int _cursorPosition;
-    private TaskCompletionSource<bool>? _outputAvailable;
 
     /// <summary>
     /// Creates a new diagnostic shell workload adapter.
@@ -58,6 +58,13 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
     {
         _width = width;
         _height = height;
+        
+        // Unbounded channel - output should never block
+        _outputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false // Multiple commands might write
+        });
     }
 
     /// <summary>
@@ -73,43 +80,24 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
     {
         if (_disposed || _exited) return ReadOnlyMemory<byte>.Empty;
 
-        TaskCompletionSource<bool>? waitSource = null;
-
-        lock (_lock)
-        {
-            if (_outputBuffer.Length > 0)
-            {
-                var output = _outputBuffer.ToString();
-                _outputBuffer.Clear();
-                return Encoding.UTF8.GetBytes(output);
-            }
-
-            if (_exited) return ReadOnlyMemory<byte>.Empty;
-
-            // No output available, wait for more
-            _outputAvailable ??= new TaskCompletionSource<bool>();
-            waitSource = _outputAvailable;
-        }
-
-        // Wait for output to be available
         try
         {
-            using var registration = ct.Register(() => waitSource.TrySetCanceled());
-            await waitSource.Task;
+            // Wait for output from the channel
+            if (await _outputChannel.Reader.WaitToReadAsync(ct))
+            {
+                if (_outputChannel.Reader.TryRead(out var data))
+                {
+                    return data;
+                }
+            }
         }
         catch (OperationCanceledException)
         {
-            return ReadOnlyMemory<byte>.Empty;
+            // Normal cancellation
         }
-
-        lock (_lock)
+        catch (ChannelClosedException)
         {
-            if (_outputBuffer.Length > 0)
-            {
-                var output = _outputBuffer.ToString();
-                _outputBuffer.Clear();
-                return Encoding.UTF8.GetBytes(output);
-            }
+            // Shell exited
         }
 
         return ReadOnlyMemory<byte>.Empty;
@@ -125,7 +113,7 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         // Record captured input if capturing
         if (_capturing)
         {
-            lock (_lock)
+            lock (_inputLock)
             {
                 _capturedInput.AddRange(bytes);
             }
@@ -152,10 +140,8 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         _disposed = true;
         _exited = true;
         
-        lock (_lock)
-        {
-            _outputAvailable?.TrySetResult(true);
-        }
+        // Close the channel to unblock any readers
+        _outputChannel.Writer.TryComplete();
         
         Disconnected?.Invoke();
         return ValueTask.CompletedTask;
@@ -527,6 +513,19 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
             case "history":
                 ShowHistory();
                 break;
+            case "ping":
+                // Immediate single-line output for testing
+                WriteOutput($"PONG @ {DateTime.Now:HH:mm:ss.fff}\r\n");
+                ShowPrompt();
+                break;
+            case "timer":
+                // Async output test - writes output from a background task
+                StartAsyncTimer(args);
+                break;
+            case "flood":
+                // Flood test - rapid synchronous output
+                FloodTest(args);
+                break;
             case "exit":
             case "quit":
                 Exit();
@@ -566,6 +565,11 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         WriteOutput("  \x1b[1mCapture:\x1b[0m\r\n");
         WriteOutput("    capture       Start capturing raw input\r\n");
         WriteOutput("    dump          Dump captured input as hex\r\n");
+        WriteOutput("\r\n");
+        WriteOutput("  \x1b[1mDiagnostic:\x1b[0m\r\n");
+        WriteOutput("    ping          Immediate output test (should appear instantly)\r\n");
+        WriteOutput("    timer [n]     Async timer: outputs n times with 500ms delay (default: 5)\r\n");
+        WriteOutput("    flood [n]     Rapid sync output: n lines (default: 20)\r\n");
         WriteOutput("\r\n");
         WriteOutput("  \x1b[1mKeys:\x1b[0m Up/Down=history, Left/Right=cursor, Ctrl+C=cancel, Ctrl+L=clear\r\n");
         WriteOutput("\r\n");
@@ -833,9 +837,54 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         ShowPrompt();
     }
 
+    private void StartAsyncTimer(string args)
+    {
+        var count = 5;
+        if (!string.IsNullOrEmpty(args) && int.TryParse(args, out var parsed))
+        {
+            count = Math.Clamp(parsed, 1, 20);
+        }
+        
+        WriteOutput($"Starting async timer ({count} ticks, 500ms interval)...\r\n");
+        
+        // Fire and forget - writes output asynchronously
+        _ = Task.Run(async () =>
+        {
+            for (int i = 1; i <= count && !_exited; i++)
+            {
+                await Task.Delay(500);
+                if (_exited) break;
+                WriteOutput($"  Timer tick {i}/{count} @ {DateTime.Now:HH:mm:ss.fff}\r\n");
+            }
+            
+            if (!_exited)
+            {
+                WriteOutput("Timer complete.\r\n");
+                ShowPrompt();
+            }
+        });
+    }
+
+    private void FloodTest(string args)
+    {
+        var count = 20;
+        if (!string.IsNullOrEmpty(args) && int.TryParse(args, out var parsed))
+        {
+            count = Math.Clamp(parsed, 1, 100);
+        }
+        
+        WriteOutput($"Flood test ({count} lines):\r\n");
+        for (int i = 1; i <= count; i++)
+        {
+            WriteOutput($"  Line {i:D3}: The quick brown fox jumps over the lazy dog.\r\n");
+        }
+        WriteOutput("\r\n");
+        ShowPrompt();
+    }
+
     private void StartCapture()
     {
-        lock (_lock)
+        lock (_inputLock)
         {
             _capturedInput.Clear();
             _capturing = true;
@@ -847,7 +896,7 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
     private void DumpCaptured()
     {
         byte[] captured;
-        lock (_lock)
+        lock (_inputLock)
         {
             captured = [.. _capturedInput];
             _capturing = false;
@@ -909,22 +958,18 @@ public sealed class DiagnosticShellWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         WriteOutput("\r\nGoodbye!\r\n");
         _exited = true;
         
-        lock (_lock)
-        {
-            _outputAvailable?.TrySetResult(true);
-        }
+        // Close the channel to signal completion
+        _outputChannel.Writer.TryComplete();
         
         Disconnected?.Invoke();
     }
 
     private void WriteOutput(string text)
     {
-        lock (_lock)
-        {
-            _outputBuffer.Append(text);
-            _outputAvailable?.TrySetResult(true);
-            _outputAvailable = null;
-        }
+        if (_exited || _disposed) return;
+        
+        var bytes = Encoding.UTF8.GetBytes(text);
+        _outputChannel.Writer.TryWrite(bytes);
     }
 }
 
