@@ -257,6 +257,19 @@ public static class AnsiTokenizer
                 }
                 break;
 
+            case 'n':
+                // Device Status Report (DSR)
+                // We parse it as DSR token so we can respond with cursor position
+                if (int.TryParse(parameters, out var dsrType))
+                {
+                    tokens.Add(new DeviceStatusReportToken(dsrType));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
             case 'q':
                 // Cursor shape (DECSCUSR)
                 if (isPrivateMode || parameters.Contains(' '))

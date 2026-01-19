@@ -83,6 +83,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
+    private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
@@ -1701,12 +1702,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case SaveCursorToken:
                 _savedCursorX = _cursorX;
                 _savedCursorY = _cursorY;
+                _cursorSaved = true;
                 break;
                 
             case RestoreCursorToken:
-                _pendingWrap = false; // Cursor restore clears pending wrap
-                _cursorX = _savedCursorX;
-                _cursorY = _savedCursorY;
+                // Only restore if cursor was previously saved (matches GNOME Terminal behavior)
+                if (_cursorSaved)
+                {
+                    _pendingWrap = false; // Cursor restore clears pending wrap
+                    _cursorX = _savedCursorX;
+                    _cursorY = _savedCursorY;
+                }
                 break;
                 
             case CursorShapeToken:
@@ -1797,6 +1803,39 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case UnrecognizedSequenceToken:
                 // Ignore unrecognized sequences
                 break;
+                
+            case DeviceStatusReportToken dsr:
+                HandleDeviceStatusReport(dsr);
+                break;
+        }
+    }
+    
+    private void HandleDeviceStatusReport(DeviceStatusReportToken dsr)
+    {
+        if (_workload == null) return;
+        
+        string response = dsr.Type switch
+        {
+            DeviceStatusReportToken.StatusReport => "\x1b[0n", // Terminal is ready
+            DeviceStatusReportToken.CursorPositionReport => $"\x1b[{_cursorY + 1};{_cursorX + 1}R",
+            _ => "" // Unknown DSR type
+        };
+        
+        if (!string.IsNullOrEmpty(response))
+        {
+            var bytes = Encoding.UTF8.GetBytes(response);
+            // Write response synchronously on thread pool to avoid blocking output pump
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _workload.WriteInputAsync(bytes, CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // Ignore errors - process may have exited
+                }
+            });
         }
     }
 

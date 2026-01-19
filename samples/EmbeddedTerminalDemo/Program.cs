@@ -39,14 +39,18 @@ void AddTerminal(ShellType shellType = ShellType.Bash)
 {
     var id = nextTerminalId++;
     
+    // Workload logging to /tmp/hex1b-terminal-{id}.log
+    var logPath = Path.Combine(Path.GetTempPath(), $"hex1b-terminal-{id}.log");
+    
     var builder = Hex1bTerminal.CreateBuilder()
-        .WithDimensions(40, 24);
+        .WithDimensions(40, 24)
+        .WithWorkloadLogging(logPath);
     
     // Configure the workload based on shell type
     builder = shellType switch
     {
         ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
-        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile"),
+        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile", "-NoLogo"),
         ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
         ShellType.Diagnostic => builder.WithDiagnosticShell(),
         _ => builder.WithPtyProcess("bash", "--norc")

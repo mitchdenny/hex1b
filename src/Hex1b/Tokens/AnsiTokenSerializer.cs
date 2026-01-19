@@ -66,6 +66,7 @@ public static class AnsiTokenSerializer
             SgrMouseToken mouse => SerializeSgrMouse(mouse),
             SpecialKeyToken special => SerializeSpecialKey(special),
             UnrecognizedSequenceToken unrec => unrec.Sequence,
+            DeviceStatusReportToken dsr => $"\x1b[{dsr.Type}n",
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
     }
