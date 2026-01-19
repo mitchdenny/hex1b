@@ -684,6 +684,38 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Adds a workload logging filter that writes all workload data to a file.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is useful for debugging terminal issues by capturing timestamped logs of:
+    /// <list type="bullet">
+    ///   <item>Output FROM the workload (what the terminal is receiving)</item>
+    ///   <item>Input TO the workload (keystrokes, mouse events)</item>
+    ///   <item>Resize events</item>
+    ///   <item>Frame boundaries</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="filePath">Path to the log file.</param>
+    /// <param name="includeHexDump">Whether to include hex dumps of raw bytes. Default true.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithWorkloadLogging("/tmp/terminal.log")
+    ///     .WithProcess("bash")
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithWorkloadLogging(string filePath, bool includeHexDump = true)
+    {
+        var filter = new WorkloadLoggingFilter(filePath, includeHexDump);
+        _workloadFilters.Add(filter);
+        return this;
+    }
+
+    /// <summary>
     /// Adds a presentation filter to the terminal.
     /// </summary>
     /// <param name="filter">The filter to add.</param>

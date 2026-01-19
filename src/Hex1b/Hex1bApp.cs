@@ -339,16 +339,21 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
                 // Wait for either an input event or an invalidation signal
-                var inputTask = _adapter.InputEvents.ReadAsync(cancellationToken).AsTask();
-                var invalidateTask = _invalidateChannel.Reader.ReadAsync(cancellationToken).AsTask();
+                // Use WaitToReadAsync instead of ReadAsync to avoid ValueTask/Task.WhenAny issues
+                // where ReadAsync().AsTask() continuations weren't being scheduled reliably
+                var inputWaitTask = _adapter.InputEvents.WaitToReadAsync(cancellationToken).AsTask();
+                var invalidateWaitTask = _invalidateChannel.Reader.WaitToReadAsync(cancellationToken).AsTask();
                 
-                var completedTask = await Task.WhenAny(inputTask, invalidateTask);
+                var completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask);
                 
-                if (completedTask == inputTask)
+                // Now read whichever channel(s) have data
+                if (completedTask == inputWaitTask && await inputWaitTask)
                 {
-                    // Process the first input event
-                    var inputEvent = await inputTask;
-                    await ProcessInputEventAsync(inputEvent, cancellationToken);
+                    // Input is available - read and process it
+                    if (_adapter.InputEvents.TryRead(out var inputEvent))
+                    {
+                        await ProcessInputEventAsync(inputEvent, cancellationToken);
+                    }
                     
                     // Input coalescing: batch rapid inputs together before rendering
                     // This prevents back pressure from rapid input (key repeats, mouse moves)
@@ -372,20 +377,42 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                         }
                     }
                     
-                    // IMPORTANT: If invalidateTask also completed (race condition), the channel
-                    // item is already consumed. We need to "acknowledge" this by awaiting it,
-                    // otherwise the signal is lost. Since we always render after this anyway,
-                    // we just need to ensure we don't leave a completed task unconsumed.
-                    if (invalidateTask.IsCompleted)
+                    // Consume invalidation if it also completed
+                    if (invalidateWaitTask.IsCompleted && await invalidateWaitTask)
                     {
-                        // Await to properly complete the task (value already consumed from channel)
-                        try { await invalidateTask; } catch (OperationCanceledException) { }
+                        _invalidateChannel.Reader.TryRead(out _);
                     }
                 }
-                // If invalidateTask completed, we just need to re-render (no input to handle)
+                else if (completedTask == invalidateWaitTask && await invalidateWaitTask)
+                {
+                    // Invalidation signaled - consume the item
+                    _invalidateChannel.Reader.TryRead(out _);
+                }
+                // If neither had data (shouldn't happen), just continue
 
                 // Re-render after handling ALL input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
+                
+                // IMPORTANT: Handle race condition where output arrived during render.
+                // If invalidation was signaled while we were rendering, we need to re-render
+                // before blocking on WhenAny, otherwise content may not appear until next input.
+                // We use TryRead to check non-blocking - if nothing pending, we fall through
+                // to WhenAny which will block efficiently.
+                while (_invalidateChannel.Reader.TryRead(out _))
+                {
+                    // Process any pending input before each re-render to prevent starvation
+                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                    {
+                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
+                        if (_stopRequested || cancellationToken.IsCancellationRequested)
+                            break;
+                    }
+                    
+                    if (_stopRequested || cancellationToken.IsCancellationRequested)
+                        break;
+                        
+                    await RenderFrameAsync(cancellationToken);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
