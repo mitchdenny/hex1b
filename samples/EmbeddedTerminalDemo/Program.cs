@@ -34,17 +34,29 @@ void RemoveTerminal(TerminalSession session)
     displayApp?.Invalidate();
 }
 
-// Helper to add a new terminal
-void AddTerminal()
+// Helper to add a new terminal with the specified shell type
+void AddTerminal(ShellType shellType = ShellType.Bash)
 {
     var id = nextTerminalId++;
-    var terminal = Hex1bTerminal.CreateBuilder()
-        .WithDimensions(40, 24)
-        .WithPtyProcess("bash", "--norc")
+    
+    var builder = Hex1bTerminal.CreateBuilder()
+        .WithDimensions(40, 24);
+    
+    // Configure the workload based on shell type
+    builder = shellType switch
+    {
+        ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
+        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile"),
+        ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
+        ShellType.Diagnostic => builder.WithDiagnosticShell(),
+        _ => builder.WithPtyProcess("bash", "--norc")
+    };
+    
+    var terminal = builder
         .WithTerminalWidget(out var handle)
         .Build();
     
-    var session = new TerminalSession(id, terminal, handle);
+    var session = new TerminalSession(id, terminal, handle, shellType);
     
     // Subscribe to title changes to update the UI
     handle.WindowTitleChanged += _ => displayApp?.Invalidate();
@@ -89,14 +101,24 @@ void RestartTerminal(TerminalSession oldSession)
     }
     _ = oldSession.Terminal.DisposeAsync();
     
-    // Create a new one with the same ID
-    var terminal = Hex1bTerminal.CreateBuilder()
-        .WithDimensions(40, 24)
-        .WithPtyProcess("bash", "--norc")
+    // Create a new one with the same ID and shell type
+    var builder = Hex1bTerminal.CreateBuilder()
+        .WithDimensions(40, 24);
+    
+    builder = oldSession.ShellType switch
+    {
+        ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
+        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile"),
+        ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
+        ShellType.Diagnostic => builder.WithDiagnosticShell(),
+        _ => builder.WithPtyProcess("bash", "--norc")
+    };
+    
+    var terminal = builder
         .WithTerminalWidget(out var handle)
         .Build();
     
-    var newSession = new TerminalSession(oldSession.Id, terminal, handle);
+    var newSession = new TerminalSession(oldSession.Id, terminal, handle, oldSession.ShellType);
     
     // Subscribe to title changes to update the UI
     handle.WindowTitleChanged += _ => displayApp?.Invalidate();
@@ -341,7 +363,14 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
         [
             m.Menu("File", m =>
             [
-                m.MenuItem("New Terminal").OnActivated(_ => AddTerminal()),
+                m.Menu("New Terminal", m =>
+                [
+                    m.MenuItem("Bash").OnActivated(_ => AddTerminal(ShellType.Bash)),
+                    m.MenuItem("PowerShell").OnActivated(_ => AddTerminal(ShellType.Pwsh)),
+                    m.MenuItem("cmd.exe").OnActivated(_ => AddTerminal(ShellType.Cmd)),
+                    m.Separator(),
+                    m.MenuItem("Diagnostic Shell").OnActivated(_ => AddTerminal(ShellType.Diagnostic))
+                ]),
                 m.Separator(),
                 m.MenuItem("Quit").OnActivated(_ => displayApp?.RequestStop())
             ]),
@@ -402,7 +431,7 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
         ])
     ]).WithInputBindings(bindings =>
     {
-        bindings.Ctrl().Key(Hex1bKey.N).Action(_ => AddTerminal(), "Add terminal");
+        bindings.Ctrl().Key(Hex1bKey.N).Action(_ => AddTerminal(ShellType.Bash), "Add terminal");
         bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => displayApp?.RequestStop(), "Quit");
     });
 }
@@ -443,4 +472,6 @@ finally
 
 // === Types ===
 
-record TerminalSession(int Id, Hex1bTerminal Terminal, TerminalWidgetHandle Handle);
+enum ShellType { Bash, Pwsh, Cmd, Diagnostic }
+
+record TerminalSession(int Id, Hex1bTerminal Terminal, TerminalWidgetHandle Handle, ShellType ShellType);
