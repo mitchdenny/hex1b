@@ -1,0 +1,156 @@
+name: Daily Test Monitoring
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build native library for tests
+        working-directory: src/Hex1b/native
+        run: make
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+
+      - name: Run tests
+        id: test
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults
+
+      - name: Process test results
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          #!/bin/bash
+          set -e
+          
+          # Install xmlstarlet for XML parsing
+          sudo apt-get update && sudo apt-get install -y xmlstarlet
+          
+          # Find the TRX file
+          TRX_FILE=$(find ./TestResults -name "*.trx" | head -n 1)
+          
+          if [ -z "$TRX_FILE" ]; then
+            echo "No TRX file found!"
+            exit 1
+          fi
+          
+          echo "Processing test results from: $TRX_FILE"
+          
+          # Parse failed tests using xmlstarlet
+          # The TRX format has a default namespace, so we need to handle that
+          xmlstarlet sel -N x="http://microsoft.com/schemas/VisualStudio/TeamTest/2010" \
+            -t -m "//x:UnitTestResult[@outcome='Failed']" \
+            -v "@testName" -n \
+            "$TRX_FILE" > /tmp/failed_tests.txt || echo "No failed tests or parsing error"
+          
+          if [ ! -s /tmp/failed_tests.txt ]; then
+            echo "No failed tests found. All tests passed!"
+            exit 0
+          fi
+          
+          echo "Found failed tests:"
+          cat /tmp/failed_tests.txt
+          
+          # Process each failed test
+          while IFS= read -r test_name; do
+            echo "Processing failed test: $test_name"
+            
+            # Create issue title
+            ISSUE_TITLE="[Daily Test] Failing: $test_name"
+            
+            # Search for existing open issues with this title
+            EXISTING_ISSUE=$(gh issue list \
+              --repo ${{ github.repository }} \
+              --state open \
+              --search "in:title \"$ISSUE_TITLE\"" \
+              --json number,title \
+              --jq '.[0].number // empty')
+            
+            if [ -n "$EXISTING_ISSUE" ]; then
+              echo "Found existing open issue #$EXISTING_ISSUE for $test_name"
+              
+              # Add comment to existing issue
+              gh issue comment "$EXISTING_ISSUE" \
+                --repo ${{ github.repository }} \
+                --body "Test is still failing in daily test run.
+          
+          **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Workflow run:** $WORKFLOW_RUN_URL"
+              
+            else
+              echo "No open issue found. Checking for closed issues..."
+              
+              # Search for closed issues with this title
+              CLOSED_ISSUE=$(gh issue list \
+                --repo ${{ github.repository }} \
+                --state closed \
+                --search "in:title \"$ISSUE_TITLE\"" \
+                --json number,title \
+                --jq '.[0].number // empty')
+              
+              if [ -n "$CLOSED_ISSUE" ]; then
+                echo "Found closed issue #$CLOSED_ISSUE. Creating new issue with reference..."
+                
+                # Create new issue referencing the old one
+                gh issue create \
+                  --repo ${{ github.repository }} \
+                  --title "$ISSUE_TITLE" \
+                  --body "Test **$test_name** is failing again in daily test monitoring.
+          
+          **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Workflow run:** $WORKFLOW_RUN_URL
+          
+          ---
+          
+          This issue was previously tracked in #$CLOSED_ISSUE" \
+                  --label "test-failure,daily-monitoring"
+                
+              else
+                echo "No existing issues found. Creating new issue..."
+                
+                # Create new issue
+                gh issue create \
+                  --repo ${{ github.repository }} \
+                  --title "$ISSUE_TITLE" \
+                  --body "Test **$test_name** is failing in daily test monitoring.
+          
+          **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Workflow run:** $WORKFLOW_RUN_URL" \
+                  --label "test-failure,daily-monitoring"
+              fi
+            fi
+            
+          done < /tmp/failed_tests.txt
+          
+          echo "Finished processing failed tests."
