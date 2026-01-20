@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Hex1b.Tests.TestHelpers;
 
 namespace Hex1b.Tests;
 
@@ -12,15 +13,6 @@ namespace Hex1b.Tests;
 /// </remarks>
 public class AspireRunTerminationTests
 {
-    private readonly string _testProjectPath;
-
-    public AspireRunTerminationTests()
-    {
-        // Create a unique test directory for each test run
-        _testProjectPath = Path.Combine(Path.GetTempPath(), $"aspire-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_testProjectPath);
-    }
-
     [Fact]
     public async Task AspireRun_WhenRunningSecondInstance_StopsFirstInstanceAndStartsNew()
     {
@@ -36,20 +28,23 @@ public class AspireRunTerminationTests
         // 5. First terminal returns to shell prompt (process terminated)
         // 6. Second instance starts successfully and shows "Dashboard:" URL
 
+        using var workspace = TestWorkspace.Create("aspire-test");
+        var testProjectPath = workspace.BaseDirectory.FullName;
+
         string? terminal1SessionId = null;
         string? terminal2SessionId = null;
 
         try
         {
             // Step 1: Create a new Aspire apphost project using bash command
-            var createCommand = $"aspire new aspire-apphost-singlefile --name TestApp --output {_testProjectPath}";
-            var (createSuccess, createOutput) = await RunCommandAsync(createCommand, _testProjectPath, timeoutSeconds: 60);
+            var createCommand = $"aspire new aspire-apphost-singlefile --name TestApp --output {testProjectPath}";
+            var (createSuccess, createOutput) = await RunCommandAsync(createCommand, testProjectPath, timeoutSeconds: 60);
             
             Assert.True(createSuccess, $"Failed to create project: {createOutput}");
             Assert.Contains("Project created successfully", createOutput);
 
             // Step 2: Start first terminal using our Process wrapper
-            terminal1SessionId = await StartBashTerminalAsync(_testProjectPath);
+            terminal1SessionId = await StartBashTerminalAsync(testProjectPath);
             await SendTerminalInputAsync(terminal1SessionId, "aspire run\n");
             
             // Wait for the first instance to start successfully
@@ -65,7 +60,7 @@ public class AspireRunTerminationTests
             // so we skip this assertion and rely on Dashboard presence as indicator of successful start
 
             // Step 3: Start second terminal and run aspire again
-            terminal2SessionId = await StartBashTerminalAsync(_testProjectPath);
+            terminal2SessionId = await StartBashTerminalAsync(testProjectPath);
             await SendTerminalInputAsync(terminal2SessionId, "aspire run\n");
 
             // Wait for the "Stopping previous instance" message
@@ -106,19 +101,7 @@ public class AspireRunTerminationTests
             {
                 await CleanupTerminalAsync(terminal2SessionId);
             }
-
-            // Cleanup: Remove test directory
-            if (Directory.Exists(_testProjectPath))
-            {
-                try
-                {
-                    Directory.Delete(_testProjectPath, recursive: true);
-                }
-                catch
-                {
-                    // Best effort cleanup
-                }
-            }
+            // Note: TestWorkspace handles directory cleanup automatically via Dispose
         }
     }
 
