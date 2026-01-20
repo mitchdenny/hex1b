@@ -1,0 +1,81 @@
+name: Daily Test Monitoring
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build native library for tests
+        working-directory: src/Hex1b/native
+        run: make
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+
+      - name: Run tests
+        id: test
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults
+
+      - name: Process test results
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Create a temporary project directory
+          mkdir -p /tmp/process-test-results
+          cd /tmp/process-test-results
+          
+          # Create the project file
+          cat > ProcessTestResults.csproj << 'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Octokit" Version="13.0.1" />
+            </ItemGroup>
+          </Project>
+          EOF
+          
+          # Copy the script
+          cp $GITHUB_WORKSPACE/.github/scripts/ProcessTestResults.cs Program.cs
+          
+          # Copy TestResults to the temp directory
+          cp -r $GITHUB_WORKSPACE/TestResults ./TestResults
+          
+          # Run the script
+          dotnet run
