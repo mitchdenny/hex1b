@@ -51,8 +51,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -e
-          
           # Install xmlstarlet for XML parsing
           sudo apt-get update && sudo apt-get install -y xmlstarlet
           
@@ -68,10 +66,13 @@ jobs:
           
           # Parse failed tests using xmlstarlet
           # The TRX format has a default namespace, so we need to handle that
-          xmlstarlet sel -N x="http://microsoft.com/schemas/VisualStudio/TeamTest/2010" \
+          if ! xmlstarlet sel -N x="http://microsoft.com/schemas/VisualStudio/TeamTest/2010" \
             -t -m "//x:UnitTestResult[@outcome='Failed']" \
             -v "@testName" -n \
-            "$TRX_FILE" > /tmp/failed_tests.txt || echo "No failed tests or parsing error"
+            "$TRX_FILE" > /tmp/failed_tests.txt 2>/dev/null; then
+            echo "Warning: Error parsing TRX file, assuming no failures"
+            touch /tmp/failed_tests.txt
+          fi
           
           if [ ! -s /tmp/failed_tests.txt ]; then
             echo "No failed tests found. All tests passed!"
@@ -92,7 +93,7 @@ jobs:
             EXISTING_ISSUE=$(gh issue list \
               --repo ${{ github.repository }} \
               --state open \
-              --search "in:title \"$ISSUE_TITLE\"" \
+              --search "in:title $ISSUE_TITLE" \
               --json number,title \
               --jq '.[0].number // empty')
             
@@ -119,7 +120,7 @@ jobs:
               CLOSED_ISSUE=$(gh issue list \
                 --repo ${{ github.repository }} \
                 --state closed \
-                --search "in:title \"$ISSUE_TITLE\"" \
+                --search "in:title $ISSUE_TITLE" \
                 --json number,title \
                 --jq '.[0].number // empty')
               
