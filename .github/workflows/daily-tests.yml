@@ -100,12 +100,17 @@ jobs:
               echo "Found existing open issue #$EXISTING_ISSUE for $test_name"
               
               # Add comment to existing issue
-              gh issue comment "$EXISTING_ISSUE" \
-                --repo ${{ github.repository }} \
-                --body "Test is still failing in daily test run.
+              COMMENT_BODY=$(cat <<EOF
+          Test is still failing in daily test run.
           
           **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          **Workflow run:** $WORKFLOW_RUN_URL"
+          **Workflow run:** $WORKFLOW_RUN_URL
+          EOF
+          )
+              
+              gh issue comment "$EXISTING_ISSUE" \
+                --repo ${{ github.repository }} \
+                --body "$COMMENT_BODY"
               
             else
               echo "No open issue found. Checking for closed issues..."
@@ -122,30 +127,40 @@ jobs:
                 echo "Found closed issue #$CLOSED_ISSUE. Creating new issue with reference..."
                 
                 # Create new issue referencing the old one
-                gh issue create \
-                  --repo ${{ github.repository }} \
-                  --title "$ISSUE_TITLE" \
-                  --body "Test **$test_name** is failing again in daily test monitoring.
+                ISSUE_BODY=$(cat <<EOF
+          Test **$test_name** is failing again in daily test monitoring.
           
           **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
           **Workflow run:** $WORKFLOW_RUN_URL
           
           ---
           
-          This issue was previously tracked in #$CLOSED_ISSUE" \
+          This issue was previously tracked in #$CLOSED_ISSUE
+          EOF
+          )
+                
+                gh issue create \
+                  --repo ${{ github.repository }} \
+                  --title "$ISSUE_TITLE" \
+                  --body "$ISSUE_BODY" \
                   --label "test-failure,daily-monitoring"
                 
               else
                 echo "No existing issues found. Creating new issue..."
                 
                 # Create new issue
+                ISSUE_BODY=$(cat <<EOF
+          Test **$test_name** is failing in daily test monitoring.
+          
+          **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Workflow run:** $WORKFLOW_RUN_URL
+          EOF
+          )
+                
                 gh issue create \
                   --repo ${{ github.repository }} \
                   --title "$ISSUE_TITLE" \
-                  --body "Test **$test_name** is failing in daily test monitoring.
-          
-          **Failed on:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          **Workflow run:** $WORKFLOW_RUN_URL" \
+                  --body "$ISSUE_BODY" \
                   --label "test-failure,daily-monitoring"
               fi
             fi
