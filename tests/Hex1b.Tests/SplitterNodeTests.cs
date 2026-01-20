@@ -2513,7 +2513,7 @@ public class SplitterNodeTests
         // Initial render - then Tab to inner splitter and resize
         // Add WaitUntil after resize to ensure state is stable before capture
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2), "initial render")
             .Tab()  // Move to inner splitter
             .Left().Left().Left().Left().Left()  // Resize left significantly (make left pane very narrow)
             .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2), "resize to complete")
@@ -2582,7 +2582,7 @@ public class SplitterNodeTests
         // First Tab focuses VSplitter, second Tab focuses inner Splitter
         // WaitUntil after resize ensures state is stable before capture - this is the assertion per test-fixer pattern
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2), "initial render")
             .Tab()  // Focus VSplitter
             .Tab()  // Focus inner horizontal Splitter
             // Resize to extreme RIGHT (20+ right arrows - making right pane very narrow)
