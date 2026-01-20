@@ -93,7 +93,7 @@ jobs:
             EXISTING_ISSUE=$(gh issue list \
               --repo ${{ github.repository }} \
               --state open \
-              --search "in:title $ISSUE_TITLE" \
+              --search "in:title \"$ISSUE_TITLE\"" \
               --json number,title \
               --jq '.[0].number // empty')
             
@@ -120,7 +120,7 @@ jobs:
               CLOSED_ISSUE=$(gh issue list \
                 --repo ${{ github.repository }} \
                 --state closed \
-                --search "in:title $ISSUE_TITLE" \
+                --search "in:title \"$ISSUE_TITLE\"" \
                 --json number,title \
                 --jq '.[0].number // empty')
               
