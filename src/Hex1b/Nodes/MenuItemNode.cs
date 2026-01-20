@@ -330,9 +330,11 @@ public sealed class MenuItemNode : Hex1bNode
         // Pad the label to fill the width
         var paddedLabel = Label.PadRight(width);
         
+        var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
+        
         if (IsDisabled)
         {
-            // Disabled: gray out
+            // Disabled: gray out (no accelerator underline for disabled items)
             var fg = theme.Get(MenuItemTheme.DisabledForegroundColor);
             var bg = theme.Get(MenuItemTheme.BackgroundColor);
             var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
@@ -340,18 +342,20 @@ public sealed class MenuItemNode : Hex1bNode
         }
         else if (IsFocused)
         {
-            // Focused: highlight
+            // Focused: highlight with accelerator underline
             var fg = theme.Get(MenuItemTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuItemTheme.FocusedBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else if (IsHovered)
         {
-            // Hovered: subtle gray highlight
+            // Hovered: subtle gray highlight with accelerator underline
             var fg = theme.Get(MenuItemTheme.HoveredForegroundColor);
             var bg = theme.Get(MenuItemTheme.HoveredBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else
@@ -361,7 +365,6 @@ public sealed class MenuItemNode : Hex1bNode
             var bg = theme.Get(MenuItemTheme.BackgroundColor);
             var accelFg = theme.Get(MenuItemTheme.AcceleratorForegroundColor);
             var accelBg = theme.Get(MenuItemTheme.AcceleratorBackgroundColor);
-            var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
             
             var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, accelFg, accelBg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
