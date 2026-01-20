@@ -6,14 +6,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
 /// These tests require Linux (for PTY support via forkpty).
+/// Tests that require Linux use runtime checks to skip on other platforms.
 /// </summary>
 public class Hex1bTerminalChildProcessTests
 {
-    /// <summary>
-    /// Used by xUnit SkipUnless to conditionally skip tests on non-Linux platforms.
-    /// </summary>
-    public static bool IsLinux => OperatingSystem.IsLinux();
-    
     /// <summary>
     /// Verifies that when we launch bash with "tty" command, it reports
     /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
@@ -189,10 +185,13 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that input can be written to the process and is echoed back.
     /// </summary>
-    [Fact(Skip = "Requires Linux for PTY support", SkipUnless = nameof(IsLinux))]
+    [Fact]
     [Trait("Category", "Unix")]
     public async Task WriteInput_IsEchoedBack()
     {
+        // Skip on non-Linux platforms - PTY support requires Linux
+        if (!OperatingSystem.IsLinux())
+            return;
         
         // Launch cat which will echo input back
         await using var process = new Hex1bTerminalChildProcess(
@@ -455,10 +454,13 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies proper cleanup when disposing without waiting for exit.
     /// </summary>
-    [Fact(Skip = "Requires Linux for PTY support", SkipUnless = nameof(IsLinux))]
+    [Fact]
     [Trait("Category", "Unix")]
     public async Task Dispose_CleansUpRunningProcess()
     {
+        // Skip on non-Linux platforms - PTY support requires Linux
+        if (!OperatingSystem.IsLinux())
+            return;
         
         int pid;
         
@@ -1648,12 +1650,16 @@ public class Hex1bTerminalChildProcessTests
     /// This test is designed to capture the internal terminal state after a tmux split
     /// to help diagnose rendering glitches.
     /// </summary>
-    [Fact(Skip = "Requires Linux for PTY support", SkipUnless = nameof(IsLinux))]
+    [Fact(Skip = "Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
     [Trait("Category", "Unix")]
     [Trait("Category", "StressTest")]
     [Trait("Category", "Diagnostic")]
     public async Task Diagnostic_TmuxSplitScreen_CapturesTerminalState()
     {
+        // Skip on non-Linux platforms - PTY support requires Linux
+        if (!OperatingSystem.IsLinux())
+            return;
+        
         // Check if tmux is available
         var tmuxPath = await RunCommandAsync("which", ["tmux"]);
         if (string.IsNullOrWhiteSpace(tmuxPath) || !File.Exists(tmuxPath.Trim()))

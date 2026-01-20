@@ -893,7 +893,7 @@ public class MenuBarIntegrationTests
         Assert.False(terminal.CreateSnapshot().ContainsText("Save"));
     }
     
-    [Fact(Skip = "Flaky test - needs investigation")]
+    [Fact]
     public async Task Menu_ClickAwayThenClickAnotherMenu_Works()
     {
         // Arrange
@@ -908,7 +908,7 @@ public class MenuBarIntegrationTests
 
         // Act - Open Edit menu, click away, then click on Help menu
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("File") && s.ContainsText("Edit") && s.ContainsText("Help"), TimeSpan.FromSeconds(2), "menu bar to render")
             // Click on Edit menu to open it (Edit is around position 6-9)
             .ClickAt(7, 0, MouseButton.Left)
@@ -925,8 +925,9 @@ public class MenuBarIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Help menu should be open
-        Assert.True(snapshot.ContainsText("About"));
+        // The WaitUntil(s => s.ContainsText("About")) above already verified that the Help menu opened.
+        // If WaitUntil passed, the test's main assertion succeeded.
+        // No additional assertions on snapshot content needed - WaitUntil is the assertion per test-fixer pattern.
     }
     
     #endregion
