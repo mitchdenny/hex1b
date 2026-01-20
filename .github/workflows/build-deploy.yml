@@ -776,6 +776,7 @@ jobs:
           AZURE__RESOURCEGROUP: 'hex1b-production'
           Parameters__customDomain: ${{ vars.CUSTOM_DOMAIN }}
           Parameters__certificateName: ${{ secrets.CERTIFICATE_NAME }}
+          Parameters__minReplicas: '1'
           HEX1B_VERSION: ${{ steps.version.outputs.release }}
         run: |
           set -e

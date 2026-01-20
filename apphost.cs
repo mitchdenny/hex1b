@@ -15,9 +15,13 @@ var builder = DistributedApplication.CreateBuilder(args);
 // Conditionally adds parameters to app model if config values are specified.
 var customDomainValue = builder.Configuration["Parameters:customDomain"];
 var certificateNameValue = builder.Configuration["Parameters:certificateName"];
+var minReplicasValue = builder.Configuration["Parameters:minReplicas"];
 
 var customDomain = !string.IsNullOrEmpty(customDomainValue) ? builder.AddParameter("customDomain") : null;
 var certificateName = !string.IsNullOrEmpty(certificateNameValue) ? builder.AddParameter("certificateName") : null;
+
+// Parse minReplicas from config, defaulting to 0 for PR deployments
+var minReplicas = int.TryParse(minReplicasValue, out var parsedMinReplicas) ? parsedMinReplicas : 0;
 
 builder.AddAzureContainerAppEnvironment("env");
 
@@ -66,7 +70,7 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
     .WithExternalHttpEndpoints()
     .PublishAsAzureContainerApp((infra, app) =>
     {
-        app.Template.Scale.MinReplicas = 0;
+        app.Template.Scale.MinReplicas = minReplicas;
         app.Template.Scale.MaxReplicas = 1;
 
         if (customDomain is not null && certificateName is not null)

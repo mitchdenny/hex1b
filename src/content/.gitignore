@@ -12,6 +12,10 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 *.local
 
+# Generated SEO files (regenerated on each build)
+public/robots.txt
+public/llms.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
