@@ -58,9 +58,10 @@ public class RenderOptimizationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -68,13 +69,9 @@ public class RenderOptimizationTests
         await runTask;
 
         // Each frame has different text, so each frame should render
-        // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) + Ctrl+C (Counter: 4) = 4 renders
-        // Verify by checking the final output
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Counter: 4"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
+        // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) = 3 renders before Ctrl+C
+        // Verify by checking the final output before Ctrl+C
+        Assert.True(snapshot.ContainsText("Counter: 3"));
     }
 
     [Fact]
@@ -140,6 +137,7 @@ public class RenderOptimizationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
+            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -149,12 +147,7 @@ public class RenderOptimizationTests
         // The static widget should only render once (initial frame)
         Assert.Equal(1, staticRenderCount);
         
-        // Dynamic text should have updated (A, B, Ctrl+C = 4 total frames)
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Counter: 4"), TimeSpan.FromSeconds(1))
-            .Build()
-            .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Counter: 4"));
+        // Dynamic text verified by WaitUntil above - "Counter: 3" was confirmed before Ctrl+C
     }
 
     [Fact]
@@ -516,7 +509,7 @@ public class RenderOptimizationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // Wait for initial render, then move mouse over button to trigger hover state
-        await new Hex1bTerminalInputSequenceBuilder()
+        var finalSnapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(5, 1)
             .Capture("final")
@@ -524,9 +517,6 @@ public class RenderOptimizationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
-        
-        // Check that the background color is preserved after hover
-        var finalSnapshot = terminal.CreateSnapshot();
         
         // Find any cells that have null (default) background instead of the panel color
         // We specifically check the area to the right of the button on the same row

@@ -80,7 +80,7 @@ public class TerminalAnsiRenderingTests
 
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Colored"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -88,7 +88,6 @@ public class TerminalAnsiRenderingTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         var ansi = snapshot.ToAnsi();
 
         // Assert - should contain 24-bit color codes

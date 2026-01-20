@@ -173,6 +173,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             sb.Append("\x1b[?1006l");  // Disable SGR mouse mode
             sb.Append("\x1b[?1003l");  // Disable mouse tracking
         }
+        sb.Append("\x1b[0m");      // Reset text attributes (prevents inverted text from leaking)
         sb.Append("\x1b[?25h");    // Show cursor
         sb.Append("\x1b[?1049l");  // Exit alternate screen
         Write(sb.ToString());

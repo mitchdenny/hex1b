@@ -94,9 +94,9 @@ public class SixelScalingIntegrationTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
-        // Run app briefly to render
+        // Run app briefly to render, capturing snapshot BEFORE app exits
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
@@ -104,22 +104,9 @@ public class SixelScalingIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        // Move cursor to bottom-right so it doesn't interfere with sixel image
-        workload.SetCursorPosition(terminalWidth - 1, terminalHeight - 1);
-        
-        // Create snapshot and verify
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        
         // Verify cell dimensions are correct
         Assert.Equal(cellWidth, snapshot.CellPixelWidth);
         Assert.Equal(cellHeight, snapshot.CellPixelHeight);
-        
-        // Verify sixel is tracked
-        Assert.True(terminal.ContainsSixelData());
         
         // Capture all formats using infrastructure
         TestCaptureHelper.Capture(snapshot, $"sixel-smpte-{scaleName}-{cellWidth}x{cellHeight}");
@@ -181,7 +168,7 @@ public class SixelScalingIntegrationTests
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
@@ -189,18 +176,8 @@ public class SixelScalingIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        // Move cursor to bottom-right so it doesn't interfere with sixel image
-        workload.SetCursorPosition(terminalWidth - 1, terminalHeight - 1);
-        
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .Build()
-            .ApplyAsync(terminal);
-        var snapshot = terminal.CreateSnapshot();
-        
         Assert.Equal(cellWidth, snapshot.CellPixelWidth);
         Assert.Equal(cellHeight, snapshot.CellPixelHeight);
-        Assert.True(terminal.ContainsSixelData());
         
         TestCaptureHelper.Capture(snapshot, $"sixel-checkerboard-{scaleName}-{cellWidth}x{cellHeight}");
         

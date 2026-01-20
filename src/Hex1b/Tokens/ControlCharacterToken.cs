@@ -18,4 +18,7 @@ public sealed record ControlCharacterToken(char Character) : AnsiToken
     
     /// <summary>Tab - moves cursor to next tab stop.</summary>
     public static readonly ControlCharacterToken Tab = new('\t');
+    
+    /// <summary>Backspace - moves cursor left one column (non-destructive).</summary>
+    public static readonly ControlCharacterToken Backspace = new('\b');
 }

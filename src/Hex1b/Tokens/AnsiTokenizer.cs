@@ -138,6 +138,13 @@ public static class AnsiTokenizer
                 tokens.Add(ControlCharacterToken.Tab);
                 i++;
             }
+            else if (text[i] == '\b')
+            {
+                // Backspace (0x08) - moves cursor left
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(ControlCharacterToken.Backspace);
+                i++;
+            }
             else if (text[i] == '\x1b')
             {
                 // Unrecognized escape sequence - capture the ESC and following character if any
@@ -250,6 +257,19 @@ public static class AnsiTokenizer
                 }
                 break;
 
+            case 'n':
+                // Device Status Report (DSR)
+                // We parse it as DSR token so we can respond with cursor position
+                if (int.TryParse(parameters, out var dsrType))
+                {
+                    tokens.Add(new DeviceStatusReportToken(dsrType));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
             case 'q':
                 // Cursor shape (DECSCUSR)
                 if (isPrivateMode || parameters.Contains(' '))
@@ -325,6 +345,11 @@ public static class AnsiTokenizer
             case 'G':
                 // Cursor Horizontal Absolute (CHA)
                 tokens.Add(new CursorColumnToken(ParseMoveCount(parameters)));
+                break;
+            
+            case 'd':
+                // Vertical Position Absolute (VPA) - move cursor to absolute row
+                tokens.Add(new CursorRowToken(ParseMoveCount(parameters)));
                 break;
                 
             case 'S':

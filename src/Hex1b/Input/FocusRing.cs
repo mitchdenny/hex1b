@@ -4,6 +4,7 @@ namespace Hex1b.Input;
 /// Maintains a flat ring of all focusable nodes from the current render.
 /// Built after each render by traversing GetFocusableNodes() on the root.
 /// Provides efficient navigation between focusables regardless of tree structure.
+/// Also tracks which node (if any) has captured all input.
 /// </summary>
 public sealed class FocusRing
 {
@@ -13,6 +14,13 @@ public sealed class FocusRing
     /// Tracks the previously focused node so we can clear its focus if it leaves the ring.
     /// </summary>
     private Hex1bNode? _previouslyFocusedNode;
+    
+    /// <summary>
+    /// The node that has captured all input, or null if no capture is active.
+    /// When a node captures input, it receives all keyboard and mouse events
+    /// (except those from bindings marked with <see cref="InputBinding.OverridesCapture"/>).
+    /// </summary>
+    private Hex1bNode? _capturedNode;
     
     /// <summary>
     /// Gets all focusable nodes in render order.
@@ -25,9 +33,37 @@ public sealed class FocusRing
     public Hex1bNode? FocusedNode => _focusables.FirstOrDefault(n => n.IsFocused);
     
     /// <summary>
+    /// Gets the node that has captured all input, or null if no capture is active.
+    /// </summary>
+    public Hex1bNode? CapturedNode => _capturedNode;
+    
+    /// <summary>
     /// Gets the index of the currently focused node, or -1 if none.
     /// </summary>
     public int FocusedIndex => _focusables.FindIndex(n => n.IsFocused);
+    
+    /// <summary>
+    /// Captures all input to the specified node.
+    /// </summary>
+    /// <param name="node">The node to capture input to. Must be in the focus ring.</param>
+    /// <remarks>
+    /// When a node captures input, it receives all keyboard and mouse events directly
+    /// via <see cref="Hex1bNode.HandleInput(Hex1bEvent)"/>, bypassing normal binding lookup.
+    /// Only bindings marked with <see cref="InputBinding.OverridesCapture"/> will be
+    /// processed before the captured node receives input.
+    /// </remarks>
+    public void CaptureInput(Hex1bNode node)
+    {
+        _capturedNode = node;
+    }
+    
+    /// <summary>
+    /// Releases input capture, returning to normal input routing.
+    /// </summary>
+    public void ReleaseCapture()
+    {
+        _capturedNode = null;
+    }
 
     /// <summary>
     /// Rebuilds the focus ring from the given root node.

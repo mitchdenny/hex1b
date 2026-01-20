@@ -75,11 +75,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
     private bool _inAlternateScreen;
+    private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
+    private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
+    private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
+    private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
@@ -108,6 +112,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
+    
+    // Terminal title (OSC 0/2) and icon name (OSC 0/1)
+    // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
+    private string _windowTitle = "";
+    private string _iconName = "";
+    
+    // Title stack for OSC 22/23 (push/pop)
+    // When OSC 22 is received, current (title, iconName) is pushed onto stack
+    // When OSC 23 is received, (title, iconName) is popped and restored
+    // OSC 0/1/2 do NOT affect the stack - they only change current values
+    private readonly Stack<(string Title, string IconName)> _titleStack = new();
 
     // === Static Factory ===
 
@@ -144,6 +159,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
+        
+        // Notify lifecycle-aware presentation adapters that the terminal is created
+        if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
+        {
+            lifecycleAdapter.TerminalCreated(this);
+        }
         
         // Get dimensions from presentation adapter (it's the source of truth)
         _width = _presentation.Width > 0 ? _presentation.Width : options.Width;
@@ -214,6 +235,53 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         ?? (_workload as IHex1bAppTerminalWorkloadAdapter)?.Capabilities 
         ?? TerminalCapabilities.Modern;
 
+    // === Title Properties ===
+
+    /// <summary>
+    /// Gets the current window title set by OSC 0 or OSC 2 sequences.
+    /// </summary>
+    /// <remarks>
+    /// <para>The window title can be set by the workload (e.g., a shell or TUI application) using:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Sets both window title and icon name</item>
+    ///   <item>OSC 2 - Sets window title only</item>
+    /// </list>
+    /// </remarks>
+    public string WindowTitle => _windowTitle;
+
+    /// <summary>
+    /// Gets the current icon name set by OSC 0 or OSC 1 sequences.
+    /// </summary>
+    /// <remarks>
+    /// <para>The icon name is a historical X11 concept. In modern terminals it may be used for:</para>
+    /// <list type="bullet">
+    ///   <item>Tab titles (when different from window title)</item>
+    ///   <item>Taskbar/dock tooltips</item>
+    /// </list>
+    /// <para>The icon name can be set by the workload using:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Sets both window title and icon name</item>
+    ///   <item>OSC 1 - Sets icon name only</item>
+    /// </list>
+    /// </remarks>
+    public string IconName => _iconName;
+
+    /// <summary>
+    /// Event raised when the window title changes (OSC 0 or OSC 2).
+    /// </summary>
+    /// <remarks>
+    /// The event provides the new window title as a string.
+    /// </remarks>
+    public event Action<string>? WindowTitleChanged;
+
+    /// <summary>
+    /// Event raised when the icon name changes (OSC 0 or OSC 1).
+    /// </summary>
+    /// <remarks>
+    /// The event provides the new icon name as a string.
+    /// </remarks>
+    public event Action<string>? IconNameChanged;
+
     // === Terminal Control ===
 
     /// <summary>
@@ -273,6 +341,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             // Start I/O pumps
             Start();
+            
+            // Notify lifecycle-aware presentation adapters that the terminal has started
+            if (_presentation is ITerminalLifecycleAwarePresentationAdapter startedAdapter)
+            {
+                startedAdapter.TerminalStarted();
+            }
 
             // Execute the run callback or wait for workload disconnect
             int exitCode = 0;
@@ -284,6 +358,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 // No run callback - wait for workload to disconnect
                 await WaitForWorkloadDisconnectAsync(ct);
+            }
+            
+            // Notify lifecycle-aware presentation adapters that the terminal has completed
+            if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
+            {
+                completedAdapter.TerminalCompleted(exitCode);
             }
 
             return exitCode;
@@ -525,6 +605,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
+            '\x7f' or '\b' => new Hex1bKeyEvent(Hex1bKey.Backspace, token.Character, Hex1bModifiers.None),
             _ => null
         };
     }
@@ -700,7 +781,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
         if (evt.Key == Hex1bKey.Tab) return new ControlCharacterToken('\t');
         if (evt.Key == Hex1bKey.Escape) return new UnrecognizedSequenceToken("\x1b");
-        if (evt.Key == Hex1bKey.Backspace) return new ControlCharacterToken('\x7f');
+        if (evt.Key == Hex1bKey.Backspace)
+        {
+            // Preserve the original backspace character from the host terminal.
+            // Windows sends 0x08 (BS), Unix typically sends 0x7F (DEL).
+            // Child processes expect the same encoding their terminal would normally use.
+            var c = (!string.IsNullOrEmpty(evt.Text) && (evt.Text[0] == '\b' || evt.Text[0] == '\x7f'))
+                ? evt.Text[0]
+                : '\x7f'; // Default to DEL for programmatic events without original text
+            return new ControlCharacterToken(c);
+        }
         
         // Regular text
         if (!string.IsNullOrEmpty(evt.Text))
@@ -802,9 +892,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
                 
-                // FAST PATH: If no filters are active, apply tokens to buffer and forward bytes directly
+                // FAST PATH: If no filters are active AND presentation doesn't need cell impacts,
+                // apply tokens to buffer and forward bytes directly.
                 // This is crucial for programs like tmux that are sensitive to output timing
-                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0)
+                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 
+                    && _presentation is not ICellImpactAwarePresentationAdapter)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
@@ -826,9 +918,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
+                    // Check if presentation adapter wants cell impacts directly
+                    if (_presentation is ICellImpactAwarePresentationAdapter impactAware)
+                    {
+                        // Run through presentation filters first if any
+                        if (_presentationFilters.Count > 0)
+                        {
+                            await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        }
+                        // Send applied tokens with impacts directly to the adapter
+                        await impactAware.WriteOutputWithImpactsAsync(appliedTokens, ct);
+                    }
                     // If there are no presentation filters, pass through original bytes directly
                     // to preserve exact escape sequence syntax
-                    if (_presentationFilters.Count == 0)
+                    else if (_presentationFilters.Count == 0)
                     {
                         var originalBytes = Encoding.UTF8.GetBytes(completeText);
                         await _presentation.WriteOutputAsync(originalBytes);
@@ -1253,6 +1356,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _marginRight = newWidth - 1;
             if (_marginLeft > _marginRight)
                 _marginLeft = 0;
+            
+            // Reset scroll region on resize - this matches xterm behavior
+            // The scroll region should cover the full new screen height
+            _scrollTop = 0;
+            _scrollBottom = newHeight - 1;
         }
     }
 
@@ -1398,6 +1506,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _currentForeground = null;
         _currentBackground = null;
     }
+    
+    /// <summary>
+    /// Clears the internal buffer without generating cell impacts.
+    /// Used when the presentation adapter handles alternate screen natively.
+    /// </summary>
+    private void ClearBufferInternal()
+    {
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                // Release any tracked objects
+                _screenBuffer[y, x].TrackedSixel?.Release();
+                _screenBuffer[y, x].TrackedHyperlink?.Release();
+                _screenBuffer[y, x] = TerminalCell.Empty;
+            }
+        }
+        _currentForeground = null;
+        _currentBackground = null;
+    }
 
     /// <summary>
     /// Applies a list of ANSI tokens to the screen buffer.
@@ -1467,7 +1595,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case ControlCharacterToken controlToken:
-                ApplyControlCharacter(controlToken);
+                ApplyControlCharacter(controlToken, impacts);
                 break;
                 
             case SgrToken sgrToken:
@@ -1485,7 +1613,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 else
                 {
                     // Normal mode: positions are absolute
-                    _cursorY = Math.Clamp(cursorToken.Row - 1, 0, _height - 1);
+                    var requestedRow = cursorToken.Row - 1;
+                    var clampedRow = Math.Clamp(requestedRow, 0, _height - 1);
+                    _cursorY = clampedRow;
                     _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
                 }
                 break;
@@ -1502,9 +1632,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (privateModeToken.Mode == 1049)
                 {
                     if (privateModeToken.Enable)
-                        DoEnterAlternateScreen();
+                        DoEnterAlternateScreen(impacts);
                     else
-                        DoExitAlternateScreen();
+                        DoExitAlternateScreen(impacts);
                 }
                 else if (privateModeToken.Mode == 6)
                 {
@@ -1582,12 +1712,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case SaveCursorToken:
                 _savedCursorX = _cursorX;
                 _savedCursorY = _cursorY;
+                _cursorSaved = true;
                 break;
                 
             case RestoreCursorToken:
-                _pendingWrap = false; // Cursor restore clears pending wrap
-                _cursorX = _savedCursorX;
-                _cursorY = _savedCursorY;
+                // Only restore if cursor was previously saved (matches GNOME Terminal behavior)
+                if (_cursorSaved)
+                {
+                    _pendingWrap = false; // Cursor restore clears pending wrap
+                    _cursorX = _savedCursorX;
+                    _cursorY = _savedCursorY;
+                }
                 break;
                 
             case CursorShapeToken:
@@ -1601,6 +1736,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case CursorColumnToken columnToken:
                 _pendingWrap = false; // Explicit column movement clears pending wrap
                 _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
+                break;
+            
+            case CursorRowToken rowToken:
+                _pendingWrap = false; // Explicit row movement clears pending wrap
+                // VPA respects origin mode like CUP
+                if (_originMode)
+                {
+                    _cursorY = Math.Clamp(_scrollTop + rowToken.Row - 1, _scrollTop, _scrollBottom);
+                }
+                else
+                {
+                    _cursorY = Math.Clamp(rowToken.Row - 1, 0, _height - 1);
+                }
                 break;
                 
             case ScrollUpToken scrollUpToken:
@@ -1665,6 +1813,39 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case UnrecognizedSequenceToken:
                 // Ignore unrecognized sequences
                 break;
+                
+            case DeviceStatusReportToken dsr:
+                HandleDeviceStatusReport(dsr);
+                break;
+        }
+    }
+    
+    private void HandleDeviceStatusReport(DeviceStatusReportToken dsr)
+    {
+        if (_workload == null) return;
+        
+        string response = dsr.Type switch
+        {
+            DeviceStatusReportToken.StatusReport => "\x1b[0n", // Terminal is ready
+            DeviceStatusReportToken.CursorPositionReport => $"\x1b[{_cursorY + 1};{_cursorX + 1}R",
+            _ => "" // Unknown DSR type
+        };
+        
+        if (!string.IsNullOrEmpty(response))
+        {
+            var bytes = Encoding.UTF8.GetBytes(response);
+            // Write response synchronously on thread pool to avoid blocking output pump
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _workload.WriteInputAsync(bytes, CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // Ignore errors - process may have exited
+                }
+            });
         }
     }
 
@@ -1692,7 +1873,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
             {
-                ScrollUp();
+                ScrollUp(impacts);
                 _cursorY = _height - 1;
             }
             
@@ -1737,7 +1918,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyControlCharacter(ControlCharacterToken token)
+    private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
         {
@@ -1757,7 +1938,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
                 if (_cursorY >= _scrollBottom)
                 {
-                    ScrollUp();
+                    ScrollUp(impacts);
                     // Cursor stays at _scrollBottom
                 }
                 else if (_cursorY < _height - 1)
@@ -1776,6 +1957,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case '\t':
                 // Move to next tab stop (every 8 columns)
                 _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                break;
+                
+            case '\b':
+                // Backspace - move cursor left (non-destructive)
+                _pendingWrap = false;
+                if (_cursorX > 0)
+                {
+                    _cursorX--;
+                }
                 break;
         }
     }
@@ -1838,19 +2028,29 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int effectiveLeft = _declrmm ? _marginLeft : 0;
         int effectiveRight = _declrmm ? _marginRight : _width - 1;
         
+        int clearedCount = 0;
         switch (mode)
         {
             case ClearMode.ToEnd:
                 for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
             case ClearMode.ToStart:
                 for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
             case ClearMode.All:
                 for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
+                {
                     SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    clearedCount++;
+                }
                 break;
         }
     }
@@ -1911,17 +2111,101 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return end + 1;
     }
 
-    private void DoEnterAlternateScreen()
+    private void DoEnterAlternateScreen(List<CellImpact>? impacts = null)
     {
+        // Save cursor position before switching to alternate screen
+        // This uses separate fields from DECSC/DECRC to avoid conflicts
+        _alternateScreenSavedCursorX = _cursorX;
+        _alternateScreenSavedCursorY = _cursorY;
+        
+        // Always save the main screen buffer for internal state (needed for snapshots)
+        // and for presentation adapters that don't handle alternate screen natively
+        _savedMainScreenBuffer = new TerminalCell[_height, _width];
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                _savedMainScreenBuffer[y, x] = _screenBuffer[y, x];
+            }
+        }
+        
         _inAlternateScreen = true;
-        ClearBuffer();
+        
+        // If the presentation handles alternate screen natively, the real terminal
+        // will clear on entry. We just need to update our internal buffer.
+        // If not, we need to generate impacts so the presentation layer sees the clear.
+        if (Capabilities.HandlesAlternateScreenNatively)
+        {
+            // Just clear internal buffer without generating impacts
+            ClearBufferInternal();
+        }
+        else
+        {
+            // Clear with impacts for presentation adapters that need them
+            ClearBuffer(impacts);
+        }
+        
         _cursorX = 0;
         _cursorY = 0;
     }
 
-    private void DoExitAlternateScreen()
+    private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
         _inAlternateScreen = false;
+        
+        // Only restore if we actually saved state when entering alternate screen
+        // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
+        if (_savedMainScreenBuffer != null)
+        {
+            // If the presentation handles alternate screen natively, the real terminal
+            // will restore its buffer when it receives the escape sequence. We just need
+            // to update our internal buffer to match (for snapshot purposes).
+            // If not, we need to generate impacts so the presentation layer gets restored.
+            bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
+            
+            // Restore the saved buffer (or as much as fits in current dimensions)
+            int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
+            int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
+            
+            for (int y = 0; y < restoreHeight; y++)
+            {
+                for (int x = 0; x < restoreWidth; x++)
+                {
+                    if (generateImpacts)
+                    {
+                        SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
+                    }
+                    else
+                    {
+                        // Direct assignment for internal buffer only
+                        _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
+                    }
+                }
+            }
+            
+            // Clear any remaining area if current dimensions are larger
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
+                {
+                    if (generateImpacts)
+                    {
+                        SetCell(y, x, TerminalCell.Empty, impacts);
+                    }
+                    else
+                    {
+                        _screenBuffer[y, x] = TerminalCell.Empty;
+                    }
+                }
+            }
+            
+            _savedMainScreenBuffer = null;
+            
+            // Restore cursor position from alternate screen save
+            _cursorX = _alternateScreenSavedCursorX;
+            _cursorY = _alternateScreenSavedCursorY;
+        }
+        // If no saved buffer, this is an unbalanced exit - leave everything as-is
     }
 
     private void ProcessSgr(string parameters)
@@ -2359,7 +2643,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if needed
             if (_cursorY >= _height)
             {
-                ScrollUp();
+                ScrollUp(impacts);
                 _cursorY = _height - 1;
             }
             
@@ -2657,37 +2941,166 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes an OSC sequence, handling OSC 8 hyperlinks.
+    /// Processes an OSC sequence, handling title sequences (0/1/2/22/23) and hyperlinks (8).
     /// </summary>
+    /// <remarks>
+    /// <para>Supported OSC sequences:</para>
+    /// <list type="bullet">
+    ///   <item>OSC 0 - Set icon name AND window title</item>
+    ///   <item>OSC 1 - Set icon name only</item>
+    ///   <item>OSC 2 - Set window title only</item>
+    ///   <item>OSC 8 - Hyperlinks</item>
+    ///   <item>OSC 22 - Push current title/icon onto stack, optionally set new values</item>
+    ///   <item>OSC 23 - Pop title/icon from stack and restore</item>
+    /// </list>
+    /// <para>
+    /// OSC 0/1/2 do NOT affect the title stack - they only modify current values.
+    /// The stack is independent: push saves current state, pop restores regardless of
+    /// what changes were made with 0/1/2 in between.
+    /// </para>
+    /// </remarks>
     private void ProcessOscSequence(string command, string parameters, string payload)
     {
-        // OSC 8 is for hyperlinks
-        if (command == "8")
+        switch (command)
         {
-            // Empty payload means end of hyperlink
-            if (string.IsNullOrEmpty(payload))
-            {
-                // Release current hyperlink if any
-                if (_currentHyperlink is not null)
-                {
-                    _currentHyperlink.Release();
-                    _currentHyperlink = null;
-                }
-            }
-            else
-            {
-                // Start a new hyperlink
-                // Release any previous hyperlink first
-                if (_currentHyperlink is not null)
-                {
-                    _currentHyperlink.Release();
-                }
+            case "0":
+                // OSC 0: Set both icon name and window title
+                SetIconName(payload);
+                SetWindowTitle(payload);
+                break;
                 
-                // Create or get existing hyperlink
-                _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(payload, parameters);
+            case "1":
+                // OSC 1: Set icon name only
+                SetIconName(payload);
+                break;
+                
+            case "2":
+                // OSC 2: Set window title only
+                SetWindowTitle(payload);
+                break;
+                
+            case "8":
+                // OSC 8: Hyperlinks
+                ProcessOsc8Hyperlink(parameters, payload);
+                break;
+                
+            case "22":
+                // OSC 22: Push title onto stack
+                // Format: OSC 22 ; Pt ST or OSC 22 ; 0 ST or OSC 22 ; 1 ST or OSC 22 ; 2 ST
+                // If Pt is "0", "1", or "2", it indicates which to push (icon, title, or both)
+                // For simplicity, we push both (XTerm behavior)
+                PushTitleStack(payload);
+                break;
+                
+            case "23":
+                // OSC 23: Pop title from stack
+                // Format: OSC 23 ; Pt ST
+                // Similar to 22, Pt can specify which to pop
+                PopTitleStack(payload);
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Processes OSC 8 hyperlink sequences.
+    /// </summary>
+    private void ProcessOsc8Hyperlink(string parameters, string payload)
+    {
+        // Empty payload means end of hyperlink
+        if (string.IsNullOrEmpty(payload))
+        {
+            // Release current hyperlink if any
+            if (_currentHyperlink is not null)
+            {
+                _currentHyperlink.Release();
+                _currentHyperlink = null;
             }
         }
-        // Other OSC commands can be added here in the future
+        else
+        {
+            // Start a new hyperlink
+            // Release any previous hyperlink first
+            if (_currentHyperlink is not null)
+            {
+                _currentHyperlink.Release();
+            }
+            
+            // Create or get existing hyperlink
+            _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(payload, parameters);
+        }
+    }
+    
+    /// <summary>
+    /// Sets the window title and fires the WindowTitleChanged event if changed.
+    /// </summary>
+    private void SetWindowTitle(string title)
+    {
+        if (_windowTitle != title)
+        {
+            _windowTitle = title;
+            WindowTitleChanged?.Invoke(title);
+        }
+    }
+    
+    /// <summary>
+    /// Sets the icon name and fires the IconNameChanged event if changed.
+    /// </summary>
+    private void SetIconName(string name)
+    {
+        if (_iconName != name)
+        {
+            _iconName = name;
+            IconNameChanged?.Invoke(name);
+        }
+    }
+    
+    /// <summary>
+    /// Pushes the current title and icon name onto the stack (OSC 22).
+    /// </summary>
+    /// <param name="payload">The payload from the OSC sequence. Can specify what to push:
+    /// "0" = icon name, "1" = window title, "2" or empty = both.
+    /// Can also contain a new title to set after pushing.</param>
+    private void PushTitleStack(string payload)
+    {
+        // XTerm behavior: push current state, then optionally set new values
+        // The payload can be:
+        // - Empty: push both
+        // - "0": push icon name only (but we still push both for simplicity)
+        // - "1": push title only (but we still push both for simplicity)  
+        // - "2": push both (explicit)
+        // - A string: push both, then set title to this string
+        
+        // Always push current state
+        _titleStack.Push((_windowTitle, _iconName));
+        
+        // If payload is not empty and not just a mode specifier, treat it as a new title
+        if (!string.IsNullOrEmpty(payload) && payload != "0" && payload != "1" && payload != "2")
+        {
+            // Set new title (some terminals support OSC 22 ; text ST to push and set)
+            SetWindowTitle(payload);
+            SetIconName(payload);
+        }
+    }
+    
+    /// <summary>
+    /// Pops the title and icon name from the stack (OSC 23).
+    /// </summary>
+    /// <param name="payload">The payload from the OSC sequence. Can specify what to pop:
+    /// "0" = icon name, "1" = window title, "2" or empty = both.</param>
+    private void PopTitleStack(string payload)
+    {
+        if (_titleStack.Count == 0)
+        {
+            // Nothing to pop - some terminals reset to default, we just ignore
+            return;
+        }
+        
+        var (savedTitle, savedIconName) = _titleStack.Pop();
+        
+        // Restore based on payload (for simplicity, we always restore both)
+        // payload "0" = restore icon only, "1" = restore title only, "2" or empty = both
+        SetWindowTitle(savedTitle);
+        SetIconName(savedIconName);
     }
 
     // === Static Input Parsing Helpers ===
@@ -3016,6 +3429,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen
             await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);

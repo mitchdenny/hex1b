@@ -426,7 +426,9 @@ public class ToggleSwitchNodeTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -434,9 +436,9 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(terminal.CreateSnapshot().ContainsText("Manual"));
-        Assert.True(terminal.CreateSnapshot().ContainsText("Auto"));
-        Assert.True(terminal.CreateSnapshot().ContainsText("Delayed"));
+        Assert.True(snapshot.ContainsText("Manual"));
+        Assert.True(snapshot.ContainsText("Auto"));
+        Assert.True(snapshot.ContainsText("Delayed"));
     }
 
     [Fact]

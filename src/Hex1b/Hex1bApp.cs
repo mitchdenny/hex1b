@@ -57,6 +57,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     // Hover tracking
     private Hex1bNode? _hoveredNode;
     
+    // Cursor state tracking for mouse cursor rendering - only update when changed
+    private int _lastRenderedCursorX = -1;
+    private int _lastRenderedCursorY = -1;
+    private CursorShape _lastRenderedCursorShape = CursorShape.Default;
+    private bool _lastRenderedCursorVisible = false;
+    private Hex1bNode? _lastRenderedCursorNode;
+    
     // Click tracking for double/triple click detection
     private DateTime _lastClickTime;
     private int _lastClickX = -1;
@@ -97,6 +104,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Stop request flag - set by InputBindingActionContext.RequestStop()
     private volatile bool _stopRequested;
+    
+    // Pending focus request - will be processed after next render
+    private Func<Hex1bNode, bool>? _pendingFocusPredicate;
     
     // Default CTRL-C binding option
     private readonly bool _enableDefaultCtrlCExit;
@@ -197,6 +207,39 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Also signal invalidation to wake up the main loop immediately
         Invalidate();
     }
+    
+    /// <summary>
+    /// Captures all input to the specified node.
+    /// </summary>
+    /// <param name="node">The node to capture input to.</param>
+    /// <remarks>
+    /// <para>
+    /// When a node captures input, it receives all keyboard and mouse events directly,
+    /// bypassing normal binding lookup. This is used by embedded terminals and other
+    /// controls that need raw input.
+    /// </para>
+    /// <para>
+    /// Only bindings marked with <see cref="InputBinding.OverridesCapture"/> will be
+    /// checked before the captured node receives input. Global bindings always override capture.
+    /// </para>
+    /// </remarks>
+    public void CaptureInput(Hex1bNode node)
+    {
+        _focusRing.CaptureInput(node);
+    }
+    
+    /// <summary>
+    /// Releases input capture, returning to normal input routing.
+    /// </summary>
+    public void ReleaseCapture()
+    {
+        _focusRing.ReleaseCapture();
+    }
+    
+    /// <summary>
+    /// Gets the node that has captured all input, or null if no capture is active.
+    /// </summary>
+    public Hex1bNode? CapturedNode => _focusRing.CapturedNode;
 
     /// <summary>
     /// Gets the currently focused node, or null if no node has focus.
@@ -215,6 +258,42 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Useful for testing focus navigation.
     /// </summary>
     public string? LastFocusChange => _focusRing.LastFocusChange;
+
+    /// <summary>
+    /// Focuses the first node in the focus ring that matches the given predicate.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <returns>True if a matching node was found and focused, false otherwise.</returns>
+    /// <remarks>
+    /// This is useful for programmatically setting focus, for example after creating a new
+    /// focusable widget. The focus ring is rebuilt after each render, so this should be called
+    /// after the app has rendered at least once with the target widget present.
+    /// </remarks>
+    public bool FocusWhere(Func<Hex1bNode, bool> predicate)
+    {
+        return _focusRing.FocusWhere(predicate);
+    }
+
+    /// <summary>
+    /// Requests that focus be set to the first node matching the predicate after the next render.
+    /// </summary>
+    /// <param name="predicate">A function that returns true for the node to focus.</param>
+    /// <remarks>
+    /// <para>
+    /// This is useful when adding a new focusable widget and wanting to focus it immediately.
+    /// Since the node doesn't exist in the focus ring until after the render cycle, calling
+    /// <see cref="FocusWhere"/> directly won't work. Instead, use this method to queue the
+    /// focus request, then call <see cref="Invalidate"/> to trigger a render.
+    /// </para>
+    /// <para>
+    /// After the render completes and the focus ring is rebuilt, the pending focus request
+    /// will be processed before <c>EnsureFocus()</c> is called.
+    /// </para>
+    /// </remarks>
+    public void RequestFocus(Func<Hex1bNode, bool> predicate)
+    {
+        _pendingFocusPredicate = predicate;
+    }
 
     /// <summary>
     /// Gets the last path debug info from input routing.
@@ -260,16 +339,21 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
                 // Wait for either an input event or an invalidation signal
-                var inputTask = _adapter.InputEvents.ReadAsync(cancellationToken).AsTask();
-                var invalidateTask = _invalidateChannel.Reader.ReadAsync(cancellationToken).AsTask();
+                // Use WaitToReadAsync instead of ReadAsync to avoid ValueTask/Task.WhenAny issues
+                // where ReadAsync().AsTask() continuations weren't being scheduled reliably
+                var inputWaitTask = _adapter.InputEvents.WaitToReadAsync(cancellationToken).AsTask();
+                var invalidateWaitTask = _invalidateChannel.Reader.WaitToReadAsync(cancellationToken).AsTask();
                 
-                var completedTask = await Task.WhenAny(inputTask, invalidateTask);
+                var completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask);
                 
-                if (completedTask == inputTask)
+                // Now read whichever channel(s) have data
+                if (completedTask == inputWaitTask && await inputWaitTask)
                 {
-                    // Process the first input event
-                    var inputEvent = await inputTask;
-                    await ProcessInputEventAsync(inputEvent, cancellationToken);
+                    // Input is available - read and process it
+                    if (_adapter.InputEvents.TryRead(out var inputEvent))
+                    {
+                        await ProcessInputEventAsync(inputEvent, cancellationToken);
+                    }
                     
                     // Input coalescing: batch rapid inputs together before rendering
                     // This prevents back pressure from rapid input (key repeats, mouse moves)
@@ -292,11 +376,43 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                                 break;
                         }
                     }
+                    
+                    // Consume invalidation if it also completed
+                    if (invalidateWaitTask.IsCompleted && await invalidateWaitTask)
+                    {
+                        _invalidateChannel.Reader.TryRead(out _);
+                    }
                 }
-                // If invalidateTask completed, we just need to re-render (no input to handle)
+                else if (completedTask == invalidateWaitTask && await invalidateWaitTask)
+                {
+                    // Invalidation signaled - consume the item
+                    _invalidateChannel.Reader.TryRead(out _);
+                }
+                // If neither had data (shouldn't happen), just continue
 
                 // Re-render after handling ALL input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
+                
+                // IMPORTANT: Handle race condition where output arrived during render.
+                // If invalidation was signaled while we were rendering, we need to re-render
+                // before blocking on WhenAny, otherwise content may not appear until next input.
+                // We use TryRead to check non-blocking - if nothing pending, we fall through
+                // to WhenAny which will block efficiently.
+                while (_invalidateChannel.Reader.TryRead(out _))
+                {
+                    // Process any pending input before each re-render to prevent starvation
+                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                    {
+                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
+                        if (_stopRequested || cancellationToken.IsCancellationRequested)
+                            break;
+                    }
+                    
+                    if (_stopRequested || cancellationToken.IsCancellationRequested)
+                        break;
+                        
+                    await RenderFrameAsync(cancellationToken);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -373,6 +489,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 if (mouseEvent.Action == MouseAction.Down && mouseEvent.Button != MouseButton.None)
                 {
                     await HandleMouseClickAsync(mouseEvent, cancellationToken);
+                }
+                // Route other mouse events through InputRouter (for nodes that capture all input)
+                else if (_rootNode != null)
+                {
+                    await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
+                        RequestStop, cancellationToken, CopyToClipboard);
                 }
                 break;
         }
@@ -455,56 +577,70 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
 
         // Step 5: Rebuild focus ring from the current node tree
         _focusRing.Rebuild(_rootNode);
+        
+        // Step 5.5: Process any pending focus request
+        if (_pendingFocusPredicate != null)
+        {
+            _focusRing.FocusWhere(_pendingFocusPredicate);
+            _pendingFocusPredicate = null;
+        }
+        
         _focusRing.EnsureFocus();
 
         // Step 6: Update render context with mouse position for hover rendering
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
 
-        // Step 6.5: Hide cursor during rendering to prevent flicker
-        if (_mouseEnabled)
+        // Check if anything needs rendering before doing expensive output operations
+        var needsRender = _isFirstFrame || (_rootNode?.NeedsRender() ?? false);
+        
+        // Step 6.5-9: Only do render output if something actually changed
+        if (needsRender)
         {
-            _context.Write("\x1b[?25l"); // Hide cursor
-        }
+            // Hide cursor during rendering to prevent flicker
+            if (_mouseEnabled)
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
 
-        // Step 6.6: Begin frame buffering - all changes from here until EndFrame
-        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
-        _context.BeginFrame();
+            // Begin frame buffering - all changes from here until EndFrame
+            // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
+            _context.BeginFrame();
 
-        // Step 7: Clear dirty regions (instead of global clear to reduce flicker)
-        // On first frame or when root is new, do a full clear
-        if (_isFirstFrame)
-        {
-            _context.Clear();
-            _isFirstFrame = false;
+            // Clear dirty regions (instead of global clear to reduce flicker)
+            // On first frame or when root is new, do a full clear
+            if (_isFirstFrame)
+            {
+                _context.Clear();
+                _isFirstFrame = false;
+            }
+            else if (_rootNode != null)
+            {
+                ClearDirtyRegions(_rootNode);
+            }
+            
+            // Render the node tree to the terminal (only dirty nodes)
+            if (_rootNode != null)
+            {
+                RenderTree(_rootNode);
+            }
+            
+            // End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
+            // the net changes (e.g., clear + re-render same content = no output)
+            _context.EndFrame();
+            
+            // Clear dirty flags on all nodes (they've been rendered)
+            // Nodes with async content (like TerminalNode) may override ClearDirty()
+            // to keep themselves dirty if new content arrived during the render frame.
+            if (_rootNode != null)
+            {
+                ClearDirtyFlags(_rootNode);
+            }
         }
-        else if (_rootNode != null)
-        {
-            ClearDirtyRegions(_rootNode);
-        }
         
-        // Step 8: Render the node tree to the terminal (only dirty nodes)
-        if (_rootNode != null)
-        {
-            RenderTree(_rootNode);
-        }
-        
-        // Step 9: End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
-        // the net changes (e.g., clear + re-render same content = no output)
-        _context.EndFrame();
-        
-        // Step 9.5: Ensure cursor is hidden after rendering to prevent it showing at last write position
-        _context.Write("\x1b[?25l");
-        
-        // Step 9.6: Render mouse cursor overlay if enabled (after hiding default cursor)
-        // This positions and shows the cursor at the mouse location
-        RenderMouseCursor();
-        
-        // Step 10: Clear dirty flags on all nodes (they've been rendered)
-        if (_rootNode != null)
-        {
-            ClearDirtyFlags(_rootNode);
-        }
+        // Render hardware cursor - for focused TerminalNode uses child's cursor,
+        // otherwise uses mouse position if mouse cursor is enabled
+        RenderCursor();
     }
     
     /// <summary>
@@ -747,24 +883,97 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Renders the mouse cursor overlay at the current mouse position.
+    /// Renders the hardware cursor at the appropriate position.
+    /// For focused TerminalNode: uses child terminal's cursor position/shape/visibility.
+    /// For other nodes: uses mouse position if mouse cursor is enabled.
+    /// Only emits cursor updates when position or shape has changed to reduce flicker.
     /// </summary>
-    private void RenderMouseCursor()
+    private void RenderCursor()
     {
+        // Check if a TerminalNode is focused - if so, use its cursor
+        var focusedNode = _focusRing.FocusedNode;
+        if (focusedNode is Nodes.TerminalNode terminalNode && terminalNode.Handle != null)
+        {
+            var handle = terminalNode.Handle;
+            
+            // Translate child cursor position to screen coordinates
+            var screenCursorX = terminalNode.Bounds.X + handle.CursorX;
+            var screenCursorY = terminalNode.Bounds.Y + handle.CursorY;
+            var shape = handle.CursorShape;
+            var visible = handle.CursorVisible;
+            
+            // Check if anything changed (including which node is focused)
+            if (screenCursorX == _lastRenderedCursorX && 
+                screenCursorY == _lastRenderedCursorY && 
+                shape == _lastRenderedCursorShape &&
+                visible == _lastRenderedCursorVisible &&
+                ReferenceEquals(focusedNode, _lastRenderedCursorNode))
+            {
+                return;
+            }
+            
+            // Update tracking state
+            _lastRenderedCursorX = screenCursorX;
+            _lastRenderedCursorY = screenCursorY;
+            _lastRenderedCursorShape = shape;
+            _lastRenderedCursorVisible = visible;
+            _lastRenderedCursorNode = focusedNode;
+            
+            if (visible && 
+                screenCursorX >= 0 && screenCursorX < _context.Width &&
+                screenCursorY >= 0 && screenCursorY < _context.Height)
+            {
+                _context.SetCursorPosition(screenCursorX, screenCursorY);
+                _context.Write("\x1b[?25h"); // Show cursor
+                WriteCursorShape(shape);
+            }
+            else
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
+            return;
+        }
+        
+        // Fall back to mouse cursor behavior for non-terminal nodes
         if (!_mouseEnabled || _mouseX < 0 || _mouseY < 0) return;
         if (_mouseX >= _context.Width || _mouseY >= _context.Height) return;
         
         var showCursor = _context.Theme.Get(MouseTheme.ShowCursor);
         if (!showCursor) return;
         
+        // Determine the cursor shape based on the node at cursor position
+        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
+        var mouseShape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        
+        // Check if anything changed - if not, skip the update to reduce flicker
+        // Also check that we're not switching from terminal cursor to mouse cursor
+        if (_mouseX == _lastRenderedCursorX && 
+            _mouseY == _lastRenderedCursorY && 
+            mouseShape == _lastRenderedCursorShape &&
+            _lastRenderedCursorVisible &&
+            _lastRenderedCursorNode == null)
+        {
+            return;
+        }
+        
+        // Update tracking state
+        _lastRenderedCursorX = _mouseX;
+        _lastRenderedCursorY = _mouseY;
+        _lastRenderedCursorShape = mouseShape;
+        _lastRenderedCursorVisible = true;
+        _lastRenderedCursorNode = null;
+        
         // Use the terminal's native cursor - just position it and show it
-        // This avoids overwriting cell content and eliminates flicker
         _context.SetCursorPosition(_mouseX, _mouseY);
         _context.Write("\x1b[?25h"); // Show cursor
-        
-        // Set cursor shape based on the node's preferred cursor
-        var nodeAtCursor = FindNodeAt(_rootNode, _mouseX, _mouseY);
-        var shape = nodeAtCursor?.PreferredCursorShape ?? CursorShape.Default;
+        WriteCursorShape(mouseShape);
+    }
+    
+    /// <summary>
+    /// Writes the escape sequence to set the cursor shape.
+    /// </summary>
+    private void WriteCursorShape(CursorShape shape)
+    {
         var cursorEscape = shape switch
         {
             CursorShape.BlinkingBlock => "\x1b[1 q",
@@ -936,7 +1145,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
 
         // Create the root reconcile context
-        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken);
+        var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
+            CaptureInput, ReleaseCapture);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
         // Delegate to the widget's own ReconcileAsync method

@@ -639,6 +639,40 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures the terminal to use a <see cref="TerminalWidgetHandle"/> as the presentation adapter.
+    /// This allows embedding the terminal output within a TUI application using <see cref="Widgets.TerminalWidget"/>.
+    /// </summary>
+    /// <param name="handle">When this method returns, contains the handle that can be passed to <c>ctx.Terminal(...)</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// The handle maintains a screen buffer that is updated as the terminal produces output.
+    /// When the TerminalWidget is mounted in a Hex1bApp, it renders from this buffer.
+    /// When the widget is unmounted (e.g., navigated away), the buffer continues to be updated.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithTerminalWidget(out var bashHandle)
+    ///     .Build();
+    /// 
+    /// _ = terminal.RunAsync(appCt);
+    /// 
+    /// // In widget tree:
+    /// ctx.Terminal(bashHandle);
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithTerminalWidget(out TerminalWidgetHandle handle)
+    {
+        handle = new TerminalWidgetHandle(_width, _height);
+        var capturedHandle = handle; // Capture for lambda
+        _presentationFactory = _ => capturedHandle;
+        return this;
+    }
+
+    /// <summary>
     /// Adds a workload filter to the terminal.
     /// </summary>
     /// <param name="filter">The filter to add.</param>
@@ -646,6 +680,38 @@ public sealed class Hex1bTerminalBuilder
     public Hex1bTerminalBuilder AddWorkloadFilter(IHex1bTerminalWorkloadFilter filter)
     {
         _workloadFilters.Add(filter ?? throw new ArgumentNullException(nameof(filter)));
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a workload logging filter that writes all workload data to a file.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is useful for debugging terminal issues by capturing timestamped logs of:
+    /// <list type="bullet">
+    ///   <item>Output FROM the workload (what the terminal is receiving)</item>
+    ///   <item>Input TO the workload (keystrokes, mouse events)</item>
+    ///   <item>Resize events</item>
+    ///   <item>Frame boundaries</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="filePath">Path to the log file.</param>
+    /// <param name="includeHexDump">Whether to include hex dumps of raw bytes. Default true.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithWorkloadLogging("/tmp/terminal.log")
+    ///     .WithProcess("bash")
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithWorkloadLogging(string filePath, bool includeHexDump = true)
+    {
+        var filter = new WorkloadLoggingFilter(filePath, includeHexDump);
+        _workloadFilters.Add(filter);
         return this;
     }
 

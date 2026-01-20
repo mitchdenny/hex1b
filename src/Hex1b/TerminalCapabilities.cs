@@ -38,6 +38,24 @@ public record TerminalCapabilities
     public bool SupportsAlternateScreen { get; init; }
     
     /// <summary>
+    /// Whether the presentation adapter handles alternate screen buffer save/restore natively.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When true, the upstream terminal (e.g., xterm, iTerm) handles the actual buffer
+    /// save/restore when it receives escape sequences like <c>\x1b[?1049h/l</c>.
+    /// Hex1bTerminal will still maintain its internal buffer for snapshots, but the
+    /// primary responsibility for restoring content lies with the presentation layer.
+    /// </para>
+    /// <para>
+    /// When false (default), Hex1bTerminal must fully emulate alternate screen behavior,
+    /// saving and restoring its internal buffer when processing mode 1049.
+    /// This is required for headless mode, embedded terminals, and WebSocket adapters.
+    /// </para>
+    /// </remarks>
+    public bool HandlesAlternateScreenNatively { get; init; }
+    
+    /// <summary>
     /// Presentation supports bracketed paste mode.
     /// </summary>
     public bool SupportsBracketedPaste { get; init; }
@@ -85,6 +103,7 @@ public record TerminalCapabilities
         SupportsTrueColor = true,
         Supports256Colors = true,
         SupportsAlternateScreen = true,
+        HandlesAlternateScreenNatively = true,  // Real terminals handle buffer switching
         SupportsBracketedPaste = true,
         CellPixelWidth = 10,
         CellPixelHeight = 20

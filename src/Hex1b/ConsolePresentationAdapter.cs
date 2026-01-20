@@ -68,6 +68,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         SupportsTrueColor = true,
         Supports256Colors = true,
         SupportsAlternateScreen = true,
+        HandlesAlternateScreenNatively = true,  // Real upstream terminal handles buffer switching
         SupportsBracketedPaste = true  // Raw mode can handle this
     };
 

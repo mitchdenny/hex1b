@@ -49,7 +49,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -57,7 +57,7 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
+        Assert.True(snapshot.ContainsText("Hello World"));
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class Hex1bAppIntegrationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -183,9 +183,9 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 1"));
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 2"));
-        Assert.True(terminal.CreateSnapshot().ContainsText("Line 3"));
+        Assert.True(snapshot.ContainsText("Line 1"));
+        Assert.True(snapshot.ContainsText("Line 2"));
+        Assert.True(snapshot.ContainsText("Line 3"));
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public class Hex1bAppIntegrationTests
 
         // Click the button twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
             .Enter()
             .Enter()
@@ -302,7 +302,7 @@ public class Hex1bAppIntegrationTests
         
         Assert.Equal(2, counter);
         // The last render should show the updated count
-        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 2"));
+        Assert.True(snapshot.ContainsText("Count: 2"));
     }
 
     [Fact]

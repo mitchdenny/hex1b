@@ -30,6 +30,13 @@ public sealed class InputBinding
     /// Global bindings are checked before focus-based routing.
     /// </summary>
     public bool IsGlobal { get; }
+    
+    /// <summary>
+    /// Whether this binding overrides input capture.
+    /// When true, this binding is checked even when another node has captured all input.
+    /// Use this for menu accelerators and other app-level shortcuts that should always work.
+    /// </summary>
+    public bool OverridesCapture { get; internal set; }
 
     /// <summary>
     /// The node that owns this binding (for conflict detection and debugging).

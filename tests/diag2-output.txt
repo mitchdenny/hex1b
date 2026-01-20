@@ -1,0 +1,10 @@
+Test run for /home/midenn/Code/hex1b/tests/Hex1b.Tests/bin/Debug/net10.0/Hex1b.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+/home/midenn/Code/hex1b/tests/Hex1b.Tests/bin/Debug/net10.0/Hex1b.Tests.dll
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.1)
+[xUnit.net 00:00:00.11]   Discovering: Hex1b.Tests
+[xUnit.net 00:00:00.46]   Discovered:  Hex1b.Tests
+[xUnit.net 00:00:00.56]   Starting:    Hex1b.Tests

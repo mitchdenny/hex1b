@@ -967,6 +967,96 @@ public class MenuBarIntegrationTests
         Assert.NotEqual("File > Save As", lastAction);
     }
     
+    [Fact]
+    public async Task Menu_OnlyDisabledItems_UpArrowClosesMenu()
+    {
+        // Arrange - Menu with only a disabled item (like "No terminals" in EmbeddedTerminalDemo)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                ctx.MenuBar(m => [
+                    m.Menu("File", m => [
+                        m.MenuItem("New"),
+                        m.MenuItem("Quit")
+                    ]),
+                    m.Menu("Empty", m => [
+                        m.MenuItem("(No items)").Disabled()
+                    ]),
+                    m.Menu("Help", m => [
+                        m.MenuItem("About")
+                    ])
+                ]),
+                ctx.Text("Content")
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Navigate to Empty menu, open it, then press Up to close
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var capture = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Right()  // Focus Empty menu
+            .Enter()  // Open Empty menu
+            .WaitUntil(s => s.ContainsText("(No items)"), TimeSpan.FromSeconds(2), "Empty menu to open")
+            .Up()     // Should close the menu (since we're on the first/only item)
+            .Wait(100)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Menu should be closed (no "No items" text visible)
+        Assert.False(capture.ContainsText("(No items)"), 
+            $"Menu should have closed after Up arrow. Screen contents:\n{capture.GetText()}");
+    }
+    
+    [Fact]
+    public async Task Menu_OnlyDisabledItems_LeftArrowNavigatesToPreviousMenu()
+    {
+        // Arrange - Menu with only a disabled item
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                ctx.MenuBar(m => [
+                    m.Menu("File", m => [
+                        m.MenuItem("New"),
+                        m.MenuItem("Quit")
+                    ]),
+                    m.Menu("Empty", m => [
+                        m.MenuItem("(No items)").Disabled()
+                    ]),
+                    m.Menu("Help", m => [
+                        m.MenuItem("About")
+                    ])
+                ]),
+                ctx.Text("Content")
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Navigate to Empty menu, open it, then press Left to navigate to File menu
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var capture = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "menu bar to render")
+            .Right()  // Focus Empty menu
+            .Enter()  // Open Empty menu
+            .WaitUntil(s => s.ContainsText("(No items)"), TimeSpan.FromSeconds(2), "Empty menu to open")
+            .Left()   // Should navigate to File menu
+            .WaitUntil(s => s.ContainsText("New") && s.ContainsText("Quit"), TimeSpan.FromSeconds(2), "File menu to open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Should now be in File menu
+        Assert.True(capture.ContainsText("New"), 
+            $"Should have navigated to File menu. Screen contents:\n{capture.GetText()}");
+    }
+    
     #endregion
     
     #region Focus Restoration

@@ -262,6 +262,30 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
         
         ChildNodes = newChildren;
         
+        // Check if there are any focusable items (non-disabled menu items or submenus)
+        var hasFocusableItems = ChildNodes.Any(n => n is MenuItemNode { IsDisabled: false } or MenuNode);
+        
+        // If no focusable items, make the first available child focusable as a fallback
+        // This allows the user to navigate out of the menu using arrow keys
+        // Priority: separator first (visual divider is obvious), then disabled item
+        if (!hasFocusableItems)
+        {
+            var firstSeparator = ChildNodes.OfType<MenuSeparatorNode>().FirstOrDefault();
+            if (firstSeparator != null)
+            {
+                firstSeparator.IsFallbackFocusable = true;
+            }
+            else
+            {
+                // No separator, try disabled menu items
+                var firstDisabledItem = ChildNodes.OfType<MenuItemNode>().FirstOrDefault(n => n.IsDisabled);
+                if (firstDisabledItem != null)
+                {
+                    firstDisabledItem.IsFallbackFocusable = true;
+                }
+            }
+        }
+        
         // Focus will be set by the popup opening mechanism through the FocusRing
     }
     

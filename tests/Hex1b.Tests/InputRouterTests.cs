@@ -15,7 +15,7 @@ public class InputRouterTests
         private bool _isFocused;
         public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
         
-        public List<Hex1bKeyEvent> ReceivedInputs { get; } = new();
+        public List<Hex1bEvent> ReceivedInputs { get; } = new();
         
         // Action to configure bindings for this node
         public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
@@ -28,9 +28,9 @@ public class InputRouterTests
         public override Size Measure(Layout.Constraints constraints) => new Size(10, 1);
         public override void Render(Hex1bRenderContext context) { }
         
-        public override InputResult HandleInput(Hex1bKeyEvent keyEvent)
+        public override InputResult HandleInput(Hex1bEvent inputEvent)
         {
-            ReceivedInputs.Add(keyEvent);
+            ReceivedInputs.Add(inputEvent);
             return InputResult.Handled;
         }
     }
@@ -89,7 +89,8 @@ public class InputRouterTests
         // Assert
         Assert.Equal(InputResult.Handled, result);
         Assert.Single(focusedNode.ReceivedInputs);
-        Assert.Equal(Hex1bKey.A, focusedNode.ReceivedInputs[0].Key);
+        var receivedKeyEvent = Assert.IsType<Hex1bKeyEvent>(focusedNode.ReceivedInputs[0]);
+        Assert.Equal(Hex1bKey.A, receivedKeyEvent.Key);
     }
 
     [Fact]
