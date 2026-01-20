@@ -411,13 +411,18 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     private void RenderAsBarItem(Hex1bRenderContext context, Hex1bTheme theme, string resetToGlobal)
     {
         var text = $" {Label} ";
+        var accelUnderline = theme.Get(MenuBarTheme.AcceleratorUnderline);
+        
+        // Adjust accelerator index for the leading space
+        var adjustedIndex = AcceleratorIndex >= 0 ? AcceleratorIndex + 1 : -1;
         
         // Show focused styling when: focused (keyboard nav), selected, or open
         if (IsFocused || IsSelected || IsOpen)
         {
             var fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(text, adjustedIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else if (IsHovered)
@@ -425,7 +430,8 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             // Hovered: subtle gray highlight
             var fg = theme.Get(MenuBarTheme.HoveredForegroundColor);
             var bg = theme.Get(MenuBarTheme.HoveredBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(text, adjustedIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else
@@ -435,10 +441,7 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             var bg = theme.Get(MenuBarTheme.BackgroundColor);
             var accelFg = theme.Get(MenuBarTheme.AcceleratorForegroundColor);
             var accelBg = theme.Get(MenuBarTheme.AcceleratorBackgroundColor);
-            var accelUnderline = theme.Get(MenuBarTheme.AcceleratorUnderline);
             
-            // Adjust accelerator index for the leading space
-            var adjustedIndex = AcceleratorIndex >= 0 ? AcceleratorIndex + 1 : -1;
             var output = RenderWithAccelerator(text, adjustedIndex, fg, bg, accelFg, accelBg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
@@ -452,20 +455,23 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         // Format: "Label" + padding + indicator
         var labelWithIndicator = Label + indicator;
         var paddedLabel = labelWithIndicator.PadRight(width);
+        var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
         
         // Use IsSelected for styling in submenus (focus navigates, selection highlights)
         if (IsSelected || IsFocused)
         {
             var fg = theme.Get(MenuItemTheme.FocusedForegroundColor);
             var bg = theme.Get(MenuItemTheme.FocusedBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else if (IsHovered)
         {
             var fg = theme.Get(MenuItemTheme.HoveredForegroundColor);
             var bg = theme.Get(MenuItemTheme.HoveredBackgroundColor);
-            var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{paddedLabel}{resetToGlobal}";
+            // Use same colors for accelerator, but apply underline
+            var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, fg, bg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);
         }
         else
@@ -475,7 +481,6 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             var bg = theme.Get(MenuItemTheme.BackgroundColor);
             var accelFg = theme.Get(MenuItemTheme.AcceleratorForegroundColor);
             var accelBg = theme.Get(MenuItemTheme.AcceleratorBackgroundColor);
-            var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
             
             var output = RenderWithAccelerator(paddedLabel, AcceleratorIndex, fg, bg, accelFg, accelBg, accelUnderline, resetToGlobal);
             WriteOutput(context, output);

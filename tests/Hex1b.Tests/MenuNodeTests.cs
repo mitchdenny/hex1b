@@ -2,6 +2,7 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -548,4 +549,357 @@ public class MenuNodeTests
         Assert.True(menu1.IsFocused, "menu1 should be focused");
         Assert.False(menu2.IsFocused, "menu2 should not be focused");
     }
+    
+    #region Accelerator Underline Rendering Tests
+    
+    /// <summary>
+    /// Simple synchronous test terminal that directly calls ApplyTokens.
+    /// </summary>
+    private sealed class TestTerminal : IDisposable
+    {
+        private readonly StreamWorkloadAdapter _workload;
+
+        public Hex1bTerminal Terminal { get; }
+
+        public TestTerminal(int width, int height)
+        {
+            _workload = StreamWorkloadAdapter.CreateHeadless(width, height);
+            Terminal = Hex1bTerminal.CreateBuilder().WithWorkload(_workload).WithHeadless().WithDimensions(width, height).Build();
+        }
+
+        public void Dispose()
+        {
+            Terminal.Dispose();
+            _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
+    
+    /// <summary>
+    /// Finds the first cell matching the specified character that has the underline attribute.
+    /// </summary>
+    private static bool HasCellWithUnderline(Hex1bTerminalSnapshot snapshot, char c)
+    {
+        var target = c.ToString();
+        for (int y = 0; y < snapshot.Height; y++)
+        {
+            for (int x = 0; x < snapshot.Width; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (cell.Character == target && (cell.Attributes & CellAttributes.Underline) != 0)
+                    return true;
+            }
+        }
+        return false;
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_Normal_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Accelerator = 'F',
+            AcceleratorIndex = 0,
+            Parent = menuBar,
+            IsFocused = false,
+            IsSelected = false,
+            IsOpen = false
+        };
+        menuBar.MenuNodes = [menuNode];
+        menuNode.Arrange(new Rect(0, 0, 6, 1));
+        
+        // Act
+        menuNode.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'F' should be underlined
+        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined in normal state");
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_Focused_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Accelerator = 'F',
+            AcceleratorIndex = 0,
+            Parent = menuBar,
+            IsFocused = true,
+            IsSelected = false,
+            IsOpen = false
+        };
+        menuBar.MenuNodes = [menuNode];
+        menuNode.Arrange(new Rect(0, 0, 6, 1));
+        
+        // Act
+        menuNode.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'F' should still be underlined when focused
+        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when focused");
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_Selected_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Accelerator = 'F',
+            AcceleratorIndex = 0,
+            Parent = menuBar,
+            IsFocused = false,
+            IsSelected = true,
+            IsOpen = false
+        };
+        menuBar.MenuNodes = [menuNode];
+        menuNode.Arrange(new Rect(0, 0, 6, 1));
+        
+        // Act
+        menuNode.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'F' should still be underlined when selected
+        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when selected");
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_Hovered_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Accelerator = 'F',
+            AcceleratorIndex = 0,
+            Parent = menuBar,
+            IsFocused = false,
+            IsSelected = false,
+            IsOpen = false,
+            IsHovered = true
+        };
+        menuBar.MenuNodes = [menuNode];
+        menuNode.Arrange(new Rect(0, 0, 6, 1));
+        
+        // Act
+        menuNode.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'F' should still be underlined when hovered
+        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when hovered");
+    }
+    
+    [Fact]
+    public async Task MenuNode_InMenuBar_Open_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuBar = new MenuBarNode();
+        var menuNode = new MenuNode
+        {
+            Label = "File",
+            Children = [],
+            ChildAccelerators = [],
+            Accelerator = 'F',
+            AcceleratorIndex = 0,
+            Parent = menuBar,
+            IsFocused = false,
+            IsSelected = false,
+            IsOpen = true
+        };
+        menuBar.MenuNodes = [menuNode];
+        menuNode.Arrange(new Rect(0, 0, 6, 1));
+        
+        // Act
+        menuNode.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'F' should still be underlined when open
+        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when open");
+    }
+    
+    [Fact]
+    public async Task MenuItemNode_Normal_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuItem = new MenuItemNode
+        {
+            Label = "Open",
+            Accelerator = 'O',
+            AcceleratorIndex = 0,
+            RenderWidth = 10,
+            IsFocused = false,
+            IsHovered = false,
+            IsDisabled = false
+        };
+        menuItem.Arrange(new Rect(0, 0, 10, 1));
+        
+        // Act
+        menuItem.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'O' should be underlined
+        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined in normal state");
+    }
+    
+    [Fact]
+    public async Task MenuItemNode_Focused_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuItem = new MenuItemNode
+        {
+            Label = "Open",
+            Accelerator = 'O',
+            AcceleratorIndex = 0,
+            RenderWidth = 10,
+            IsFocused = true,
+            IsHovered = false,
+            IsDisabled = false
+        };
+        menuItem.Arrange(new Rect(0, 0, 10, 1));
+        
+        // Act
+        menuItem.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'O' should still be underlined when focused
+        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when focused");
+    }
+    
+    [Fact]
+    public async Task MenuItemNode_Hovered_ShowsAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuItem = new MenuItemNode
+        {
+            Label = "Open",
+            Accelerator = 'O',
+            AcceleratorIndex = 0,
+            RenderWidth = 10,
+            IsFocused = false,
+            IsHovered = true,
+            IsDisabled = false
+        };
+        menuItem.Arrange(new Rect(0, 0, 10, 1));
+        
+        // Act
+        menuItem.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'O' should still be underlined when hovered
+        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when hovered");
+    }
+    
+    [Fact]
+    public async Task MenuItemNode_Disabled_DoesNotShowAcceleratorUnderline()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        
+        var menuItem = new MenuItemNode
+        {
+            Label = "Open",
+            Accelerator = 'O',
+            AcceleratorIndex = 0,
+            RenderWidth = 10,
+            IsFocused = false,
+            IsHovered = false,
+            IsDisabled = true
+        };
+        menuItem.Arrange(new Rect(0, 0, 10, 1));
+        
+        // Act
+        menuItem.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Assert - 'O' should NOT be underlined when disabled (accelerators are not available for disabled items)
+        Assert.False(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should NOT be underlined when disabled");
+    }
+    
+    #endregion
 }
