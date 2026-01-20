@@ -108,6 +108,9 @@ builder.Services.AddSingleton<IGalleryExample, ScrollInfiniteExample>();
 // Register Align widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, AlignDemoExample>();
 
+// Register Terminal widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, TerminalBasicExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
