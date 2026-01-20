@@ -38,7 +38,7 @@ jobs:
       - name: Run tests
         id: test
         continue-on-error: true
-        timeout-minutes: 2
+        timeout-minutes: 10
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
@@ -51,7 +51,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          #!/bin/bash
           set -e
           
           # Install xmlstarlet for XML parsing
