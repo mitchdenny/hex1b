@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename);
 const CONTENT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(CONTENT_DIR, 'public');
 const SITE_URL = 'https://hex1b.dev';
+const MAX_DESCRIPTION_LENGTH = 200;
 
 /**
  * Represents a documentation page with its metadata.
@@ -50,13 +51,26 @@ class DocPage {
 
 /**
  * Extracts the title from markdown content.
- * Looks for H1 header (# Title) or frontmatter title.
+ * Looks for H1 header (# Title), frontmatter title, or hero name.
  */
 function extractTitle(content, filePath) {
-    // Try frontmatter title first
-    const frontmatterMatch = content.match(/^---\n[\s\S]*?title:\s*["']?([^"'\n]+)["']?\n[\s\S]*?---/);
+    // Try frontmatter title first (frontmatter must be at the very start of the file)
+    // Format: ---\n...title: value...\n---
+    const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (frontmatterMatch) {
-        return frontmatterMatch[1].trim();
+        const frontmatter = frontmatterMatch[1];
+        
+        // Try title first
+        const titleMatch = frontmatter.match(/^title:\s*["']?([^"'\n]+)["']?$/m);
+        if (titleMatch) {
+            return titleMatch[1].trim();
+        }
+        
+        // Try hero.name for home page layout
+        const heroNameMatch = frontmatter.match(/^\s*name:\s*["']?([^"'\n]+)["']?$/m);
+        if (heroNameMatch) {
+            return heroNameMatch[1].trim();
+        }
     }
 
     // Try H1 header
@@ -75,10 +89,14 @@ function extractTitle(content, filePath) {
  * Looks for frontmatter description, hero tagline, or first paragraph.
  */
 function extractDescription(content) {
-    // Try frontmatter description
-    const frontmatterDescMatch = content.match(/^---\n[\s\S]*?description:\s*["']?([^"'\n]+)["']?\n[\s\S]*?---/);
-    if (frontmatterDescMatch) {
-        return frontmatterDescMatch[1].trim();
+    // Try frontmatter description first (frontmatter must be at the very start of the file)
+    const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (frontmatterMatch) {
+        const frontmatter = frontmatterMatch[1];
+        const descMatch = frontmatter.match(/^description:\s*["']?([^"'\n]+)["']?$/m);
+        if (descMatch) {
+            return descMatch[1].trim();
+        }
     }
 
     // Try hero tagline (for home page)
@@ -97,7 +115,7 @@ function extractDescription(content) {
         desc = desc.replace(/\*\*([^*]+)\*\*/g, '$1');
         desc = desc.replace(/\*([^*]+)\*/g, '$1');
         desc = desc.replace(/`([^`]+)`/g, '$1');
-        return desc.substring(0, 200);
+        return desc.substring(0, MAX_DESCRIPTION_LENGTH);
     }
 
     return '';
