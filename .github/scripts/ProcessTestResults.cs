@@ -76,7 +76,7 @@ foreach (var testName in failedTests)
     // Handle pagination for open issues
     var allOpenIssues = openResults.Items.ToList();
     var currentPage = 1;
-    while (openResults.IncompleteResults && allOpenIssues.Count < openResults.TotalCount)
+    while (allOpenIssues.Count < openResults.TotalCount)
     {
         currentPage++;
         openSearchRequest.Page = currentPage;
@@ -116,7 +116,7 @@ foreach (var testName in failedTests)
         // Handle pagination for closed issues
         var allClosedIssues = closedResults.Items.ToList();
         currentPage = 1;
-        while (closedResults.IncompleteResults && allClosedIssues.Count < closedResults.TotalCount)
+        while (allClosedIssues.Count < closedResults.TotalCount)
         {
             currentPage++;
             closedSearchRequest.Page = currentPage;

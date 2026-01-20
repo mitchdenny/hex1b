@@ -52,8 +52,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # Create a temporary project file for the script
-          cat > /tmp/ProcessTestResults.csproj << 'EOF'
+          # Create a temporary project directory
+          mkdir -p /tmp/process-test-results
+          cd /tmp/process-test-results
+          
+          # Create the project file
+          cat > ProcessTestResults.csproj << 'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
               <OutputType>Exe</OutputType>
@@ -67,8 +71,11 @@ jobs:
           </Project>
           EOF
           
-          # Copy the script to the temp location
-          cp .github/scripts/ProcessTestResults.cs /tmp/Program.cs
+          # Copy the script
+          cp $GITHUB_WORKSPACE/.github/scripts/ProcessTestResults.cs Program.cs
+          
+          # Copy TestResults to the temp directory
+          cp -r $GITHUB_WORKSPACE/TestResults ./TestResults
           
           # Run the script
-          cd /tmp && dotnet run
+          dotnet run
