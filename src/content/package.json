@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build --outDir dist",
+    "generate-seo": "node scripts/generate-seo-files.mjs",
+    "dev": "npm run generate-seo && vitepress dev",
+    "build": "npm run generate-seo && vitepress build --outDir dist",
     "preview": "vitepress preview"
   },
   "devDependencies": {
