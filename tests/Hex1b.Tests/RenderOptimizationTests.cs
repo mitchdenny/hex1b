@@ -134,7 +134,7 @@ public class RenderOptimizationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(2))
@@ -147,8 +147,7 @@ public class RenderOptimizationTests
         // The static widget should only render once (initial frame)
         Assert.Equal(1, staticRenderCount);
         
-        // Dynamic text should have updated (Initial + A + B = 3 frames before Ctrl+C)
-        Assert.True(snapshot.ContainsText("Counter: 3"));
+        // Dynamic text verified by WaitUntil above - "Counter: 3" was confirmed before Ctrl+C
     }
 
     [Fact]

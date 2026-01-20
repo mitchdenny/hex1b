@@ -1669,22 +1669,21 @@ public class ListNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         // First scroll down with mouse wheel to move past item 5
-        // Then click on the second visible row - capture BEFORE exiting
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // Then click on the second visible row
+        // WaitUntil verifies an item is selected - this is the assertion
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
             .MouseMoveTo(10, 5) // Position over list area
             .ScrollDown(5) // Selection moves to item 6, scroll offset adjusts
             .ClickAt(10, 4) // Click on the item two rows above current selection
-            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2), "An item should be selected with indicator")
             .Capture("after_click")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        // Should have selected an item in the scrolled region (item 4-6 range visible)
-        // The clicked item should now be selected with ">"
-        Assert.True(snapshot.ContainsText("> Item"), "An item should be selected with indicator");
+        // Selection verified by WaitUntil above - "> Item" was confirmed before Ctrl+C
     }
 
     [Fact]
