@@ -57,6 +57,18 @@ public sealed class ReconcileContext
     public LayoutAxis? LayoutAxis { get; private set; }
     
     /// <summary>
+    /// The index of this child within the parent container (if known).
+    /// Used by DrawerWidget for direction auto-detection.
+    /// </summary>
+    public int? ChildIndex { get; private set; }
+    
+    /// <summary>
+    /// The total number of children in the parent container (if known).
+    /// Used by DrawerWidget for direction auto-detection.
+    /// </summary>
+    public int? ChildCount { get; private set; }
+    
+    /// <summary>
     /// The cancellation token for the current render frame.
     /// Composite widgets that perform async work should observe this token.
     /// </summary>
@@ -115,6 +127,16 @@ public sealed class ReconcileContext
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback) { IsNew = IsNew };
+    }
+    
+    /// <summary>
+    /// Creates a new context with child position info for direction auto-detection.
+    /// Used by HStack and VStack when reconciling children.
+    /// </summary>
+    public ReconcileContext WithChildPosition(int index, int count)
+    {
+        return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
+            CaptureInputCallback, ReleaseCaptureCallback) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
     }
 
     /// <summary>
