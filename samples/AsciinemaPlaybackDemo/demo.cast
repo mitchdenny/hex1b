@@ -1,0 +1,12 @@
+{"version":2,"width":80,"height":24,"timestamp":1234567890,"title":"Demo Recording"}
+[0.0,"o","\u001b[2J\u001b[H"]
+[0.1,"o","Welcome to the Asciinema Playback Demo!\r\n"]
+[0.5,"o","\r\n"]
+[1.0,"o","This is a simple demonstration of playing back\r\n"]
+[1.5,"o","an asciinema recording file.\r\n"]
+[2.0,"o","\r\n"]
+[2.5,"o","\u001b[1;32mGreen text!\u001b[0m\r\n"]
+[3.0,"o","\u001b[1;31mRed text!\u001b[0m\r\n"]
+[3.5,"o","\u001b[1;34mBlue text!\u001b[0m\r\n"]
+[4.0,"o","\r\n"]
+[4.5,"o","Playback complete!\r\n"]
