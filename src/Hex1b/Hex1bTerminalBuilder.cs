@@ -471,6 +471,78 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
+    /// <summary>
+    /// Configures the terminal to play back an asciinema (.cast) recording file.
+    /// </summary>
+    /// <param name="filePath">Path to the .cast file to play back.</param>
+    /// <param name="speedMultiplier">Optional playback speed multiplier. Default is 1.0 (normal speed). Set to 2.0 for 2x speed, 0.5 for half speed, etc.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This adapter reads asciicast v2 format files and replays the terminal output
+    /// with proper timing. Useful for:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Playing back recorded terminal sessions</item>
+    ///   <item>Creating demos and tutorials from recordings</item>
+    ///   <item>Testing terminal rendering with real-world data</item>
+    ///   <item>Converting asciinema files to other formats</item>
+    /// </list>
+    /// <para>
+    /// The adapter automatically reads the terminal dimensions from the file header.
+    /// Input events in the recording are ignored during playback.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithAsciinemaFile("recording.cast")
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
+    /// </code>
+    /// <para>Play at 2x speed:</para>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithAsciinemaFile("recording.cast", speedMultiplier: 2.0)
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithAsciinemaFile(string filePath, double speedMultiplier = 1.0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        if (speedMultiplier <= 0)
+            throw new ArgumentOutOfRangeException(nameof(speedMultiplier), "Speed multiplier must be greater than 0");
+
+        SetWorkloadFactory(presentation =>
+        {
+            var adapter = new AsciinemaFileWorkloadAdapter(filePath)
+            {
+                SpeedMultiplier = speedMultiplier
+            };
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await adapter.StartAsync(ct);
+                
+                // Wait for playback to complete (when Disconnected is fired)
+                var tcs = new TaskCompletionSource<int>();
+                adapter.Disconnected += () => tcs.TrySetResult(0);
+                
+                // Also handle cancellation
+                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+                
+                return await tcs.Task;
+            };
+
+            return new Hex1bTerminalBuildContext(adapter, runCallback);
+        });
+
+        return this;
+    }
 
     /// <summary>
     /// Enables mouse input for the Hex1bApp.

@@ -1175,4 +1175,43 @@ public class Hex1bTerminalBuilderTests
             if (File.Exists(tempFile)) File.Delete(tempFile);
         }
     }
+
+    // === WithAsciinemaFile Tests ===
+
+    [Fact]
+    public void WithAsciinemaFile_NullFilePath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaFile(null!));
+    }
+
+    [Fact]
+    public void WithAsciinemaFile_EmptyFilePath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaFile(""));
+    }
+
+    [Fact]
+    public void WithAsciinemaFile_ZeroSpeedMultiplier_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaFile("file.cast", speedMultiplier: 0));
+    }
+
+    [Fact]
+    public void WithAsciinemaFile_NegativeSpeedMultiplier_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            Hex1bTerminal.CreateBuilder().WithAsciinemaFile("file.cast", speedMultiplier: -1.0));
+    }
+
+    [Fact]
+    public void WithAsciinemaFile_ReturnsBuilder()
+    {
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithAsciinemaFile("/tmp/test.cast");
+        
+        Assert.IsType<Hex1bTerminalBuilder>(builder);
+    }
 }
