@@ -82,6 +82,25 @@ public sealed record DrawerWidget : Hex1bWidget
         => this with { IsExpanded = !collapsed };
     
     /// <summary>
+    /// Sets the rendering mode for the expanded drawer.
+    /// </summary>
+    /// <param name="mode">The rendering mode (Inline or Overlay).</param>
+    public DrawerWidget WithMode(DrawerMode mode)
+        => this with { Mode = mode };
+    
+    /// <summary>
+    /// Sets the drawer to render as an overlay (floats above content).
+    /// </summary>
+    public DrawerWidget AsOverlay()
+        => this with { Mode = DrawerMode.Overlay };
+    
+    /// <summary>
+    /// Sets the drawer to render inline (pushes adjacent content).
+    /// </summary>
+    public DrawerWidget AsInline()
+        => this with { Mode = DrawerMode.Inline };
+    
+    /// <summary>
     /// Sets the handler to call when the drawer expands.
     /// </summary>
     public DrawerWidget OnExpanded(Action handler)
@@ -103,23 +122,26 @@ public sealed record DrawerWidget : Hex1bWidget
             node.IsExpanded = IsExpanded.Value;
         }
         
-        // Store event handlers
+        // Store mode and event handlers
+        node.Mode = Mode;
         node.ExpandedAction = ExpandedHandler;
         node.CollapsedAction = CollapsedHandler;
         
         // Auto-detect direction from layout context and position
         node.Direction = DetectDirection(context);
         
-        // Build content based on current state
+        // Store the expanded content builder for overlay mode (used by input handler)
+        node.ExpandedContentBuilder = ExpandedContentBuilder;
+        
+        // Build content based on current state and mode
         var widgetContext = new WidgetContext<DrawerWidget>();
         
-        if (node.IsExpanded)
+        if (node.IsExpanded && Mode == DrawerMode.Inline)
         {
-            // Build expanded content
+            // Inline mode: build expanded content directly
             if (ExpandedContentBuilder != null)
             {
                 var expandedWidgets = ExpandedContentBuilder(widgetContext).ToList();
-                // Wrap in a VStack for layout
                 var contentWidget = new VStackWidget(expandedWidgets);
                 node.Content = await context.ReconcileChildAsync(node.Content, contentWidget, node);
             }
@@ -130,7 +152,7 @@ public sealed record DrawerWidget : Hex1bWidget
         }
         else
         {
-            // Build collapsed content
+            // Collapsed (or overlay mode where expanded content goes to popup)
             if (CollapsedContentBuilder != null)
             {
                 var collapsedWidgets = CollapsedContentBuilder(widgetContext).ToList();

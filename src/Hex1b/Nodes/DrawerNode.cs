@@ -12,7 +12,7 @@ namespace Hex1b.Nodes;
 public sealed class DrawerNode : Hex1bNode, ILayoutProvider
 {
     /// <summary>
-    /// The content node (either collapsed or expanded content).
+    /// The content node (either collapsed or expanded content for inline mode).
     /// </summary>
     public Hex1bNode? Content { get; set; }
     
@@ -55,11 +55,21 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     internal Action? CollapsedAction { get; set; }
     
     /// <summary>
+    /// The expanded content builder (stored for overlay mode lazy building).
+    /// </summary>
+    internal Func<WidgetContext<DrawerWidget>, IEnumerable<Hex1bWidget>>? ExpandedContentBuilder { get; set; }
+    
+    /// <summary>
     /// The clip mode for the drawer's content. Defaults to Clip.
     /// </summary>
     public ClipMode ClipMode { get; set; } = ClipMode.Clip;
+    
+    /// <summary>
+    /// Tracks if we have an active popup entry so we don't push duplicates.
+    /// </summary>
+    internal PopupEntry? ActivePopupEntry { get; set; }
 
-    public override bool IsFocusable => false;
+    public override bool IsFocusable => Mode == DrawerMode.Overlay && !IsExpanded;
 
     #region ILayoutProvider Implementation
     
@@ -103,6 +113,12 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
+        // In overlay mode when collapsed, the drawer itself is focusable
+        if (IsFocusable)
+        {
+            yield return this;
+        }
+        
         if (Content != null)
         {
             foreach (var focusable in Content.GetFocusableNodes())
@@ -131,15 +147,86 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     {
         // Click on collapsed drawer expands it
         bindings.Mouse(MouseButton.Left).Action(OnClick, "Toggle drawer");
+        // Enter/Space on focused drawer also expands it
+        bindings.Key(Hex1bKey.Enter).Action(OnClick, "Open drawer");
+        bindings.Key(Hex1bKey.Spacebar).Action(OnClick, "Open drawer");
     }
     
-    private void OnClick()
+    private Task OnClick(InputBindingActionContext ctx)
     {
-        if (!IsExpanded)
+        if (!IsExpanded && Mode == DrawerMode.Overlay && ExpandedContentBuilder != null)
         {
+            // Overlay mode: push popup
+            IsExpanded = true;
+            ExpandedAction?.Invoke();
+            
+            // Find the popup host by walking up from this node (not from FocusedNode)
+            var popupHost = FindPopupHost();
+            if (popupHost == null)
+            {
+                // No popup host found - can't show overlay
+                return Task.CompletedTask;
+            }
+            
+            // Determine anchor position based on direction
+            var anchorPosition = Direction switch
+            {
+                DrawerDirection.Right => AnchorPosition.Right,
+                DrawerDirection.Left => AnchorPosition.Left,
+                DrawerDirection.Down => AnchorPosition.Below,
+                DrawerDirection.Up => AnchorPosition.Above,
+                _ => AnchorPosition.Below
+            };
+            
+            var builder = ExpandedContentBuilder;
+            
+            ActivePopupEntry = popupHost.Popups.PushAnchored(
+                this, 
+                anchorPosition, 
+                () => 
+                {
+                    var widgetContext = new WidgetContext<DrawerWidget>();
+                    var expandedWidgets = builder(widgetContext).ToList();
+                    return new VStackWidget(expandedWidgets);
+                },
+                focusRestoreNode: this,
+                onDismiss: () =>
+                {
+                    ActivePopupEntry = null;
+                    _isExpanded = false;
+                    CollapsedAction?.Invoke();
+                    MarkDirty();
+                }
+            );
+            
+            // Focus will be set to first focusable in popup by ZStackWidget reconciler
+            // (it handles focus management for new popups automatically)
+        }
+        else if (!IsExpanded)
+        {
+            // Inline mode: just expand
             IsExpanded = true;
             ExpandedAction?.Invoke();
         }
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Finds the nearest IPopupHost ancestor.
+    /// </summary>
+    private IPopupHost? FindPopupHost()
+    {
+        var current = Parent;
+        while (current != null)
+        {
+            if (current is IPopupHost host)
+            {
+                return host;
+            }
+            current = current.Parent;
+        }
+        return null;
     }
     
     /// <summary>
