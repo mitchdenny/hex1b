@@ -17,6 +17,7 @@ This skill provides guidelines for AI agents to diagnose and fix flaky tests in 
 | [Task.WhenAny Race](#pattern-4-taskwhenany-race-condition) | Test sometimes times out | Replace with proper `WaitUntil` or increase timeout |
 | [Test Interference](#pattern-5-test-interference) | Pass isolated, fail in suite | Check for shared state, file locks, or parallel execution issues |
 | [Platform-Specific](#pattern-6-platform-specific-failures) | Fails consistently on Windows/Linux | Add platform skip trait or fix platform-specific code |
+| [Task.Delay for Async Events](#pattern-7-taskdelay-for-async-events) | Flaky on slower CI runners | Replace `Task.Delay` with `TaskCompletionSource` signal |
 
 ---
 
@@ -549,6 +550,106 @@ public class LinuxOnlyFactAttribute : FactAttribute
 
 ---
 
+## Pattern 7: Task.Delay for Async Events
+
+#### Symptoms
+- Test passes locally most of the time
+- Test fails intermittently on CI, especially on slower runners
+- Test waits a fixed time (e.g., `Task.Delay(100)`) for an async event like input binding firing
+- Error message suggests the action never occurred (e.g., "Expected binding to fire")
+
+#### Root Cause
+
+Using `Task.Delay` to wait for async events like input bindings firing is unreliable. The fixed delay may not be long enough on slower CI runners, or may be unnecessarily long on fast machines.
+
+**Example**: Input binding tests that send a key and wait for the binding callback to fire.
+
+#### Example: Broken Test
+
+```csharp
+// ❌ BROKEN: Fixed delay may not be long enough on slow CI runners
+var bindingFired = false;
+
+using var app = new Hex1bApp(
+    ctx =>
+    {
+        var vstack = new VStackWidget([ctx.Test()])
+            .WithInputBindings(bindings =>
+            {
+                bindings.Shift().Key(key).Action(_ =>
+                {
+                    bindingFired = true;  // Sets flag when binding fires
+                    return Task.CompletedTask;
+                }, $"Test Shift+{key}");
+            });
+
+        return Task.FromResult<Hex1bWidget>(vstack);
+    },
+    new Hex1bAppOptions { WorkloadAdapter = workload }
+);
+
+// ... wait for render ...
+
+await new Hex1bTerminalInputSequenceBuilder()
+    .Shift().Key(key)
+    .Build()
+    .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+await Task.Delay(100);  // ❌ Fixed delay - may not be long enough!
+
+Assert.True(bindingFired);  // Flaky!
+```
+
+#### Fix
+
+Replace the boolean flag and `Task.Delay` with a `TaskCompletionSource` that signals when the event occurs:
+
+```csharp
+// ✅ FIXED: Use TaskCompletionSource to wait for the async event
+var bindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+using var app = new Hex1bApp(
+    ctx =>
+    {
+        var vstack = new VStackWidget([ctx.Test()])
+            .WithInputBindings(bindings =>
+            {
+                bindings.Shift().Key(key).Action(_ =>
+                {
+                    bindingFired.TrySetResult();  // Signal completion
+                    return Task.CompletedTask;
+                }, $"Test Shift+{key}");
+            });
+
+        return Task.FromResult<Hex1bWidget>(vstack);
+    },
+    new Hex1bAppOptions { WorkloadAdapter = workload }
+);
+
+// ... wait for render ...
+
+await new Hex1bTerminalInputSequenceBuilder()
+    .Shift().Key(key)
+    .Build()
+    .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+// Wait for the event with a timeout - will fail fast if binding doesn't fire
+await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+// If we got here, the binding fired (the wait would have timed out otherwise)
+Assert.True(bindingFired.Task.IsCompleted);  // Reliable
+```
+
+#### Key Points
+
+1. **Use `TaskCompletionSource`** instead of a boolean flag
+2. **Call `TrySetResult()`** in the event handler to signal completion
+3. **Use `WaitAsync` with timeout** instead of `Task.Delay`
+4. **Use `TaskCreationOptions.RunContinuationsAsynchronously`** to avoid potential deadlocks
+5. The timeout should be generous (2+ seconds) to account for slow CI runners
+
+---
+
 ## Checklist for Test Review
 
 Before committing test changes, verify:
@@ -561,5 +662,6 @@ Before committing test changes, verify:
 - [ ] Test runs reliably 10+ times locally
 - [ ] Test doesn't have timing dependencies (uses `WaitUntil`, not `Wait`)
 - [ ] No `Task.WhenAny` race conditions - use `WaitAsync` instead
+- [ ] No `Task.Delay` for async events - use `TaskCompletionSource` instead
 - [ ] Test passes both in isolation and in full suite
 - [ ] Platform-specific tests have appropriate skip traits
