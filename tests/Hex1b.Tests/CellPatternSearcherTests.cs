@@ -19,10 +19,10 @@ public class CellPatternSearcherTests
             workload.Write(line + "\r\n");
         }
 
-        // Wait for content to be processed by the output pump
-        var firstLine = lines.Length > 0 ? lines[0] : "";
+        // Wait for content to be processed by the output pump - wait for last line to ensure all content is rendered
+        var lastLine = lines.Length > 0 ? lines[^1] : "";
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => string.IsNullOrEmpty(firstLine) || s.ContainsText(firstLine), TimeSpan.FromSeconds(1), "first line content")
+            .WaitUntil(s => string.IsNullOrEmpty(lastLine) || s.ContainsText(lastLine), TimeSpan.FromSeconds(1), "last line content")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

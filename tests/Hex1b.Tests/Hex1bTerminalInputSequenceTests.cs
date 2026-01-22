@@ -476,23 +476,23 @@ public class Hex1bTestSequenceTests
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
-        var sequence = new Hex1bTerminalInputSequenceBuilder()
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for app to initialize, navigate down twice, wait for selection, then capture and exit
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Down()
             .Down()
-            .Build();
-
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
+            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(2))
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        
-        cts.Cancel();
         await runTask;
         
         // Third item should be selected
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 3"));
+        Assert.True(snapshot.ContainsText("> Item 3"));
     }
 
     [Fact]

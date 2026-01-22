@@ -36,7 +36,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var bindingFired = false;
+        var bindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Hex1bKey? firedKey = null;
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,8 +55,8 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Key(key).Action(_ =>
                         {
-                            bindingFired = true;
                             firedKey = key;
+                            bindingFired.TrySetResult();
                             return Task.CompletedTask;
                         }, $"Test binding for {key}");
                     });
@@ -78,11 +78,11 @@ public class InputBindingFluentApiTests
         // Act - Send the key
         await new Hex1bTerminalInputSequenceBuilder().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Wait a bit for the input to be processed
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        // Assert
-        Assert.True(bindingFired, $"Expected binding to fire for key {key}");
+        // Verify the correct key was received
         Assert.Equal(key, firedKey);
 
         // Clean up
@@ -98,7 +98,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var bindingFired = false;
+        var bindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -114,7 +114,7 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Ctrl().Key(key).Action(_ =>
                         {
-                            bindingFired = true;
+                            bindingFired.TrySetResult();
                             return Task.CompletedTask;
                         }, $"Test Ctrl+{key}");
                     });
@@ -133,10 +133,9 @@ public class InputBindingFluentApiTests
         // Act - Send the key with Ctrl modifier
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(bindingFired, $"Expected binding to fire for Ctrl+{key}");
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -150,7 +149,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var bindingFired = false;
+        var bindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -166,7 +165,7 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Shift().Key(key).Action(_ =>
                         {
-                            bindingFired = true;
+                            bindingFired.TrySetResult();
                             return Task.CompletedTask;
                         }, $"Test Shift+{key}");
                     });
@@ -185,10 +184,9 @@ public class InputBindingFluentApiTests
         // Act - Send the key with Shift modifier
         await new Hex1bTerminalInputSequenceBuilder().Shift().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(bindingFired, $"Expected binding to fire for Shift+{key}");
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
