@@ -940,9 +940,10 @@ public class BorderNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting the app
+        // Capture snapshot BEFORE exiting the app - wait for border content to render
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
