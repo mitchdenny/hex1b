@@ -229,7 +229,7 @@ public static class AnsiTokenizer
 
             case 'H':
             case 'f':
-                // Cursor position
+                // Cursor position (CUP/HVP)
                 ParseCursorPosition(parameters, tokens);
                 break;
 
@@ -313,23 +313,23 @@ public static class AnsiTokenizer
                 break;
 
             case 'A':
-                // Cursor Up (CUU)
-                tokens.Add(new CursorMoveToken(CursorMoveDirection.Up, ParseMoveCount(parameters)));
+                // Cursor Up (CUU) or Up Arrow with modifiers
+                tokens.Add(ParseArrowOrCursorMove(parameters, CursorMoveDirection.Up));
                 break;
                 
             case 'B':
-                // Cursor Down (CUD)
-                tokens.Add(new CursorMoveToken(CursorMoveDirection.Down, ParseMoveCount(parameters)));
+                // Cursor Down (CUD) or Down Arrow with modifiers
+                tokens.Add(ParseArrowOrCursorMove(parameters, CursorMoveDirection.Down));
                 break;
                 
             case 'C':
-                // Cursor Forward (CUF)
-                tokens.Add(new CursorMoveToken(CursorMoveDirection.Forward, ParseMoveCount(parameters)));
+                // Cursor Forward (CUF) or Right Arrow with modifiers
+                tokens.Add(ParseArrowOrCursorMove(parameters, CursorMoveDirection.Forward));
                 break;
                 
             case 'D':
-                // Cursor Back (CUB)
-                tokens.Add(new CursorMoveToken(CursorMoveDirection.Back, ParseMoveCount(parameters)));
+                // Cursor Back (CUB) or Left Arrow with modifiers
+                tokens.Add(ParseArrowOrCursorMove(parameters, CursorMoveDirection.Back));
                 break;
                 
             case 'E':
@@ -510,6 +510,59 @@ public static class AnsiTokenizer
         if (string.IsNullOrEmpty(parameters))
             return 1;
         return int.TryParse(parameters, out var count) && count > 0 ? count : 1;
+    }
+
+    /// <summary>
+    /// Parses arrow key parameters, distinguishing between cursor moves and arrow key inputs with modifiers.
+    /// Format: empty, "n", or "1;m" where n is count and m is modifier code.
+    /// </summary>
+    private static AnsiToken ParseArrowOrCursorMove(string parameters, CursorMoveDirection direction)
+    {
+        if (string.IsNullOrEmpty(parameters))
+        {
+            // Plain arrow key - use CursorMoveToken for backwards compatibility
+            return new CursorMoveToken(direction, 1);
+        }
+
+        var parts = parameters.Split(';');
+        
+        // Check for modifier format: "1;m" where m >= 2 indicates modifiers
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var modifiers) && modifiers >= 2)
+        {
+            // This is an arrow key with modifiers (Shift, Ctrl, Alt, or combinations)
+            return new ArrowKeyToken(direction, modifiers);
+        }
+        
+        // Plain cursor move with count (e.g., "5" for move 5 cells)
+        var count = int.TryParse(parts[0], out var c) && c > 0 ? c : 1;
+        return new CursorMoveToken(direction, count);
+    }
+
+    /// <summary>
+    /// Checks if parameters indicate a modifier key format: "1;m" where m >= 2.
+    /// This distinguishes key inputs (with modifiers) from cursor commands.
+    /// </summary>
+    private static bool HasModifierParams(string parameters)
+    {
+        if (string.IsNullOrEmpty(parameters))
+            return false;
+        
+        var parts = parameters.Split(';');
+        return parts.Length >= 2 && int.TryParse(parts[1], out var m) && m >= 2;
+    }
+
+    /// <summary>
+    /// Extracts the modifier code from parameters in format "1;m".
+    /// </summary>
+    private static int ParseModifierParam(string parameters)
+    {
+        if (string.IsNullOrEmpty(parameters))
+            return 1;
+        
+        var parts = parameters.Split(';');
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var m))
+            return m;
+        return 1;
     }
 
     private static void ParseCursorPosition(string parameters, List<AnsiToken> tokens)
