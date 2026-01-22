@@ -26,7 +26,8 @@ public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         for (int i = 0; i < Children.Count; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var reconciledChild = await childContext.ReconcileChildAsync(existingChild, Children[i], node);
+            var positionedContext = childContext.WithChildPosition(i, Children.Count);
+            var reconciledChild = await positionedContext.ReconcileChildAsync(existingChild, Children[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
