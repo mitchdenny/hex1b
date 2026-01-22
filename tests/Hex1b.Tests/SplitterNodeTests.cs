@@ -859,23 +859,22 @@ public class SplitterNodeTests
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting
-        // Note: The returned snapshot is taken AFTER Ctrl+C, so content assertions on it are unreliable.
-        // The WaitUntil calls verify the expected state exists at the right times.
+        // WaitUntil calls verify the expected state exists at the right times.
+        // No snapshot assertions are made since the returned snapshot would be taken
+        // after Ctrl+C exits the app, which can result in an empty/cleared terminal.
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
             .Left().Left()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2)) // Verify app still renders after resize
-            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // The splitter would have received initial focus since Left is just text
-        // So arrow keys should have resized it
-        // WaitUntil already verified the content was there after resize
-        // Test passes if no exceptions were thrown and WaitUntil conditions were met
+        // The splitter received initial focus since Left is just text (not focusable).
+        // Arrow keys should have resized it.
+        // WaitUntil verified the content was there after resize.
+        // Test passes if no exceptions were thrown and WaitUntil conditions were met.
     }
 
     [Fact]
