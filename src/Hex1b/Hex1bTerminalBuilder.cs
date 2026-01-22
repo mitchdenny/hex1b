@@ -496,7 +496,7 @@ public sealed class Hex1bTerminalBuilder
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithAsciinemaFile("recording.cast")
+    ///     .WithAsciinemaPlayback("recording.cast")
     ///     .Build();
     /// 
     /// await terminal.RunAsync();
@@ -504,13 +504,13 @@ public sealed class Hex1bTerminalBuilder
     /// <para>Play at 2x speed:</para>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithAsciinemaFile("recording.cast", speedMultiplier: 2.0)
+    ///     .WithAsciinemaPlayback("recording.cast", speedMultiplier: 2.0)
     ///     .Build();
     /// 
     /// await terminal.RunAsync();
     /// </code>
     /// </example>
-    public Hex1bTerminalBuilder WithAsciinemaFile(string filePath, double speedMultiplier = 1.0)
+    public Hex1bTerminalBuilder WithAsciinemaPlayback(string filePath, double speedMultiplier = 1.0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -564,7 +564,7 @@ public sealed class Hex1bTerminalBuilder
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithAsciinemaFile("recording.cast", out var recording)
+    ///     .WithAsciinemaPlayback("recording.cast", out var recording)
     ///     .WithTerminalWidget(out var handle)
     ///     .Build();
     /// 
@@ -574,7 +574,7 @@ public sealed class Hex1bTerminalBuilder
     /// speedPicker.OnSelectionChanged(e => recording.Play(speeds[e.SelectedIndex]));
     /// </code>
     /// </example>
-    public Hex1bTerminalBuilder WithAsciinemaFile(string filePath, out AsciinemaRecording recording, double speedMultiplier = 1.0)
+    public Hex1bTerminalBuilder WithAsciinemaPlayback(string filePath, out AsciinemaRecording recording, double speedMultiplier = 1.0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 

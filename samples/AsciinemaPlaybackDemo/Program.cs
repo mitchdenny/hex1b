@@ -65,7 +65,7 @@ async Task LoadRecordingAsync(string filePath)
     
     // Create new terminal with the selected file
     playbackTerminal = Hex1bTerminal.CreateBuilder()
-        .WithAsciinemaFile(filePath, out var newRecording)
+        .WithAsciinemaPlayback(filePath, out var newRecording)
         .WithTerminalWidget(out var newHandle)
         .Build();
     

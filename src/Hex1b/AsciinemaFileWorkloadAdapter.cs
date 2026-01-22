@@ -28,7 +28,7 @@ namespace Hex1b;
 /// <example>
 /// <code>
 /// await using var terminal = Hex1bTerminal.CreateBuilder()
-///     .WithAsciinemaFile("recording.cast")
+///     .WithAsciinemaPlayback("recording.cast")
 ///     .Build();
 /// 
 /// await terminal.RunAsync();

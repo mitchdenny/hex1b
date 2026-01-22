@@ -43,7 +43,7 @@ public enum AsciinemaPlaybackState
 /// <para>
 /// This class provides a high-level API for controlling asciinema playback with
 /// Play, Pause, and Seek operations. It is obtained from the terminal builder
-/// using <see cref="Hex1bTerminalBuilder.WithAsciinemaFile(string, out AsciinemaRecording, double)"/>.
+/// using <see cref="Hex1bTerminalBuilder.WithAsciinemaPlayback(string, out AsciinemaRecording, double)"/>.
 /// </para>
 /// <para>
 /// When seeking backwards, the terminal state is automatically reset and events
@@ -53,7 +53,7 @@ public enum AsciinemaPlaybackState
 /// <example>
 /// <code>
 /// await using var terminal = Hex1bTerminal.CreateBuilder()
-///     .WithAsciinemaFile("demo.cast", out var recording)
+///     .WithAsciinemaPlayback("demo.cast", out var recording)
 ///     .WithTerminalWidget(out var handle)
 ///     .Build();
 /// 
