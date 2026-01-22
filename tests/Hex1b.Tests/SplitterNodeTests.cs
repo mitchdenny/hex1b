@@ -859,22 +859,21 @@ public class SplitterNodeTests
         // Tab to the splitter itself (first is left text, which isn't focusable, so splitter is first)
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // WaitUntil calls verify the expected state exists at the right times.
-        // No snapshot assertions are made since the returned snapshot would be taken
-        // after Ctrl+C exits the app, which can result in an empty/cleared terminal.
+        // Wait for content to appear, perform resize, then verify content persists
+        // WaitUntil IS the assertion - if it passes, the test passes
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
             .Left().Left()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2)) // Verify app still renders after resize
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // The splitter received initial focus since Left is just text (not focusable).
-        // Arrow keys should have resized it.
-        // WaitUntil verified the content was there after resize.
-        // Test passes if no exceptions were thrown and WaitUntil conditions were met.
+        // The splitter would have received initial focus since Left is just text
+        // So arrow keys should have resized it
+        // No additional assertions needed - WaitUntil already verified the content
     }
 
     [Fact]
@@ -1571,18 +1570,19 @@ public class SplitterNodeTests
         // Up/down arrows should resize it
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for content to appear, perform resize, then verify content persists
+        // WaitUntil IS the assertion - if it passes, the test passes
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
             .Up().Up()
+            .WaitUntil(s => s.ContainsText("Top") && s.ContainsText("Bottom"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Top"));
-        Assert.True(snapshot.ContainsText("Bottom"));
+        // No additional assertions needed - WaitUntil already verified the content
     }
 
     [Fact]
