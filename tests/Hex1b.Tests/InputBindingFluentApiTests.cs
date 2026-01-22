@@ -78,11 +78,11 @@ public class InputBindingFluentApiTests
         // Act - Send the key
         await new Hex1bTerminalInputSequenceBuilder().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Wait for the binding to fire (instead of using a fixed delay)
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
         await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        // Assert - if we got here, the binding fired (the wait would have timed out otherwise)
-        Assert.True(bindingFired.Task.IsCompleted, $"Expected binding to fire for key {key}");
+        // Verify the correct key was received
         Assert.Equal(key, firedKey);
 
         // Clean up
@@ -133,11 +133,9 @@ public class InputBindingFluentApiTests
         // Act - Send the key with Ctrl modifier
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Wait for the binding to fire (instead of using a fixed delay)
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
         await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-
-        // Assert - if we got here, the binding fired (the wait would have timed out otherwise)
-        Assert.True(bindingFired.Task.IsCompleted, $"Expected binding to fire for Ctrl+{key}");
 
         cts.Cancel();
         await runTask;
@@ -186,11 +184,9 @@ public class InputBindingFluentApiTests
         // Act - Send the key with Shift modifier
         await new Hex1bTerminalInputSequenceBuilder().Shift().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Wait for the binding to fire (instead of using a fixed delay)
+        // Wait for the binding to fire - if this completes, the binding fired successfully
+        // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
         await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-
-        // Assert - if we got here, the binding fired (the wait would have timed out otherwise)
-        Assert.True(bindingFired.Task.IsCompleted, $"Expected binding to fire for Shift+{key}");
 
         cts.Cancel();
         await runTask;
