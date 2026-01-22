@@ -747,4 +747,94 @@ public class GraphemeClusterTests
     }
 
     #endregion
+
+    #region Word Boundary Tests
+
+    [Theory]
+    [InlineData("hello world", 11, 6)]   // End of "world" -> start of "world"
+    [InlineData("hello world", 6, 0)]    // Start of "world" -> start of "hello"
+    [InlineData("hello world", 5, 0)]    // Space after "hello" -> start of "hello"
+    [InlineData("hello world", 3, 0)]    // Middle of "hello" -> start of "hello"
+    [InlineData("hello world", 0, 0)]    // Already at start -> stays at start
+    public void GetPreviousWordBoundary_ReturnsCorrectPosition(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("hello world", 0, 6)]    // Start of "hello" -> start of "world"
+    [InlineData("hello world", 3, 6)]    // Middle of "hello" -> start of "world"
+    [InlineData("hello world", 5, 6)]    // Space after "hello" -> start of "world"
+    [InlineData("hello world", 6, 11)]   // Start of "world" -> end of string
+    [InlineData("hello world", 11, 11)]  // Already at end -> stays at end
+    public void GetNextWordBoundary_ReturnsCorrectPosition(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("hello, world!", 13, 7)]  // End -> start of "world"
+    [InlineData("hello, world!", 7, 0)]   // Start of "world" -> start of "hello"
+    [InlineData("hello, world!", 6, 0)]   // Space before "world" -> start of "hello"
+    [InlineData("hello, world!", 5, 0)]   // Comma after "hello" -> start of "hello"
+    public void GetPreviousWordBoundary_WithPunctuation_SkipsPunctuation(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("hello, world!", 0, 7)]   // Start -> start of "world" (skips comma and space)
+    [InlineData("hello, world!", 5, 7)]   // End of "hello" -> start of "world"
+    [InlineData("hello, world!", 7, 13)]  // Start of "world" -> end (skips "!")
+    public void GetNextWordBoundary_WithPunctuation_SkipsPunctuation(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void GetPreviousWordBoundary_EmptyString_ReturnsZero()
+    {
+        Assert.Equal(0, GraphemeHelper.GetPreviousWordBoundary("", 0));
+        Assert.Equal(0, GraphemeHelper.GetPreviousWordBoundary("", 5));
+    }
+
+    [Fact]
+    public void GetNextWordBoundary_EmptyString_ReturnsZero()
+    {
+        Assert.Equal(0, GraphemeHelper.GetNextWordBoundary("", 0));
+        Assert.Equal(0, GraphemeHelper.GetNextWordBoundary("", 5));
+    }
+
+    [Theory]
+    [InlineData("hello   world", 13, 8)]  // End -> start of "world"
+    [InlineData("hello   world", 8, 0)]   // Start of "world" -> start of "hello"
+    public void GetPreviousWordBoundary_MultipleSpaces_SkipsAllSpaces(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("hello   world", 0, 8)]   // Start -> start of "world"
+    [InlineData("hello   world", 5, 8)]   // After "hello" -> start of "world"
+    public void GetNextWordBoundary_MultipleSpaces_SkipsAllSpaces(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("test123", 7, 0)]  // End -> start (alphanumeric is one word)
+    [InlineData("test_var", 8, 0)] // End -> start (underscore is word char)
+    public void GetPreviousWordBoundary_AlphanumericAndUnderscore_TreatedAsWordChars(string text, int cursor, int expected)
+    {
+        var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
+        Assert.Equal(expected, result);
+    }
+
+    #endregion
 }

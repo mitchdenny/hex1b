@@ -865,4 +865,53 @@ public class AnsiTokenizerTests
     }
 
     #endregion
+
+    #region Arrow Key With Modifiers Tests
+
+    [Theory]
+    [InlineData("\x1b[A", CursorMoveDirection.Up)]
+    [InlineData("\x1b[B", CursorMoveDirection.Down)]
+    [InlineData("\x1b[C", CursorMoveDirection.Forward)]
+    [InlineData("\x1b[D", CursorMoveDirection.Back)]
+    public void Tokenize_PlainArrowKey_ReturnsCursorMoveToken(string input, CursorMoveDirection expectedDirection)
+    {
+        var result = AnsiTokenizer.Tokenize(input);
+
+        var token = Assert.Single(result);
+        var moveToken = Assert.IsType<CursorMoveToken>(token);
+        Assert.Equal(expectedDirection, moveToken.Direction);
+        Assert.Equal(1, moveToken.Count);
+    }
+
+    [Theory]
+    [InlineData("\x1b[1;2D", CursorMoveDirection.Back, 2)]   // Shift+Left
+    [InlineData("\x1b[1;5D", CursorMoveDirection.Back, 5)]   // Ctrl+Left
+    [InlineData("\x1b[1;2C", CursorMoveDirection.Forward, 2)] // Shift+Right
+    [InlineData("\x1b[1;5C", CursorMoveDirection.Forward, 5)] // Ctrl+Right
+    [InlineData("\x1b[1;3A", CursorMoveDirection.Up, 3)]     // Alt+Up
+    [InlineData("\x1b[1;6B", CursorMoveDirection.Down, 6)]   // Shift+Ctrl+Down
+    public void Tokenize_ArrowKeyWithModifiers_ReturnsArrowKeyToken(string input, CursorMoveDirection expectedDirection, int expectedModifiers)
+    {
+        var result = AnsiTokenizer.Tokenize(input);
+
+        var token = Assert.Single(result);
+        var arrowToken = Assert.IsType<ArrowKeyToken>(token);
+        Assert.Equal(expectedDirection, arrowToken.Direction);
+        Assert.Equal(expectedModifiers, arrowToken.Modifiers);
+    }
+
+    [Theory]
+    [InlineData("\x1b[5A", CursorMoveDirection.Up, 5)]    // Move up 5 lines (no modifiers)
+    [InlineData("\x1b[10C", CursorMoveDirection.Forward, 10)] // Move right 10 columns (no modifiers)
+    public void Tokenize_CursorMoveWithCount_ReturnsCursorMoveToken(string input, CursorMoveDirection expectedDirection, int expectedCount)
+    {
+        var result = AnsiTokenizer.Tokenize(input);
+
+        var token = Assert.Single(result);
+        var moveToken = Assert.IsType<CursorMoveToken>(token);
+        Assert.Equal(expectedDirection, moveToken.Direction);
+        Assert.Equal(expectedCount, moveToken.Count);
+    }
+
+    #endregion
 }

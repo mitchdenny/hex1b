@@ -485,8 +485,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Special key sequences (Insert, Delete, PgUp/Dn, F5-F12)
             SpecialKeyToken special => SpecialKeyTokenToKeyEvent(special),
             
+            // Arrow keys with modifiers (Shift+Arrow, Ctrl+Arrow, etc.)
+            ArrowKeyToken arrow => ArrowKeyTokenToKeyEvent(arrow),
+            
             // Cursor movement (arrow keys in normal mode, interpreted as input)
             CursorMoveToken move => CursorMoveTokenToKeyEvent(move),
+            
+            // Cursor position with (1,1) = Home key when used as input
+            CursorPositionToken { Row: 1, Column: 1 } => new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None),
             
             // Backtab (Shift+Tab) - CSI Z
             BackTabToken => new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift),
@@ -568,15 +574,46 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return new Hex1bKeyEvent(key, '\0', modifiers);
     }
     
-    private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
+    private static Hex1bKeyEvent? ArrowKeyTokenToKeyEvent(ArrowKeyToken token)
     {
-        // When received as input (not output), cursor move tokens represent arrow keys
+        // Arrow keys with modifiers (Shift+Arrow, Ctrl+Arrow, etc.)
         var key = token.Direction switch
         {
             CursorMoveDirection.Up => Hex1bKey.UpArrow,
             CursorMoveDirection.Down => Hex1bKey.DownArrow,
             CursorMoveDirection.Forward => Hex1bKey.RightArrow,
             CursorMoveDirection.Back => Hex1bKey.LeftArrow,
+            _ => Hex1bKey.None
+        };
+        
+        if (key == Hex1bKey.None)
+            return null;
+        
+        // Decode modifier bits: modifier code - 1 gives the bit pattern
+        // Bit 0 = Shift, Bit 1 = Alt, Bit 2 = Ctrl
+        var modifiers = Hex1bModifiers.None;
+        if (token.Modifiers >= 2)
+        {
+            var modifierBits = token.Modifiers - 1;
+            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
+            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
+            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
+        }
+        
+        return new Hex1bKeyEvent(key, '\0', modifiers);
+    }
+    
+    private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
+    {
+        // When received as input (not output), cursor move tokens represent arrow keys
+        // Note: PreviousLine with count 1 = End key (ESC [ F)
+        var key = token.Direction switch
+        {
+            CursorMoveDirection.Up => Hex1bKey.UpArrow,
+            CursorMoveDirection.Down => Hex1bKey.DownArrow,
+            CursorMoveDirection.Forward => Hex1bKey.RightArrow,
+            CursorMoveDirection.Back => Hex1bKey.LeftArrow,
+            CursorMoveDirection.PreviousLine when token.Count == 1 => Hex1bKey.End,
             _ => Hex1bKey.None
         };
         

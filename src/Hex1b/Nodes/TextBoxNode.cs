@@ -93,6 +93,10 @@ public sealed class TextBoxNode : Hex1bNode
         bindings.Key(Hex1bKey.Home).Action(MoveHome, "Go to start");
         bindings.Key(Hex1bKey.End).Action(MoveEnd, "Go to end");
         
+        // Word navigation (Ctrl+Arrow)
+        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Action(MoveWordLeft, "Move to previous word");
+        bindings.Ctrl().Key(Hex1bKey.RightArrow).Action(MoveWordRight, "Move to next word");
+        
         // Selection navigation
         bindings.Shift().Key(Hex1bKey.LeftArrow).Action(SelectLeft, "Extend selection left");
         bindings.Shift().Key(Hex1bKey.RightArrow).Action(SelectRight, "Extend selection right");
@@ -102,6 +106,10 @@ public sealed class TextBoxNode : Hex1bNode
         // Editing - use async handlers to fire callbacks
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
         bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
+        
+        // Word deletion (Ctrl+Backspace/Delete)
+        bindings.Ctrl().Key(Hex1bKey.Backspace).Action(DeleteWordBackwardAsync, "Delete previous word");
+        bindings.Ctrl().Key(Hex1bKey.Delete).Action(DeleteWordForwardAsync, "Delete next word");
         
         // Submit (Enter key)
         if (SubmitAction != null)
@@ -183,6 +191,28 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
+    private void MoveWordLeft()
+    {
+        if (State.HasSelection)
+        {
+            State.CursorPosition = State.SelectionStart;
+            State.ClearSelection();
+        }
+        State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        MarkDirty();
+    }
+
+    private void MoveWordRight()
+    {
+        if (State.HasSelection)
+        {
+            State.CursorPosition = State.SelectionEnd;
+            State.ClearSelection();
+        }
+        State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        MarkDirty();
+    }
+
     private void SelectLeft()
     {
         if (!State.SelectionAnchor.HasValue)
@@ -231,6 +261,26 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
+    private void SelectWordLeft()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        MarkDirty();
+    }
+
+    private void SelectWordRight()
+    {
+        if (!State.SelectionAnchor.HasValue)
+        {
+            State.SelectionAnchor = State.CursorPosition;
+        }
+        State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        MarkDirty();
+    }
+
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
     {
         var oldText = State.Text;
@@ -270,6 +320,53 @@ public sealed class TextBoxNode : Hex1bNode
             var clusterEnd = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
             var clusterLength = clusterEnd - State.CursorPosition;
             State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
+            MarkDirty();
+        }
+        
+        // Fire callback if text changed
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
+    }
+
+    private async Task DeleteWordBackwardAsync(InputBindingActionContext ctx)
+    {
+        var oldText = State.Text;
+        
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+        else if (State.CursorPosition > 0)
+        {
+            var wordStart = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+            var deleteLength = State.CursorPosition - wordStart;
+            State.Text = State.Text.Remove(wordStart, deleteLength);
+            State.CursorPosition = wordStart;
+            MarkDirty();
+        }
+        
+        // Fire callback if text changed
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
+    }
+
+    private async Task DeleteWordForwardAsync(InputBindingActionContext ctx)
+    {
+        var oldText = State.Text;
+        
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+        else if (State.CursorPosition < State.Text.Length)
+        {
+            var wordEnd = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+            var deleteLength = wordEnd - State.CursorPosition;
+            State.Text = State.Text.Remove(State.CursorPosition, deleteLength);
             MarkDirty();
         }
         
