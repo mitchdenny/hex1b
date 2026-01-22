@@ -545,6 +545,76 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures the terminal to play back an asciinema (.cast) recording file, with access to playback controls.
+    /// </summary>
+    /// <param name="filePath">Path to the .cast file to play back.</param>
+    /// <param name="recording">When this method returns, contains the recording instance for playback control.</param>
+    /// <param name="speedMultiplier">Optional initial playback speed multiplier. Default is 1.0 (normal speed).</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload provides access to an <see cref="AsciinemaRecording"/> for controlling playback
+    /// with Play, Pause, and Seek operations. This is useful for building interactive playback UIs.
+    /// </para>
+    /// <para>
+    /// When seeking backwards, the terminal screen is automatically cleared and events are replayed
+    /// from the beginning up to the target position.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithAsciinemaFile("recording.cast", out var recording)
+    ///     .WithTerminalWidget(out var handle)
+    ///     .Build();
+    /// 
+    /// // Wire up to UI controls
+    /// playButton.OnClick(_ => recording.Play());
+    /// pauseButton.OnClick(_ => recording.Pause());
+    /// speedPicker.OnSelectionChanged(e => recording.Play(speeds[e.SelectedIndex]));
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithAsciinemaFile(string filePath, out AsciinemaRecording recording, double speedMultiplier = 1.0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        if (speedMultiplier <= 0)
+            throw new ArgumentOutOfRangeException(nameof(speedMultiplier), "Speed multiplier must be greater than 0");
+
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"Asciinema file not found: {filePath}", filePath);
+
+        var localRecording = new AsciinemaRecording(filePath);
+        recording = localRecording;
+
+        SetWorkloadFactory(presentation =>
+        {
+            var adapter = new AsciinemaRecordingWorkloadAdapter(localRecording);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await adapter.StartAsync(ct);
+                
+                // Apply initial speed
+                localRecording.Play(speedMultiplier);
+                
+                // Wait for playback to complete (when Disconnected is fired)
+                var tcs = new TaskCompletionSource<int>();
+                adapter.Disconnected += () => tcs.TrySetResult(0);
+                
+                // Also handle cancellation
+                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+                
+                return await tcs.Task;
+            };
+
+            return new Hex1bTerminalBuildContext(adapter, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
     /// Enables mouse input for the Hex1bApp.
     /// </summary>
     /// <param name="enable">Whether to enable mouse input. Defaults to true.</param>
