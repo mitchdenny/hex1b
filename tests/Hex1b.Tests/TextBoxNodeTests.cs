@@ -456,6 +456,124 @@ public class TextBoxNodeTests
     }
 
     [Fact]
+    public async Task HandleInput_CtrlLeftArrow_MovesToPreviousWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 11; // End of "world"
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlRightArrow_MovesToNextWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 0; // Start of "hello"
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlLeftArrow_AtStart_StaysAtStart()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 0;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlRightArrow_AtEnd_StaysAtEnd()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 11;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(11, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlLeftArrow_ClearsSelectionFirst()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.SelectionAnchor = 6;
+        node.State.CursorPosition = 11; // "world" selected
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.False(node.State.HasSelection);
+        Assert.Equal(0, node.State.CursorPosition); // Moved to start of "hello" (from selection start)
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlBackspace_DeletesPreviousWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 11; // End of "world"
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("hello ", node.Text);
+        Assert.Equal(6, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlDelete_DeletesNextWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 0;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("world", node.Text);
+        Assert.Equal(0, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlBackspace_AtStart_DoesNothing()
+    {
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 0;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("hello", node.Text);
+        Assert.Equal(0, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlDelete_AtEnd_DoesNothing()
+    {
+        var node = new TextBoxNode { Text = "hello", IsFocused = true };
+        node.State.CursorPosition = 5;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("hello", node.Text);
+        Assert.Equal(5, node.State.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlBackspace_WithSelection_DeletesSelection()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.SelectionAnchor = 6;
+        node.State.CursorPosition = 11; // "world" selected
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("hello ", node.Text);
+        Assert.False(node.State.HasSelection);
+    }
+
+    [Fact]
     public async Task HandleInput_ShiftLeftArrow_CreatesSelection()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };

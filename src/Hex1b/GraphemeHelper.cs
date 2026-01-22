@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace Hex1b;
 
@@ -228,5 +229,159 @@ public static class GraphemeHelper
         }
         
         return text.Length;
+    }
+
+    /// <summary>
+    /// Gets the string index of the start of the previous word.
+    /// Used for Ctrl+Left navigation. Skips backward over non-word chars, then word chars.
+    /// </summary>
+    /// <param name="text">The text to navigate</param>
+    /// <param name="index">The current cursor position (0 to text.Length)</param>
+    /// <returns>The index of the start of the previous word, or 0 if at beginning</returns>
+    public static int GetPreviousWordBoundary(string text, int index)
+    {
+        if (string.IsNullOrEmpty(text) || index <= 0)
+            return 0;
+
+        if (index > text.Length)
+            index = text.Length;
+
+        // Get all grapheme clusters with their positions
+        var clusters = GetGraphemeClusters(text);
+        
+        // Find the cluster index we're at or just before
+        int clusterIdx = clusters.Count;
+        for (int i = 0; i < clusters.Count; i++)
+        {
+            if (clusters[i].EndIndex >= index)
+            {
+                clusterIdx = clusters[i].EndIndex == index ? i + 1 : i;
+                break;
+            }
+        }
+
+        if (clusterIdx == 0)
+            return 0;
+
+        // Phase 1: Skip backward over non-word characters (whitespace, punctuation)
+        while (clusterIdx > 0 && !IsWordCluster(clusters[clusterIdx - 1].Text))
+        {
+            clusterIdx--;
+        }
+
+        // Phase 2: Skip backward over word characters
+        while (clusterIdx > 0 && IsWordCluster(clusters[clusterIdx - 1].Text))
+        {
+            clusterIdx--;
+        }
+
+        return clusterIdx == 0 ? 0 : clusters[clusterIdx].StartIndex;
+    }
+
+    /// <summary>
+    /// Gets the string index of the start of the next word.
+    /// Used for Ctrl+Right navigation. Skips forward over word chars, then non-word chars.
+    /// </summary>
+    /// <param name="text">The text to navigate</param>
+    /// <param name="index">The current cursor position (0 to text.Length)</param>
+    /// <returns>The index of the start of the next word, or text.Length if at end</returns>
+    public static int GetNextWordBoundary(string text, int index)
+    {
+        if (string.IsNullOrEmpty(text) || index >= text.Length)
+            return text?.Length ?? 0;
+
+        if (index < 0)
+            index = 0;
+
+        // Get all grapheme clusters with their positions
+        var clusters = GetGraphemeClusters(text);
+        
+        if (clusters.Count == 0)
+            return text.Length;
+
+        // Find the cluster index we're at or just after
+        int clusterIdx = 0;
+        for (int i = 0; i < clusters.Count; i++)
+        {
+            if (clusters[i].StartIndex >= index)
+            {
+                clusterIdx = i;
+                break;
+            }
+            if (clusters[i].EndIndex > index)
+            {
+                clusterIdx = i;
+                break;
+            }
+            clusterIdx = i + 1;
+        }
+
+        if (clusterIdx >= clusters.Count)
+            return text.Length;
+
+        // Phase 1: Skip forward over word characters
+        while (clusterIdx < clusters.Count && IsWordCluster(clusters[clusterIdx].Text))
+        {
+            clusterIdx++;
+        }
+
+        // Phase 2: Skip forward over non-word characters (whitespace, punctuation)
+        while (clusterIdx < clusters.Count && !IsWordCluster(clusters[clusterIdx].Text))
+        {
+            clusterIdx++;
+        }
+
+        return clusterIdx >= clusters.Count ? text.Length : clusters[clusterIdx].StartIndex;
+    }
+
+    /// <summary>
+    /// Determines if a grapheme cluster is a "word" character (letter, digit, or underscore).
+    /// </summary>
+    private static bool IsWordCluster(string cluster)
+    {
+        if (string.IsNullOrEmpty(cluster))
+            return false;
+
+        // Check the first character's Unicode category
+        // For multi-char clusters (emojis, combining marks), use first base char
+        foreach (var rune in cluster.EnumerateRunes())
+        {
+            var category = Rune.GetUnicodeCategory(rune);
+            return category switch
+            {
+                UnicodeCategory.UppercaseLetter => true,
+                UnicodeCategory.LowercaseLetter => true,
+                UnicodeCategory.TitlecaseLetter => true,
+                UnicodeCategory.ModifierLetter => true,
+                UnicodeCategory.OtherLetter => true,
+                UnicodeCategory.DecimalDigitNumber => true,
+                UnicodeCategory.LetterNumber => true,
+                UnicodeCategory.OtherNumber => true,
+                UnicodeCategory.ConnectorPunctuation => true, // Includes underscore
+                _ => false
+            };
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Gets all grapheme clusters with their start and end indices.
+    /// </summary>
+    private static List<(string Text, int StartIndex, int EndIndex)> GetGraphemeClusters(string text)
+    {
+        var result = new List<(string Text, int StartIndex, int EndIndex)>();
+        
+        if (string.IsNullOrEmpty(text))
+            return result;
+
+        var enumerator = StringInfo.GetTextElementEnumerator(text);
+        while (enumerator.MoveNext())
+        {
+            var cluster = (string)enumerator.Current;
+            var start = enumerator.ElementIndex;
+            result.Add((cluster, start, start + cluster.Length));
+        }
+        
+        return result;
     }
 }
