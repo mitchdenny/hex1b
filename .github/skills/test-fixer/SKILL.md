@@ -18,6 +18,7 @@ This skill provides guidelines for AI agents to diagnose and fix flaky tests in 
 | [Test Interference](#pattern-5-test-interference) | Pass isolated, fail in suite | Check for shared state, file locks, or parallel execution issues |
 | [Platform-Specific](#pattern-6-platform-specific-failures) | Fails consistently on Windows/Linux | Add platform skip trait or fix platform-specific code |
 | [Task.Delay for Async Events](#pattern-7-taskdelay-for-async-events) | Flaky on slower CI runners | Replace `Task.Delay` with `TaskCompletionSource` signal |
+| [Helper Partial Wait](#pattern-8-test-helper-partial-wait) | Tests using multi-line helpers fail intermittently | Wait for all/last content, not just first line |
 
 ---
 
@@ -650,6 +651,79 @@ Assert.True(bindingFired.Task.IsCompleted);  // Reliable
 
 ---
 
+## Pattern 8: Test Helper Partial Wait
+
+#### Symptoms
+- Tests using shared helper methods that write multiple lines fail intermittently
+- Assertions fail for content on lines other than the first
+- Helper waits for initial content but snapshot misses later content
+- Test name often includes directional movement (Up, Down) or multi-line content
+
+#### Root Cause
+
+Test helper methods that write multiple lines of content may only wait for the first line to appear before taking a snapshot. On faster CI systems, the snapshot may be captured before all lines are processed by the output pump.
+
+**Example**: A helper writes lines `["A", "B"]` but only waits for `"A"` to appear. Tests that expect `"B"` on a separate line may fail because the snapshot is taken before `"B"` is processed.
+
+#### Example: Broken Helper
+
+```csharp
+// ❌ BROKEN: Only waits for first line
+private static async Task<Hex1bTerminalSnapshot> CreateSnapshotAsync(string[] lines)
+{
+    using var workload = new Hex1bAppWorkloadAdapter();
+    using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).Build();
+
+    foreach (var line in lines)
+    {
+        workload.Write(line + "\r\n");
+    }
+
+    // BUG: Only waits for first line!
+    var firstLine = lines.Length > 0 ? lines[0] : "";
+    await new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.ContainsText(firstLine), TimeSpan.FromSeconds(1))
+        .Build()
+        .ApplyAsync(terminal);
+
+    return terminal.CreateSnapshot();  // May miss content after first line!
+}
+```
+
+#### Fix
+
+```csharp
+// ✅ FIXED: Wait for last line to ensure all content is processed
+private static async Task<Hex1bTerminalSnapshot> CreateSnapshotAsync(string[] lines)
+{
+    using var workload = new Hex1bAppWorkloadAdapter();
+    using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).Build();
+
+    foreach (var line in lines)
+    {
+        workload.Write(line + "\r\n");
+    }
+
+    // Wait for the LAST line to ensure all lines are written
+    var lastLine = lines.Length > 0 ? lines[^1] : "";
+    await new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => string.IsNullOrEmpty(lastLine) || s.ContainsText(lastLine), 
+                   TimeSpan.FromSeconds(1), "last line content")
+        .Build()
+        .ApplyAsync(terminal);
+
+    return terminal.CreateSnapshot();  // Now contains all lines
+}
+```
+
+#### How to Identify
+
+1. Look for test helpers that write multiple pieces of content (arrays, lists)
+2. Check if the `WaitUntil` condition only checks for initial/first content
+3. Tests affected often have names suggesting multi-line or positional patterns
+
+---
+
 ## Checklist for Test Review
 
 Before committing test changes, verify:
@@ -665,3 +739,4 @@ Before committing test changes, verify:
 - [ ] No `Task.Delay` for async events - use `TaskCompletionSource` instead
 - [ ] Test passes both in isolation and in full suite
 - [ ] Platform-specific tests have appropriate skip traits
+- [ ] Test helpers writing multiple lines wait for all/last content
