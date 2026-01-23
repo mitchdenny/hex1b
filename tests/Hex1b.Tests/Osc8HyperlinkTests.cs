@@ -935,7 +935,9 @@ public class Osc8HyperlinkTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        
+        // Capture snapshot BEFORE exiting, similar to other working tests
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2))
             .Capture("constrained-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
@@ -943,7 +945,6 @@ public class Osc8HyperlinkTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-constrained-vstack");
 
         // Check that all visible characters of the hyperlink have hyperlink data
