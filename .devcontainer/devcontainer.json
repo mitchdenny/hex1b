@@ -2,8 +2,13 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/dotnet
 {
 	"name": "Aspire",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/dotnet:10.0-noble",
+	// Using a Dockerfile to work around Yarn APT repo GPG key expiration issue.
+	// The base devcontainer image includes Yarn sources with an expired key, which
+	// causes apt-get update to fail during feature installation.
+	// See: https://github.com/devcontainers/features/issues/1543
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/devcontainers/features/powershell:1": {}
