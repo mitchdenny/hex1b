@@ -3,13 +3,10 @@
 {
 	"name": "Aspire",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/dotnet:dev-10.0-noble",
+	"image": "mcr.microsoft.com/devcontainers/dotnet:10.0-noble",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/features/powershell:1": {},
-		"ghcr.io/devcontainers/features/node:1": {},
-		"ghcr.io/devcontainers/features/python:1": {},
-		"ghcr.io/devcontainers-extra/features/uv:1": {}
+		"ghcr.io/devcontainers/features/powershell:1": {}
 	},
 
 	"hostRequirements": {
