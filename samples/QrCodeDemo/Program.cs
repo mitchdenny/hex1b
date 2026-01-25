@@ -12,7 +12,6 @@ var urlOptions = new[]
 };
 var selectedUrlIndex = 0;
 var customUrl = "";
-var showCustomUrl = false;
 var quietZone = 1;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -58,7 +57,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .OnSelectionChanged(e => {
                             selectedUrlIndex = e.SelectedIndex;
                             currentUrl = urlOptions[e.SelectedIndex];
-                            showCustomUrl = false;
                         }),
                     right.Text(""),
                     right.Text("  Or enter custom URL:"),
@@ -71,7 +69,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 customUrl = e.NewText;
                                 if (!string.IsNullOrWhiteSpace(customUrl))
                                 {
-                                    showCustomUrl = true;
                                     currentUrl = customUrl;
                                 }
                             })
@@ -96,7 +93,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             selectedUrlIndex = 0;
                             currentUrl = urlOptions[0];
                             customUrl = "";
-                            showCustomUrl = false;
                             quietZone = 1;
                         }),
                         buttons.Text(" "),

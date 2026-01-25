@@ -22,6 +22,9 @@ namespace Hex1b;
 /// <seealso cref="QrCodeWidget"/>
 public sealed class QrCodeNode : Hex1bNode
 {
+    private const string FilledBlock = "██";
+    private const string EmptySpace = "  ";
+    
     private string _data = "";
     private List<BitArray>? _matrix;
     private int _matrixSize = 0;
@@ -152,7 +155,7 @@ public sealed class QrCodeNode : Hex1bNode
                 if (x < QuietZone || x >= _matrixSize + QuietZone ||
                     y < QuietZone || y >= _matrixSize + QuietZone)
                 {
-                    line += "  "; // Quiet zone is empty (2 spaces for better visibility)
+                    line += EmptySpace; // Quiet zone is empty
                 }
                 else
                 {
@@ -164,7 +167,7 @@ public sealed class QrCodeNode : Hex1bNode
                                    matrixX < _matrix[matrixY].Length && 
                                    _matrix[matrixY][matrixX];
                     
-                    line += isFilled ? "██" : "  "; // Use double-width blocks for better square appearance
+                    line += isFilled ? FilledBlock : EmptySpace;
                 }
             }
             
