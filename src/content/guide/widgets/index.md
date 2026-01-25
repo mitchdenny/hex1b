@@ -31,6 +31,7 @@ Widgets for presenting information.
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting
 - **[Progress](/guide/widgets/progress)** — Progress bars and spinners
 - **[Hyperlink](/guide/widgets/hyperlink)** — Clickable terminal hyperlinks (OSC 8)
+- **[QrCode](/guide/widgets/qrcode)** — Render QR codes in the terminal
 
 ## Utility Widgets
 
