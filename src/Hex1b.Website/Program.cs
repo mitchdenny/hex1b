@@ -111,6 +111,10 @@ builder.Services.AddSingleton<IGalleryExample, AlignDemoExample>();
 // Register Terminal widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TerminalBasicExample>();
 
+// Register QrCode widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, QrCodeBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, QrCodeCustomExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
