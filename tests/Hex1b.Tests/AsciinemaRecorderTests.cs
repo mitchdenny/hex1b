@@ -464,6 +464,7 @@ public class AsciinemaRecorderTests : IDisposable
             .Tab()  // Move to Add button
             .Wait(TimeSpan.FromMilliseconds(200))
             .Key(Hex1bKey.Enter)  // Click Add
+            .WaitUntil(s => s.ContainsText("Buy holiday gifts"), TimeSpan.FromSeconds(2))  // Wait for item to be added
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -521,6 +522,7 @@ public class AsciinemaRecorderTests : IDisposable
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(200))
             .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Call mom"), TimeSpan.FromSeconds(2))  // Wait for item to be added
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
