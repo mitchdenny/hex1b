@@ -18,8 +18,7 @@
 			"version": "latest",
 			"installYarnUsingApt": false
 		},
-		"ghcr.io/devcontainers/features/python:1": {},
-		"ghcr.io/astral-sh/uv:1": {}
+		"ghcr.io/devcontainers/features/python:1": {}
 	},
 
 	"hostRequirements": {
