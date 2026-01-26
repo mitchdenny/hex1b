@@ -365,6 +365,15 @@ public sealed class Surface : ISurfaceSource
         return clone;
     }
 
+    /// <summary>
+    /// Gets the underlying cell array for direct access.
+    /// </summary>
+    /// <remarks>
+    /// This is an internal optimization for cases where Span cannot be used
+    /// (e.g., in async contexts). Use with caution - no bounds checking.
+    /// </remarks>
+    internal SurfaceCell[] CellsUnsafe => _cells;
+
     private void ValidateBounds(int x, int y)
     {
         if (x < 0 || x >= Width)

@@ -30,20 +30,31 @@ public static class SurfaceComparer
         ArgumentNullException.ThrowIfNull(previous);
         ArgumentNullException.ThrowIfNull(current);
 
+        // Fast path: same instance means no changes
+        if (ReferenceEquals(previous, current))
+            return SurfaceDiff.Empty;
+
         if (previous.Width != current.Width || previous.Height != current.Height)
         {
             throw new ArgumentException(
                 $"Surfaces must have the same dimensions. Previous: {previous.Width}x{previous.Height}, Current: {current.Width}x{current.Height}");
         }
 
+        var width = current.Width;
+        var height = current.Height;
+        var prevCells = previous.CellsUnsafe;
+        var currCells = current.CellsUnsafe;
+        
         var changedCells = new List<ChangedCell>();
 
-        for (var y = 0; y < current.Height; y++)
+        for (var y = 0; y < height; y++)
         {
-            for (var x = 0; x < current.Width; x++)
+            var rowOffset = y * width;
+            for (var x = 0; x < width; x++)
             {
-                var prevCell = previous[x, y];
-                var currCell = current[x, y];
+                var index = rowOffset + x;
+                var prevCell = prevCells[index];
+                var currCell = currCells[index];
 
                 if (!CellsEqual(prevCell, currCell))
                 {
@@ -68,15 +79,21 @@ public static class SurfaceComparer
     {
         ArgumentNullException.ThrowIfNull(surface);
 
+        var width = surface.Width;
+        var height = surface.Height;
+        var cells = surface.CellsUnsafe;
+        var empty = SurfaceCells.Empty;
+        
         var changedCells = new List<ChangedCell>();
 
-        for (var y = 0; y < surface.Height; y++)
+        for (var y = 0; y < height; y++)
         {
-            for (var x = 0; x < surface.Width; x++)
+            var rowOffset = y * width;
+            for (var x = 0; x < width; x++)
             {
-                var cell = surface[x, y];
+                var cell = cells[rowOffset + x];
 
-                if (!CellsEqual(cell, SurfaceCells.Empty))
+                if (!CellsEqual(cell, empty))
                 {
                     changedCells.Add(new ChangedCell(x, y, cell));
                 }

@@ -108,6 +108,22 @@ public sealed class CompositeSurface : ISurfaceSource
         _layers.Clear();
     }
 
+    /// <summary>
+    /// Gets whether this composite has any computed layers.
+    /// </summary>
+    private bool HasComputedLayers
+    {
+        get
+        {
+            foreach (var layer in _layers)
+            {
+                if (layer.Compute is not null)
+                    return true;
+            }
+            return false;
+        }
+    }
+
     /// <inheritdoc />
     public SurfaceCell GetCell(int x, int y)
     {
@@ -115,6 +131,10 @@ public sealed class CompositeSurface : ISurfaceSource
             throw new ArgumentOutOfRangeException(nameof(x), x, $"X must be between 0 and {Width - 1}");
         if (y < 0 || y >= Height)
             throw new ArgumentOutOfRangeException(nameof(y), y, $"Y must be between 0 and {Height - 1}");
+
+        // Fast path for non-computed composites
+        if (!HasComputedLayers)
+            return ResolveCellFast(x, y);
 
         var context = new LayerResolutionContext(this);
         return context.ResolveCell(x, y);
@@ -125,12 +145,68 @@ public sealed class CompositeSurface : ISurfaceSource
     {
         if (x >= 0 && x < Width && y >= 0 && y < Height)
         {
+            // Fast path for non-computed composites
+            if (!HasComputedLayers)
+            {
+                cell = ResolveCellFast(x, y);
+                return true;
+            }
+            
             var context = new LayerResolutionContext(this);
             cell = context.ResolveCell(x, y);
             return true;
         }
         cell = default;
         return false;
+    }
+
+    /// <summary>
+    /// Fast cell resolution without cycle detection overhead.
+    /// Only valid when there are no computed layers.
+    /// </summary>
+    private SurfaceCell ResolveCellFast(int x, int y)
+    {
+        var result = SurfaceCells.Empty;
+
+        foreach (var layer in _layers)
+        {
+            var srcX = x - layer.OffsetX;
+            var srcY = y - layer.OffsetY;
+
+            if (!layer.Source.IsInBounds(srcX, srcY))
+                continue;
+
+            var srcCell = layer.Source.GetCell(srcX, srcY);
+            result = CompositeCellFast(result, srcCell);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Fast cell compositing without computed cell overhead.
+    /// </summary>
+    private static SurfaceCell CompositeCellFast(SurfaceCell below, SurfaceCell above)
+    {
+        // Handle transparency
+        if (above.HasTransparentBackground)
+            above = above with { Background = below.Background };
+
+        if (above.HasTransparentForeground)
+            above = above with { Foreground = below.Foreground };
+
+        if (above.IsContinuation)
+            return above;
+        
+        if (above.Character != " " || above.Background is not null)
+            return above;
+
+        return above with
+        {
+            Character = below.Character,
+            Foreground = below.Foreground,
+            Attributes = below.Attributes | above.Attributes
+        };
     }
 
     /// <inheritdoc />
@@ -200,7 +276,7 @@ public sealed class CompositeSurface : ISurfaceSource
     internal sealed class LayerResolutionContext
     {
         private readonly CompositeSurface _composite;
-        private readonly HashSet<(int X, int Y, int LayerIndex)> _computing = [];
+        private HashSet<(int X, int Y, int LayerIndex)>? _computing;
 
         public LayerResolutionContext(CompositeSurface composite)
         {
@@ -276,6 +352,9 @@ public sealed class CompositeSurface : ISurfaceSource
         {
             var key = (x, y, layerIndex);
 
+            // Lazy allocate HashSet only when computing (most composites have no computed layers)
+            _computing ??= [];
+            
             // Cycle detection
             if (!_computing.Add(key))
             {
