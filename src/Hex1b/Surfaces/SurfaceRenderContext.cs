@@ -193,6 +193,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
     /// <summary>
     /// Writes text to the surface, parsing ANSI escape codes.
+    /// Uses grapheme cluster enumeration for proper Unicode handling.
     /// </summary>
     private void WriteToSurface(int x, int y, string text, bool updateCursor)
     {
@@ -202,9 +203,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         while (i < text.Length)
         {
+            // Check for escape sequence
             if (text[i] == '\x1b' && i + 1 < text.Length)
             {
-                // Parse escape sequence
                 var consumed = ParseEscapeSequence(text, i);
                 if (consumed > 0)
                 {
@@ -213,18 +214,20 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 }
             }
 
-            // Regular character - write to surface
+            // Find the extent of the current grapheme cluster
+            var grapheme = GetNextGrapheme(text, i, out var charCount);
+            
+            // Write to surface if in bounds
             if (writeX >= 0 && writeX < Width && writeY >= 0 && writeY < Height)
             {
-                var ch = text[i].ToString();
-                var displayWidth = GetDisplayWidth(ch);
+                var displayWidth = DisplayWidth.GetGraphemeWidth(grapheme);
 
                 // Check if this is a wide character
                 if (displayWidth == 2)
                 {
                     // Write main cell
                     _surface[writeX, writeY] = new SurfaceCell(
-                        ch,
+                        grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
@@ -233,32 +236,31 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     // Write continuation cell if space allows
                     if (writeX + 1 < Width)
                     {
-                        _surface[writeX + 1, writeY] = SurfaceCells.Continuation with
-                        {
-                            Foreground = _currentForeground,
-                            Background = _currentBackground
-                        };
+                        _surface[writeX + 1, writeY] = SurfaceCell.CreateContinuation(_currentBackground);
                     }
 
                     writeX += 2;
                 }
-                else
+                else if (displayWidth == 1)
                 {
                     _surface[writeX, writeY] = new SurfaceCell(
-                        ch,
+                        grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth);
                     writeX++;
                 }
+                // Zero-width characters are ignored for cursor advancement
             }
             else
             {
-                writeX++;
+                // Out of bounds - still need to advance cursor based on display width
+                var displayWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+                writeX += displayWidth;
             }
 
-            i++;
+            i += charCount;
         }
 
         if (updateCursor)
@@ -266,6 +268,33 @@ public class SurfaceRenderContext : Hex1bRenderContext
             _cursorX = writeX;
             _cursorY = writeY;
         }
+    }
+    
+    /// <summary>
+    /// Gets the next grapheme cluster from the string starting at the given index.
+    /// </summary>
+    /// <param name="text">The source text.</param>
+    /// <param name="start">The starting index.</param>
+    /// <param name="charCount">The number of UTF-16 chars consumed.</param>
+    /// <returns>The grapheme cluster as a string.</returns>
+    private static string GetNextGrapheme(string text, int start, out int charCount)
+    {
+        if (start >= text.Length)
+        {
+            charCount = 0;
+            return "";
+        }
+        
+        // Handle surrogate pairs
+        if (char.IsHighSurrogate(text[start]) && start + 1 < text.Length && char.IsLowSurrogate(text[start + 1]))
+        {
+            charCount = 2;
+            return text.Substring(start, 2);
+        }
+        
+        // Single character
+        charCount = 1;
+        return text[start].ToString();
     }
 
     /// <summary>
@@ -597,29 +626,6 @@ public class SurfaceRenderContext : Hex1bRenderContext
             var gray = (index - 232) * 10 + 8;
             return Hex1bColor.FromRgb((byte)gray, (byte)gray, (byte)gray);
         }
-    }
-
-    private static int GetDisplayWidth(string ch)
-    {
-        if (string.IsNullOrEmpty(ch))
-            return 0;
-
-        var codePoint = char.ConvertToUtf32(ch, 0);
-        
-        // CJK characters, emoji, and other wide characters
-        if (codePoint >= 0x1100 && codePoint <= 0x115F) return 2; // Hangul Jamo
-        if (codePoint >= 0x2E80 && codePoint <= 0x9FFF) return 2; // CJK
-        if (codePoint >= 0xAC00 && codePoint <= 0xD7A3) return 2; // Hangul Syllables
-        if (codePoint >= 0xF900 && codePoint <= 0xFAFF) return 2; // CJK Compatibility
-        if (codePoint >= 0xFE10 && codePoint <= 0xFE1F) return 2; // Vertical forms
-        if (codePoint >= 0xFE30 && codePoint <= 0xFE6F) return 2; // CJK Compatibility Forms
-        if (codePoint >= 0xFF00 && codePoint <= 0xFF60) return 2; // Fullwidth forms
-        if (codePoint >= 0xFFE0 && codePoint <= 0xFFE6) return 2; // Fullwidth symbols
-        if (codePoint >= 0x20000 && codePoint <= 0x2FFFF) return 2; // CJK Extension
-        if (codePoint >= 0x30000 && codePoint <= 0x3FFFF) return 2; // CJK Extension
-        if (codePoint >= 0x1F300 && codePoint <= 0x1F9FF) return 2; // Emoji
-
-        return 1;
     }
 
     #endregion
