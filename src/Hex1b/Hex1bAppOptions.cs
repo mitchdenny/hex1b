@@ -93,17 +93,17 @@ public class Hex1bAppOptions
     public int InputCoalescingMaxDelayMs { get; set; } = 100;
     
     /// <summary>
-    /// Controls the rendering implementation. Default is Legacy for backward compatibility.
-    /// Set to Surface to use the new Surface-based rendering with efficient diffing.
+    /// Controls the rendering implementation. Default is Surface for optimal performance.
+    /// Set to Legacy for backward compatibility if issues arise.
     /// Set to Validation to run both paths and verify they produce identical visual output.
     /// </summary>
     /// <remarks>
     /// Can be controlled via the HEX1B_RENDERING_MODE environment variable:
     /// - "Legacy" or "0": Use legacy ANSI string rendering
-    /// - "Surface" or "1": Use Surface-based rendering
+    /// - "Surface" or "1": Use Surface-based rendering (default)
     /// - "Validation" or "2": Run both and compare (throws on mismatch)
     /// </remarks>
-    public RenderingMode RenderingMode { get; set; } = RenderingMode.Legacy;
+    public RenderingMode RenderingMode { get; set; } = RenderingMode.Surface;
     
     /// <summary>
     /// Creates options with rendering mode from environment variable if set.

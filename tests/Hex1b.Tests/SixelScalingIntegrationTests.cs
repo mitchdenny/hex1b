@@ -91,7 +91,7 @@ public class SixelScalingIntegrationTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
         
         // Run app briefly to render, capturing snapshot BEFORE app exits
@@ -164,7 +164,7 @@ public class SixelScalingIntegrationTests
                     ])
                 ])
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);

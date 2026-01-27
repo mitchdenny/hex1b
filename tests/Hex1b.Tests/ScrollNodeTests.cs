@@ -1179,7 +1179,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);

@@ -412,7 +412,9 @@ public class AsciinemaRecorderTests : IDisposable
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult(BuildResponsiveTodoWidget(ctx, state)),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            // Use Legacy mode because this test counts output events, which differs between modes
+            // Surface mode is more efficient (fewer events), so threshold wouldn't be meaningful
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
         
         var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);

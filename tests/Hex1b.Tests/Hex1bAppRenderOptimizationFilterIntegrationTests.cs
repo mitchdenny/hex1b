@@ -275,7 +275,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new TextBlockWidget("Static Content")
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         // Act
@@ -348,7 +348,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
                     new TextBlockWidget("Footer Text That Should Not Change"),
                 })
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         // Act
@@ -419,7 +419,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
                     new TextBlockWidget("Static Footer"),
                 })
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         // Act
@@ -493,7 +493,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
                     new TextBlockWidget("This footer should not repaint"),
                 })
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         // Act
@@ -731,7 +731,7 @@ public class Hex1bAppRenderOptimizationFilterIntegrationTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
         );
 
         // Act - wait for initial render with large widget (5 lines)

@@ -130,7 +130,9 @@ public class RenderOptimizationTests
                     ])
                 );
             },
-            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
+            // Use Legacy mode because this test checks IsDirty-based skip behavior
+            // which works differently in Surface mode (caching vs skip)
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false, RenderingMode = RenderingMode.Legacy }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
