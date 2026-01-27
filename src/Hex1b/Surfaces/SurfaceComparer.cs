@@ -134,6 +134,7 @@ public static class SurfaceComparer
         Hex1bColor? currentBg = null;
         CellAttributes currentAttrs = CellAttributes.None;
         bool stateUnknown = true;
+        TrackedObject<HyperlinkData>? currentHyperlink = null;
 
         foreach (var change in diff.ChangedCells)
         {
@@ -148,6 +149,23 @@ public static class SurfaceComparer
                 tokens.Add(new CursorPositionToken(change.Y + 1, change.X + 1));
                 cursorY = change.Y;
                 cursorX = change.X;
+            }
+            
+            // Emit OSC 8 if hyperlink state changed
+            if (!HyperlinksEqual(change.Cell.Hyperlink, currentHyperlink))
+            {
+                var hyperlink = change.Cell.Hyperlink;
+                if (hyperlink != null)
+                {
+                    // Start hyperlink: OSC 8 ; params ; URI ST
+                    tokens.Add(new OscToken("8", hyperlink.Data.Parameters, hyperlink.Data.Uri));
+                }
+                else
+                {
+                    // End hyperlink: OSC 8 ; ; ST (empty URI)
+                    tokens.Add(new OscToken("8", "", ""));
+                }
+                currentHyperlink = hyperlink;
             }
 
             // Generate SGR if attributes changed or state is unknown
@@ -180,6 +198,12 @@ public static class SurfaceComparer
             
             // Cursor advances by display width
             cursorX += Math.Max(1, change.Cell.DisplayWidth);
+        }
+        
+        // If we ended in a hyperlink, close it
+        if (currentHyperlink != null)
+        {
+            tokens.Add(new OscToken("8", "", ""));
         }
 
         return tokens;
@@ -234,14 +258,27 @@ public static class SurfaceComparer
 
     private static bool CellsEqual(SurfaceCell a, SurfaceCell b)
     {
-        // Compare visual properties only
-        // Note: We don't compare Sixel/Hyperlink tracked objects by reference
-        // because same visual content should be considered equal
-        return a.Character == b.Character &&
-               ColorsEqual(a.Foreground, b.Foreground) &&
-               ColorsEqual(a.Background, b.Background) &&
-               a.Attributes == b.Attributes &&
-               a.DisplayWidth == b.DisplayWidth;
+        // Compare visual properties and hyperlink
+        if (a.Character != b.Character ||
+            !ColorsEqual(a.Foreground, b.Foreground) ||
+            !ColorsEqual(a.Background, b.Background) ||
+            a.Attributes != b.Attributes ||
+            a.DisplayWidth != b.DisplayWidth)
+        {
+            return false;
+        }
+        
+        // Compare hyperlinks by content (URI and parameters)
+        return HyperlinksEqual(a.Hyperlink, b.Hyperlink);
+    }
+    
+    private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        
+        // Compare by content, not reference
+        return a.Data.Uri == b.Data.Uri && a.Data.Parameters == b.Data.Parameters;
     }
 
     private static bool ColorsEqual(Hex1bColor? a, Hex1bColor? b)

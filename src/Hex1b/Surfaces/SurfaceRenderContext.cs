@@ -32,6 +32,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
     private CellAttributes _currentAttributes;
+    
+    // Current hyperlink state (from parsed OSC 8 sequences)
+    private TrackedObject<HyperlinkData>? _currentHyperlink;
+    
+    // Store for tracking hyperlink objects (for deduplication and reference counting)
+    private readonly TrackedObjectStore _trackedObjects = new();
 
     /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
@@ -206,6 +212,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _currentForeground = null;
         _currentBackground = null;
         _currentAttributes = CellAttributes.None;
+        // Note: We don't reset hyperlink here - OSC 8 reset is explicit with empty URI
     }
     
     /// <summary>
@@ -351,6 +358,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
             if (writeX >= 0 && writeX < _surface.Width && writeY >= 0 && writeY < _surface.Height)
             {
                 var displayWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+                
+                // Add ref to hyperlink if present (each cell holds a reference)
+                _currentHyperlink?.AddRef();
 
                 // Check if this is a wide character
                 if (displayWidth == 2)
@@ -361,7 +371,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
-                        displayWidth);
+                        displayWidth,
+                        Hyperlink: _currentHyperlink);
 
                     // Write continuation cell if space allows
                     if (writeX + 1 < _surface.Width)
@@ -378,8 +389,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
-                        displayWidth);
+                        displayWidth,
+                        Hyperlink: _currentHyperlink);
                     writeX++;
+                }
+                else
+                {
+                    // Zero-width - release the ref we added
+                    _currentHyperlink?.Release();
                 }
                 // Zero-width characters are ignored for cursor advancement
             }
@@ -445,10 +462,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return ParseCsiSequence(text, start);
         }
 
-        // OSC sequence: ESC ] (hyperlinks, etc.) - skip for now
+        // OSC sequence: ESC ] (hyperlinks, etc.)
         if (next == ']')
         {
-            return SkipOscSequence(text, start);
+            return ParseOscSequence(text, start);
         }
 
         // DCS sequence: ESC P (sixels) - skip for now
@@ -656,23 +673,83 @@ public class SurfaceRenderContext : Hex1bRenderContext
     }
 
     /// <summary>
-    /// Skips an OSC sequence (ESC ] ... ST).
+    /// Parses an OSC sequence (ESC ] ... ST) and handles OSC 8 hyperlinks.
     /// </summary>
-    private static int SkipOscSequence(string text, int start)
+    /// <remarks>
+    /// OSC 8 format: ESC ] 8 ; params ; URI ST
+    /// where ST is either ESC \ or BEL (\x07)
+    /// An empty URI ends the hyperlink.
+    /// </remarks>
+    private int ParseOscSequence(string text, int start)
     {
-        var i = start + 2;
+        var i = start + 2; // Skip ESC ]
+        var contentStart = i;
+        var contentEnd = -1;
+        var terminatorLength = 0;
+        
+        // Find the terminator (ST or BEL)
         while (i < text.Length)
         {
-            // Look for ST (ESC \) or BEL
             if (text[i] == '\x07')
-                return i - start + 1;
+            {
+                contentEnd = i;
+                terminatorLength = 1;
+                break;
+            }
             if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
-                return i - start + 2;
+            {
+                contentEnd = i;
+                terminatorLength = 2;
+                break;
+            }
             i++;
         }
-        return 0;
+        
+        if (contentEnd < 0)
+            return 0; // Incomplete sequence
+        
+        var content = text.Substring(contentStart, contentEnd - contentStart);
+        
+        // Parse OSC command number
+        var firstSemicolon = content.IndexOf(';');
+        if (firstSemicolon < 0)
+        {
+            // No command parameters, skip
+            return contentEnd - start + terminatorLength;
+        }
+        
+        var command = content[..firstSemicolon];
+        
+        // Handle OSC 8 (hyperlinks)
+        if (command == "8")
+        {
+            // Format: 8;params;URI
+            var rest = content[(firstSemicolon + 1)..];
+            var secondSemicolon = rest.IndexOf(';');
+            
+            if (secondSemicolon >= 0)
+            {
+                var parameters = rest[..secondSemicolon];
+                var uri = rest[(secondSemicolon + 1)..];
+                
+                if (string.IsNullOrEmpty(uri))
+                {
+                    // Empty URI ends the hyperlink
+                    _currentHyperlink?.Release();
+                    _currentHyperlink = null;
+                }
+                else
+                {
+                    // Start a new hyperlink
+                    _currentHyperlink?.Release(); // Release any previous
+                    _currentHyperlink = _trackedObjects.GetOrCreateHyperlink(uri, parameters);
+                }
+            }
+        }
+        
+        return contentEnd - start + terminatorLength;
     }
-
+    
     /// <summary>
     /// Skips a DCS sequence (ESC P ... ST).
     /// </summary>
