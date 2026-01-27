@@ -1,4 +1,6 @@
 using BenchmarkDotNet.Attributes;
+using Hex1b;
+using Hex1b.Automation;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
@@ -260,6 +262,127 @@ public class SurfaceBenchmarks
     public Surface Clone_Large()
     {
         return _largeSurface.Clone();
+    }
+
+    #endregion
+
+    #region Sixel Encode/Decode
+
+    private SixelPixelBuffer _smallPixelBuffer = null!;
+    private SixelPixelBuffer _mediumPixelBuffer = null!;
+    private SixelPixelBuffer _largePixelBuffer = null!;
+    private string _encodedSmallSixel = null!;
+    private string _encodedMediumSixel = null!;
+    private CompositeSurface _compositeWithSixel = null!;
+    private CompositeSurface _compositeWithOccludedSixel = null!;
+
+    [GlobalSetup(Target = nameof(SixelEncode_Small))]
+    public void SetupSixelBenchmarks()
+    {
+        // Create pixel buffers for encoding benchmarks
+        _smallPixelBuffer = CreateTestPixelBuffer(100, 60);
+        _mediumPixelBuffer = CreateTestPixelBuffer(500, 300);
+        _largePixelBuffer = CreateTestPixelBuffer(1000, 600);
+
+        // Pre-encode for decode benchmarks
+        _encodedSmallSixel = SixelEncoder.Encode(_smallPixelBuffer);
+        _encodedMediumSixel = SixelEncoder.Encode(_mediumPixelBuffer);
+
+        // Setup composite with sixel (using a surface without actual sixel tracking
+        // since TrackedObjectStore is internal - we test the encoding/decoding separately)
+        var metrics = new CellMetrics(10, 20);
+        _compositeWithSixel = new CompositeSurface(80, 24, metrics);
+        var sixelLayer = new Surface(80, 24, metrics);
+        // Fill with some content to simulate sixel region
+        sixelLayer.Fill(new Rect(5, 5, 10, 3), new SurfaceCell("█", Hex1bColor.Blue, null));
+        _compositeWithSixel.AddLayer(sixelLayer, 0, 0);
+
+        // Setup composite with occluded content
+        _compositeWithOccludedSixel = new CompositeSurface(80, 24, metrics);
+        var bgLayer = new Surface(80, 24, metrics);
+        bgLayer.Fill(new Rect(0, 0, 20, 10), new SurfaceCell("░", Hex1bColor.Gray, null));
+        _compositeWithOccludedSixel.AddLayer(bgLayer, 0, 0);
+        
+        var dialogLayer = new Surface(6, 3, metrics);
+        dialogLayer.Fill(new Rect(0, 0, 6, 3), new SurfaceCell(" ", null, Hex1bColor.Blue));
+        _compositeWithOccludedSixel.AddLayer(dialogLayer, 2, 0);
+    }
+
+    private static SixelPixelBuffer CreateTestPixelBuffer(int width, int height)
+    {
+        var buffer = new SixelPixelBuffer(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                // Create a gradient pattern
+                buffer[x, y] = new Rgba32(
+                    (byte)(x * 255 / width),
+                    (byte)(y * 255 / height),
+                    128,
+                    255);
+            }
+        }
+        return buffer;
+    }
+
+    [Benchmark]
+    public string SixelEncode_Small()
+    {
+        return SixelEncoder.Encode(_smallPixelBuffer);
+    }
+
+    [Benchmark]
+    public string SixelEncode_Medium()
+    {
+        return SixelEncoder.Encode(_mediumPixelBuffer);
+    }
+
+    [Benchmark]
+    public string SixelEncode_Large()
+    {
+        return SixelEncoder.Encode(_largePixelBuffer);
+    }
+
+    [Benchmark]
+    public SixelImage SixelDecode_Small()
+    {
+        return SixelDecoder.Decode(_encodedSmallSixel);
+    }
+
+    [Benchmark]
+    public SixelImage SixelDecode_Medium()
+    {
+        return SixelDecoder.Decode(_encodedMediumSixel);
+    }
+
+    [Benchmark]
+    public SixelPixelBuffer SixelCrop_Half()
+    {
+        // Crop to left half
+        return _mediumPixelBuffer.Crop(0, 0, 250, 300);
+    }
+
+    [Benchmark]
+    public string SixelRoundTrip_Small()
+    {
+        // Decode returns SixelImage, encode from pixel buffer
+        var decoded = SixelDecoder.Decode(_encodedSmallSixel);
+        if (decoded == null) return "";
+        
+        // Create a buffer from the decoded image (Pixels is RGBA byte array)
+        var buffer = new SixelPixelBuffer(decoded.Width, decoded.Height);
+        var pixels = decoded.Pixels;
+        var idx = 0;
+        for (var y = 0; y < decoded.Height; y++)
+        {
+            for (var x = 0; x < decoded.Width; x++)
+            {
+                buffer[x, y] = new Rgba32(pixels[idx], pixels[idx + 1], pixels[idx + 2], pixels[idx + 3]);
+                idx += 4;
+            }
+        }
+        return SixelEncoder.Encode(buffer);
     }
 
     #endregion

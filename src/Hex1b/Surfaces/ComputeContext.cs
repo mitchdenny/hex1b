@@ -11,6 +11,7 @@ namespace Hex1b.Surfaces;
 ///   <item>The position being computed</item>
 ///   <item>Cells from layers below the current layer</item>
 ///   <item>Adjacent cells on the same layer</item>
+///   <item>Sixel pixel data from layers below</item>
 /// </list>
 /// </para>
 /// <para>
@@ -33,6 +34,11 @@ public readonly ref struct ComputeContext
     /// Gets the Y position (row) of the cell being computed.
     /// </summary>
     public int Y { get; }
+
+    /// <summary>
+    /// Gets the cell metrics for pixel/cell conversion.
+    /// </summary>
+    public CellMetrics CellMetrics => _context.CellMetrics;
 
     internal ComputeContext(int x, int y, int currentLayerIndex, CompositeSurface.LayerResolutionContext context)
     {
@@ -108,6 +114,77 @@ public readonly ref struct ComputeContext
             return SurfaceCells.Empty;
 
         return _context.ResolveCellAtLayer(x, y, _currentLayerIndex);
+    }
+
+    /// <summary>
+    /// Checks if there is a sixel visible at this position in layers below.
+    /// </summary>
+    /// <returns>True if a sixel covers this cell position.</returns>
+    public bool HasSixelBelow()
+    {
+        return _context.FindSixelAtPosition(X, Y, _currentLayerIndex) is not null;
+    }
+
+    /// <summary>
+    /// Gets access to sixel pixel data at this cell position from layers below.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This finds any sixel in layers below that covers this cell position and
+    /// provides access to the pixel data for the cell's region within that sixel.
+    /// </para>
+    /// <para>
+    /// Returns a default (invalid) accessor if no sixel covers this position.
+    /// Check <see cref="SixelPixelAccess.IsValid"/> before using.
+    /// </para>
+    /// </remarks>
+    /// <returns>A pixel accessor for the sixel at this position.</returns>
+    public SixelPixelAccess GetSixelBelow()
+    {
+        var sixelInfo = _context.FindSixelAtPosition(X, Y, _currentLayerIndex);
+        if (sixelInfo is null)
+            return default;
+
+        var (sixelData, anchorX, anchorY) = sixelInfo.Value;
+        var pixels = sixelData.GetPixels();
+        if (pixels is null)
+            return default;
+
+        // Calculate pixel offset for this cell within the sixel
+        var cellOffsetX = X - anchorX;
+        var cellOffsetY = Y - anchorY;
+        var pixelOffsetX = cellOffsetX * CellMetrics.PixelWidth;
+        var pixelOffsetY = cellOffsetY * CellMetrics.PixelHeight;
+
+        return new SixelPixelAccess(pixels, pixelOffsetX, pixelOffsetY, CellMetrics);
+    }
+
+    /// <summary>
+    /// Gets access to sixel pixel data at a specific cell position from layers below.
+    /// </summary>
+    /// <param name="x">The X position to query.</param>
+    /// <param name="y">The Y position to query.</param>
+    /// <returns>A pixel accessor for the sixel at the specified position.</returns>
+    public SixelPixelAccess GetSixelBelowAt(int x, int y)
+    {
+        if (!_context.IsInBounds(x, y))
+            return default;
+
+        var sixelInfo = _context.FindSixelAtPosition(x, y, _currentLayerIndex);
+        if (sixelInfo is null)
+            return default;
+
+        var (sixelData, anchorX, anchorY) = sixelInfo.Value;
+        var pixels = sixelData.GetPixels();
+        if (pixels is null)
+            return default;
+
+        var cellOffsetX = x - anchorX;
+        var cellOffsetY = y - anchorY;
+        var pixelOffsetX = cellOffsetX * CellMetrics.PixelWidth;
+        var pixelOffsetY = cellOffsetY * CellMetrics.PixelHeight;
+
+        return new SixelPixelAccess(pixels, pixelOffsetX, pixelOffsetY, CellMetrics);
     }
 }
 

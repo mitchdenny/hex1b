@@ -397,7 +397,14 @@ public sealed class CompositeSurface : ISurfaceSource
             if (!RectsOverlap(sixelRect, layerRect))
                 continue;
 
-            // Scan the overlapping region for opaque cells
+            // First, collect all sixel regions in this layer for bulk occlusion
+            var sixelOcclusions = CollectSixelRegions(layer, layerRect, sixelRect);
+            foreach (var occ in sixelOcclusions)
+            {
+                sixelVis.ApplyOcclusion(occ, CellMetrics);
+            }
+
+            // Then scan the overlapping region for opaque text/background cells
             var overlapLeft = Math.Max(sixelRect.X, layerRect.X);
             var overlapTop = Math.Max(sixelRect.Y, layerRect.Y);
             var overlapRight = Math.Min(sixelRect.Right, layerRect.Right);
@@ -410,6 +417,10 @@ public sealed class CompositeSurface : ISurfaceSource
                     var srcX = x - layer.OffsetX;
                     var srcY = y - layer.OffsetY;
                     var cell = layer.Source.GetCell(srcX, srcY);
+
+                    // Skip sixel anchor cells (already handled above)
+                    if (cell.Sixel is not null)
+                        continue;
 
                     // Check if this cell would occlude the sixel
                     if (IsOpaqueCell(cell))
@@ -465,6 +476,10 @@ public sealed class CompositeSurface : ISurfaceSource
     /// </summary>
     private static bool IsOpaqueCell(SurfaceCell cell)
     {
+        // A sixel always occludes content behind it
+        if (cell.Sixel is not null)
+            return true;
+        
         // A cell is opaque if it has a non-transparent background
         // or if it has visible content (non-space character)
         if (cell.Background is not null)
@@ -480,6 +495,53 @@ public sealed class CompositeSurface : ISurfaceSource
     private static bool RectsOverlap(Layout.Rect a, Layout.Rect b)
     {
         return a.X < b.Right && a.Right > b.X && a.Y < b.Bottom && a.Bottom > b.Y;
+    }
+
+    /// <summary>
+    /// Collects all sixel regions in a layer that overlap with the target rect.
+    /// </summary>
+    private static List<Layout.Rect> CollectSixelRegions(Layer layer, Layout.Rect layerRect, Layout.Rect targetRect)
+    {
+        var results = new List<Layout.Rect>();
+        var source = layer.Source;
+        
+        if (!source.HasSixels)
+            return results;
+
+        // Scan for sixel anchors in the layer
+        for (var y = 0; y < source.Height; y++)
+        {
+            for (var x = 0; x < source.Width; x++)
+            {
+                var cell = source.GetCell(x, y);
+                if (cell.Sixel is null)
+                    continue;
+
+                // Calculate the sixel's global rect
+                var globalX = x + layer.OffsetX;
+                var globalY = y + layer.OffsetY;
+                var sixelData = cell.Sixel.Data;
+                var sixelRect = new Layout.Rect(globalX, globalY, sixelData.WidthInCells, sixelData.HeightInCells);
+
+                // Check if this sixel overlaps with the target
+                if (RectsOverlap(sixelRect, targetRect))
+                {
+                    // Calculate the overlapping region
+                    var overlapLeft = Math.Max(sixelRect.X, targetRect.X);
+                    var overlapTop = Math.Max(sixelRect.Y, targetRect.Y);
+                    var overlapRight = Math.Min(sixelRect.Right, targetRect.Right);
+                    var overlapBottom = Math.Min(sixelRect.Bottom, targetRect.Bottom);
+
+                    if (overlapRight > overlapLeft && overlapBottom > overlapTop)
+                    {
+                        results.Add(new Layout.Rect(overlapLeft, overlapTop, 
+                            overlapRight - overlapLeft, overlapBottom - overlapTop));
+                    }
+                }
+            }
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -543,6 +605,8 @@ public sealed class CompositeSurface : ISurfaceSource
         }
 
         public bool IsInBounds(int x, int y) => _composite.IsInBounds(x, y);
+        
+        public CellMetrics CellMetrics => _composite.CellMetrics;
 
         /// <summary>
         /// Resolves the cell at the specified position by compositing all layers.
@@ -605,6 +669,76 @@ public sealed class CompositeSurface : ISurfaceSource
             }
 
             return layer.Source.GetCell(srcX, srcY);
+        }
+
+        /// <summary>
+        /// Finds a sixel at the specified cell position in layers below maxLayerIndex.
+        /// </summary>
+        /// <returns>Tuple of (SixelData, anchorX, anchorY) or null if no sixel found.</returns>
+        public (SixelData Data, int AnchorX, int AnchorY)? FindSixelAtPosition(int x, int y, int maxLayerIndex)
+        {
+            // Search layers from top to bottom (most recent wins)
+            for (var i = Math.Min(maxLayerIndex - 1, _composite._layers.Count - 1); i >= 0; i--)
+            {
+                var layer = _composite._layers[i];
+                if (!layer.Source.HasSixels)
+                    continue;
+
+                // Check if this position could be within a sixel on this layer
+                var result = FindSixelInLayer(layer, x, y);
+                if (result is not null)
+                    return result;
+            }
+
+            return null;
+        }
+
+        private static (SixelData Data, int AnchorX, int AnchorY)? FindSixelInLayer(Layer layer, int x, int y)
+        {
+            // We need to find a sixel anchor that covers position (x, y)
+            // Unfortunately, we can't know where sixel anchors are without scanning
+            // For now, scan the area that could contain an anchor for position (x, y)
+            
+            var source = layer.Source;
+            
+            // A sixel at anchor (ax, ay) covers cells (ax, ay) to (ax + width - 1, ay + height - 1)
+            // So an anchor at position (x, y) must have:
+            //   ax <= x and ax + widthInCells > x
+            //   ay <= y and ay + heightInCells > y
+            // Maximum sixel size we'll check: 100 cells in each direction
+            const int maxSixelSpan = 100;
+            
+            var srcX = x - layer.OffsetX;
+            var srcY = y - layer.OffsetY;
+            
+            // Check positions that could be anchors covering (srcX, srcY)
+            var startCheckX = Math.Max(0, srcX - maxSixelSpan + 1);
+            var startCheckY = Math.Max(0, srcY - maxSixelSpan + 1);
+            var endCheckX = Math.Min(source.Width, srcX + 1);
+            var endCheckY = Math.Min(source.Height, srcY + 1);
+
+            for (var checkY = startCheckY; checkY < endCheckY; checkY++)
+            {
+                for (var checkX = startCheckX; checkX < endCheckX; checkX++)
+                {
+                    var cell = source.GetCell(checkX, checkY);
+                    if (cell.Sixel is null)
+                        continue;
+
+                    var sixelData = cell.Sixel.Data;
+                    var anchorGlobalX = checkX + layer.OffsetX;
+                    var anchorGlobalY = checkY + layer.OffsetY;
+
+                    // Check if this sixel covers position (x, y)
+                    if (x >= anchorGlobalX && x < anchorGlobalX + sixelData.WidthInCells &&
+                        y >= anchorGlobalY && y < anchorGlobalY + sixelData.HeightInCells)
+                    {
+                        return (sixelData, anchorGlobalX, anchorGlobalY);
+                    }
+                }
+            }
+
+            return null;
         }
 
         private SurfaceCell ResolveComputedCell(int x, int y, int layerIndex, CellCompute compute)

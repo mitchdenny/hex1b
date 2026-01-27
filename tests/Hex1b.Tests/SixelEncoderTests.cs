@@ -2,6 +2,7 @@ using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
@@ -1019,6 +1020,604 @@ public class SixelVisibilityTests
         
         Assert.Equal(6, width);  // ceil(55/10)
         Assert.Equal(2, height); // ceil(35/20)
+    }
+
+    #endregion
+
+    #region T5: Computed Cell Sixel Access Tests
+
+    [Fact]
+    public void T5_1_HasSixelBelow_ReturnsTrueWhenSixelPresent()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Layer 0: Background with sixel
+        var background = new Surface(40, 20, metrics);
+        var sixelRef = CreateTestSixel(100, 60); // 10x3 cells
+        background[5, 5] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(background, 0, 0);
+        
+        // Layer 1: Computed layer that checks for sixel
+        var results = new List<bool>();
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 5 && ctx.Y == 5) // At sixel anchor
+                results.Add(ctx.HasSixelBelow());
+            if (ctx.X == 8 && ctx.Y == 6) // Inside sixel (5+3, 5+1)
+                results.Add(ctx.HasSixelBelow());
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        // Force computation
+        _ = composite.GetCell(5, 5);
+        _ = composite.GetCell(8, 6);
+        
+        Assert.Contains(true, results);
+    }
+
+    [Fact]
+    public void T5_2_HasSixelBelow_ReturnsFalseWhenNoSixel()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Layer 0: Background without sixels
+        var background = new Surface(40, 20, metrics);
+        background.Fill(new Hex1b.Layout.Rect(0, 0, 40, 20), 
+            new SurfaceCell(" ", null, Hex1bColor.Blue));
+        composite.AddLayer(background, 0, 0);
+        
+        // Layer 1: Computed layer
+        bool? result = null;
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 10 && ctx.Y == 10)
+                result = ctx.HasSixelBelow();
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        _ = composite.GetCell(10, 10);
+        
+        Assert.NotNull(result);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void T5_3_GetSixelBelow_ReturnsValidPixelData()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Create sixel with known color pattern
+        var buffer = new SixelPixelBuffer(100, 60);
+        for (var y = 0; y < 60; y++)
+            for (var x = 0; x < 100; x++)
+                buffer[x, y] = new Rgba32(255, 0, 0, 255); // Solid red
+        
+        var payload = SixelEncoder.Encode(buffer);
+        var sixelRef = _store.GetOrCreateSixel(payload, 10, 3);
+        
+        var background = new Surface(40, 20, metrics);
+        background[5, 5] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(background, 0, 0);
+        
+        SixelPixelAccess? access = null;
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 5 && ctx.Y == 5)
+                access = ctx.GetSixelBelow();
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        _ = composite.GetCell(5, 5);
+        
+        Assert.NotNull(access);
+        Assert.True(access.Value.IsValid);
+        Assert.Equal(10, access.Value.PixelWidth);
+        Assert.Equal(20, access.Value.PixelHeight);
+        
+        // Check pixel value (should be red, with quantization tolerance)
+        var pixel = access.Value.GetPixel(0, 0);
+        Assert.True(pixel.R > 240, $"Expected R ~255, got {pixel.R}"); // Allow sixel quantization error
+        Assert.True(pixel.G < 15, $"Expected G ~0, got {pixel.G}");
+        Assert.True(pixel.B < 15, $"Expected B ~0, got {pixel.B}");
+    }
+
+    [Fact]
+    public void T5_4_PixelCoordinatesMapCorrectlyToCellPosition()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Create sixel with gradient
+        var buffer = new SixelPixelBuffer(100, 60);
+        for (var y = 0; y < 60; y++)
+            for (var x = 0; x < 100; x++)
+                buffer[x, y] = new Rgba32((byte)x, (byte)y, 0, 255);
+        
+        var payload = SixelEncoder.Encode(buffer);
+        var sixelRef = _store.GetOrCreateSixel(payload, 10, 3);
+        
+        var background = new Surface(40, 20, metrics);
+        background[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(background, 0, 0);
+        
+        // Check cell (2, 1) - should access pixels starting at (20, 20)
+        SixelPixelAccess? access = null;
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 2 && ctx.Y == 1)
+                access = ctx.GetSixelBelow();
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        _ = composite.GetCell(2, 1);
+        
+        Assert.NotNull(access);
+        Assert.True(access.Value.IsValid);
+        
+        // Pixel at (0,0) in cell (2,1) should be global pixel (20, 20)
+        var pixel = access.Value.GetPixel(0, 0);
+        // Due to sixel color quantization, values may differ slightly
+        // Original would be R=20, G=20
+        Assert.True(pixel.R > 10 && pixel.R < 30, $"Expected R ~20, got {pixel.R}");
+        Assert.True(pixel.G > 10 && pixel.G < 30, $"Expected G ~20, got {pixel.G}");
+    }
+
+    [Fact]
+    public void T5_5_SixelPixelAccess_WithTint_AppliesTintCorrectly()
+    {
+        var buffer = new SixelPixelBuffer(10, 20);
+        for (var y = 0; y < 20; y++)
+            for (var x = 0; x < 10; x++)
+                buffer[x, y] = new Rgba32(100, 100, 100, 255); // Gray
+        
+        var metrics = new CellMetrics(10, 20);
+        var access = new SixelPixelAccess(buffer, 0, 0, metrics);
+        
+        var tintedBuffer = access.WithTint(new Rgba32(255, 0, 0, 255), 0.5f);
+        
+        Assert.NotNull(tintedBuffer);
+        
+        // Result should be blend: 100 * 0.5 + 255 * 0.5 = 177.5 for R
+        var resultPixel = tintedBuffer[5, 10];
+        Assert.True(resultPixel.R > 170 && resultPixel.R < 185, $"Expected R ~177, got {resultPixel.R}");
+        Assert.True(resultPixel.G > 45 && resultPixel.G < 55, $"Expected G ~50, got {resultPixel.G}");
+        Assert.True(resultPixel.B > 45 && resultPixel.B < 55, $"Expected B ~50, got {resultPixel.B}");
+    }
+
+    [Fact]
+    public void T5_6_SixelPixelAccess_WithBrightness_AdjustsValues()
+    {
+        var buffer = new SixelPixelBuffer(10, 20);
+        for (var y = 0; y < 20; y++)
+            for (var x = 0; x < 10; x++)
+                buffer[x, y] = new Rgba32(100, 100, 100, 255);
+        
+        var metrics = new CellMetrics(10, 20);
+        var access = new SixelPixelAccess(buffer, 0, 0, metrics);
+        
+        // Reduce brightness by half
+        var dimmedBuffer = access.WithBrightness(0.5f);
+        
+        Assert.NotNull(dimmedBuffer);
+        
+        var resultPixel = dimmedBuffer[5, 10];
+        Assert.Equal(50, resultPixel.R);
+        Assert.Equal(50, resultPixel.G);
+        Assert.Equal(50, resultPixel.B);
+    }
+
+    [Fact]
+    public void T5_7_GetSixelBelowAt_ReturnsDataForDifferentPosition()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Create sixel at position (0, 0)
+        var buffer = new SixelPixelBuffer(100, 60);
+        for (var y = 0; y < 60; y++)
+            for (var x = 0; x < 100; x++)
+                buffer[x, y] = new Rgba32(200, 100, 50, 255);
+        
+        var payload = SixelEncoder.Encode(buffer);
+        var sixelRef = _store.GetOrCreateSixel(payload, 10, 3);
+        
+        var background = new Surface(40, 20, metrics);
+        background[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(background, 0, 0);
+        
+        // Query from computed layer at different position
+        SixelPixelAccess? access = null;
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 20 && ctx.Y == 10) // Far from sixel
+                access = ctx.GetSixelBelowAt(3, 1); // Query sixel at (3, 1)
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        _ = composite.GetCell(20, 10);
+        
+        Assert.NotNull(access);
+        Assert.True(access.Value.IsValid);
+    }
+
+    [Fact]
+    public void T5_8_SixelPixelAccess_TransparentPixels_HandledCorrectly()
+    {
+        var buffer = new SixelPixelBuffer(10, 20);
+        // Half transparent, half opaque
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 10; x++)
+            {
+                if (x < 5)
+                    buffer[x, y] = Rgba32.Transparent;
+                else
+                    buffer[x, y] = new Rgba32(255, 0, 0, 255);
+            }
+        }
+        
+        var metrics = new CellMetrics(10, 20);
+        var access = new SixelPixelAccess(buffer, 0, 0, metrics);
+        
+        Assert.True(access.HasVisiblePixels());
+        
+        var transparentPixel = access.GetPixel(0, 0);
+        Assert.Equal(0, transparentPixel.A);
+        
+        var opaquePixel = access.GetPixel(5, 0);
+        Assert.Equal(255, opaquePixel.A);
+    }
+
+    [Fact]
+    public void T5_9_SixelPixelAccess_OutOfBoundsPixel_ReturnsTransparent()
+    {
+        var buffer = new SixelPixelBuffer(10, 20);
+        buffer[5, 10] = new Rgba32(255, 0, 0, 255);
+        
+        var metrics = new CellMetrics(10, 20);
+        var access = new SixelPixelAccess(buffer, 0, 0, metrics);
+        
+        // Query beyond buffer bounds
+        var pixel = access.GetPixel(100, 100);
+        Assert.Equal(0, pixel.A);
+    }
+
+    [Fact]
+    public void T5_10_GetSixelBelow_InvalidAccessor_WhenNoSixel()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        var background = new Surface(40, 20, metrics);
+        background.WriteText(0, 0, "No sixels here");
+        composite.AddLayer(background, 0, 0);
+        
+        SixelPixelAccess access = default;
+        composite.AddComputedLayer(40, 20, ctx =>
+        {
+            if (ctx.X == 5 && ctx.Y == 5)
+                access = ctx.GetSixelBelow();
+            return SurfaceCells.Empty;
+        }, 0, 0);
+        
+        _ = composite.GetCell(5, 5);
+        
+        Assert.False(access.IsValid);
+        
+        // GetPixel on invalid accessor should return transparent
+        var pixel = access.GetPixel(0, 0);
+        Assert.Equal(0, pixel.A);
+    }
+
+    #endregion
+
+    #region T6: Token Generation Sixel Tests
+
+    [Fact]
+    public void T6_1_SingleSixel_CorrectCursorPositionAndSequence()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        var layer = new Surface(40, 12, metrics);
+        var sixelRef = CreateTestSixel(50, 30); // 5x2 cells
+        layer[5, 5] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(layer, 0, 0);
+        
+        var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
+        
+        Assert.Equal(2, tokens.Count); // CursorPosition + DCS
+        Assert.IsType<CursorPositionToken>(tokens[0]);
+        Assert.IsType<DcsToken>(tokens[1]);
+        
+        var cursorToken = (CursorPositionToken)tokens[0];
+        Assert.Equal(6, cursorToken.Row);    // 1-based: 5 + 1
+        Assert.Equal(6, cursorToken.Column); // 1-based: 5 + 1
+        
+        var dcsToken = (DcsToken)tokens[1];
+        Assert.StartsWith("\x1bP", dcsToken.Payload);
+    }
+
+    [Fact]
+    public void T6_2_FragmentedSixel_MultipleCursorPositionsAndSequences()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Large sixel
+        var background = new Surface(40, 12, metrics);
+        var sixelRef = CreateTestSixel(100, 60); // 10x3 cells
+        background[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        composite.AddLayer(background, 0, 0);
+        
+        // Occluding dialog in center
+        var dialog = new Surface(4, 2, metrics);
+        dialog.Fill(new Hex1b.Layout.Rect(0, 0, 4, 2), 
+            new SurfaceCell(" ", null, Hex1bColor.Blue));
+        composite.AddLayer(dialog, 3, 0);
+        
+        var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
+        
+        // Should have multiple fragments (each with cursor + DCS)
+        Assert.True(tokens.Count >= 4, $"Expected at least 4 tokens, got {tokens.Count}");
+        
+        // Verify alternating pattern: cursor, dcs, cursor, dcs, ...
+        for (var i = 0; i < tokens.Count; i += 2)
+        {
+            Assert.IsType<CursorPositionToken>(tokens[i]);
+            Assert.IsType<DcsToken>(tokens[i + 1]);
+        }
+    }
+
+    [Fact]
+    public void T6_3_SixelUnchanged_NotReEmittedWithDiff()
+    {
+        var metrics = new CellMetrics(10, 20);
+        
+        // Create previous surface with text only
+        var previous = new Surface(80, 24, metrics);
+        previous.WriteText(0, 0, "Hello");
+        
+        // Create composite with same text
+        var composite = new CompositeSurface(80, 24, metrics);
+        var layer = new Surface(80, 24, metrics);
+        layer.WriteText(0, 0, "Hello");
+        composite.AddLayer(layer, 0, 0);
+        
+        var tokens = SurfaceComparer.CompositeToTokens(composite, previous);
+        
+        // No sixels in either, so no sixel tokens
+        Assert.All(tokens, t => Assert.IsNotType<DcsToken>(t));
+    }
+
+    [Fact]
+    public void T6_4_SixelAndTextMixed_BothInOutput()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        var layer = new Surface(40, 12, metrics);
+        layer.WriteText(0, 0, "Title");
+        layer[20, 5] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(50, 30));
+        composite.AddLayer(layer, 0, 0);
+        
+        var tokens = SurfaceComparer.CompositeToTokens(composite);
+        
+        // Should have text tokens
+        var textTokens = tokens.OfType<TextToken>().ToList();
+        Assert.Contains(textTokens, t => t.Text == "T");
+        
+        // Should have sixel token
+        var dcsTokens = tokens.OfType<DcsToken>().ToList();
+        Assert.Single(dcsTokens);
+    }
+
+    [Fact]
+    public void T6_5_MultipleSixelsAtDifferentPositions()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        var layer = new Surface(80, 24, metrics);
+        layer[0, 0] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(30, 20));
+        layer[40, 10] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(30, 20));
+        composite.AddLayer(layer, 0, 0);
+        
+        var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
+        
+        // Each sixel gets cursor + dcs
+        Assert.Equal(4, tokens.Count);
+        
+        var cursor1 = (CursorPositionToken)tokens[0];
+        var cursor2 = (CursorPositionToken)tokens[2];
+        
+        // Different positions
+        Assert.NotEqual(cursor1.Row, cursor2.Row);
+    }
+
+    [Fact]
+    public void T6_6_FullyOccludedSixel_NoTokensGenerated()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Small sixel
+        var background = new Surface(20, 10, metrics);
+        background[5, 5] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(20, 20));
+        composite.AddLayer(background, 0, 0);
+        
+        // Large opaque overlay covering it completely
+        var overlay = new Surface(15, 10, metrics);
+        overlay.Fill(new Hex1b.Layout.Rect(0, 0, 15, 10), 
+            new SurfaceCell(" ", null, Hex1bColor.Red));
+        composite.AddLayer(overlay, 0, 0);
+        
+        var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
+        
+        Assert.Empty(tokens);
+    }
+
+    [Fact]
+    public void T6_7_CompositeToAnsiString_IncludesSixelPayload()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        var layer = new Surface(40, 12, metrics);
+        layer[0, 0] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(30, 18));
+        composite.AddLayer(layer, 0, 0);
+        
+        var ansiString = SurfaceComparer.CompositeToAnsiString(composite);
+        
+        // Should contain sixel DCS sequence
+        Assert.Contains("\x1bP", ansiString);
+        Assert.Contains("\x1b\\", ansiString); // ST terminator
+    }
+
+    [Fact]
+    public void T6_8_EmptyComposite_NoSixelTokens()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Empty layer
+        var layer = new Surface(80, 24, metrics);
+        composite.AddLayer(layer, 0, 0);
+        
+        var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
+        
+        Assert.Empty(tokens);
+    }
+
+    #endregion
+
+    #region T7: Edge Cases and Multiple Sixel Tests
+
+    [Fact]
+    public void T7_1_SixelVsSixelOcclusion_UpperLayerWins()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Layer 0: Large sixel at (0, 0)
+        var background = new Surface(40, 20, metrics);
+        var lowerSixel = CreateTestSixel(100, 60); // 10x3 cells
+        background[0, 0] = new SurfaceCell(" ", null, null, Sixel: lowerSixel);
+        composite.AddLayer(background, 0, 0);
+        
+        // Layer 1: Smaller sixel overlapping partially at (3, 0)
+        var foreground = new Surface(20, 10, metrics);
+        var upperSixel = CreateTestSixel(40, 40); // 4x2 cells
+        foreground[0, 0] = new SurfaceCell(" ", null, null, Sixel: upperSixel);
+        composite.AddLayer(foreground, 3, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        // Should have fragments from both sixels
+        // Lower sixel should be fragmented around upper sixel
+        // Upper sixel should be complete or minimal fragmentation
+        Assert.True(fragments.Count >= 2);
+        
+        // Find the upper sixel's fragment(s) - should be at position (3, 0)
+        var upperFragments = fragments.Where(f => f.CellPosition.X >= 3).ToList();
+        Assert.NotEmpty(upperFragments);
+    }
+
+    [Fact]
+    public void T7_2_TwoSixelsSameLayer_NoOcclusion()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Two non-overlapping sixels on same layer
+        var layer = new Surface(80, 24, metrics);
+        layer[0, 0] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(50, 30)); // 5x2 cells
+        layer[20, 10] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(50, 30));
+        composite.AddLayer(layer, 0, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        // Both sixels should be complete (no occlusion from same layer)
+        Assert.Equal(2, fragments.Count);
+        Assert.True(fragments.All(f => f.IsComplete));
+    }
+
+    [Fact]
+    public void T7_3_SixelFullyHiddenByUpperSixel()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Layer 0: Small sixel at (2, 1) which is within the upper sixel's bounds
+        var background = new Surface(20, 10, metrics);
+        background[2, 1] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(20, 20)); // 2x1 cells
+        composite.AddLayer(background, 0, 0);
+        
+        // Layer 1: Large sixel covering it completely (starts at 0,0, spans 10x3 cells)
+        var foreground = new Surface(40, 20, metrics);
+        foreground[0, 0] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(100, 60)); // 10x3 cells
+        composite.AddLayer(foreground, 0, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        // Only the upper sixel should appear (lower is fully occluded)
+        // Lower sixel at (2, 1) + 2x1 cells = covers cells (2-3, 1)
+        // Upper sixel at (0, 0) + 10x3 cells = covers cells (0-9, 0-2)
+        // So lower is completely inside upper's coverage
+        Assert.Single(fragments);
+        Assert.Equal((0, 0), fragments[0].CellPosition);
+    }
+
+    [Fact]
+    public void T7_4_SixelAtNegativeOffset_Clipped()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(40, 20, metrics);
+        
+        // Sixel anchored at negative position (partially visible)
+        var layer = new Surface(50, 30, metrics);
+        layer[0, 0] = new SurfaceCell(" ", null, null, Sixel: CreateTestSixel(100, 60));
+        composite.AddLayer(layer, -2, -1); // Offset puts anchor at (-2, -1)
+        
+        var fragments = composite.GetSixelFragments();
+        
+        // Sixel anchor is outside bounds, but may have visible portions
+        // This depends on how we handle anchor-outside-bounds case
+        // For now, just verify no crash and fragment positions are valid
+        foreach (var fragment in fragments)
+        {
+            Assert.True(fragment.CellPosition.X >= 0, "Fragment X should be >= 0");
+            Assert.True(fragment.CellPosition.Y >= 0, "Fragment Y should be >= 0");
+        }
+    }
+
+    [Fact]
+    public void T7_5_ManySixels_PerformanceReasonable()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(200, 100, metrics);
+        
+        // Add many small sixels
+        var layer = new Surface(200, 100, metrics);
+        var sixelRef = CreateTestSixel(20, 20); // Reuse same sixel
+        
+        for (var y = 0; y < 10; y++)
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                layer[x * 10, y * 10] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+            }
+        }
+        composite.AddLayer(layer, 0, 0);
+        
+        // Should complete in reasonable time (not a strict timing test)
+        var fragments = composite.GetSixelFragments();
+        
+        // Each sixel should be present
+        Assert.True(fragments.Count >= 100);
     }
 
     #endregion

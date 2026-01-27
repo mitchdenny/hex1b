@@ -325,4 +325,113 @@ public static class SurfaceComparer
     }
 
     #endregion
+
+    #region Sixel Support
+
+    /// <summary>
+    /// Generates tokens for sixel fragments from a composite surface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sixel fragments are rendered in order (bottom-to-top for overlapping sixels).
+    /// Each fragment is positioned using cursor movement, then the sixel DCS sequence is emitted.
+    /// </para>
+    /// <para>
+    /// For fragments that have been cropped due to occlusion, the sixel data is re-encoded
+    /// from the original pixel data.
+    /// </para>
+    /// </remarks>
+    /// <param name="composite">The composite surface containing sixels.</param>
+    /// <returns>A list of ANSI tokens that will render the sixel fragments.</returns>
+    public static IReadOnlyList<AnsiToken> SixelFragmentsToTokens(CompositeSurface composite)
+    {
+        ArgumentNullException.ThrowIfNull(composite);
+
+        var fragments = composite.GetSixelFragments();
+        if (fragments.Count == 0)
+            return Array.Empty<AnsiToken>();
+
+        var tokens = new List<AnsiToken>();
+
+        foreach (var fragment in fragments)
+        {
+            // Position cursor at the fragment's cell position (ANSI is 1-based)
+            tokens.Add(new CursorPositionToken(fragment.CellPosition.Y + 1, fragment.CellPosition.X + 1));
+
+            // Get the sixel payload (may be re-encoded for cropped fragments)
+            var payload = fragment.GetPayload();
+            if (payload is not null)
+            {
+                tokens.Add(new DcsToken(payload));
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Generates tokens for a composite surface including both cells and sixels.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method handles the complete rendering of a composite surface:
+    /// <list type="bullet">
+    ///   <item>Flattens the surface to resolve all layers and computed cells</item>
+    ///   <item>Generates text/attribute tokens for non-sixel cells</item>
+    ///   <item>Generates sixel tokens for visible sixel fragments</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Sixels are rendered after text content to ensure proper layering.
+    /// </para>
+    /// </remarks>
+    /// <param name="composite">The composite surface to render.</param>
+    /// <param name="previous">Optional previous surface state for diff-based rendering.</param>
+    /// <returns>A list of ANSI tokens that will render the surface.</returns>
+    public static IReadOnlyList<AnsiToken> CompositeToTokens(
+        CompositeSurface composite,
+        Surface? previous = null)
+    {
+        ArgumentNullException.ThrowIfNull(composite);
+
+        var tokens = new List<AnsiToken>();
+
+        // First, flatten and generate cell tokens (diff against previous if provided)
+        var flattened = composite.Flatten();
+        var cellDiff = previous is null 
+            ? CompareToEmpty(flattened) 
+            : Compare(previous, flattened);
+
+        if (!cellDiff.IsEmpty)
+        {
+            var cellTokens = ToTokens(cellDiff);
+            tokens.AddRange(cellTokens);
+        }
+
+        // Then, add sixel tokens
+        var sixelTokens = SixelFragmentsToTokens(composite);
+        tokens.AddRange(sixelTokens);
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Generates an ANSI string for a composite surface including cells and sixels.
+    /// </summary>
+    /// <param name="composite">The composite surface to render.</param>
+    /// <param name="previous">Optional previous surface state for diff-based rendering.</param>
+    /// <returns>An ANSI escape sequence string that will render the surface.</returns>
+    public static string CompositeToAnsiString(
+        CompositeSurface composite,
+        Surface? previous = null)
+    {
+        var tokens = CompositeToTokens(composite, previous);
+        
+        if (tokens.Count == 0)
+            return string.Empty;
+
+        return AnsiTokenSerializer.Serialize(tokens);
+    }
+
+    #endregion
 }
