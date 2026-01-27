@@ -121,9 +121,12 @@ public sealed class QrCodeNode : Hex1bNode
             return constraints.Constrain(new Size(0, 0));
         }
 
-        // Total size = matrix size + quiet zone on both sides
-        var totalSize = _matrixSize + (QuietZone * 2);
-        return constraints.Constrain(new Size(totalSize, totalSize));
+        // Total modules = matrix size + quiet zone on both sides
+        var totalModules = _matrixSize + (QuietZone * 2);
+        
+        // Width is doubled because each module renders as 2 characters ("██" or "  ")
+        // Height stays as-is (one row per module)
+        return constraints.Constrain(new Size(totalModules * 2, totalModules));
     }
 
     /// <summary>
@@ -144,12 +147,14 @@ public sealed class QrCodeNode : Hex1bNode
         var colorCodes = context.Theme.GetGlobalColorCodes();
         var resetCodes = !string.IsNullOrEmpty(colorCodes) ? context.Theme.GetResetToGlobalCodes() : "";
 
+        var totalModules = _matrixSize + (QuietZone * 2);
+        
         // Render with quiet zone
-        for (int y = 0; y < Bounds.Height && y < _matrixSize + (QuietZone * 2); y++)
+        for (int y = 0; y < Bounds.Height && y < totalModules; y++)
         {
             var line = "";
             
-            for (int x = 0; x < Bounds.Width && x < _matrixSize + (QuietZone * 2); x++)
+            for (int x = 0; x < totalModules; x++)
             {
                 // Check if we're in the quiet zone
                 if (x < QuietZone || x >= _matrixSize + QuietZone ||
