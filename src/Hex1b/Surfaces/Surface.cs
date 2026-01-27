@@ -402,7 +402,17 @@ public sealed class Surface : ISurfaceSource
                 var srcX = destX - offsetX;
                 var srcCell = source.GetCell(srcX, srcY);
                 
-                // Handle transparency
+                // Skip cells that are exactly the initial empty state - these are unwritten cells
+                // that should not overwrite anything. We compare the full cell struct, not just
+                // IsTransparent, because a cell written with default colors should still overwrite.
+                // This is essential for layered compositing (ZStack) where upper layers should
+                // not overwrite lower layers with unwritten regions.
+                if (srcCell == SurfaceCells.Empty)
+                {
+                    continue;
+                }
+                
+                // Handle partial transparency (has content but transparent background)
                 if (srcCell.HasTransparentBackground)
                 {
                     // Blend with existing cell's background

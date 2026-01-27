@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Surfaces;
 
 namespace Hex1b;
 
@@ -67,6 +68,27 @@ public abstract class Hex1bNode
     /// flow through reconciliation (e.g., animation timers, cursor blink).
     /// </remarks>
     public bool IsDirty { get; private set; } = true;
+    
+    /// <summary>
+    /// Cached rendered surface for this node. When not null and the node is not dirty,
+    /// the framework can composite this surface instead of re-rendering.
+    /// </summary>
+    /// <remarks>
+    /// This cache is automatically managed by SurfaceRenderContext.RenderChild():
+    /// <list type="bullet">
+    ///   <item>After rendering, the result is stored here</item>
+    ///   <item>When the node is not dirty, this cached surface is used</item>
+    ///   <item>MarkDirty() invalidates the cache</item>
+    ///   <item>Bounds changes invalidate the cache</item>
+    /// </list>
+    /// </remarks>
+    internal Surface? CachedSurface { get; set; }
+    
+    /// <summary>
+    /// The bounds that were used when the cached surface was created.
+    /// If bounds change, the cache is invalid even if IsDirty is false.
+    /// </summary>
+    internal Rect CachedBounds { get; set; }
 
     /// <summary>
     /// Marks this node as needing re-rendering.
@@ -85,6 +107,16 @@ public abstract class Hex1bNode
     public void MarkDirty()
     {
         IsDirty = true;
+        InvalidateCache();
+    }
+    
+    /// <summary>
+    /// Invalidates the cached surface for this node.
+    /// Called automatically by MarkDirty() and when bounds change.
+    /// </summary>
+    internal void InvalidateCache()
+    {
+        CachedSurface = null;
     }
 
     /// <summary>

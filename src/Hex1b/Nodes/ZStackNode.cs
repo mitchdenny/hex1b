@@ -157,11 +157,10 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
         context.CurrentLayoutProvider = this;
         
         // Render children in order - first child is at bottom, last is on top
-        // Later children will overwrite cells from earlier children
+        // Use RenderChild for automatic caching support
         for (int i = 0; i < Children.Count; i++)
         {
-            context.SetCursorPosition(Children[i].Bounds.X, Children[i].Bounds.Y);
-            Children[i].Render(context);
+            context.RenderChild(Children[i]);
         }
         
         context.CurrentLayoutProvider = previousLayout;

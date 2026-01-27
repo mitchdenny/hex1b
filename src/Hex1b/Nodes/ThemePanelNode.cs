@@ -75,9 +75,8 @@ public sealed class ThemePanelNode : Hex1bNode
             }
         }
         
-        // Render child content with the (possibly mutated) theme
-        context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-        Child.Render(context);
+        // Use RenderChild for automatic caching support
+        context.RenderChild(Child);
         
         // Restore original theme
         context.Theme = originalTheme;

@@ -67,7 +67,11 @@ public abstract class CompositeNode : Hex1bNode
     /// </summary>
     public override void Render(Hex1bRenderContext context)
     {
-        ContentChild?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (ContentChild != null)
+        {
+            context.RenderChild(ContentChild);
+        }
     }
 
     /// <summary>

@@ -94,9 +94,9 @@ public class WidgetRenderingComparisonTests
                 var legacyChar = legacyCell.Character ?? " ";
                 var surfaceChar = surfaceCell.Character ?? " ";
                 
-                // Normalize empty characters
+                // Normalize empty characters (including unwritten marker)
                 if (string.IsNullOrEmpty(legacyChar)) legacyChar = " ";
-                if (string.IsNullOrEmpty(surfaceChar)) surfaceChar = " ";
+                if (string.IsNullOrEmpty(surfaceChar) || surfaceChar == Surfaces.SurfaceCells.UnwrittenMarker) surfaceChar = " ";
                 
                 if (legacyChar != surfaceChar)
                 {

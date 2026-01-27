@@ -171,8 +171,8 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
             ParentLayoutProvider = previousLayout;
             context.CurrentLayoutProvider = this;
             
-            context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-            Child.Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(Child);
             
             context.CurrentLayoutProvider = previousLayout;
             ParentLayoutProvider = null;

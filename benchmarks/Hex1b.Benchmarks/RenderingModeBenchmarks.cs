@@ -409,4 +409,259 @@ public class RenderingModeBenchmarks
     }
 
     #endregion
+
+    #region Multi-Frame Caching Benchmarks
+    
+    /// <summary>
+    /// Benchmarks 100 frames with 0% dirty rate (completely static UI).
+    /// This is the best case for caching - all cache hits after first frame.
+    /// </summary>
+    [Benchmark]
+    public (long cacheHits, long cacheMisses) MultiFrame_100Frames_0PercentDirty()
+    {
+        var surface = new Surface(TerminalWidth, TerminalHeight);
+        var context = new SurfaceRenderContext(surface, _theme) { CachingEnabled = true };
+        
+        // Create a VStack with nested content
+        var root = CreateCacheableTree();
+        MeasureAndArrange(root);
+        
+        long totalHits = 0, totalMisses = 0;
+        
+        // Simulate 100 frames with no changes
+        for (int frame = 0; frame < 100; frame++)
+        {
+            surface.Clear();
+            context.ResetCacheStats();
+            context.RenderChild(root);
+            totalHits += context.CacheHits;
+            totalMisses += context.CacheMisses;
+            
+            // Clear dirty at end of frame (simulates Hex1bApp behavior)
+            ClearAllDirty(root);
+        }
+        
+        return (totalHits, totalMisses);
+    }
+    
+    /// <summary>
+    /// Benchmarks 100 frames with 5% dirty rate (typical: cursor blink, clock).
+    /// One node marked dirty each frame to simulate realistic updates.
+    /// </summary>
+    [Benchmark]
+    public (long cacheHits, long cacheMisses) MultiFrame_100Frames_5PercentDirty()
+    {
+        var surface = new Surface(TerminalWidth, TerminalHeight);
+        var context = new SurfaceRenderContext(surface, _theme) { CachingEnabled = true };
+        
+        // Create a tree with 20 children
+        var children = Enumerable.Range(0, 20)
+            .Select(i => new TextBlockNode { Text = $"Item {i}" } as Hex1bNode)
+            .ToList();
+        var root = new VStackNode { Children = children };
+        MeasureAndArrange(root);
+        
+        long totalHits = 0, totalMisses = 0;
+        
+        // First frame: everything is dirty (cold cache)
+        surface.Clear();
+        context.ResetCacheStats();
+        context.RenderChild(root);
+        totalMisses += context.CacheMisses;
+        totalHits += context.CacheHits;
+        ClearAllDirty(root);
+        
+        // Subsequent frames: mark ~1 node dirty (5% of 20 = 1)
+        for (int frame = 1; frame < 100; frame++)
+        {
+            // Mark one child dirty per frame (rotating)
+            children[frame % 20].MarkDirty();
+            
+            surface.Clear();
+            context.ResetCacheStats();
+            context.RenderChild(root);
+            totalMisses += context.CacheMisses;
+            totalHits += context.CacheHits;
+            
+            // Clear dirty at end of frame
+            ClearAllDirty(root);
+        }
+        
+        return (totalHits, totalMisses);
+    }
+    
+    /// <summary>
+    /// Benchmarks 100 frames with 50% dirty rate (heavy updates).
+    /// Half the nodes change each frame.
+    /// </summary>
+    [Benchmark]
+    public (long cacheHits, long cacheMisses) MultiFrame_100Frames_50PercentDirty()
+    {
+        var surface = new Surface(TerminalWidth, TerminalHeight);
+        var context = new SurfaceRenderContext(surface, _theme) { CachingEnabled = true };
+        
+        var children = Enumerable.Range(0, 20)
+            .Select(i => new TextBlockNode { Text = $"Item {i}" } as Hex1bNode)
+            .ToList();
+        var root = new VStackNode { Children = children };
+        MeasureAndArrange(root);
+        
+        long totalHits = 0, totalMisses = 0;
+        
+        for (int frame = 0; frame < 100; frame++)
+        {
+            // Mark 50% of children dirty (even indices on even frames, odd on odd)
+            for (int i = frame % 2; i < 20; i += 2)
+            {
+                children[i].MarkDirty();
+            }
+            
+            surface.Clear();
+            context.ResetCacheStats();
+            context.RenderChild(root);
+            totalMisses += context.CacheMisses;
+            totalHits += context.CacheHits;
+            
+            // Clear dirty at end of frame
+            ClearAllDirty(root);
+        }
+        
+        return (totalHits, totalMisses);
+    }
+    
+    /// <summary>
+    /// Benchmarks 100 frames with 100% dirty rate (full redraw every frame).
+    /// This is the worst case for caching - should verify no regression.
+    /// </summary>
+    [Benchmark]
+    public (long cacheHits, long cacheMisses) MultiFrame_100Frames_100PercentDirty()
+    {
+        var surface = new Surface(TerminalWidth, TerminalHeight);
+        var context = new SurfaceRenderContext(surface, _theme) { CachingEnabled = true };
+        
+        var children = Enumerable.Range(0, 20)
+            .Select(i => new TextBlockNode { Text = $"Item {i}" } as Hex1bNode)
+            .ToList();
+        var root = new VStackNode { Children = children };
+        MeasureAndArrange(root);
+        
+        long totalHits = 0, totalMisses = 0;
+        
+        for (int frame = 0; frame < 100; frame++)
+        {
+            // Mark ALL children dirty
+            foreach (var child in children)
+            {
+                child.MarkDirty();
+            }
+            root.MarkDirty();
+            
+            surface.Clear();
+            context.ResetCacheStats();
+            context.RenderChild(root);
+            totalMisses += context.CacheMisses;
+            totalHits += context.CacheHits;
+            
+            // Clear dirty at end of frame (though we mark everything dirty next frame anyway)
+            ClearAllDirty(root);
+        }
+        
+        return (totalHits, totalMisses);
+    }
+    
+    /// <summary>
+    /// Baseline: 100 frames with caching DISABLED.
+    /// Used to compare against cached versions.
+    /// </summary>
+    [Benchmark]
+    public int MultiFrame_100Frames_NoCaching()
+    {
+        var surface = new Surface(TerminalWidth, TerminalHeight);
+        var context = new SurfaceRenderContext(surface, _theme) { CachingEnabled = false };
+        
+        var children = Enumerable.Range(0, 20)
+            .Select(i => new TextBlockNode { Text = $"Item {i}" } as Hex1bNode)
+            .ToList();
+        var root = new VStackNode { Children = children };
+        MeasureAndArrange(root);
+        
+        int renderedFrames = 0;
+        for (int frame = 0; frame < 100; frame++)
+        {
+            surface.Clear();
+            context.RenderChild(root);
+            ClearAllDirty(root);  // For fair comparison with cached versions
+            renderedFrames++;
+        }
+        
+        return renderedFrames;
+    }
+    
+    /// <summary>
+    /// Creates a realistic widget tree for caching benchmarks.
+    /// </summary>
+    private Hex1bNode CreateCacheableTree()
+    {
+        return new BorderNode
+        {
+            Title = "Cache Test",
+            Child = new VStackNode
+            {
+                Children =
+                [
+                    new TextBlockNode { Text = "Header" },
+                    new HStackNode
+                    {
+                        Children =
+                        [
+                            new TextBlockNode { Text = "Col 1" },
+                            new TextBlockNode { Text = "Col 2" },
+                            new TextBlockNode { Text = "Col 3" }
+                        ]
+                    },
+                    new TextBlockNode { Text = "Row 1: Some data here" },
+                    new TextBlockNode { Text = "Row 2: More data" },
+                    new TextBlockNode { Text = "Row 3: And more" },
+                    new ButtonNode { Label = "OK" },
+                    new TextBlockNode { Text = "Footer" }
+                ]
+            }
+        };
+    }
+    
+    private void MeasureAndArrange(Hex1bNode node)
+    {
+        node.Measure(new Constraints(0, TerminalWidth, 0, TerminalHeight));
+        node.Arrange(new Rect(0, 0, TerminalWidth, TerminalHeight));
+    }
+    
+    /// <summary>
+    /// Clears dirty flags on a node and all its descendants.
+    /// This simulates end-of-frame behavior in Hex1bApp.
+    /// </summary>
+    private static void ClearAllDirty(Hex1bNode node)
+    {
+        node.ClearDirty();
+        foreach (var child in GetAllChildren(node))
+        {
+            ClearAllDirty(child);
+        }
+    }
+    
+    /// <summary>
+    /// Gets all direct children of a node for recursive operations.
+    /// </summary>
+    private static IEnumerable<Hex1bNode> GetAllChildren(Hex1bNode node)
+    {
+        return node switch
+        {
+            VStackNode vstack => vstack.Children,
+            HStackNode hstack => hstack.Children,
+            ZStackNode zstack => zstack.Children,
+            BorderNode border => border.Child != null ? [border.Child] : [],
+            _ => []
+        };
+    }
+
+    #endregion
 }

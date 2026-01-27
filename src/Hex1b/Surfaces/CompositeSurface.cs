@@ -239,6 +239,10 @@ public sealed class CompositeSurface : ISurfaceSource
         if (above.IsContinuation)
             return above;
         
+        // Unwritten cells are fully transparent - show what's below
+        if (above.Character == SurfaceCells.UnwrittenMarker)
+            return below;
+        
         if (above.Character != " " || above.Background is not null)
             return above;
 
@@ -481,10 +485,10 @@ public sealed class CompositeSurface : ISurfaceSource
             return true;
         
         // A cell is opaque if it has a non-transparent background
-        // or if it has visible content (non-space character)
+        // or if it has visible content (non-space character, not unwritten)
         if (cell.Background is not null)
             return true;
-        if (cell.Character != " " && cell.Character != string.Empty)
+        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
             return true;
         return false;
     }
@@ -783,6 +787,12 @@ public sealed class CompositeSurface : ISurfaceSource
             if (above.IsContinuation)
             {
                 return above;
+            }
+            
+            // Unwritten cells are fully transparent - show what's below
+            if (above.Character == SurfaceCells.UnwrittenMarker)
+            {
+                return below;
             }
             
             if (above.Character != " " || above.Background is not null)

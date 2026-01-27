@@ -172,8 +172,11 @@ public static class SurfaceComparer
                 stateUnknown = false;
             }
 
-            // Output the character
-            tokens.Add(new TextToken(change.Cell.Character));
+            // Output the character (convert unwritten marker to space)
+            var charToOutput = change.Cell.Character == SurfaceCells.UnwrittenMarker 
+                ? " " 
+                : change.Cell.Character;
+            tokens.Add(new TextToken(charToOutput));
             
             // Cursor advances by display width
             cursorX += Math.Max(1, change.Cell.DisplayWidth);

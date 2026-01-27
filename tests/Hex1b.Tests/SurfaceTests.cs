@@ -154,11 +154,12 @@ public class SurfaceCellTests
 public class SurfaceCellsTests
 {
     [Fact]
-    public void Empty_IsSpaceWithNoColors()
+    public void Empty_IsUnwrittenMarkerWithNoColors()
     {
         var empty = SurfaceCells.Empty;
         
-        Assert.Equal(" ", empty.Character);
+        // Empty uses a special unwritten marker character to distinguish from written spaces
+        Assert.Equal(SurfaceCells.UnwrittenMarker, empty.Character);
         Assert.Null(empty.Foreground);
         Assert.Null(empty.Background);
         Assert.Equal(CellAttributes.None, empty.Attributes);
@@ -458,7 +459,7 @@ public class SurfaceTests
         Assert.Equal("l", surface[2, 0].Character);
         Assert.Equal("l", surface[3, 0].Character);
         Assert.Equal("o", surface[4, 0].Character);
-        Assert.Equal(" ", surface[5, 0].Character); // Unchanged
+        Assert.Equal(SurfaceCells.UnwrittenMarker, surface[5, 0].Character); // Unchanged (unwritten)
     }
 
     [Fact]
@@ -1577,9 +1578,9 @@ public class ComputedCellTests
             return new SurfaceCell(left.Character, null, Hex1bColor.Gray);
         }, 0, 0);
         
-        // At x=0, there's no cell to the left, should return empty
+        // At x=0, there's no cell to the left, should return empty (unwritten marker)
         var result = composite.GetCell(0, 0);
-        Assert.Equal(" ", result.Character);  // Empty cell's character is space
+        Assert.Equal(SurfaceCells.UnwrittenMarker, result.Character);  // Empty cell uses unwritten marker
     }
 
     #endregion
@@ -1617,13 +1618,13 @@ public class ComputedCellTests
             return new SurfaceCell($"[{right.Character}]", null, null);
         }, 0, 0);
         
-        // At x=9, the cell to the right is out of bounds (empty)
+        // At x=9, the cell to the right is out of bounds (empty/unwritten marker)
         var rightmost = composite.GetCell(9, 0);
-        Assert.Equal("[ ]", rightmost.Character);  // Empty cell has space
+        Assert.Equal($"[{SurfaceCells.UnwrittenMarker}]", rightmost.Character);  // Empty cell has unwritten marker
         
         // At x=8, it reads from x=9
         var cell8 = composite.GetCell(8, 0);
-        Assert.Equal("[[ ]]", cell8.Character);
+        Assert.Equal($"[[{SurfaceCells.UnwrittenMarker}]]", cell8.Character);
     }
 
     #endregion

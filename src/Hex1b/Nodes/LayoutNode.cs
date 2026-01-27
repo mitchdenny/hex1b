@@ -53,7 +53,11 @@ public sealed class LayoutNode : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        Child?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (Child != null)
+        {
+            context.RenderChild(Child);
+        }
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;

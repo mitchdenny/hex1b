@@ -24,6 +24,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private int _cursorX;
     private int _cursorY;
     
+    // Coordinate offset for child rendering - allows absolute coordinates to map to a smaller surface
+    private int _offsetX;
+    private int _offsetY;
+    
     // Current style state (from parsed ANSI codes)
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
@@ -38,6 +42,21 @@ public class SurfaceRenderContext : Hex1bRenderContext
         : base(theme)
     {
         _surface = surface ?? throw new ArgumentNullException(nameof(surface));
+    }
+    
+    /// <summary>
+    /// Creates a new SurfaceRenderContext with coordinate offset for child rendering.
+    /// </summary>
+    /// <param name="surface">The surface to write to.</param>
+    /// <param name="offsetX">X offset to subtract from all coordinates.</param>
+    /// <param name="offsetY">Y offset to subtract from all coordinates.</param>
+    /// <param name="theme">The theme to use for styling. Defaults to <see cref="Hex1bThemes.Default"/>.</param>
+    public SurfaceRenderContext(Surface surface, int offsetX, int offsetY, Hex1bTheme? theme = null)
+        : base(theme)
+    {
+        _surface = surface ?? throw new ArgumentNullException(nameof(surface));
+        _offsetX = offsetX;
+        _offsetY = offsetY;
     }
 
     /// <summary>
@@ -188,6 +207,116 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _currentBackground = null;
         _currentAttributes = CellAttributes.None;
     }
+    
+    /// <summary>
+    /// Whether render caching is enabled. When true, RenderChild will use cached
+    /// surfaces for nodes that are not dirty. Default is true.
+    /// </summary>
+    public bool CachingEnabled { get; set; } = true;
+    
+    /// <summary>
+    /// Statistics about cache usage for the current frame.
+    /// </summary>
+    public int CacheHits { get; private set; }
+    public int CacheMisses { get; private set; }
+    
+    /// <summary>
+    /// Resets cache statistics. Call at the start of each frame.
+    /// </summary>
+    public void ResetCacheStats()
+    {
+        CacheHits = 0;
+        CacheMisses = 0;
+    }
+
+    /// <summary>
+    /// Renders a child node with caching support.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// If the child is not dirty and has a valid cached surface that matches its
+    /// current bounds, the cached surface is composited directly. Otherwise, the
+    /// child is rendered to a new surface which is then cached.
+    /// </para>
+    /// <para>
+    /// Container nodes should call this method instead of child.Render(context)
+    /// to benefit from automatic caching.
+    /// </para>
+    /// </remarks>
+    public override void RenderChild(Hex1bNode child)
+    {
+        if (child == null) return;
+        
+        // If caching is disabled, just render normally
+        if (!CachingEnabled)
+        {
+            SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+            child.Render(this);
+            return;
+        }
+        
+        // Check if we can use cached surface
+        // CRITICAL: Must use NeedsRender() not just IsDirty - a node's cache is invalid
+        // if ANY descendant is dirty, because skipping render would skip the descendants too
+        var canUseCache = !child.NeedsRender() 
+            && child.CachedSurface != null 
+            && child.CachedBounds == child.Bounds
+            && child.CachedSurface.Width == child.Bounds.Width
+            && child.CachedSurface.Height == child.Bounds.Height;
+        
+        if (canUseCache)
+        {
+            // Cache hit - composite cached surface at RELATIVE position
+            // (child.Bounds are absolute, but _surface may have its own offset)
+            CacheHits++;
+            _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY);
+        }
+        else
+        {
+            // Cache miss - render and cache
+            CacheMisses++;
+            
+            // Only cache if the node has non-zero bounds
+            if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
+            {
+                // Create a surface for this child's content
+                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height);
+                
+                // Create context with offset so child's absolute coordinates map to surface (0,0)
+                // Note: We don't pass CurrentLayoutProvider to the child context because:
+                // 1. The child surface already represents the child's bounds
+                // 2. The parent's layout provider would clip incorrectly
+                // 3. Clipping happens implicitly via surface bounds
+                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme)
+                {
+                    CachingEnabled = CachingEnabled
+                    // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
+                };
+                
+                // Set cursor position to child's origin so Write() calls work correctly
+                // (the offset will translate this to 0,0 on the child surface)
+                childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                
+                // Render to the child surface (child uses its normal absolute coordinates,
+                // context translates them via the offset)
+                child.Render(childContext);
+                
+                // Cache the result
+                child.CachedSurface = childSurface;
+                child.CachedBounds = child.Bounds;
+                
+                // Composite onto our surface at RELATIVE position
+                // (child.Bounds are absolute, but _surface may have its own offset)
+                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY);
+            }
+            else
+            {
+                // Zero-sized node, just call Render directly
+                SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                child.Render(this);
+            }
+        }
+    }
 
     #region ANSI Parsing and Surface Writing
 
@@ -197,8 +326,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// </summary>
     private void WriteToSurface(int x, int y, string text, bool updateCursor)
     {
-        var writeX = x;
-        var writeY = y;
+        // Apply coordinate offset for child surface rendering
+        var writeX = x - _offsetX;
+        var writeY = y - _offsetY;
         var i = 0;
 
         while (i < text.Length)
@@ -217,8 +347,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // Find the extent of the current grapheme cluster
             var grapheme = GetNextGrapheme(text, i, out var charCount);
             
-            // Write to surface if in bounds
-            if (writeX >= 0 && writeX < Width && writeY >= 0 && writeY < Height)
+            // Write to surface if in bounds (using offset-adjusted coordinates)
+            if (writeX >= 0 && writeX < _surface.Width && writeY >= 0 && writeY < _surface.Height)
             {
                 var displayWidth = DisplayWidth.GetGraphemeWidth(grapheme);
 
@@ -234,7 +364,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         displayWidth);
 
                     // Write continuation cell if space allows
-                    if (writeX + 1 < Width)
+                    if (writeX + 1 < _surface.Width)
                     {
                         _surface[writeX + 1, writeY] = SurfaceCell.CreateContinuation(_currentBackground);
                     }
@@ -265,8 +395,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         if (updateCursor)
         {
-            _cursorX = writeX;
-            _cursorY = writeY;
+            // Store cursor in original coordinate space (without offset applied)
+            _cursorX = writeX + _offsetX;
+            _cursorY = writeY + _offsetY;
         }
     }
     

@@ -48,7 +48,11 @@ public sealed class NavigatorNode : Hex1bNode
     /// <inheritdoc />
     public override void Render(Hex1bRenderContext context)
     {
-        CurrentChild?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (CurrentChild != null)
+        {
+            context.RenderChild(CurrentChild);
+        }
     }
 
     /// <inheritdoc />

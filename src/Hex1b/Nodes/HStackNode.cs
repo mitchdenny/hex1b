@@ -130,11 +130,10 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Render children at their positioned bounds
+        // Use RenderChild for automatic caching support
         for (int i = 0; i < Children.Count; i++)
         {
-            context.SetCursorPosition(Children[i].Bounds.X, Children[i].Bounds.Y);
-            Children[i].Render(context);
+            context.RenderChild(Children[i]);
         }
         
         context.CurrentLayoutProvider = previousLayout;

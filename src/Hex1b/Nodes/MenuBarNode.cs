@@ -333,10 +333,10 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
             context.WriteClipped(Bounds.X, Bounds.Y, $"{bgCode}{fill}{resetToGlobal}");
         }
         
-        // Render menu triggers
+        // Render menu triggers using RenderChild for automatic caching
         foreach (var node in MenuNodes)
         {
-            node.Render(context);
+            context.RenderChild(node);
         }
         
         context.CurrentLayoutProvider = previousLayout;

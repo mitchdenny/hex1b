@@ -450,8 +450,8 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
             // Left border
             context.WriteClipped(Bounds.X, y, $"{borderCodes}{vertical}{resetToGlobal}");
             
-            // Child content (rendered by child)
-            ChildNodes[i].Render(context);
+            // Child content - use RenderChild for automatic caching
+            context.RenderChild(ChildNodes[i]);
             
             // Right border
             context.WriteClipped(Bounds.X + _contentWidth + 1, y, $"{borderCodes}{vertical}{resetToGlobal}");

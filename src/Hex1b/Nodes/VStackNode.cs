@@ -134,9 +134,8 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
         
         for (int i = 0; i < Children.Count; i++)
         {
-            // Position cursor at child's bounds
-            context.SetCursorPosition(Children[i].Bounds.X, Children[i].Bounds.Y);
-            Children[i].Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(Children[i]);
         }
         
         context.CurrentLayoutProvider = previousLayout;

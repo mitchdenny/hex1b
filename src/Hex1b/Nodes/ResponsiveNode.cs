@@ -98,8 +98,11 @@ public sealed class ResponsiveNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Render only the active child (conditions already evaluated in Measure/Arrange)
-        ActiveChild?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (ActiveChild != null)
+        {
+            context.RenderChild(ActiveChild);
+        }
     }
 
     /// <summary>

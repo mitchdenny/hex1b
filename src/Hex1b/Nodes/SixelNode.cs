@@ -170,7 +170,8 @@ public sealed class SixelNode : Hex1bNode
     {
         if (Fallback != null)
         {
-            Fallback.Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(Fallback);
         }
         else
         {

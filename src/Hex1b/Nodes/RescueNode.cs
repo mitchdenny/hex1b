@@ -432,13 +432,21 @@ public sealed class RescueNode : Hex1bNode, ILayoutProvider
         {
             if (HasError)
             {
-                FallbackChild?.Render(context);
+                // Use RenderChild for automatic caching support
+                if (FallbackChild != null)
+                {
+                    context.RenderChild(FallbackChild);
+                }
                 return;
             }
 
             try
             {
-                Child?.Render(context);
+                // Use RenderChild for automatic caching support
+                if (Child != null)
+                {
+                    context.RenderChild(Child);
+                }
             }
             catch (Exception ex)
             {
@@ -450,7 +458,7 @@ public sealed class RescueNode : Hex1bNode, ILayoutProvider
                 {
                     FallbackChild.Measure(new Constraints(0, Bounds.Width, 0, Bounds.Height));
                     FallbackChild.Arrange(Bounds);
-                    FallbackChild.Render(context);
+                    context.RenderChild(FallbackChild);
                 }
             }
         }

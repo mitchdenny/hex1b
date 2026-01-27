@@ -750,48 +750,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var originalTheme = context.Theme;
         context.Theme = effectiveTheme;
         
-        // Check if this node provides custom layout/clipping for its children
-        var childLayoutProvider = node as Nodes.IChildLayoutProvider;
-        
-        // Setup layout provider for clipping
-        var previousProvider = context.CurrentLayoutProvider;
-        if (childLayoutProvider != null)
-        {
-            foreach (var child in node.GetChildren())
-            {
-                var layoutProvider = childLayoutProvider.GetChildLayoutProvider(child);
-                if (layoutProvider != null)
-                {
-                    layoutProvider.ParentLayoutProvider = previousProvider;
-                }
-            }
-        }
-        
         // Set cursor position and render the node
+        // Containers will render their children via context.RenderChild() which handles
+        // caching and compositing. We do NOT recursively render children here to avoid
+        // double-rendering (containers already handle their own children).
         context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
         node.Render(context);
         
         // Restore theme
         context.Theme = originalTheme;
-        
-        // Recursively render children
-        foreach (var child in node.GetChildren())
-        {
-            // Apply child-specific layout provider if available
-            var layoutProvider = childLayoutProvider?.GetChildLayoutProvider(child);
-            if (layoutProvider != null)
-            {
-                layoutProvider.ParentLayoutProvider = previousProvider;
-                context.CurrentLayoutProvider = layoutProvider;
-            }
-            
-            RenderTreeToSurface(child, context, effectiveTheme);
-            
-            if (layoutProvider != null)
-            {
-                context.CurrentLayoutProvider = previousProvider;
-            }
-        }
     }
     
     /// <summary>

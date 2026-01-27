@@ -14,10 +14,20 @@ namespace Hex1b.Surfaces;
 public static class SurfaceCells
 {
     /// <summary>
-    /// An empty cell with a space character and no colors (fully transparent).
-    /// This is the default cell used to initialize surfaces.
+    /// Sentinel character used to mark unwritten cells.
+    /// This is a private use area character that should never appear in actual content.
+    /// Using this instead of a space allows us to distinguish unwritten cells from
+    /// cells explicitly written as spaces with default colors.
     /// </summary>
-    public static readonly SurfaceCell Empty = new(" ", null, null, CellAttributes.None, 1);
+    internal const string UnwrittenMarker = "\uE000";
+    
+    /// <summary>
+    /// An empty/unwritten cell with no content and no colors (fully transparent).
+    /// This is the default cell used to initialize surfaces.
+    /// During compositing, cells equal to this are skipped to allow lower layers to show through.
+    /// During output, any remaining unwritten cells are rendered as spaces.
+    /// </summary>
+    public static readonly SurfaceCell Empty = new(UnwrittenMarker, null, null, CellAttributes.None, 1);
 
     /// <summary>
     /// A continuation cell used for wide character support.

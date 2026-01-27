@@ -163,4 +163,28 @@ public class Hex1bRenderContext
     {
         return CurrentLayoutProvider?.ShouldRenderAt(x, y) ?? true;
     }
+    
+    /// <summary>
+    /// Renders a child node. Container nodes should call this instead of child.Render(context)
+    /// to enable the framework to apply optimizations like caching.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The base implementation simply calls child.Render(this). Derived contexts (like 
+    /// SurfaceRenderContext) can override this to implement caching - checking if the child
+    /// is dirty and using a cached surface if not.
+    /// </para>
+    /// <para>
+    /// Containers that need custom rendering behavior can still call child.Render(context)
+    /// directly, but won't benefit from caching optimizations.
+    /// </para>
+    /// </remarks>
+    /// <param name="child">The child node to render.</param>
+    public virtual void RenderChild(Hex1bNode child)
+    {
+        if (child == null) return;
+        
+        SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+        child.Render(this);
+    }
 }
