@@ -1179,8 +1179,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            // Use Legacy mode - Surface mode has an issue with scroll indicator rendering
-            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
+            new Hex1bAppOptions { WorkloadAdapter = workload } // Using default Surface mode
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);

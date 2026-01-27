@@ -582,12 +582,13 @@ public static class DisplayWidth
         // Scales, alembic, etc
         if (codePoint == 0x2696 || codePoint == 0x2697 || codePoint == 0x2699)
             return true;
-        // Black and white circles/squares as emoji
-        if (codePoint == 0x25AA || codePoint == 0x25AB || codePoint == 0x25B6 || codePoint == 0x25C0)
-            return true;
-        // Larger geometric shapes  
-        if (codePoint >= 0x25FB && codePoint <= 0x25FE)
-            return true;
+        // NOTE: The following characters have text presentation as their default.
+        // They are only wide (2 cells) when followed by U+FE0F (variation selector-16).
+        // Since GetGraphemeWidth already handles VS16 by returning 2, we DON'T list them here.
+        // - U+25AA, U+25AB (black/white small square)
+        // - U+25B6, U+25C0 (play/reverse triangles - used as scroll arrows)
+        // - U+25FB-U+25FE (medium squares)
+        // If they were listed here, they'd incorrectly be width 2 in text mode.
             
         return false;
     }
