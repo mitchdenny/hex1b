@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -115,6 +116,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private readonly bool _enableInputCoalescing;
     private readonly int _inputCoalescingInitialDelayMs;
     private readonly int _inputCoalescingMaxDelayMs;
+    
+    // Surface rendering mode
+    private readonly RenderingMode _renderingMode;
+    private Surface? _currentSurface;
+    private Surface? _previousSurface;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -169,6 +175,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _enableInputCoalescing = options.EnableInputCoalescing;
         _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
         _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
+        
+        // Surface rendering mode
+        _renderingMode = options.RenderingMode;
     }
 
     /// <summary>
@@ -603,31 +612,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 _context.Write("\x1b[?25l"); // Hide cursor
             }
 
-            // Begin frame buffering - all changes from here until EndFrame
-            // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
-            _context.BeginFrame();
-
-            // Clear dirty regions (instead of global clear to reduce flicker)
-            // On first frame or when root is new, do a full clear
-            if (_isFirstFrame)
+            // Render based on configured mode
+            if (_renderingMode == RenderingMode.Surface)
             {
-                _context.Clear();
-                _isFirstFrame = false;
+                RenderFrameWithSurface();
             }
-            else if (_rootNode != null)
+            else if (_renderingMode == RenderingMode.Validation)
             {
-                ClearDirtyRegions(_rootNode);
+                RenderFrameWithValidation();
             }
-            
-            // Render the node tree to the terminal (only dirty nodes)
-            if (_rootNode != null)
+            else // Legacy
             {
-                RenderTree(_rootNode);
+                RenderFrameWithLegacy();
             }
-            
-            // End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
-            // the net changes (e.g., clear + re-render same content = no output)
-            _context.EndFrame();
             
             // Clear dirty flags on all nodes (they've been rendered)
             // Nodes with async content (like TerminalNode) may override ClearDirty()
@@ -641,6 +638,160 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         // Render hardware cursor - for focused TerminalNode uses child's cursor,
         // otherwise uses mouse position if mouse cursor is enabled
         RenderCursor();
+    }
+    
+    /// <summary>
+    /// Legacy render path - uses ANSI string rendering via Hex1bRenderContext.
+    /// </summary>
+    private void RenderFrameWithLegacy()
+    {
+        // Begin frame buffering - all changes from here until EndFrame
+        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
+        _context.BeginFrame();
+
+        // Clear dirty regions (instead of global clear to reduce flicker)
+        // On first frame or when root is new, do a full clear
+        if (_isFirstFrame)
+        {
+            _context.Clear();
+            _isFirstFrame = false;
+        }
+        else if (_rootNode != null)
+        {
+            ClearDirtyRegions(_rootNode);
+        }
+        
+        // Render the node tree to the terminal (only dirty nodes)
+        if (_rootNode != null)
+        {
+            RenderTree(_rootNode);
+        }
+        
+        // End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
+        // the net changes (e.g., clear + re-render same content = no output)
+        _context.EndFrame();
+    }
+    
+    /// <summary>
+    /// Surface render path - uses Surface-based rendering with efficient diffing.
+    /// </summary>
+    private void RenderFrameWithSurface()
+    {
+        var width = _adapter.Width;
+        var height = _adapter.Height;
+        
+        // Ensure we have surfaces of the correct size
+        if (_currentSurface == null || _currentSurface.Width != width || _currentSurface.Height != height)
+        {
+            _currentSurface = new Surface(width, height);
+            _previousSurface = new Surface(width, height);
+            _isFirstFrame = true;
+        }
+        
+        // Swap buffers (reuse previous surface as current for double-buffering)
+        (_previousSurface, _currentSurface) = (_currentSurface, _previousSurface);
+        _currentSurface.Clear();
+        
+        // Create surface-backed render context and render
+        var surfaceContext = new SurfaceRenderContext(_currentSurface, _context.Theme)
+        {
+            MouseX = _mouseX,
+            MouseY = _mouseY
+        };
+        
+        if (_rootNode != null)
+        {
+            RenderTreeToSurface(_rootNode, surfaceContext);
+        }
+        
+        // Diff current vs previous and emit changes
+        var diff = _isFirstFrame 
+            ? SurfaceComparer.CompareToEmpty(_currentSurface)
+            : SurfaceComparer.Compare(_previousSurface, _currentSurface);
+        
+        if (!diff.IsEmpty)
+        {
+            var ansiOutput = SurfaceComparer.ToAnsiString(diff);
+            _adapter.Write(ansiOutput);
+        }
+        
+        _isFirstFrame = false;
+    }
+    
+    /// <summary>
+    /// Validation render path - runs both Legacy and Surface, compares visual output.
+    /// </summary>
+    private void RenderFrameWithValidation()
+    {
+        // For now, just use legacy path
+        // Full validation requires comparing visual output which is complex
+        // This will be implemented when we have proper visual comparison infrastructure
+        RenderFrameWithLegacy();
+        
+        // TODO: Run Surface path and compare outputs
+        // This requires capturing legacy output to a buffer, applying to a virtual terminal,
+        // then comparing cell-by-cell with the Surface output
+    }
+    
+    /// <summary>
+    /// Renders the node tree to a Surface via SurfaceRenderContext.
+    /// Similar to RenderTree but for Surface rendering mode.
+    /// </summary>
+    private void RenderTreeToSurface(Hex1bNode node, SurfaceRenderContext context, Theming.Hex1bTheme? currentTheme = null)
+    {
+        // Track theme mutations from ThemePanelNode
+        var effectiveTheme = currentTheme ?? context.Theme;
+        if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
+        {
+            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme.Clone());
+        }
+        
+        // Apply theme for this node's render
+        var originalTheme = context.Theme;
+        context.Theme = effectiveTheme;
+        
+        // Check if this node provides custom layout/clipping for its children
+        var childLayoutProvider = node as Nodes.IChildLayoutProvider;
+        
+        // Setup layout provider for clipping
+        var previousProvider = context.CurrentLayoutProvider;
+        if (childLayoutProvider != null)
+        {
+            foreach (var child in node.GetChildren())
+            {
+                var layoutProvider = childLayoutProvider.GetChildLayoutProvider(child);
+                if (layoutProvider != null)
+                {
+                    layoutProvider.ParentLayoutProvider = previousProvider;
+                }
+            }
+        }
+        
+        // Set cursor position and render the node
+        context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
+        node.Render(context);
+        
+        // Restore theme
+        context.Theme = originalTheme;
+        
+        // Recursively render children
+        foreach (var child in node.GetChildren())
+        {
+            // Apply child-specific layout provider if available
+            var layoutProvider = childLayoutProvider?.GetChildLayoutProvider(child);
+            if (layoutProvider != null)
+            {
+                layoutProvider.ParentLayoutProvider = previousProvider;
+                context.CurrentLayoutProvider = layoutProvider;
+            }
+            
+            RenderTreeToSurface(child, context, effectiveTheme);
+            
+            if (layoutProvider != null)
+            {
+                context.CurrentLayoutProvider = previousProvider;
+            }
+        }
     }
     
     /// <summary>

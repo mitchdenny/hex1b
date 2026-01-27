@@ -6,11 +6,19 @@ namespace Hex1b;
 
 public class Hex1bRenderContext
 {
-    private readonly IHex1bAppTerminalWorkloadAdapter _adapter;
+    private readonly IHex1bAppTerminalWorkloadAdapter? _adapter;
 
     public Hex1bRenderContext(IHex1bAppTerminalWorkloadAdapter adapter, Hex1bTheme? theme = null)
     {
         _adapter = adapter;
+        Theme = theme ?? Hex1bThemes.Default;
+    }
+    
+    /// <summary>
+    /// Protected constructor for derived classes that don't use an adapter.
+    /// </summary>
+    protected Hex1bRenderContext(Hex1bTheme? theme)
+    {
         Theme = theme ?? Hex1bThemes.Default;
     }
 
@@ -34,18 +42,18 @@ public class Hex1bRenderContext
     /// </summary>
     public ILayoutProvider? CurrentLayoutProvider { get; set; }
 
-    public void EnterAlternateScreen() => _adapter.EnterTuiMode();
-    public void ExitAlternateScreen() => _adapter.ExitTuiMode();
-    public void Write(string text) => _adapter.Write(text);
-    public void Clear() => _adapter.Clear();
-    public void SetCursorPosition(int left, int top) => _adapter.SetCursorPosition(left, top);
-    public int Width => _adapter.Width;
-    public int Height => _adapter.Height;
+    public virtual void EnterAlternateScreen() => _adapter?.EnterTuiMode();
+    public virtual void ExitAlternateScreen() => _adapter?.ExitTuiMode();
+    public virtual void Write(string text) => _adapter?.Write(text);
+    public virtual void Clear() => _adapter?.Clear();
+    public virtual void SetCursorPosition(int left, int top) => _adapter?.SetCursorPosition(left, top);
+    public virtual int Width => _adapter?.Width ?? 0;
+    public virtual int Height => _adapter?.Height ?? 0;
     
     /// <summary>
     /// Terminal capabilities (Sixel support, colors, etc.).
     /// </summary>
-    public TerminalCapabilities Capabilities => _adapter.Capabilities;
+    public virtual TerminalCapabilities Capabilities => _adapter?.Capabilities ?? TerminalCapabilities.Modern;
     
     // Frame boundary tokens (APC format: ESC _ content ESC \)
     private const string FrameBeginSequence = "\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\";
@@ -62,10 +70,10 @@ public class Hex1bRenderContext
     /// When frame buffering is enabled, updates are accumulated until <see cref="EndFrame"/> is called.
     /// Also enables Synchronized Update Mode for terminals that support it (DEC 2026).
     /// </summary>
-    public void BeginFrame()
+    public virtual void BeginFrame()
     {
-        _adapter.Write(SyncUpdateBegin);   // Tell terminal to start buffering
-        _adapter.Write(FrameBeginSequence); // Tell our filter pipeline
+        _adapter?.Write(SyncUpdateBegin);   // Tell terminal to start buffering
+        _adapter?.Write(FrameBeginSequence); // Tell our filter pipeline
     }
     
     /// <summary>
@@ -73,10 +81,10 @@ public class Hex1bRenderContext
     /// only the net changes between this frame and the previous committed frame.
     /// Also ends Synchronized Update Mode, triggering atomic render on supported terminals.
     /// </summary>
-    public void EndFrame()
+    public virtual void EndFrame()
     {
-        _adapter.Write(FrameEndSequence);  // Tell our filter pipeline
-        _adapter.Write(SyncUpdateEnd);      // Tell terminal to flush and render
+        _adapter?.Write(FrameEndSequence);  // Tell our filter pipeline
+        _adapter?.Write(SyncUpdateEnd);      // Tell terminal to flush and render
     }
     
     /// <summary>
@@ -85,7 +93,7 @@ public class Hex1bRenderContext
     /// Respects global background color from the theme if set.
     /// </summary>
     /// <param name="rect">The rectangle to clear.</param>
-    public void ClearRegion(Rect rect)
+    public virtual void ClearRegion(Rect rect)
     {
         if (rect.Width <= 0 || rect.Height <= 0) return;
         
@@ -129,7 +137,7 @@ public class Hex1bRenderContext
     /// <param name="x">The X position to start writing.</param>
     /// <param name="y">The Y position to write at.</param>
     /// <param name="text">The text to write.</param>
-    public void WriteClipped(int x, int y, string text)
+    public virtual void WriteClipped(int x, int y, string text)
     {
         if (CurrentLayoutProvider == null)
         {
@@ -151,7 +159,7 @@ public class Hex1bRenderContext
     /// Checks if a position should be rendered based on the current layout provider.
     /// If no layout provider is active, returns true.
     /// </summary>
-    public bool ShouldRenderAt(int x, int y)
+    public virtual bool ShouldRenderAt(int x, int y)
     {
         return CurrentLayoutProvider?.ShouldRenderAt(x, y) ?? true;
     }

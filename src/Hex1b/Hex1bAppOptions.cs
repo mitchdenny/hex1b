@@ -91,4 +91,63 @@ public class Hex1bAppOptions
     /// Default is 100ms.
     /// </summary>
     public int InputCoalescingMaxDelayMs { get; set; } = 100;
+    
+    /// <summary>
+    /// Controls the rendering implementation. Default is Legacy for backward compatibility.
+    /// Set to Surface to use the new Surface-based rendering with efficient diffing.
+    /// Set to Validation to run both paths and verify they produce identical visual output.
+    /// </summary>
+    /// <remarks>
+    /// Can be controlled via the HEX1B_RENDERING_MODE environment variable:
+    /// - "Legacy" or "0": Use legacy ANSI string rendering
+    /// - "Surface" or "1": Use Surface-based rendering
+    /// - "Validation" or "2": Run both and compare (throws on mismatch)
+    /// </remarks>
+    public RenderingMode RenderingMode { get; set; } = RenderingMode.Legacy;
+    
+    /// <summary>
+    /// Creates options with rendering mode from environment variable if set.
+    /// </summary>
+    public static Hex1bAppOptions FromEnvironment()
+    {
+        var options = new Hex1bAppOptions();
+        
+        var envValue = Environment.GetEnvironmentVariable("HEX1B_RENDERING_MODE");
+        if (!string.IsNullOrEmpty(envValue))
+        {
+            options.RenderingMode = envValue.ToUpperInvariant() switch
+            {
+                "LEGACY" or "0" => RenderingMode.Legacy,
+                "SURFACE" or "1" => RenderingMode.Surface,
+                "VALIDATION" or "2" => RenderingMode.Validation,
+                _ => RenderingMode.Legacy
+            };
+        }
+        
+        return options;
+    }
+}
+
+/// <summary>
+/// Controls which rendering implementation Hex1bApp uses.
+/// </summary>
+public enum RenderingMode
+{
+    /// <summary>
+    /// Original ANSI string-based rendering (current behavior).
+    /// Nodes emit ANSI escape codes that are parsed by Hex1bTerminal.
+    /// </summary>
+    Legacy = 0,
+    
+    /// <summary>
+    /// Surface-based rendering with efficient diffing.
+    /// Nodes render to a Surface, which is diffed and converted to minimal ANSI output.
+    /// </summary>
+    Surface = 1,
+    
+    /// <summary>
+    /// Run both Legacy and Surface paths, compare visual output, throw if they differ.
+    /// Uses Legacy output. For validation and testing only.
+    /// </summary>
+    Validation = 2
 }
