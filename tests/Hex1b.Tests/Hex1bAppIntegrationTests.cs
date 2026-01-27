@@ -251,7 +251,7 @@ public class Hex1bAppIntegrationTests
 
         // Navigate down twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
             .Down()
             .Down()
@@ -263,7 +263,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
         
         // Verify via rendered output that third item is selected
-        Assert.True(terminal.CreateSnapshot().ContainsText("> Item 3"));
+        Assert.True(snapshot.ContainsText("> Item 3"));
     }
 
     [Fact]

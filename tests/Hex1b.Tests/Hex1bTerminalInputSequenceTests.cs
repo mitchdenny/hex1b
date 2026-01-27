@@ -481,6 +481,7 @@ public class Hex1bTestSequenceTests
         // Wait for app to initialize, navigate down twice, wait for selection, then capture and exit
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2)) // Wait for list to render
             .Down()
             .Down()
             .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(2))
