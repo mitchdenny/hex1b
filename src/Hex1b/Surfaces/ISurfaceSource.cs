@@ -27,6 +27,25 @@ public interface ISurfaceSource
     int Height { get; }
 
     /// <summary>
+    /// Gets the cell metrics for this surface.
+    /// </summary>
+    /// <remarks>
+    /// Cell metrics define the pixel dimensions of terminal cells, which is needed
+    /// for sixel graphics operations. When compositing surfaces with sixel content,
+    /// both surfaces must have matching cell metrics.
+    /// </remarks>
+    CellMetrics CellMetrics { get; }
+
+    /// <summary>
+    /// Gets whether this surface contains any sixel graphics.
+    /// </summary>
+    /// <remarks>
+    /// This is used during compositing to validate that surfaces with sixel content
+    /// have matching cell metrics. If no sixels are present, metrics validation is skipped.
+    /// </remarks>
+    bool HasSixels { get; }
+
+    /// <summary>
     /// Gets the cell at the specified position.
     /// </summary>
     /// <remarks>

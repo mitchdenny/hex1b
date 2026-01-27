@@ -826,6 +826,121 @@ public class SurfaceTests
     }
 
     #endregion
+
+    #region CellMetrics
+
+    [Fact]
+    public void Constructor_WithoutMetrics_UsesDefault()
+    {
+        var surface = new Surface(10, 10);
+        
+        Assert.Equal(CellMetrics.Default, surface.CellMetrics);
+    }
+
+    [Fact]
+    public void Constructor_WithMetrics_StoresMetrics()
+    {
+        var metrics = new CellMetrics(8, 16);
+        var surface = new Surface(10, 10, metrics);
+        
+        Assert.Equal(metrics, surface.CellMetrics);
+    }
+
+    [Fact]
+    public void Clone_PreservesMetrics()
+    {
+        var metrics = new CellMetrics(12, 24);
+        var surface = new Surface(10, 10, metrics);
+        
+        var clone = surface.Clone();
+        
+        Assert.Equal(metrics, clone.CellMetrics);
+    }
+
+    [Fact]
+    public void HasSixels_WhenNoSixels_ReturnsFalse()
+    {
+        var surface = new Surface(10, 10);
+        surface.WriteText(0, 0, "Hello");
+        
+        Assert.False(surface.HasSixels);
+    }
+
+    [Fact]
+    public void HasSixels_WhenSixelsPresent_ReturnsTrue()
+    {
+        var surface = new Surface(10, 10);
+        var store = new TrackedObjectStore();
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        surface[0, 0] = sixelCell;
+        
+        Assert.True(surface.HasSixels);
+    }
+
+    [Fact]
+    public void HasSixels_WhenSixelRemoved_ReturnsFalse()
+    {
+        var surface = new Surface(10, 10);
+        var store = new TrackedObjectStore();
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        surface[0, 0] = sixelCell;
+        Assert.True(surface.HasSixels);
+        
+        surface[0, 0] = SurfaceCells.Empty;
+        Assert.False(surface.HasSixels);
+    }
+
+    [Fact]
+    public void Composite_WithMatchingMetrics_Succeeds()
+    {
+        var metrics = new CellMetrics(8, 16);
+        var target = new Surface(20, 20, metrics);
+        var source = new Surface(10, 10, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Should not throw even if no sixels
+        target.Composite(source, 0, 0);
+        
+        // Add sixel to source
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        source[0, 0] = sixelCell;
+        
+        // Should still succeed - metrics match
+        target.Composite(source, 5, 5);
+    }
+
+    [Fact]
+    public void Composite_WithMismatchedMetrics_NoSixels_Succeeds()
+    {
+        var target = new Surface(20, 20, new CellMetrics(10, 20));
+        var source = new Surface(10, 10, new CellMetrics(8, 16));
+        
+        // No sixels - should succeed despite different metrics
+        target.Composite(source, 0, 0);
+    }
+
+    [Fact]
+    public void Composite_WithMismatchedMetrics_WithSixels_Throws()
+    {
+        var target = new Surface(20, 20, new CellMetrics(10, 20));
+        var source = new Surface(10, 10, new CellMetrics(8, 16));
+        var store = new TrackedObjectStore();
+        
+        // Add sixel to source
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        source[0, 0] = sixelCell;
+        
+        var ex = Assert.Throws<InvalidOperationException>(() => target.Composite(source, 0, 0));
+        Assert.Contains("CellMetrics differ", ex.Message);
+    }
+
+    #endregion
 }
 
 /// <summary>
@@ -1176,6 +1291,94 @@ public class CompositeSurfaceTests
         Assert.Equal("T", dest[2, 2].Character);
         Assert.Equal("t", dest[5, 2].Character);
         Assert.Equal(Hex1bColor.Red, dest[2, 2].Foreground);
+    }
+
+    #endregion
+
+    #region CellMetrics
+
+    [Fact]
+    public void Constructor_WithoutMetrics_UsesDefault()
+    {
+        var composite = new CompositeSurface(10, 10);
+        
+        Assert.Equal(CellMetrics.Default, composite.CellMetrics);
+    }
+
+    [Fact]
+    public void Constructor_WithMetrics_StoresMetrics()
+    {
+        var metrics = new CellMetrics(8, 16);
+        var composite = new CompositeSurface(10, 10, metrics);
+        
+        Assert.Equal(metrics, composite.CellMetrics);
+    }
+
+    [Fact]
+    public void HasSixels_WhenNoLayers_ReturnsFalse()
+    {
+        var composite = new CompositeSurface(10, 10);
+        
+        Assert.False(composite.HasSixels);
+    }
+
+    [Fact]
+    public void HasSixels_WhenLayerWithSixels_ReturnsTrue()
+    {
+        var composite = new CompositeSurface(10, 10);
+        var layer = new Surface(5, 5);
+        var store = new TrackedObjectStore();
+        
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        layer[0, 0] = sixelCell;
+        
+        composite.AddLayer(layer, 0, 0);
+        
+        Assert.True(composite.HasSixels);
+    }
+
+    [Fact]
+    public void AddLayer_WithMatchingMetrics_Succeeds()
+    {
+        var metrics = new CellMetrics(8, 16);
+        var composite = new CompositeSurface(20, 20, metrics);
+        var layer = new Surface(10, 10, metrics);
+        var store = new TrackedObjectStore();
+        
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        layer[0, 0] = sixelCell;
+        
+        // Should not throw
+        composite.AddLayer(layer, 0, 0);
+        Assert.Equal(1, composite.LayerCount);
+    }
+
+    [Fact]
+    public void AddLayer_WithMismatchedMetrics_NoSixels_Succeeds()
+    {
+        var composite = new CompositeSurface(20, 20, new CellMetrics(10, 20));
+        var layer = new Surface(10, 10, new CellMetrics(8, 16));
+        
+        // No sixels - should succeed
+        composite.AddLayer(layer, 0, 0);
+        Assert.Equal(1, composite.LayerCount);
+    }
+
+    [Fact]
+    public void AddLayer_WithMismatchedMetrics_WithSixels_Throws()
+    {
+        var composite = new CompositeSurface(20, 20, new CellMetrics(10, 20));
+        var layer = new Surface(10, 10, new CellMetrics(8, 16));
+        var store = new TrackedObjectStore();
+        
+        var sixelRef = store.GetOrCreateSixel("\x1bPq#0;2;100;0;0!10~\x1b\\", 2, 1);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        layer[0, 0] = sixelCell;
+        
+        var ex = Assert.Throws<InvalidOperationException>(() => composite.AddLayer(layer, 0, 0));
+        Assert.Contains("CellMetrics differ", ex.Message);
     }
 
     #endregion

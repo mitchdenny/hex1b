@@ -37,23 +37,60 @@ public sealed class CompositeSurface : ISurfaceSource
     public int Height { get; }
 
     /// <summary>
+    /// Gets the cell metrics for this composite surface.
+    /// </summary>
+    /// <remarks>
+    /// All layers with sixel content must have matching cell metrics.
+    /// This is validated when layers are added.
+    /// </remarks>
+    public CellMetrics CellMetrics { get; }
+
+    /// <summary>
+    /// Gets whether any layer in this composite contains sixel graphics.
+    /// </summary>
+    public bool HasSixels
+    {
+        get
+        {
+            foreach (var layer in _layers)
+            {
+                if (layer.Source.HasSixels)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Gets the number of layers in this composite.
     /// </summary>
     public int LayerCount => _layers.Count;
 
     /// <summary>
-    /// Creates a new composite surface with the specified dimensions.
+    /// Creates a new composite surface with the specified dimensions and default cell metrics.
     /// </summary>
     /// <param name="width">The width in columns. Must be positive.</param>
     /// <param name="height">The height in rows. Must be positive.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if width or height is not positive.</exception>
-    public CompositeSurface(int width, int height)
+    public CompositeSurface(int width, int height) : this(width, height, CellMetrics.Default)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new composite surface with the specified dimensions and cell metrics.
+    /// </summary>
+    /// <param name="width">The width in columns. Must be positive.</param>
+    /// <param name="height">The height in rows. Must be positive.</param>
+    /// <param name="cellMetrics">The pixel dimensions of terminal cells.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if width or height is not positive.</exception>
+    public CompositeSurface(int width, int height, CellMetrics cellMetrics)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
 
         Width = width;
         Height = height;
+        CellMetrics = cellMetrics;
     }
 
     /// <summary>
@@ -66,8 +103,12 @@ public sealed class CompositeSurface : ISurfaceSource
     /// <param name="source">The surface source to add as a layer.</param>
     /// <param name="offsetX">The X offset where the source's (0,0) will be placed.</param>
     /// <param name="offsetY">The Y offset where the source's (0,0) will be placed.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the source contains sixel graphics but has different cell metrics.
+    /// </exception>
     public void AddLayer(ISurfaceSource source, int offsetX = 0, int offsetY = 0)
     {
+        ValidateLayerMetrics(source);
         _layers.Add(new Layer(source, offsetX, offsetY, null));
     }
 
@@ -254,6 +295,8 @@ public sealed class CompositeSurface : ISurfaceSource
     {
         public int Width { get; }
         public int Height { get; }
+        public CellMetrics CellMetrics => CellMetrics.Default;
+        public bool HasSixels => false; // Computed layers don't have sixels directly
 
         public ComputedLayerSource(int width, int height)
         {
@@ -268,6 +311,19 @@ public sealed class CompositeSurface : ISurfaceSource
             return IsInBounds(x, y);
         }
         public bool IsInBounds(int x, int y) => x >= 0 && x < Width && y >= 0 && y < Height;
+    }
+
+    /// <summary>
+    /// Validates that a layer's cell metrics match this composite's metrics if it has sixels.
+    /// </summary>
+    private void ValidateLayerMetrics(ISurfaceSource source)
+    {
+        if (source.HasSixels && source.CellMetrics != CellMetrics)
+        {
+            throw new InvalidOperationException(
+                $"Cannot add layer with sixels when CellMetrics differ. " +
+                $"Composite: {CellMetrics}, Layer: {source.CellMetrics}");
+        }
     }
 
     /// <summary>

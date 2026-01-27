@@ -18,11 +18,19 @@ namespace Hex1b.Surfaces;
 /// Thread safety is the caller's responsibility - surfaces are designed for
 /// high-performance single-threaded rendering.
 /// </para>
+/// <para>
+/// Each surface carries <see cref="CellMetrics"/> that define the pixel dimensions
+/// of terminal cells. This is needed for sixel graphics, which are defined in pixels
+/// but must be mapped to cell boundaries for proper rendering and clipping.
+/// </para>
 /// </remarks>
 public sealed class Surface : ISurfaceSource
 {
     // Row-major storage: cells[y * width + x]
     private readonly SurfaceCell[] _cells;
+    
+    // Track if any cells contain sixel graphics
+    private int _sixelCount;
     
     /// <summary>
     /// Gets the width of the surface in columns.
@@ -35,24 +43,52 @@ public sealed class Surface : ISurfaceSource
     public int Height { get; }
     
     /// <summary>
+    /// Gets the cell metrics for this surface.
+    /// </summary>
+    /// <remarks>
+    /// Cell metrics define the pixel dimensions of terminal cells, which is needed
+    /// for sixel graphics operations. When compositing surfaces with sixel content,
+    /// both surfaces must have matching cell metrics.
+    /// </remarks>
+    public CellMetrics CellMetrics { get; }
+    
+    /// <summary>
+    /// Gets whether this surface contains any sixel graphics.
+    /// </summary>
+    public bool HasSixels => _sixelCount > 0;
+    
+    /// <summary>
     /// Gets the total number of cells in the surface.
     /// </summary>
     public int CellCount => Width * Height;
 
     /// <summary>
-    /// Creates a new surface with the specified dimensions.
+    /// Creates a new surface with the specified dimensions and default cell metrics.
     /// All cells are initialized to <see cref="SurfaceCells.Empty"/>.
     /// </summary>
     /// <param name="width">The width in columns. Must be positive.</param>
     /// <param name="height">The height in rows. Must be positive.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if width or height is not positive.</exception>
-    public Surface(int width, int height)
+    public Surface(int width, int height) : this(width, height, CellMetrics.Default)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new surface with the specified dimensions and cell metrics.
+    /// All cells are initialized to <see cref="SurfaceCells.Empty"/>.
+    /// </summary>
+    /// <param name="width">The width in columns. Must be positive.</param>
+    /// <param name="height">The height in rows. Must be positive.</param>
+    /// <param name="cellMetrics">The pixel dimensions of terminal cells.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if width or height is not positive.</exception>
+    public Surface(int width, int height, CellMetrics cellMetrics)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         
         Width = width;
         Height = height;
+        CellMetrics = cellMetrics;
         _cells = new SurfaceCell[width * height];
         
         // Initialize all cells to empty
@@ -76,7 +112,16 @@ public sealed class Surface : ISurfaceSource
         set
         {
             ValidateBounds(x, y);
-            _cells[y * Width + x] = value;
+            var index = y * Width + x;
+            
+            // Track sixel count changes
+            var oldCell = _cells[index];
+            if (oldCell.HasSixel && !value.HasSixel)
+                _sixelCount--;
+            else if (!oldCell.HasSixel && value.HasSixel)
+                _sixelCount++;
+            
+            _cells[index] = value;
         }
     }
 
@@ -118,7 +163,16 @@ public sealed class Surface : ISurfaceSource
     {
         if (x >= 0 && x < Width && y >= 0 && y < Height)
         {
-            _cells[y * Width + x] = cell;
+            var index = y * Width + x;
+            
+            // Track sixel count changes
+            var oldCell = _cells[index];
+            if (oldCell.HasSixel && !cell.HasSixel)
+                _sixelCount--;
+            else if (!oldCell.HasSixel && cell.HasSixel)
+                _sixelCount++;
+            
+            _cells[index] = cell;
             return true;
         }
         return false;
@@ -139,6 +193,7 @@ public sealed class Surface : ISurfaceSource
     public void Clear()
     {
         Array.Fill(_cells, SurfaceCells.Empty);
+        _sixelCount = 0;
     }
 
     /// <summary>
@@ -148,6 +203,7 @@ public sealed class Surface : ISurfaceSource
     public void Clear(SurfaceCell cell)
     {
         Array.Fill(_cells, cell);
+        _sixelCount = cell.HasSixel ? CellCount : 0;
     }
 
     /// <summary>
@@ -169,7 +225,16 @@ public sealed class Surface : ISurfaceSource
             var rowStart = y * Width;
             for (var x = startX; x < endX; x++)
             {
-                _cells[rowStart + x] = cell;
+                var index = rowStart + x;
+                
+                // Track sixel count changes
+                var oldCell = _cells[index];
+                if (oldCell.HasSixel && !cell.HasSixel)
+                    _sixelCount--;
+                else if (!oldCell.HasSixel && cell.HasSixel)
+                    _sixelCount++;
+                
+                _cells[index] = cell;
             }
         }
     }
@@ -291,13 +356,29 @@ public sealed class Surface : ISurfaceSource
     /// If the source is a <see cref="CompositeSurface"/>, its layers are resolved on demand
     /// as cells are accessed.
     /// </para>
+    /// <para>
+    /// When the source contains sixel graphics, both surfaces must have matching
+    /// <see cref="CellMetrics"/>. This ensures sixel pixel coordinates map correctly
+    /// to cell boundaries.
+    /// </para>
     /// </remarks>
     /// <param name="source">The source to composite (Surface, CompositeSurface, or any ISurfaceSource).</param>
     /// <param name="offsetX">The X offset in this surface where the source's (0,0) will be placed.</param>
     /// <param name="offsetY">The Y offset in this surface where the source's (0,0) will be placed.</param>
     /// <param name="clip">Optional clip rectangle in destination coordinates. If null, uses entire destination.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the source contains sixel graphics but has different cell metrics than this surface.
+    /// </exception>
     public void Composite(ISurfaceSource source, int offsetX, int offsetY, Rect? clip = null)
     {
+        // Validate cell metrics if source has sixels
+        if (source.HasSixels && source.CellMetrics != CellMetrics)
+        {
+            throw new InvalidOperationException(
+                $"Cannot composite surface with sixels when CellMetrics differ. " +
+                $"Target: {CellMetrics}, Source: {source.CellMetrics}");
+        }
+
         // Determine the effective clip region
         var clipRect = clip ?? new Rect(0, 0, Width, Height);
         
@@ -329,7 +410,16 @@ public sealed class Surface : ISurfaceSource
                     srcCell = srcCell with { Background = destCell.Background };
                 }
 
-                _cells[destRowStart + destX] = srcCell;
+                var index = destRowStart + destX;
+                
+                // Track sixel count changes
+                var oldCell = _cells[index];
+                if (oldCell.HasSixel && !srcCell.HasSixel)
+                    _sixelCount--;
+                else if (!oldCell.HasSixel && srcCell.HasSixel)
+                    _sixelCount++;
+
+                _cells[index] = srcCell;
             }
         }
     }
@@ -357,11 +447,12 @@ public sealed class Surface : ISurfaceSource
     /// <summary>
     /// Creates a deep copy of this surface.
     /// </summary>
-    /// <returns>A new surface with the same dimensions and cell values.</returns>
+    /// <returns>A new surface with the same dimensions, cell metrics, and cell values.</returns>
     public Surface Clone()
     {
-        var clone = new Surface(Width, Height);
+        var clone = new Surface(Width, Height, CellMetrics);
         _cells.AsSpan().CopyTo(clone._cells);
+        clone._sixelCount = _sixelCount;
         return clone;
     }
 
