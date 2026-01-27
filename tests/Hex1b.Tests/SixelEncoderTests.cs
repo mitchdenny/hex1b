@@ -1,5 +1,7 @@
+using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Surfaces;
+using Hex1b.Theming;
 
 namespace Hex1b.Tests;
 
@@ -769,6 +771,274 @@ public class SixelEncoderTests
         Assert.True(Math.Abs(r - expectedR) <= tolerance, $"Red at ({x}, {y}): expected ~{expectedR}, got {r}");
         Assert.True(Math.Abs(g - expectedG) <= tolerance, $"Green at ({x}, {y}): expected ~{expectedG}, got {g}");
         Assert.True(Math.Abs(b - expectedB) <= tolerance, $"Blue at ({x}, {y}): expected ~{expectedB}, got {b}");
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// Tests for sixel visibility and fragment generation.
+/// </summary>
+public class SixelVisibilityTests
+{
+    private readonly TrackedObjectStore _store = new();
+
+    #region SixelVisibility Tests
+
+    [Fact]
+    public void SixelVisibility_InitiallyFullyVisible()
+    {
+        var sixelRef = CreateTestSixel(100, 60); // 100x60 pixels = 10x3 cells at 10x20 metrics
+        var visibility = new SixelVisibility(sixelRef, 5, 5, 0);
+        
+        Assert.True(visibility.IsFullyVisible);
+        Assert.False(visibility.IsFullyOccluded);
+        Assert.False(visibility.IsFragmented);
+        Assert.Single(visibility.VisibleRegions);
+    }
+
+    [Fact]
+    public void SixelVisibility_ApplyOcclusion_PartiallyOccludes()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
+        var metrics = new CellMetrics(10, 20);
+        
+        // Occlude center 2x1 cells (cells 4-5, row 1)
+        var occlusion = new Hex1b.Layout.Rect(4, 1, 2, 1);
+        visibility.ApplyOcclusion(occlusion, metrics);
+        
+        Assert.False(visibility.IsFullyVisible);
+        Assert.False(visibility.IsFullyOccluded);
+        // Should have 4 fragments: top, bottom, left, right of occlusion
+        Assert.Equal(4, visibility.VisibleRegions.Count);
+    }
+
+    [Fact]
+    public void SixelVisibility_ApplyOcclusion_FullyOccludes()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
+        var metrics = new CellMetrics(10, 20);
+        
+        // Occlude entire sixel (10x3 cells)
+        var occlusion = new Hex1b.Layout.Rect(0, 0, 10, 3);
+        visibility.ApplyOcclusion(occlusion, metrics);
+        
+        Assert.True(visibility.IsFullyOccluded);
+        Assert.Empty(visibility.VisibleRegions);
+    }
+
+    [Fact]
+    public void SixelVisibility_ApplyOcclusion_NoOverlap_NoChange()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
+        var metrics = new CellMetrics(10, 20);
+        
+        // Occlude area outside sixel
+        var occlusion = new Hex1b.Layout.Rect(20, 20, 5, 5);
+        visibility.ApplyOcclusion(occlusion, metrics);
+        
+        Assert.True(visibility.IsFullyVisible);
+        Assert.Single(visibility.VisibleRegions);
+    }
+
+    [Fact]
+    public void SixelVisibility_GenerateFragments_FullyVisible_SingleFragment()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var visibility = new SixelVisibility(sixelRef, 5, 3, 0);
+        var metrics = new CellMetrics(10, 20);
+        
+        var fragments = visibility.GenerateFragments(metrics);
+        
+        Assert.Single(fragments);
+        Assert.Equal((5, 3), fragments[0].CellPosition);
+        Assert.True(fragments[0].IsComplete);
+    }
+
+    [Fact]
+    public void SixelVisibility_GenerateFragments_Occluded_MultipleFragments()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var visibility = new SixelVisibility(sixelRef, 0, 0, 0);
+        var metrics = new CellMetrics(10, 20);
+        
+        // Occlude center
+        var occlusion = new Hex1b.Layout.Rect(4, 1, 2, 1);
+        visibility.ApplyOcclusion(occlusion, metrics);
+        
+        var fragments = visibility.GenerateFragments(metrics);
+        
+        Assert.True(fragments.Count >= 2);
+        Assert.All(fragments, f => Assert.False(f.IsComplete));
+    }
+
+    #endregion
+
+    #region CompositeSurface.GetSixelFragments Tests
+
+    [Fact]
+    public void GetSixelFragments_NoSixels_ReturnsEmpty()
+    {
+        var composite = new CompositeSurface(80, 24);
+        var layer = new Surface(40, 12);
+        layer.WriteText(0, 0, "Hello");
+        composite.AddLayer(layer, 0, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        Assert.Empty(fragments);
+    }
+
+    [Fact]
+    public void GetSixelFragments_UnoccludedSixel_SingleFragment()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        var layer = new Surface(40, 12, metrics);
+        
+        var sixelRef = CreateTestSixel(100, 60);
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        layer[5, 3] = sixelCell;
+        
+        composite.AddLayer(layer, 0, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        Assert.Single(fragments);
+        Assert.Equal((5, 3), fragments[0].CellPosition);
+    }
+
+    [Fact]
+    public void GetSixelFragments_PartiallyOccluded_MultipleFragments()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Background layer with sixel
+        var background = new Surface(40, 12, metrics);
+        var sixelRef = CreateTestSixel(100, 60); // 10x3 cells
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        background[0, 0] = sixelCell;
+        composite.AddLayer(background, 0, 0);
+        
+        // Foreground layer with opaque dialog covering center
+        var dialog = new Surface(4, 2, metrics);
+        dialog.Fill(new Hex1b.Layout.Rect(0, 0, 4, 2), 
+            new SurfaceCell(" ", null, Hex1bColor.Blue));
+        composite.AddLayer(dialog, 3, 0); // Covers cells (3,0) to (6,1)
+        
+        var fragments = composite.GetSixelFragments();
+        
+        // Should have multiple fragments due to occlusion
+        Assert.True(fragments.Count >= 2);
+    }
+
+    [Fact]
+    public void GetSixelFragments_FullyOccluded_ReturnsEmpty()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        
+        // Background layer with small sixel
+        var background = new Surface(40, 12, metrics);
+        var sixelRef = CreateTestSixel(20, 20); // 2x1 cells
+        var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        background[5, 5] = sixelCell;
+        composite.AddLayer(background, 0, 0);
+        
+        // Foreground layer fully covering the sixel
+        var overlay = new Surface(5, 5, metrics);
+        overlay.Fill(new Hex1b.Layout.Rect(0, 0, 5, 5), 
+            new SurfaceCell(" ", null, Hex1bColor.Red));
+        composite.AddLayer(overlay, 4, 4);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        Assert.Empty(fragments);
+    }
+
+    [Fact]
+    public void GetSixelFragments_MultipleSixels_ReturnsAll()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var composite = new CompositeSurface(80, 24, metrics);
+        var layer = new Surface(40, 12, metrics);
+        
+        var sixelRef1 = CreateTestSixel(50, 40);
+        var sixelRef2 = CreateTestSixel(60, 40);
+        
+        layer[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef1);
+        layer[20, 5] = new SurfaceCell(" ", null, null, Sixel: sixelRef2);
+        
+        composite.AddLayer(layer, 0, 0);
+        
+        var fragments = composite.GetSixelFragments();
+        
+        Assert.Equal(2, fragments.Count);
+    }
+
+    #endregion
+
+    #region SixelFragment Tests
+
+    [Fact]
+    public void SixelFragment_Complete_ReturnsOriginalPayload()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var fragment = SixelFragment.Complete(sixelRef.Data, 0, 0);
+        
+        Assert.True(fragment.IsComplete);
+        Assert.Equal(sixelRef.Data.Payload, fragment.GetPayload());
+    }
+
+    [Fact]
+    public void SixelFragment_Cropped_ReencodesPayload()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var fragment = new SixelFragment(sixelRef.Data, 0, 0, new PixelRect(10, 10, 50, 30));
+        
+        Assert.False(fragment.IsComplete);
+        
+        var payload = fragment.GetPayload();
+        Assert.NotNull(payload);
+        Assert.NotEqual(sixelRef.Data.Payload, payload);
+        Assert.Contains("\x1bP", payload); // Valid sixel start
+    }
+
+    [Fact]
+    public void SixelFragment_GetCellSpan_CalculatesCorrectly()
+    {
+        var sixelRef = CreateTestSixel(100, 60);
+        var fragment = new SixelFragment(sixelRef.Data, 0, 0, new PixelRect(0, 0, 55, 35));
+        var metrics = new CellMetrics(10, 20);
+        
+        var (width, height) = fragment.GetCellSpan(metrics);
+        
+        Assert.Equal(6, width);  // ceil(55/10)
+        Assert.Equal(2, height); // ceil(35/20)
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private TrackedObject<SixelData> CreateTestSixel(int pixelWidth, int pixelHeight)
+    {
+        // Create a simple test pattern
+        var buffer = new SixelPixelBuffer(pixelWidth, pixelHeight);
+        for (var y = 0; y < pixelHeight; y++)
+            for (var x = 0; x < pixelWidth; x++)
+                buffer[x, y] = Rgba32.FromRgb((byte)(x % 256), (byte)(y % 256), 128);
+        
+        var payload = SixelEncoder.Encode(buffer);
+        
+        // Use the store to create a tracked object
+        return _store.GetOrCreateSixel(payload, 
+            (pixelWidth + 9) / 10,   // Approximate cell width
+            (pixelHeight + 19) / 20); // Approximate cell height
     }
 
     #endregion

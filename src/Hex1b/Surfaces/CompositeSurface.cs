@@ -265,7 +265,7 @@ public sealed class CompositeSurface : ISurfaceSource
     /// <returns>A new Surface containing the flattened result.</returns>
     public Surface Flatten()
     {
-        var result = new Surface(Width, Height);
+        var result = new Surface(Width, Height, CellMetrics);
         var context = new LayerResolutionContext(this);
 
         for (var y = 0; y < Height; y++)
@@ -277,6 +277,209 @@ public sealed class CompositeSurface : ISurfaceSource
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Computes sixel fragments for all sixels in this composite, accounting for occlusion.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method scans all layers for sixel graphics and computes their visibility
+    /// after considering occlusion from layers above. Sixels that are partially
+    /// occluded will be split into multiple fragments.
+    /// </para>
+    /// <para>
+    /// The fragments are returned in render order (bottom to top, row by row).
+    /// </para>
+    /// </remarks>
+    /// <returns>List of sixel fragments to render.</returns>
+    public IReadOnlyList<SixelFragment> GetSixelFragments()
+    {
+        if (!HasSixels)
+            return [];
+
+        // Step 1: Find all sixels and their positions
+        var sixelVisibilities = new List<SixelVisibility>();
+
+        for (var layerIndex = 0; layerIndex < _layers.Count; layerIndex++)
+        {
+            var layer = _layers[layerIndex];
+            if (!layer.Source.HasSixels)
+                continue;
+
+            // Scan for sixel anchor cells in this layer
+            ScanLayerForSixels(layer, layerIndex, sixelVisibilities);
+        }
+
+        if (sixelVisibilities.Count == 0)
+            return [];
+
+        // Step 2: Apply occlusions from higher layers
+        for (var i = 0; i < sixelVisibilities.Count; i++)
+        {
+            var sixelVis = sixelVisibilities[i];
+            ApplyOcclusionsToSixel(sixelVis);
+        }
+
+        // Step 3: Generate fragments for all visible sixels
+        var fragments = new List<SixelFragment>();
+        foreach (var sixelVis in sixelVisibilities)
+        {
+            if (!sixelVis.IsFullyOccluded)
+            {
+                fragments.AddRange(sixelVis.GenerateFragments(CellMetrics));
+            }
+        }
+
+        // Sort by position for consistent render order
+        fragments.Sort((a, b) =>
+        {
+            var yCompare = a.CellPosition.Y.CompareTo(b.CellPosition.Y);
+            return yCompare != 0 ? yCompare : a.CellPosition.X.CompareTo(b.CellPosition.X);
+        });
+
+        return fragments;
+    }
+
+    /// <summary>
+    /// Scans a layer for sixel anchor cells and adds them to the visibility list.
+    /// </summary>
+    private void ScanLayerForSixels(Layer layer, int layerIndex, List<SixelVisibility> sixelVisibilities)
+    {
+        var source = layer.Source;
+        
+        for (var y = 0; y < source.Height; y++)
+        {
+            for (var x = 0; x < source.Width; x++)
+            {
+                var cell = source.GetCell(x, y);
+                if (cell.Sixel is null)
+                    continue;
+
+                // This is a sixel anchor cell
+                var globalX = x + layer.OffsetX;
+                var globalY = y + layer.OffsetY;
+
+                // Check if within composite bounds
+                if (globalX < 0 || globalY < 0 || globalX >= Width || globalY >= Height)
+                    continue;
+
+                sixelVisibilities.Add(new SixelVisibility(cell.Sixel, globalX, globalY, layerIndex));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies occlusions from higher layers to a sixel.
+    /// </summary>
+    private void ApplyOcclusionsToSixel(SixelVisibility sixelVis)
+    {
+        var sixelData = sixelVis.Sixel.Data;
+        var sixelRect = new Layout.Rect(
+            sixelVis.AnchorPosition.X,
+            sixelVis.AnchorPosition.Y,
+            sixelData.WidthInCells,
+            sixelData.HeightInCells);
+
+        // Check all layers above the sixel's layer
+        for (var layerIndex = sixelVis.LayerIndex + 1; layerIndex < _layers.Count; layerIndex++)
+        {
+            var layer = _layers[layerIndex];
+
+            // Calculate layer bounds in global coordinates
+            var layerRect = new Layout.Rect(
+                layer.OffsetX,
+                layer.OffsetY,
+                layer.Source.Width,
+                layer.Source.Height);
+
+            // Quick bounds check
+            if (!RectsOverlap(sixelRect, layerRect))
+                continue;
+
+            // Scan the overlapping region for opaque cells
+            var overlapLeft = Math.Max(sixelRect.X, layerRect.X);
+            var overlapTop = Math.Max(sixelRect.Y, layerRect.Y);
+            var overlapRight = Math.Min(sixelRect.Right, layerRect.Right);
+            var overlapBottom = Math.Min(sixelRect.Bottom, layerRect.Bottom);
+
+            for (var y = overlapTop; y < overlapBottom; y++)
+            {
+                for (var x = overlapLeft; x < overlapRight; x++)
+                {
+                    var srcX = x - layer.OffsetX;
+                    var srcY = y - layer.OffsetY;
+                    var cell = layer.Source.GetCell(srcX, srcY);
+
+                    // Check if this cell would occlude the sixel
+                    if (IsOpaqueCell(cell))
+                    {
+                        // Apply single-cell occlusion
+                        var occlusionRect = new Layout.Rect(x, y, 1, 1);
+                        sixelVis.ApplyOcclusion(occlusionRect, CellMetrics);
+                    }
+                }
+            }
+        }
+
+        // Also check for composite bounds clipping
+        if (sixelRect.X < 0 || sixelRect.Y < 0 || 
+            sixelRect.Right > Width || sixelRect.Bottom > Height)
+        {
+            // Clip to composite bounds
+            var visibleLeft = Math.Max(0, sixelRect.X);
+            var visibleTop = Math.Max(0, sixelRect.Y);
+            var visibleRight = Math.Min(Width, sixelRect.Right);
+            var visibleBottom = Math.Min(Height, sixelRect.Bottom);
+
+            // Apply edge clipping as occlusions
+            if (sixelRect.X < 0)
+            {
+                sixelVis.ApplyOcclusion(
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, -sixelRect.X, sixelRect.Height),
+                    CellMetrics);
+            }
+            if (sixelRect.Y < 0)
+            {
+                sixelVis.ApplyOcclusion(
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, sixelRect.Width, -sixelRect.Y),
+                    CellMetrics);
+            }
+            if (sixelRect.Right > Width)
+            {
+                sixelVis.ApplyOcclusion(
+                    new Layout.Rect(Width, sixelRect.Y, sixelRect.Right - Width, sixelRect.Height),
+                    CellMetrics);
+            }
+            if (sixelRect.Bottom > Height)
+            {
+                sixelVis.ApplyOcclusion(
+                    new Layout.Rect(sixelRect.X, Height, sixelRect.Width, sixelRect.Bottom - Height),
+                    CellMetrics);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if a cell is opaque (would occlude a sixel behind it).
+    /// </summary>
+    private static bool IsOpaqueCell(SurfaceCell cell)
+    {
+        // A cell is opaque if it has a non-transparent background
+        // or if it has visible content (non-space character)
+        if (cell.Background is not null)
+            return true;
+        if (cell.Character != " " && cell.Character != string.Empty)
+            return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if two rectangles overlap.
+    /// </summary>
+    private static bool RectsOverlap(Layout.Rect a, Layout.Rect b)
+    {
+        return a.X < b.Right && a.Right > b.X && a.Y < b.Bottom && a.Bottom > b.Y;
     }
 
     /// <summary>
