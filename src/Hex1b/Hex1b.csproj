@@ -42,6 +42,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hex1b.Tests" />
+    <InternalsVisibleTo Include="Hex1b.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>

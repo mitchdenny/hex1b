@@ -37,6 +37,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
+    private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
+    private readonly TerminalCapabilities? _staticCapabilities;
     private int _width;
     private int _height;
     private bool _disposed;
@@ -56,12 +58,40 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         _width = 0;
         _height = 0;
-        Capabilities = capabilities ?? new TerminalCapabilities
+        _staticCapabilities = capabilities ?? new TerminalCapabilities
         {
             SupportsMouse = true,
             Supports256Colors = true,
             SupportsTrueColor = true,
         };
+
+        _outputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true
+        });
+    }
+
+    /// <summary>
+    /// Creates a new app workload adapter connected to a presentation adapter.
+    /// </summary>
+    /// <param name="presentationAdapter">The presentation adapter to delegate capabilities to.</param>
+    /// <remarks>
+    /// When a presentation adapter is provided, capabilities are read live from it,
+    /// allowing updates to cell dimensions (e.g., after resize) to be reflected.
+    /// </remarks>
+    public Hex1bAppWorkloadAdapter(IHex1bTerminalPresentationAdapter presentationAdapter)
+    {
+        _width = 0;
+        _height = 0;
+        _presentationAdapter = presentationAdapter;
+        _staticCapabilities = null;
 
         _outputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
         {
@@ -129,9 +159,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public int Height => _height;
 
     /// <summary>
-    /// Terminal capabilities.
+    /// Terminal capabilities. Returns live capabilities from presentation adapter if available,
+    /// otherwise returns the static capabilities provided at construction.
     /// </summary>
-    public TerminalCapabilities Capabilities { get; }
+    public TerminalCapabilities Capabilities => 
+        _presentationAdapter?.Capabilities ?? _staticCapabilities ?? TerminalCapabilities.Modern;
     
     /// <summary>
     /// Gets the number of output items waiting to be consumed by the terminal.

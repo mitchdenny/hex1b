@@ -126,8 +126,6 @@ public sealed class WorkloadLoggingFilter : IHex1bTerminalWorkloadFilter, IAsync
             OscToken o => $"OSC({o.Command})",
             SpecialKeyToken sk => $"SpecialKey({sk.KeyCode})",
             ControlCharacterToken cc => $"Ctrl(0x{(int)cc.Character:X2})",
-            FrameBeginToken => "FrameBegin",
-            FrameEndToken => "FrameEnd",
             DeviceStatusReportToken dsr => $"DSR({dsr.Type})",
             _ => token.GetType().Name
         };

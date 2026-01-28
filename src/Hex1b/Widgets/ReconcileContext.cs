@@ -74,6 +74,13 @@ public sealed class ReconcileContext
     /// </summary>
     public CancellationToken CancellationToken { get; }
 
+    /// <summary>
+    /// Callback to schedule an animation timer for a widget.
+    /// The action will be called after the specified delay, marking the node dirty
+    /// and triggering a re-render.
+    /// </summary>
+    internal Action<TimeSpan, Action>? ScheduleTimerCallback { get; }
+
     private ReconcileContext(
         Hex1bNode? parent, 
         FocusRing focusRing, 
@@ -82,7 +89,8 @@ public sealed class ReconcileContext
         LayoutAxis? layoutAxis = null, 
         Action? invalidateCallback = null,
         Action<Hex1bNode>? captureInputCallback = null,
-        Action? releaseCaptureCallback = null)
+        Action? releaseCaptureCallback = null,
+        Action<TimeSpan, Action>? scheduleTimerCallback = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
@@ -92,6 +100,7 @@ public sealed class ReconcileContext
         InvalidateCallback = invalidateCallback;
         CaptureInputCallback = captureInputCallback;
         ReleaseCaptureCallback = releaseCaptureCallback;
+        ScheduleTimerCallback = scheduleTimerCallback;
     }
 
     /// <summary>
@@ -102,9 +111,11 @@ public sealed class ReconcileContext
         CancellationToken cancellationToken = default, 
         Action? invalidateCallback = null,
         Action<Hex1bNode>? captureInputCallback = null,
-        Action? releaseCaptureCallback = null) 
+        Action? releaseCaptureCallback = null,
+        Action<TimeSpan, Action>? scheduleTimerCallback = null) 
         => new(null, focusRing ?? new FocusRing(), cancellationToken, invalidateCallback: invalidateCallback, 
-            captureInputCallback: captureInputCallback, releaseCaptureCallback: releaseCaptureCallback);
+            captureInputCallback: captureInputCallback, releaseCaptureCallback: releaseCaptureCallback,
+            scheduleTimerCallback: scheduleTimerCallback);
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -116,7 +127,7 @@ public sealed class ReconcileContext
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
         return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback, 
-            CaptureInputCallback, ReleaseCaptureCallback);
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback);
     }
     
     /// <summary>
@@ -126,7 +137,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback) { IsNew = IsNew };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback) { IsNew = IsNew };
     }
     
     /// <summary>
@@ -136,7 +147,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
     }
 
     /// <summary>
@@ -167,6 +178,17 @@ public sealed class ReconcileContext
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
+        
+        // Schedule animation timer if widget has RedrawDelay
+        if (widget.RedrawDelay.HasValue && ScheduleTimerCallback is not null)
+        {
+            var capturedNode = node;
+            ScheduleTimerCallback(widget.RedrawDelay.Value, () =>
+            {
+                capturedNode.MarkDirty();
+                InvalidateCallback?.Invoke();
+            });
+        }
         
         // Mark new nodes as dirty (they need to be rendered for the first time)
         // Note: Existing nodes are marked dirty by individual widgets when their

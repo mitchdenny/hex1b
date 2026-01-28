@@ -576,8 +576,11 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Render child (will be clipped by ILayoutProvider)
-        Child?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (Child != null)
+        {
+            context.RenderChild(Child);
+        }
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;

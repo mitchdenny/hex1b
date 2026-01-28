@@ -584,7 +584,8 @@ public class AsciinemaRecorderTests : IDisposable
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length > 50, $"Should have many events, got {lines.Length}");
+        // Surface mode is more efficient, producing fewer events than Legacy mode
+        Assert.True(lines.Length > 30, $"Should have many events, got {lines.Length}");
         
         // Verify the new todos were added
         Assert.Contains(state.Items, t => t.Title == "Buy holiday gifts");

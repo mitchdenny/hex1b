@@ -20,6 +20,9 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     private bool _disposed;
     private int _width;
     private int _height;
+    private int _cellPixelWidth = 10;
+    private int _cellPixelHeight = 20;
+    private double _actualCellPixelWidth = 10.0;
     private readonly bool _enableMouse;
 
     /// <summary>
@@ -50,7 +53,11 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         SupportsTrueColor = true,
         Supports256Colors = true,
         SupportsAlternateScreen = true,
-        SupportsBracketedPaste = true
+        SupportsBracketedPaste = true,
+        SupportsSixel = true,
+        CellPixelWidth = _cellPixelWidth,
+        CellPixelHeight = _cellPixelHeight,
+        ActualCellPixelWidth = _actualCellPixelWidth
     };
 
     /// <inheritdoc />
@@ -64,14 +71,30 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// </summary>
     /// <param name="width">New terminal width in columns.</param>
     /// <param name="height">New terminal height in rows.</param>
-    public void Resize(int width, int height)
+    /// <param name="cellPixelWidth">Optional cell width in pixels (integer).</param>
+    /// <param name="cellPixelHeight">Optional cell height in pixels.</param>
+    /// <param name="actualCellPixelWidth">Optional actual (floating-point) cell width.</param>
+    public void Resize(int width, int height, int? cellPixelWidth = null, int? cellPixelHeight = null, double? actualCellPixelWidth = null)
     {
-        if (_width != width || _height != height)
-        {
-            _width = width;
-            _height = height;
+        System.IO.File.AppendAllText("/tmp/websocket-resize.log",
+            $"[{DateTime.Now:HH:mm:ss.fff}] Resize: {width}x{height}, cellPixel: {cellPixelWidth}x{cellPixelHeight}, actual: {actualCellPixelWidth}\n");
+        
+        var sizeChanged = _width != width || _height != height;
+        
+        _width = width;
+        _height = height;
+        
+        if (cellPixelWidth.HasValue && cellPixelWidth.Value > 0)
+            _cellPixelWidth = cellPixelWidth.Value;
+        if (cellPixelHeight.HasValue && cellPixelHeight.Value > 0)
+            _cellPixelHeight = cellPixelHeight.Value;
+        if (actualCellPixelWidth.HasValue && actualCellPixelWidth.Value > 0)
+            _actualCellPixelWidth = actualCellPixelWidth.Value;
+        else if (cellPixelWidth.HasValue && cellPixelWidth.Value > 0)
+            _actualCellPixelWidth = cellPixelWidth.Value;
+        
+        if (sizeChanged)
             Resized?.Invoke(width, height);
-        }
     }
 
     /// <inheritdoc />
@@ -119,12 +142,12 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
             {
                 var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 
-                // Handle JSON format: {"type":"resize","cols":80,"rows":24}
+                // Handle JSON format: {"type":"resize","cols":80,"rows":24,"cellWidth":8.4,"cellHeight":16}
                 if (text.StartsWith("{") && text.Contains("resize"))
                 {
-                    if (TryParseJsonResize(text, out var newWidth, out var newHeight))
+                    if (TryParseJsonResize(text, out var newWidth, out var newHeight, out var cellWidth, out var cellHeight, out var actualCellWidth))
                     {
-                        Resize(newWidth, newHeight);
+                        Resize(newWidth, newHeight, cellWidth, cellHeight, actualCellWidth);
                         // Return empty for resize messages - not actual input
                         return await ReadInputAsync(ct);
                     }
@@ -205,15 +228,18 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <summary>
     /// Attempts to parse a JSON resize message.
     /// </summary>
-    private static bool TryParseJsonResize(string json, out int width, out int height)
+    private static bool TryParseJsonResize(string json, out int width, out int height, out int? cellWidth, out int? cellHeight, out double? actualCellWidth)
     {
         width = 0;
         height = 0;
+        cellWidth = null;
+        cellHeight = null;
+        actualCellWidth = null;
 
         try
         {
             // Simple parsing without full JSON deserializer
-            // Expected format: {"type":"resize","cols":80,"rows":24}
+            // Expected format: {"type":"resize","cols":80,"rows":24,"cellWidth":8.4,"cellHeight":16}
             var colsMatch = System.Text.RegularExpressions.Regex.Match(json, @"""cols""\s*:\s*(\d+)");
             var rowsMatch = System.Text.RegularExpressions.Regex.Match(json, @"""rows""\s*:\s*(\d+)");
 
@@ -221,6 +247,25 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
             {
                 width = int.Parse(colsMatch.Groups[1].Value);
                 height = int.Parse(rowsMatch.Groups[1].Value);
+                
+                // Parse optional cell dimensions (may be floating point)
+                var cellWidthMatch = System.Text.RegularExpressions.Regex.Match(json, @"""cellWidth""\s*:\s*([\d.]+)");
+                var cellHeightMatch = System.Text.RegularExpressions.Regex.Match(json, @"""cellHeight""\s*:\s*([\d.]+)");
+                
+                if (cellWidthMatch.Success && double.TryParse(cellWidthMatch.Groups[1].Value, 
+                    System.Globalization.NumberStyles.Float, 
+                    System.Globalization.CultureInfo.InvariantCulture, 
+                    out var cw))
+                {
+                    actualCellWidth = cw;
+                    cellWidth = (int)Math.Round(cw);
+                }
+                if (cellHeightMatch.Success && double.TryParse(cellHeightMatch.Groups[1].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var ch))
+                    cellHeight = (int)Math.Round(ch);
+                
                 return true;
             }
         }

@@ -349,7 +349,8 @@ public sealed class TerminalNode : Hex1bNode
         // If terminal is not running and we have a fallback child, render the fallback instead
         if (_handle.State != TerminalState.Running && FallbackChild != null)
         {
-            FallbackChild.Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(FallbackChild);
             return;
         }
         

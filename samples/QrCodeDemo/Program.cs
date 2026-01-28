@@ -112,7 +112,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ])
     ]))
     .WithMouse()
-    .WithRenderOptimization()
     .Build();
 
 await terminal.RunAsync();

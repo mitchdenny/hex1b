@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>SurfaceDemo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            height: 100%; 
+            background: #0a0a12; 
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 16px;
+            gap: 12px;
+        }
+        .header {
+            color: #888;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 16px;
+            color: #ccc;
+            font-weight: 500;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+        .status-dot.connected { background: #4ade80; }
+        .status-dot.disconnected { background: #ef4444; }
+        .terminal-container { 
+            flex: 1;
+            background: #0f0f1a; 
+            border-radius: 8px; 
+            padding: 12px;
+            overflow: hidden;
+        }
+        #terminal {
+            height: 100%;
+        }
+        .footer {
+            color: #666;
+            font-size: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SurfaceDemo</h1>
+            <div class="status">
+                <span id="status-text">Connecting...</span>
+                <div id="status-dot" class="status-dot"></div>
+            </div>
+        </div>
+        <div class="terminal-container">
+            <div id="terminal"></div>
+        </div>
+        <div class="footer">
+            Use arrow keys to navigate demos. Sixel demo shows perlin noise graphics.
+        </div>
+    </div>
+
+    <script type="module">
+        import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm';
+        import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm';
+        import { ImageAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-image@0.8.0/+esm';
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        function setStatus(connected) {
+            statusDot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
+            statusText.textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
+        // Create terminal with sixel support
+        const term = new Terminal({ 
+            cursorBlink: true,
+            theme: { 
+                background: '#0f0f1a', 
+                foreground: '#e0e0e0',
+                cursor: '#e0e0e0'
+            },
+            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            fontSize: 14,
+            allowProposedApi: true // Required for image addon
+        });
+
+        const fitAddon = new FitAddon();
+        const imageAddon = new ImageAddon();
+
+        term.loadAddon(fitAddon);
+        term.loadAddon(imageAddon);
+        
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        // Get cell dimensions from the terminal
+        function getCellDimensions() {
+            // Use fixed 9x16 cell dimensions - xterm.js reports fractional widths
+            // that don't match actual sixel rendering behavior
+            return { cellWidth: 9, cellHeight: 16 };
+        }
+
+        // Connect WebSocket
+        const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${wsProtocol}://${location.host}/ws/terminal`);
+
+        ws.onopen = () => {
+            setStatus(true);
+            // Send initial resize with cell dimensions
+            const cellDims = getCellDimensions();
+            ws.send(JSON.stringify({ 
+                type: 'resize', 
+                cols: term.cols, 
+                rows: term.rows,
+                cellWidth: cellDims.cellWidth,
+                cellHeight: cellDims.cellHeight
+            }));
+        };
+
+        ws.onmessage = e => {
+            term.write(e.data);
+        };
+
+        ws.onclose = () => {
+            setStatus(false);
+            term.write('\r\n\x1b[31mConnection closed\x1b[0m\r\n');
+        };
+
+        ws.onerror = () => {
+            setStatus(false);
+            term.write('\r\n\x1b[31mConnection error\x1b[0m\r\n');
+        };
+
+        // Send terminal input to server
+        term.onData(data => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(data);
+            }
+        });
+
+        // Handle resize
+        term.onResize(({ cols, rows }) => {
+            if (ws.readyState === WebSocket.OPEN) {
+                const cellDims = getCellDimensions();
+                ws.send(JSON.stringify({ 
+                    type: 'resize', 
+                    cols, 
+                    rows,
+                    cellWidth: cellDims.cellWidth,
+                    cellHeight: cellDims.cellHeight
+                }));
+            }
+        });
+
+        // Fit terminal when window resizes
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+        });
+
+        // Initial fit after a short delay to ensure container is sized
+        setTimeout(() => fitAddon.fit(), 100);
+    </script>
+</body>
+</html>

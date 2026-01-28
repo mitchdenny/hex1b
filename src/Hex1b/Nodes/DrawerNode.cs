@@ -136,8 +136,8 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        context.SetCursorPosition(Content.Bounds.X, Content.Bounds.Y);
-        Content.Render(context);
+        // Use RenderChild for automatic caching support
+        context.RenderChild(Content);
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;

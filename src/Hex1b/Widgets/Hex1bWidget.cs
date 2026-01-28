@@ -25,6 +25,21 @@ public abstract record Hex1bWidget
     public SizeHint? HeightHint { get; init; }
 
     /// <summary>
+    /// Delay after which this widget requests a redraw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When set, a one-shot timer is scheduled during reconciliation that will
+    /// trigger a re-render after the specified delay. Use this for animations.
+    /// </para>
+    /// <para>
+    /// The delay is clamped to a minimum of 16ms (60 FPS cap).
+    /// For continuous animation, call <c>.RedrawAfter()</c> on each build.
+    /// </para>
+    /// </remarks>
+    public TimeSpan? RedrawDelay { get; init; }
+
+    /// <summary>
     /// Creates or updates a node from this widget asynchronously.
     /// </summary>
     /// <param name="existingNode">The existing node to update, or null to create a new one.</param>

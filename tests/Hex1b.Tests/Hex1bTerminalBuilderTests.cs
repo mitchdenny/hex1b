@@ -1073,35 +1073,6 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public async Task WithRenderOptimization_ReturnsBuilder()
-    {
-        var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
-            .WithRenderOptimization();
-
-        Assert.IsType<Hex1bTerminalBuilder>(result);
-    }
-
-    [Fact]
-    public async Task WithRenderOptimization_WithCapture_ReturnsBuilder()
-    {
-        Hex1bAppRenderOptimizationFilter? capturedFilter = null;
-        var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
-            .WithRenderOptimization(f => capturedFilter = f);
-
-        Assert.IsType<Hex1bTerminalBuilder>(result);
-        Assert.NotNull(capturedFilter);
-    }
-
-    [Fact]
-    public async Task WithRenderOptimization_WithCapture_NullCapture_ThrowsArgumentNullException()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithRenderOptimization(null!));
-    }
-
-    [Fact]
     public async Task WithAsciinemaRecording_WithOptions_SetsRecorderOptions()
     {
         var tempFile = Path.GetTempFileName();
@@ -1132,13 +1103,12 @@ public class Hex1bTerminalBuilderTests
     }
 
     [Fact]
-    public async Task FluentChain_WithRecordingAndOptimization_Works()
+    public async Task FluentChain_WithRecordingAndFilters_Works()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
             AsciinemaRecorder? recorder = null;
-            Hex1bAppRenderOptimizationFilter? optimizationFilter = null;
             var filter = new TestWorkloadFilter();
             var pattern = new CellPatternSearcher().Find("Full chain");
 
@@ -1149,7 +1119,6 @@ public class Hex1bTerminalBuilderTests
                     Title = "Chain Test",
                     AutoFlush = true
                 })
-                .WithRenderOptimization(f => optimizationFilter = f)
                 .AddWorkloadFilter(filter)
                 .WithHeadless()
                 .WithDimensions(40, 10)
@@ -1168,7 +1137,6 @@ public class Hex1bTerminalBuilderTests
             // All filters should have been invoked
             Assert.True(filter.SessionStartCalled, "Workload filter should be called");
             Assert.NotNull(recorder);
-            Assert.NotNull(optimizationFilter);
         }
         finally
         {

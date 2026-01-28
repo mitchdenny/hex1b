@@ -445,8 +445,8 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
             firstPaneProvider.ParentLayoutProvider = previousLayout;
             context.CurrentLayoutProvider = firstPaneProvider;
             
-            context.SetCursorPosition(First.Bounds.X, First.Bounds.Y);
-            First.Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(First);
             
             context.CurrentLayoutProvider = previousLayout;
         }
@@ -468,8 +468,8 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
             secondPaneProvider.ParentLayoutProvider = previousLayout;
             context.CurrentLayoutProvider = secondPaneProvider;
             
-            context.SetCursorPosition(Second.Bounds.X, Second.Bounds.Y);
-            Second.Render(context);
+            // Use RenderChild for automatic caching support
+            context.RenderChild(Second);
             
             context.CurrentLayoutProvider = previousLayout;
         }

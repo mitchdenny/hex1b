@@ -72,6 +72,21 @@ public record TerminalCapabilities
     public int CellPixelWidth { get; init; } = 10;
     
     /// <summary>
+    /// Actual (possibly fractional) width of a terminal cell in pixels.
+    /// </summary>
+    /// <remarks>
+    /// In browser-based terminals like xterm.js, cell width may be fractional due to
+    /// font rendering. This is used for precise sixel sizing. If not set, falls back
+    /// to <see cref="CellPixelWidth"/>.
+    /// </remarks>
+    public double ActualCellPixelWidth { get; init; }
+    
+    /// <summary>
+    /// Gets the actual cell pixel width, using integer width as fallback.
+    /// </summary>
+    public double EffectiveCellPixelWidth => ActualCellPixelWidth > 0 ? ActualCellPixelWidth : CellPixelWidth;
+    
+    /// <summary>
     /// Height of a terminal character cell in pixels.
     /// Used for Sixel graphics scaling. Default is 20 pixels.
     /// </summary>

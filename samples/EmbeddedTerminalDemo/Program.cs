@@ -442,7 +442,6 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
 
 // Create the TUI app that displays terminals
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
-    .WithRenderOptimization()
     .WithMouse()
     .WithHex1bApp((app, options) =>
     {

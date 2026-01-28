@@ -109,11 +109,11 @@ public sealed class Hex1bTerminalBuilder
 
         SetWorkloadFactory(presentation =>
         {
-            // Get capabilities from presentation adapter
-            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
-
-            // Create workload adapter for Hex1bApp
-            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            // If presentation adapter is available, use it for live capabilities
+            // Otherwise fall back to static capabilities
+            var workloadAdapter = presentation != null
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             var enableMouse = _enableMouse;
 
             // Create options with managed properties already set
@@ -180,8 +180,11 @@ public sealed class Hex1bTerminalBuilder
 
         SetWorkloadFactory(presentation =>
         {
-            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
-            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            // If presentation adapter is available, use it for live capabilities
+            // Otherwise fall back to static capabilities
+            var workloadAdapter = presentation != null 
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             var enableMouse = _enableMouse;
             
             // Create options with managed properties already set
@@ -710,49 +713,6 @@ public sealed class Hex1bTerminalBuilder
         var recorder = new AsciinemaRecorder(filePath, options);
         capture(recorder);
         _workloadFilters.Add(recorder);
-        return this;
-    }
-
-    /// <summary>
-    /// Adds render optimization for Hex1bApp workloads.
-    /// </summary>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// This filter optimizes rendering by only transmitting cells that have changed
-    /// since the last frame. It's specifically designed for Hex1bApp workloads and
-    /// understands the frame boundary tokens emitted by Hex1bApp.
-    /// </para>
-    /// <para>
-    /// Benefits:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item>Reduces bandwidth for remote terminal connections</item>
-    ///   <item>Improves rendering performance by avoiding redundant updates</item>
-    ///   <item>Eliminates flicker from intermediate render states</item>
-    /// </list>
-    /// <para>
-    /// This filter is automatically added when using WithHex1bApp
-    /// with a real presentation adapter.
-    /// </para>
-    /// </remarks>
-    public Hex1bTerminalBuilder WithRenderOptimization()
-    {
-        _presentationFilters.Add(new Hex1bAppRenderOptimizationFilter());
-        return this;
-    }
-
-    /// <summary>
-    /// Adds render optimization for Hex1bApp workloads with access to the filter instance.
-    /// </summary>
-    /// <param name="capture">Callback that receives the filter instance.</param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    public Hex1bTerminalBuilder WithRenderOptimization(Action<Hex1bAppRenderOptimizationFilter> capture)
-    {
-        ArgumentNullException.ThrowIfNull(capture);
-        var filter = new Hex1bAppRenderOptimizationFilter();
-        capture(filter);
-        _presentationFilters.Add(filter);
         return this;
     }
 

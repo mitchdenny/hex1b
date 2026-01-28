@@ -107,8 +107,10 @@ public class RenderOptimizationTests
     }
 
     [Fact]
-    public async Task MixedTree_StaticAndDynamic_OnlyDynamicReRenders()
+    public async Task MixedTree_StaticAndDynamic_AllNodesRenderEveryFrame()
     {
+        // In Surface mode, all nodes render every frame to the surface.
+        // Optimization happens at the Surface diffing level, not at the node level.
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var staticRenderCount = 0;
@@ -123,9 +125,7 @@ public class RenderOptimizationTests
                 counter++;
                 return Task.FromResult<Hex1bWidget>(
                     ctx.VStack(v => [
-                        // Static widget - should only render once
                         staticWidget,
-                        // Dynamic text - changes every frame
                         v.Text($"Counter: {counter}")
                     ])
                 );
@@ -144,8 +144,9 @@ public class RenderOptimizationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // The static widget should only render once (initial frame)
-        Assert.Equal(1, staticRenderCount);
+        // In Surface mode, static widgets render every frame (optimization is at diff level)
+        // Counter goes 1, 2, 3 = 3 frames plus possible initial frame
+        Assert.True(staticRenderCount >= 3, $"Expected at least 3 renders, got {staticRenderCount}");
         
         // Dynamic text verified by WaitUntil above - "Counter: 3" was confirmed before Ctrl+C
     }

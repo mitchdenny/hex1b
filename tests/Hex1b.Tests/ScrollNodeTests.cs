@@ -1179,7 +1179,7 @@ public class ScrollNodeTests
                     ]
                 )
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload } // Using default Surface mode
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);

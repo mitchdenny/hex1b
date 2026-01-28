@@ -119,7 +119,11 @@ public static class SixelDecoder
                     var sixelValue = sixelChar - '?';
                     for (int bit = 0; bit < 6; bit++)
                     {
-                        var row = rows[bit];
+                        // Use same logic as single char: current band (last 6 rows)
+                        var rowIndex = rows.Count - 6 + bit;
+                        if (rowIndex < 0) continue;
+                        
+                        var row = rows[rowIndex];
                         while (row.Count <= currentX)
                             row.Add(-1); // Transparent
                         

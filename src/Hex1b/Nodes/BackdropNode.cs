@@ -126,11 +126,10 @@ public sealed class BackdropNode : Hex1bNode
         }
         // Transparent: don't render any background, let base layer show through
 
-        // Render child on top
+        // Use RenderChild for automatic caching support
         if (Child != null)
         {
-            context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-            Child.Render(context);
+            context.RenderChild(Child);
         }
     }
 

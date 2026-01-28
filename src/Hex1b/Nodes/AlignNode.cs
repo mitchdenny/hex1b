@@ -122,7 +122,11 @@ public sealed class AlignNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        Child?.Render(context);
+        // Use RenderChild for automatic caching support
+        if (Child != null)
+        {
+            context.RenderChild(Child);
+        }
     }
 
     public override IEnumerable<Hex1bNode> GetChildren()

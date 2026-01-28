@@ -91,6 +91,59 @@ public class BorderNodeTests
         Assert.Equal(3, size.Height);
     }
 
+    [Fact]
+    public void Measure_WithFixedSizeHints_RespectsHints()
+    {
+        var child = new TextBlockNode { Text = "Small" };
+        var node = new BorderNode 
+        { 
+            Child = child,
+            WidthHint = SizeHint.Fixed(82),
+            HeightHint = SizeHint.Fixed(26)
+        };
+
+        // Even with unbounded constraints, should return the fixed size
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.Equal(82, size.Width);
+        Assert.Equal(26, size.Height);
+    }
+
+    [Fact]
+    public void Measure_WithFixedSizeHints_ClampsToConstraints()
+    {
+        var child = new TextBlockNode { Text = "Small" };
+        var node = new BorderNode 
+        { 
+            Child = child,
+            WidthHint = SizeHint.Fixed(100),
+            HeightHint = SizeHint.Fixed(50)
+        };
+
+        // Constraints are smaller than hints - should clamp
+        var size = node.Measure(new Constraints(0, 80, 0, 24));
+
+        Assert.Equal(80, size.Width);
+        Assert.Equal(24, size.Height);
+    }
+
+    [Fact]
+    public void Measure_WithPartialFixedHint_UsesChildForOther()
+    {
+        var child = new TextBlockNode { Text = "Hello" }; // 5 wide, 1 tall
+        var node = new BorderNode 
+        { 
+            Child = child,
+            WidthHint = SizeHint.Fixed(20),
+            HeightHint = null // Should use child size + 2
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.Equal(20, size.Width);
+        Assert.Equal(3, size.Height); // child height (1) + border (2)
+    }
+
     #endregion
 
     #region Arrange Tests
