@@ -19,13 +19,12 @@ await RunConsoleMode();
 
 async Task RunConsoleMode()
 {
-    var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Sixel (Experimental)" };
+    var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Sixel (Experimental)" };
     var selectedDemo = 0;
     var random = new Random();
     var fireflies = FirefliesDemo.CreateFireflies();
 
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithRenderingMode(RenderingMode.Surface)
         .WithMouse()
         .WithHex1bApp((app, options) => ctx =>
         {
@@ -45,7 +44,8 @@ async Task RunConsoleMode()
                             5 => ShadowDemo.BuildLayers(s, random),
                             6 => GravityDemo.BuildLayers(s, random),
                             7 => RadarDemo.BuildLayers(s, random),
-                            8 => SixelDemo.BuildLayers(s, random),
+                            8 => SmartMatterDemo.BuildLayers(s, random),
+                            9 => SixelDemo.BuildLayers(s, random),
                             _ => FirefliesDemo.BuildLayers(s, fireflies)
                         })
                         .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
@@ -93,14 +93,13 @@ async Task RunWebMode(string[] args)
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await using var presentation = new WebSocketPresentationAdapter(webSocket, 120, 40, enableMouse: true);
         
-        var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Sixel (Experimental)" };
+        var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Sixel (Experimental)" };
         var selectedDemo = 0;
         var random = new Random();
         var fireflies = FirefliesDemo.CreateFireflies();
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithPresentation(presentation)
-            .WithRenderingMode(RenderingMode.Surface)
             .WithHex1bApp((app, options) => ctx =>
             {
                 if (selectedDemo == 0)
@@ -119,7 +118,8 @@ async Task RunWebMode(string[] args)
                                 5 => ShadowDemo.BuildLayers(s, random),
                                 6 => GravityDemo.BuildLayers(s, random),
                                 7 => RadarDemo.BuildLayers(s, random),
-                                8 => SixelDemo.BuildLayers(s, random),
+                                8 => SmartMatterDemo.BuildLayers(s, random),
+                                9 => SixelDemo.BuildLayers(s, random),
                                 _ => FirefliesDemo.BuildLayers(s, fireflies)
                             })
                             .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
