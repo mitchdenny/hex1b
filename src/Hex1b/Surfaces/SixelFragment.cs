@@ -207,10 +207,13 @@ public sealed class SixelVisibility
             return; // No overlap
 
         // Convert intersection to pixel coordinates relative to sixel origin
+        // Use actual (floating-point) cell width for precise alignment
+        var relX = intersection.X - AnchorPosition.X;
+        var relY = intersection.Y - AnchorPosition.Y;
         var pixelOcclusion = new PixelRect(
-            (intersection.X - AnchorPosition.X) * metrics.PixelWidth,
-            (intersection.Y - AnchorPosition.Y) * metrics.PixelHeight,
-            intersection.Width * metrics.PixelWidth,
+            metrics.GetPixelForCellBoundary(relX),
+            relY * metrics.PixelHeight,
+            metrics.GetPixelWidthForCells(intersection.Width),
             intersection.Height * metrics.PixelHeight);
 
         // Apply occlusion to all visible regions
@@ -239,9 +242,18 @@ public sealed class SixelVisibility
 
         foreach (var region in VisibleRegions)
         {
-            // Calculate cell position for this fragment
-            var cellOffsetX = region.X / metrics.PixelWidth;
+            // Calculate cell position for this fragment using actual cell width
+            // The pixel region is in the original sixel's coordinate space
+            var cellOffsetX = metrics.GetCellOffsetForPixel(region.X);
             var cellOffsetY = region.Y / metrics.PixelHeight;
+            
+            // Verify alignment: region.X should be at a cell boundary
+            var expectedPixelX = metrics.GetPixelForCellBoundary(cellOffsetX);
+            if (region.X != expectedPixelX)
+            {
+                System.IO.File.AppendAllText("/tmp/sixel-align.log",
+                    $"[{DateTime.Now:HH:mm:ss.fff}] MISALIGNED: region.X={region.X}, expected={expectedPixelX}, cellOffsetX={cellOffsetX}, actualWidth={metrics.ActualPixelWidth}\n");
+            }
 
             fragments.Add(new SixelFragment(
                 data,

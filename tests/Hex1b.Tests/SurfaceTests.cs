@@ -941,6 +941,152 @@ public class SurfaceTests
         Assert.Contains("CellMetrics differ", ex.Message);
     }
 
+    [Fact]
+    public void Composite_SixelExtendsRightEdge_ClipsSixel()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var target = new Surface(10, 10, metrics);
+        var source = new Surface(10, 10, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Create a 20x20 pixel sixel = 2x1 cells with 10x20 metrics
+        var pixels = new SixelPixelBuffer(20, 20);
+        for (int y = 0; y < 20; y++)
+            for (int x = 0; x < 20; x++)
+                pixels[x, y] = Rgba32.FromRgb(255, 0, 0);
+        
+        var payload = SixelEncoder.Encode(pixels);
+        var sixelRef = store.GetOrCreateSixel(payload, 2, 1);
+        source[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        // Composite at position (9, 0) - sixel would extend to column 11 but target is 10 wide
+        target.Composite(source, 9, 0);
+        
+        // The sixel should be clipped to fit within bounds
+        var resultCell = target[9, 0];
+        Assert.True(resultCell.HasSixel);
+        Assert.NotNull(resultCell.Sixel);
+        
+        // Clipped sixel should only span 1 cell (10 pixels) instead of 2 (20 pixels)
+        Assert.Equal(1, resultCell.Sixel.Data.WidthInCells);
+        Assert.Equal(10, resultCell.Sixel.Data.PixelWidth);
+    }
+
+    [Fact]
+    public void Composite_SixelExtendsBottomEdge_ClipsSixel()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var target = new Surface(10, 10, metrics);
+        var source = new Surface(10, 10, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Create a 10x40 pixel sixel = 1x2 cells with 10x20 metrics
+        var pixels = new SixelPixelBuffer(10, 40);
+        for (int y = 0; y < 40; y++)
+            for (int x = 0; x < 10; x++)
+                pixels[x, y] = Rgba32.FromRgb(0, 255, 0);
+        
+        var payload = SixelEncoder.Encode(pixels);
+        var sixelRef = store.GetOrCreateSixel(payload, 1, 2);
+        source[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        // Composite at position (0, 9) - sixel would extend to row 11 but target is 10 high
+        target.Composite(source, 0, 9);
+        
+        var resultCell = target[0, 9];
+        Assert.True(resultCell.HasSixel);
+        Assert.NotNull(resultCell.Sixel);
+        
+        // Clipped sixel should only span 1 cell (20 pixels) instead of 2 (40 pixels)
+        Assert.Equal(1, resultCell.Sixel.Data.HeightInCells);
+        Assert.Equal(20, resultCell.Sixel.Data.PixelHeight);
+    }
+
+    [Fact]
+    public void Composite_SixelExtendsBothEdges_ClipsBothDimensions()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var target = new Surface(10, 10, metrics);
+        var source = new Surface(10, 10, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Create a 30x60 pixel sixel = 3x3 cells
+        var pixels = new SixelPixelBuffer(30, 60);
+        for (int y = 0; y < 60; y++)
+            for (int x = 0; x < 30; x++)
+                pixels[x, y] = Rgba32.FromRgb(0, 0, 255);
+        
+        var payload = SixelEncoder.Encode(pixels);
+        var sixelRef = store.GetOrCreateSixel(payload, 3, 3);
+        source[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        // Composite at position (8, 8) - sixel would extend to (11, 11) but target is 10x10
+        target.Composite(source, 8, 8);
+        
+        var resultCell = target[8, 8];
+        Assert.True(resultCell.HasSixel);
+        Assert.NotNull(resultCell.Sixel);
+        
+        // Clipped sixel should span 2x2 cells
+        Assert.Equal(2, resultCell.Sixel.Data.WidthInCells);
+        Assert.Equal(2, resultCell.Sixel.Data.HeightInCells);
+        Assert.Equal(20, resultCell.Sixel.Data.PixelWidth);
+        Assert.Equal(40, resultCell.Sixel.Data.PixelHeight);
+    }
+
+    [Fact]
+    public void Composite_SixelFitsWithinBounds_NoClipping()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var target = new Surface(10, 10, metrics);
+        var source = new Surface(5, 5, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Create a 20x20 pixel sixel = 2x1 cells
+        var pixels = new SixelPixelBuffer(20, 20);
+        for (int y = 0; y < 20; y++)
+            for (int x = 0; x < 20; x++)
+                pixels[x, y] = Rgba32.FromRgb(128, 128, 128);
+        
+        var payload = SixelEncoder.Encode(pixels);
+        var sixelRef = store.GetOrCreateSixel(payload, 2, 1);
+        source[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        // Composite at position (0, 0) - sixel fits entirely
+        target.Composite(source, 0, 0);
+        
+        var resultCell = target[0, 0];
+        Assert.True(resultCell.HasSixel);
+        
+        // Original sixel should be preserved (same reference)
+        Assert.Same(sixelRef, resultCell.Sixel);
+        Assert.Equal(2, resultCell.Sixel!.Data.WidthInCells);
+        Assert.Equal(20, resultCell.Sixel.Data.PixelWidth);
+    }
+
+    [Fact]
+    public void Composite_SixelCompletelyOutsideBounds_RemovedFromCell()
+    {
+        var metrics = new CellMetrics(10, 20);
+        var target = new Surface(10, 10, metrics);
+        var source = new Surface(5, 5, metrics);
+        var store = new TrackedObjectStore();
+        
+        // Create a small sixel
+        var pixels = new SixelPixelBuffer(10, 20);
+        var payload = SixelEncoder.Encode(pixels);
+        var sixelRef = store.GetOrCreateSixel(payload, 1, 1);
+        source[0, 0] = new SurfaceCell(" ", null, null, Sixel: sixelRef);
+        
+        // Composite at position (10, 10) - completely outside target
+        target.Composite(source, 10, 10);
+        
+        // Nothing should be placed in target
+        for (int y = 0; y < 10; y++)
+            for (int x = 0; x < 10; x++)
+                Assert.False(target[x, y].HasSixel);
+    }
+
     #endregion
 }
 

@@ -119,6 +119,15 @@ public static class SurfaceComparer
     /// <param name="diff">The surface diff to render.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
     public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff)
+        => ToTokens(diff, currentSurface: null);
+    
+    /// <summary>
+    /// Generates a list of ANSI tokens to render the diff, with sixel awareness.
+    /// </summary>
+    /// <param name="diff">The surface diff to render.</param>
+    /// <param name="currentSurface">The current surface, used to find sixels that need re-rendering when their region is dirty.</param>
+    /// <returns>A list of ANSI tokens that will render the changes.</returns>
+    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface)
     {
         ArgumentNullException.ThrowIfNull(diff);
 
@@ -126,6 +135,143 @@ public static class SurfaceComparer
             return Array.Empty<AnsiToken>();
 
         var tokens = new List<AnsiToken>();
+        
+        // Track regions covered by sixels (we need to skip cells under sixels)
+        // Each entry is (x, y, width, height, cell) of a sixel region
+        var sixelRegions = new List<(int X, int Y, int Width, int Height, SurfaceCell Cell)>();
+        
+        // If we have the current surface, find sixels whose regions intersect with dirty cells
+        // These sixels need to be re-emitted even if their anchor cell hasn't changed
+        // We collect them here but emit them all BEFORE any text cells
+        if (currentSurface != null && currentSurface.HasSixels)
+        {
+            // Build a set of dirty cell positions for fast lookup
+            var dirtyCells = new HashSet<(int, int)>();
+            foreach (var change in diff.ChangedCells)
+            {
+                dirtyCells.Add((change.X, change.Y));
+            }
+            
+            // Scan surface for sixels and check if their regions have dirty cells
+            for (var y = 0; y < currentSurface.Height; y++)
+            {
+                for (var x = 0; x < currentSurface.Width; x++)
+                {
+                    var cell = currentSurface[x, y];
+                    if (cell.HasSixel && cell.Sixel?.Data is not null)
+                    {
+                        var sixelData = cell.Sixel.Data;
+                        var regionHasDirtyCell = false;
+                        
+                        // Check if any cell in this sixel's region is dirty
+                        for (var sy = y; sy < y + sixelData.HeightInCells && sy < currentSurface.Height; sy++)
+                        {
+                            for (var sx = x; sx < x + sixelData.WidthInCells && sx < currentSurface.Width; sx++)
+                            {
+                                if (dirtyCells.Contains((sx, sy)))
+                                {
+                                    regionHasDirtyCell = true;
+                                    break;
+                                }
+                            }
+                            if (regionHasDirtyCell) break;
+                        }
+                        
+                        if (regionHasDirtyCell)
+                        {
+                            // This sixel needs to be re-emitted
+                            sixelRegions.Add((x, y, sixelData.WidthInCells, sixelData.HeightInCells, cell));
+                        }
+                    }
+                }
+            }
+            
+            // TEMPORARY: Skip fragmentation - just emit full sixels
+            // This tests whether the alignment issue is in fragmentation logic
+            // Use environment variable to toggle: HEX1B_SIXEL_FRAGMENTATION=1 to enable
+            var useFragmentation = Environment.GetEnvironmentVariable("HEX1B_SIXEL_FRAGMENTATION") == "1";
+            
+            if (useFragmentation)
+            {
+                // For each sixel, compute occlusions from overlapping text and fragment accordingly
+                var fragmentsToEmit = new List<(SixelFragment Fragment, CellMetrics Metrics)>();
+                
+                foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
+                {
+                    // Create a SixelVisibility tracker for this sixel
+                    var visibility = new SixelVisibility(cell.Sixel!, sx, sy, 0);
+                    var metrics = currentSurface.CellMetrics;
+                    
+                    // Scan for overlapping text cells and apply as occlusions
+                    for (var y = sy; y < sy + sh && y < currentSurface.Height; y++)
+                    {
+                        for (var x = sx; x < sx + sw && x < currentSurface.Width; x++)
+                        {
+                            var checkCell = currentSurface[x, y];
+                            // If there's a non-space, non-unwritten cell in the sixel region, it occludes
+                            if (checkCell.Character != " " && checkCell.Character != SurfaceCells.UnwrittenMarker)
+                            {
+                                // This single cell is an occlusion
+                                visibility.ApplyOcclusion(new Layout.Rect(x, y, 1, 1), metrics);
+                            }
+                        }
+                    }
+                    
+                    // Generate fragments for the visible portions
+                    var fragments = visibility.GenerateFragments(metrics);
+                    
+                    if (visibility.IsFullyOccluded)
+                    {
+                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                            $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) FULLY OCCLUDED - skipped\n");
+                        continue;
+                    }
+                    
+                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) -> {fragments.Count} fragments, fullyVisible={visibility.IsFullyVisible}\n");
+                    
+                    foreach (var fragment in fragments)
+                    {
+                        fragmentsToEmit.Add((fragment, metrics));
+                    }
+                }
+                
+                // Emit ALL sixel fragments first (before any text cells)
+                foreach (var (fragment, metrics) in fragmentsToEmit)
+                {
+                    var payload = fragment.GetPayload();
+                    if (payload is null)
+                    {
+                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                            $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fragment.CellPosition.X},{fragment.CellPosition.Y}) - FAILED to encode\n");
+                        continue;
+                    }
+                    
+                    var (fx, fy) = fragment.CellPosition;
+                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                        $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fx},{fy}) region={fragment.PixelRegion}, isComplete={fragment.IsComplete}\n");
+                    
+                    // Position cursor at fragment position
+                    tokens.Add(new CursorPositionToken(fy + 1, fx + 1));
+                    // Emit the fragment
+                    tokens.Add(new UnrecognizedSequenceToken(payload));
+                }
+            }
+            else
+            {
+                // No fragmentation - emit full sixels, rely on text to overwrite
+                foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
+                {
+                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) span {sw}x{sh} - NO FRAGMENTATION\n");
+                    
+                    // Position cursor at sixel anchor
+                    tokens.Add(new CursorPositionToken(sy + 1, sx + 1));
+                    // Emit the full sixel
+                    tokens.Add(new UnrecognizedSequenceToken(cell.Sixel!.Data.Payload));
+                }
+            }
+        }
 
         // Track current state to minimize redundant tokens
         int cursorX = -1;
@@ -140,6 +286,11 @@ public static class SurfaceComparer
         {
             // Skip continuation cells - they're handled by the wide character before them
             if (change.Cell.IsContinuation)
+                continue;
+            
+            // Skip cells that are covered by a sixel (either from diff or pre-emitted)
+            // Only skip if the cell has no content to render over the sixel
+            if (IsCoveredBySixelRegion(change.X, change.Y, change.Cell, sixelRegions))
                 continue;
 
             // Position cursor if needed
@@ -190,10 +341,52 @@ public static class SurfaceComparer
                 stateUnknown = false;
             }
 
+            // Check if this cell has sixel data
+            if (change.Cell.HasSixel && change.Cell.Sixel?.Data is not null)
+            {
+                // Check if this sixel was already emitted in the pre-loop
+                bool alreadyEmitted = false;
+                foreach (var (sx, sy, _, _, _) in sixelRegions)
+                {
+                    if (sx == change.X && sy == change.Y)
+                    {
+                        alreadyEmitted = true;
+                        break;
+                    }
+                }
+                
+                if (!alreadyEmitted)
+                {
+                    // Track the region this sixel covers so we skip cells underneath
+                    var sixelData = change.Cell.Sixel.Data;
+                    sixelRegions.Add((change.X, change.Y, sixelData.WidthInCells, sixelData.HeightInCells, change.Cell));
+                    
+                    // Emit the sixel DCS sequence as raw - the payload already contains ESC P ... ESC \
+                    tokens.Add(new UnrecognizedSequenceToken(change.Cell.Sixel.Data.Payload));
+                    
+                    // Sixel rendering moves cursor, mark position as unknown
+                    cursorX = -1;
+                    cursorY = -1;
+                }
+                continue;
+            }
+
             // Output the character (convert unwritten marker to space)
             var charToOutput = change.Cell.Character == SurfaceCells.UnwrittenMarker 
                 ? " " 
                 : change.Cell.Character;
+            
+            // Log text cells that are inside a sixel region
+            foreach (var (sx, sy, sw, sh, _) in sixelRegions)
+            {
+                if (change.X >= sx && change.X < sx + sw && change.Y >= sy && change.Y < sy + sh)
+                {
+                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
+                        $"[{DateTime.Now:HH:mm:ss.fff}] TEXT '{charToOutput}' at ({change.X},{change.Y}) OVER sixel at ({sx},{sy})\n");
+                    break;
+                }
+            }
+            
             tokens.Add(new TextToken(charToOutput));
             
             // Cursor advances by display width
@@ -208,6 +401,31 @@ public static class SurfaceComparer
 
         return tokens;
     }
+    
+    /// <summary>
+    /// Checks if a cell position is covered by any sixel region.
+    /// </summary>
+    /// <remarks>
+    /// Only returns true if the cell is within a sixel region AND the cell itself
+    /// doesn't have content that should override the sixel.
+    /// </remarks>
+    private static bool IsCoveredBySixelRegion(int x, int y, SurfaceCell cell, List<(int X, int Y, int Width, int Height, SurfaceCell Cell)> regions)
+    {
+        // If the cell has actual content, it should be rendered over the sixel
+        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
+            return false;
+        
+        foreach (var (sx, sy, sw, sh, _) in regions)
+        {
+            // Skip the anchor cell itself (it has the sixel, not covered by it)
+            if (x == sx && y == sy)
+                continue;
+                
+            if (x >= sx && x < sx + sw && y >= sy && y < sy + sh)
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Generates an ANSI string to render the diff.
@@ -215,13 +433,22 @@ public static class SurfaceComparer
     /// <remarks>
     /// This is a convenience method that generates tokens and serializes them
     /// to a single ANSI string. For integration with existing token pipelines,
-    /// use <see cref="ToTokens"/> instead.
+    /// use <see cref="ToTokens(SurfaceDiff)"/> instead.
     /// </remarks>
     /// <param name="diff">The surface diff to render.</param>
     /// <returns>An ANSI escape sequence string that will render the changes.</returns>
     public static string ToAnsiString(SurfaceDiff diff)
+        => ToAnsiString(diff, currentSurface: null);
+    
+    /// <summary>
+    /// Generates an ANSI string to render the diff, with sixel awareness.
+    /// </summary>
+    /// <param name="diff">The surface diff to render.</param>
+    /// <param name="currentSurface">The current surface, used to find sixels that need re-rendering.</param>
+    /// <returns>An ANSI escape sequence string that will render the changes.</returns>
+    public static string ToAnsiString(SurfaceDiff diff, Surface? currentSurface)
     {
-        var tokens = ToTokens(diff);
+        var tokens = ToTokens(diff, currentSurface);
         
         if (tokens.Count == 0)
             return string.Empty;
@@ -268,8 +495,21 @@ public static class SurfaceComparer
             return false;
         }
         
+        // Compare sixels
+        if (!SixelsEqual(a.Sixel, b.Sixel))
+            return false;
+        
         // Compare hyperlinks by content (URI and parameters)
         return HyperlinksEqual(a.Hyperlink, b.Hyperlink);
+    }
+    
+    private static bool SixelsEqual(TrackedObject<SixelData>? a, TrackedObject<SixelData>? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        
+        // Compare by content hash
+        return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)
@@ -399,10 +639,11 @@ public static class SurfaceComparer
             tokens.Add(new CursorPositionToken(fragment.CellPosition.Y + 1, fragment.CellPosition.X + 1));
 
             // Get the sixel payload (may be re-encoded for cropped fragments)
+            // The payload already contains ESC P ... ESC \, so emit as raw sequence
             var payload = fragment.GetPayload();
             if (payload is not null)
             {
-                tokens.Add(new DcsToken(payload));
+                tokens.Add(new UnrecognizedSequenceToken(payload));
             }
         }
 

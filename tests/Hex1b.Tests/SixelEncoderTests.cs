@@ -1329,16 +1329,16 @@ public class SixelVisibilityTests
         
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
-        Assert.Equal(2, tokens.Count); // CursorPosition + DCS
+        Assert.Equal(2, tokens.Count); // CursorPosition + sixel sequence
         Assert.IsType<CursorPositionToken>(tokens[0]);
-        Assert.IsType<DcsToken>(tokens[1]);
+        Assert.IsType<UnrecognizedSequenceToken>(tokens[1]); // Raw DCS sequence
         
         var cursorToken = (CursorPositionToken)tokens[0];
         Assert.Equal(6, cursorToken.Row);    // 1-based: 5 + 1
         Assert.Equal(6, cursorToken.Column); // 1-based: 5 + 1
         
-        var dcsToken = (DcsToken)tokens[1];
-        Assert.StartsWith("\x1bP", dcsToken.Payload);
+        var sequenceToken = (UnrecognizedSequenceToken)tokens[1];
+        Assert.StartsWith("\x1bP", sequenceToken.Sequence); // Payload already includes DCS wrapper
     }
 
     [Fact]
@@ -1361,14 +1361,14 @@ public class SixelVisibilityTests
         
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
-        // Should have multiple fragments (each with cursor + DCS)
+        // Should have multiple fragments (each with cursor + sixel sequence)
         Assert.True(tokens.Count >= 4, $"Expected at least 4 tokens, got {tokens.Count}");
         
-        // Verify alternating pattern: cursor, dcs, cursor, dcs, ...
+        // Verify alternating pattern: cursor, sixel, cursor, sixel, ...
         for (var i = 0; i < tokens.Count; i += 2)
         {
             Assert.IsType<CursorPositionToken>(tokens[i]);
-            Assert.IsType<DcsToken>(tokens[i + 1]);
+            Assert.IsType<UnrecognizedSequenceToken>(tokens[i + 1]); // Raw DCS sequence
         }
     }
 
@@ -1410,9 +1410,11 @@ public class SixelVisibilityTests
         var textTokens = tokens.OfType<TextToken>().ToList();
         Assert.Contains(textTokens, t => t.Text == "T");
         
-        // Should have sixel token
-        var dcsTokens = tokens.OfType<DcsToken>().ToList();
-        Assert.Single(dcsTokens);
+        // Should have sixel token(s) - raw DCS sequence containing sixel data
+        var sixelTokens = tokens.OfType<UnrecognizedSequenceToken>()
+            .Where(t => t.Sequence.Contains("0;1;0q")) // Sixel header pattern
+            .ToList();
+        Assert.NotEmpty(sixelTokens);
     }
 
     [Fact]

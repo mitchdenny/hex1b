@@ -28,6 +28,21 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private int _offsetX;
     private int _offsetY;
     
+    /// <summary>
+    /// Gets the X offset applied to coordinates.
+    /// </summary>
+    internal int OffsetX => _offsetX;
+    
+    /// <summary>
+    /// Gets the Y offset applied to coordinates.
+    /// </summary>
+    internal int OffsetY => _offsetY;
+    
+    /// <summary>
+    /// Gets the cell metrics (pixel dimensions per cell).
+    /// </summary>
+    public CellMetrics CellMetrics { get; init; } = CellMetrics.Default;
+    
     // Current style state (from parsed ANSI codes)
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
@@ -37,7 +52,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private TrackedObject<HyperlinkData>? _currentHyperlink;
     
     // Store for tracking hyperlink objects (for deduplication and reference counting)
-    private readonly TrackedObjectStore _trackedObjects = new();
+    private readonly TrackedObjectStore _trackedObjects;
+    
+    /// <summary>
+    /// Gets the tracked object store for creating sixels and hyperlinks.
+    /// </summary>
+    internal TrackedObjectStore TrackedObjectStore => _trackedObjects;
 
     /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
@@ -48,6 +68,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         : base(theme)
     {
         _surface = surface ?? throw new ArgumentNullException(nameof(surface));
+        _trackedObjects = new TrackedObjectStore();
     }
     
     /// <summary>
@@ -63,6 +84,20 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _surface = surface ?? throw new ArgumentNullException(nameof(surface));
         _offsetX = offsetX;
         _offsetY = offsetY;
+        _trackedObjects = new TrackedObjectStore();
+    }
+    
+    /// <summary>
+    /// Creates a new SurfaceRenderContext with coordinate offset for child rendering,
+    /// sharing the parent's tracked object store.
+    /// </summary>
+    internal SurfaceRenderContext(Surface surface, int offsetX, int offsetY, Hex1bTheme? theme, TrackedObjectStore sharedStore)
+        : base(theme)
+    {
+        _surface = surface ?? throw new ArgumentNullException(nameof(surface));
+        _offsetX = offsetX;
+        _offsetY = offsetY;
+        _trackedObjects = sharedStore ?? new TrackedObjectStore();
     }
 
     /// <summary>
@@ -286,17 +321,21 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // Only cache if the node has non-zero bounds
             if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
             {
-                // Create a surface for this child's content
-                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height);
+                // Create a surface for this child's content with matching cell metrics
+                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height, CellMetrics);
                 
                 // Create context with offset so child's absolute coordinates map to surface (0,0)
+                // Share the tracked object store so sixels created by children are properly tracked
                 // Note: We don't pass CurrentLayoutProvider to the child context because:
                 // 1. The child surface already represents the child's bounds
                 // 2. The parent's layout provider would clip incorrectly
                 // 3. Clipping happens implicitly via surface bounds
-                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme)
+                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                 {
-                    CachingEnabled = CachingEnabled
+                    CachingEnabled = CachingEnabled,
+                    MouseX = MouseX,  // Pass mouse position to children
+                    MouseY = MouseY,
+                    CellMetrics = CellMetrics  // Propagate cell metrics for sixel sizing
                     // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
                 };
                 

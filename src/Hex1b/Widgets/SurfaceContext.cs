@@ -13,6 +13,7 @@ namespace Hex1b.Widgets;
 ///   <item>Factory methods for creating layers</item>
 ///   <item>Mouse position for interactive effects</item>
 ///   <item>Theme access for styled effects</item>
+///   <item>Sixel creation for graphics</item>
 /// </list>
 /// </para>
 /// <para>
@@ -22,6 +23,8 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public class SurfaceLayerContext
 {
+    private readonly TrackedObjectStore? _store;
+    
     /// <summary>
     /// Gets the current mouse X position (column) relative to the widget.
     /// </summary>
@@ -54,15 +57,25 @@ public class SurfaceLayerContext
     public int Height { get; }
 
     /// <summary>
+    /// Gets the cell metrics (pixel dimensions per cell).
+    /// </summary>
+    /// <remarks>
+    /// Used to correctly size sixel graphics to match cell dimensions.
+    /// </remarks>
+    public CellMetrics CellMetrics { get; }
+
+    /// <summary>
     /// Creates a new SurfaceLayerContext.
     /// </summary>
-    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme)
+    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme, TrackedObjectStore? store = null, CellMetrics? cellMetrics = null)
     {
         Width = width;
         Height = height;
         MouseX = mouseX;
         MouseY = mouseY;
         Theme = theme;
+        _store = store;
+        CellMetrics = cellMetrics ?? CellMetrics.Default;
     }
 
     /// <summary>
@@ -103,4 +116,43 @@ public class SurfaceLayerContext
     /// <returns>A computed layer covering the entire surface.</returns>
     public SurfaceLayer Layer(CellCompute compute)
         => new ComputedSurfaceLayer(compute);
+    
+    /// <summary>
+    /// Creates a tracked sixel from a pixel buffer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The sixel is encoded from the pixel buffer and tracked for proper lifecycle management.
+    /// The returned TrackedObject should be assigned to SurfaceCell.Sixel.
+    /// </para>
+    /// <para>
+    /// Note: If no store is available (e.g., in tests), this returns null.
+    /// </para>
+    /// </remarks>
+    /// <param name="buffer">The pixel buffer to encode as sixel.</param>
+    /// <returns>A tracked sixel object, or null if sixel creation is not available.</returns>
+    public TrackedObject<SixelData>? CreateSixel(SixelPixelBuffer buffer)
+    {
+        if (_store is null)
+            return null;
+            
+        var payload = SixelEncoder.Encode(buffer);
+        var (cellWidth, cellHeight) = CellMetrics.PixelToCellSpan(buffer.Width, buffer.Height);
+        return _store.GetOrCreateSixel(payload, cellWidth, cellHeight);
+    }
+    
+    /// <summary>
+    /// Creates a tracked sixel from a pre-encoded sixel payload.
+    /// </summary>
+    /// <param name="payload">The sixel-encoded string.</param>
+    /// <param name="widthInCells">Width in terminal cells.</param>
+    /// <param name="heightInCells">Height in terminal cells.</param>
+    /// <returns>A tracked sixel object, or null if sixel creation is not available.</returns>
+    public TrackedObject<SixelData>? CreateSixel(string payload, int widthInCells, int heightInCells)
+    {
+        if (_store is null)
+            return null;
+            
+        return _store.GetOrCreateSixel(payload, widthInCells, heightInCells);
+    }
 }

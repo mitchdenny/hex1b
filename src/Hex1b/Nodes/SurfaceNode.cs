@@ -89,20 +89,32 @@ public sealed class SurfaceNode : Hex1bNode
             relativeMouseY = -1;
         }
         
+        // Get the tracked object store and cell metrics if available (for sixel creation)
+        TrackedObjectStore? store = null;
+        CellMetrics? cellMetrics = null;
+        if (context is SurfaceRenderContext surfaceCtx)
+        {
+            store = surfaceCtx.TrackedObjectStore;
+            cellMetrics = surfaceCtx.CellMetrics;
+        }
+        
         var layerContext = new SurfaceLayerContext(
             width: width,
             height: height,
             mouseX: relativeMouseX,
             mouseY: relativeMouseY,
-            theme: context.Theme);
+            theme: context.Theme,
+            store: store,
+            cellMetrics: cellMetrics);
 
         // Build the layers
         var layers = LayerBuilder(layerContext).ToList();
         if (layers.Count == 0)
             return;
 
-        // Create a composite surface and add all layers
-        var composite = new CompositeSurface(width, height);
+        // Create a composite surface with proper cell metrics
+        var effectiveMetrics = cellMetrics ?? CellMetrics.Default;
+        var composite = new CompositeSurface(width, height, effectiveMetrics);
 
         foreach (var layer in layers)
         {
@@ -113,8 +125,8 @@ public sealed class SurfaceNode : Hex1bNode
                     break;
 
                 case DrawSurfaceLayer draw:
-                    // Create a surface for the draw callback
-                    var drawSurface = new Surface(width, height);
+                    // Create a surface for the draw callback with matching cell metrics
+                    var drawSurface = new Surface(width, height, effectiveMetrics);
                     draw.Draw(drawSurface);
                     composite.AddLayer(drawSurface, draw.OffsetX, draw.OffsetY);
                     break;
@@ -132,7 +144,10 @@ public sealed class SurfaceNode : Hex1bNode
         // Optimized path: if rendering to a SurfaceRenderContext, composite directly
         if (context is SurfaceRenderContext surfaceContext)
         {
-            surfaceContext.Surface.Composite(flattened, Bounds.X, Bounds.Y);
+            // Account for the context's offset - Bounds are absolute, but the surface may be offset
+            var destX = Bounds.X - surfaceContext.OffsetX;
+            var destY = Bounds.Y - surfaceContext.OffsetY;
+            surfaceContext.Surface.Composite(flattened, destX, destY);
             return;
         }
 

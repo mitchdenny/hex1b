@@ -419,6 +419,26 @@ public sealed class Surface : ISurfaceSource
                     var destCell = _cells[destRowStart + destX];
                     srcCell = srcCell with { Background = destCell.Background };
                 }
+                
+                // Clip sixels that would extend beyond destination bounds
+                if (srcCell.HasSixel && srcCell.Sixel?.Data is not null)
+                {
+                    System.IO.File.AppendAllText("/tmp/composite-sixel.log",
+                        $"[{DateTime.Now:HH:mm:ss.fff}] Compositing sixel at src({srcX},{srcY}) -> dest({destX},{destY}), " +
+                        $"sixel span {srcCell.Sixel.Data.WidthInCells}x{srcCell.Sixel.Data.HeightInCells}, " +
+                        $"dest surface {Width}x{Height}\n");
+                    srcCell = ClipSixelCell(srcCell, destX, destY);
+                    if (srcCell.HasSixel)
+                    {
+                        System.IO.File.AppendAllText("/tmp/composite-sixel.log",
+                            $"  After clip: span {srcCell.Sixel!.Data.WidthInCells}x{srcCell.Sixel.Data.HeightInCells}\n");
+                    }
+                    else
+                    {
+                        System.IO.File.AppendAllText("/tmp/composite-sixel.log",
+                            $"  After clip: REMOVED\n");
+                    }
+                }
 
                 var index = destRowStart + destX;
                 
@@ -432,6 +452,74 @@ public sealed class Surface : ISurfaceSource
                 _cells[index] = srcCell;
             }
         }
+    }
+
+    /// <summary>
+    /// Clips a sixel cell so it doesn't extend beyond the surface bounds.
+    /// </summary>
+    private SurfaceCell ClipSixelCell(SurfaceCell cell, int destX, int destY)
+    {
+        var sixelData = cell.Sixel!.Data;
+        var sixelWidth = sixelData.WidthInCells;
+        var sixelHeight = sixelData.HeightInCells;
+        
+        // Check if sixel extends beyond bounds
+        var extendsRight = destX + sixelWidth > Width;
+        var extendsDown = destY + sixelHeight > Height;
+        
+        if (!extendsRight && !extendsDown)
+        {
+            // Sixel fits entirely, no clipping needed
+            return cell;
+        }
+        
+        // Calculate the visible portion in cells
+        var visibleCellWidth = Math.Min(sixelWidth, Width - destX);
+        var visibleCellHeight = Math.Min(sixelHeight, Height - destY);
+        
+        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+        {
+            // Completely outside, return cell without sixel
+            return cell with { Sixel = null };
+        }
+        
+        // Calculate visible portion in pixels
+        var visiblePixelWidth = visibleCellWidth * CellMetrics.PixelWidth;
+        var visiblePixelHeight = visibleCellHeight * CellMetrics.PixelHeight;
+        
+        // Clamp to actual sixel pixel dimensions
+        visiblePixelWidth = Math.Min(visiblePixelWidth, sixelData.PixelWidth);
+        visiblePixelHeight = Math.Min(visiblePixelHeight, sixelData.PixelHeight);
+        
+        // Create a fragment for the visible portion
+        var fragment = new SixelFragment(
+            sixelData,
+            destX, destY,
+            new PixelRect(0, 0, visiblePixelWidth, visiblePixelHeight));
+        
+        // Get the clipped payload
+        var clippedPayload = fragment.GetPayload();
+        if (clippedPayload is null)
+        {
+            // Decoding/re-encoding failed, return without sixel
+            return cell with { Sixel = null };
+        }
+        
+        // Create new SixelData with the clipped payload
+        var clippedSixelData = new SixelData(
+            clippedPayload,
+            visibleCellWidth,
+            visibleCellHeight,
+            sixelData.ContentHash, // Reuse hash for now (not strictly correct but avoids re-hashing)
+            visiblePixelWidth,
+            visiblePixelHeight);
+        
+        // Create a new TrackedObject for the clipped sixel
+        // Note: This doesn't go through the store for deduplication since it's a derived clip.
+        // Use no-op callback since clipped sixels aren't tracked in the store.
+        var clippedTracked = new TrackedObject<SixelData>(clippedSixelData, _ => { });
+        
+        return cell with { Sixel = clippedTracked };
     }
 
     /// <summary>

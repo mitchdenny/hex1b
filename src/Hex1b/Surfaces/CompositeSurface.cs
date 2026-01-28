@@ -243,6 +243,10 @@ public sealed class CompositeSurface : ISurfaceSource
         if (above.Character == SurfaceCells.UnwrittenMarker)
             return below;
         
+        // Cells with sixels are always opaque - return as-is
+        if (above.HasSixel)
+            return above;
+        
         if (above.Character != " " || above.Background is not null)
             return above;
 
@@ -250,7 +254,8 @@ public sealed class CompositeSurface : ISurfaceSource
         {
             Character = below.Character,
             Foreground = below.Foreground,
-            Attributes = below.Attributes | above.Attributes
+            Attributes = below.Attributes | above.Attributes,
+            Sixel = below.Sixel  // Preserve sixel from below if any
         };
     }
 
@@ -795,6 +800,12 @@ public sealed class CompositeSurface : ISurfaceSource
                 return below;
             }
             
+            // Cells with sixels are always opaque - return as-is
+            if (above.HasSixel)
+            {
+                return above;
+            }
+            
             if (above.Character != " " || above.Background is not null)
             {
                 // Non-space or has explicit background - this layer takes over
@@ -807,7 +818,7 @@ public sealed class CompositeSurface : ISurfaceSource
                 return above;
             }
             
-            // Transparent space with no styling, keep what's below
+            // Transparent space with no styling, keep what's below (preserving sixel if any)
             return below;
         }
     }

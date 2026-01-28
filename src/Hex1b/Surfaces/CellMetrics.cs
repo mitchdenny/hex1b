@@ -12,64 +12,105 @@ namespace Hex1b.Surfaces;
 /// be mapped to cell boundaries for proper rendering and clipping.
 /// </para>
 /// <para>
-/// Common cell sizes:
-/// <list type="bullet">
-///   <item>10×20 - typical for many terminals (default)</item>
-///   <item>9×18 - common for smaller fonts</item>
-///   <item>8×16 - classic VGA text mode</item>
-/// </list>
+/// Note: Cell width may be fractional in browser-based terminals like xterm.js due to
+/// font rendering. The <see cref="ActualPixelWidth"/> property stores the precise value
+/// while <see cref="PixelWidth"/> provides the integer approximation for compatibility.
 /// </para>
 /// </remarks>
-/// <param name="PixelWidth">The width of a cell in pixels.</param>
-/// <param name="PixelHeight">The height of a cell in pixels.</param>
-public readonly record struct CellMetrics(int PixelWidth, int PixelHeight)
+public readonly record struct CellMetrics
 {
+    /// <summary>
+    /// The integer width of a cell in pixels (for backward compatibility).
+    /// </summary>
+    public int PixelWidth { get; }
+    
+    /// <summary>
+    /// The integer height of a cell in pixels.
+    /// </summary>
+    public int PixelHeight { get; }
+    
+    /// <summary>
+    /// The actual (possibly fractional) width of a cell in pixels.
+    /// Used for precise sixel sizing in browser-based terminals.
+    /// </summary>
+    public double ActualPixelWidth { get; }
+    
+    /// <summary>
+    /// Creates cell metrics with integer dimensions.
+    /// </summary>
+    public CellMetrics(int pixelWidth, int pixelHeight)
+    {
+        PixelWidth = pixelWidth;
+        PixelHeight = pixelHeight;
+        ActualPixelWidth = pixelWidth;
+    }
+    
+    /// <summary>
+    /// Creates cell metrics with actual (floating-point) width.
+    /// </summary>
+    public CellMetrics(double actualPixelWidth, int pixelHeight)
+    {
+        ActualPixelWidth = actualPixelWidth;
+        PixelWidth = (int)Math.Round(actualPixelWidth);
+        PixelHeight = pixelHeight;
+    }
+
     /// <summary>
     /// Default cell metrics (10×20 pixels).
     /// </summary>
     public static readonly CellMetrics Default = new(10, 20);
+    
+    /// <summary>
+    /// Cell metrics for xterm.js with 14px font (approximately 9×17 pixels).
+    /// </summary>
+    public static readonly CellMetrics XtermJs = new(9, 17);
+
+    /// <summary>
+    /// Calculates the pixel width for a given number of cells using actual dimensions.
+    /// </summary>
+    public int GetPixelWidthForCells(int cellCount)
+        => (int)Math.Round(cellCount * ActualPixelWidth);
+    
+    /// <summary>
+    /// Calculates the cell offset for a given pixel position using actual dimensions.
+    /// </summary>
+    public int GetCellOffsetForPixel(int pixelX)
+        => (int)Math.Floor(pixelX / ActualPixelWidth);
+    
+    /// <summary>
+    /// Calculates the pixel position for a cell boundary using actual dimensions.
+    /// </summary>
+    public int GetPixelForCellBoundary(int cellX)
+        => (int)Math.Round(cellX * ActualPixelWidth);
 
     /// <summary>
     /// Converts a cell rectangle to pixel coordinates.
     /// </summary>
-    /// <param name="cellX">Cell X position.</param>
-    /// <param name="cellY">Cell Y position.</param>
-    /// <param name="cellWidth">Width in cells.</param>
-    /// <param name="cellHeight">Height in cells.</param>
-    /// <returns>The equivalent rectangle in pixel coordinates.</returns>
     public PixelRect CellToPixel(int cellX, int cellY, int cellWidth, int cellHeight)
-        => new(cellX * PixelWidth, cellY * PixelHeight,
-               cellWidth * PixelWidth, cellHeight * PixelHeight);
+        => new(GetPixelForCellBoundary(cellX), cellY * PixelHeight,
+               GetPixelWidthForCells(cellWidth), cellHeight * PixelHeight);
 
     /// <summary>
     /// Converts a cell rectangle to pixel coordinates.
     /// </summary>
-    /// <param name="cellRect">Rectangle in cell coordinates.</param>
-    /// <returns>The equivalent rectangle in pixel coordinates.</returns>
     public PixelRect CellToPixel(Rect cellRect)
         => CellToPixel(cellRect.X, cellRect.Y, cellRect.Width, cellRect.Height);
 
     /// <summary>
     /// Computes the cell span for a pixel dimension (rounds up).
     /// </summary>
-    /// <param name="pixelWidth">Width in pixels.</param>
-    /// <param name="pixelHeight">Height in pixels.</param>
-    /// <returns>The cell span (width and height in cells).</returns>
     public (int CellWidth, int CellHeight) PixelToCellSpan(int pixelWidth, int pixelHeight)
-        => ((pixelWidth + PixelWidth - 1) / PixelWidth,
+        => ((int)Math.Ceiling(pixelWidth / ActualPixelWidth),
             (pixelHeight + PixelHeight - 1) / PixelHeight);
 
     /// <summary>
     /// Converts a pixel rectangle to cell coordinates.
-    /// The result uses ceiling for width/height to ensure full coverage.
     /// </summary>
-    /// <param name="pixelRect">Rectangle in pixel coordinates.</param>
-    /// <returns>The equivalent rectangle in cell coordinates.</returns>
     public Rect PixelToCell(PixelRect pixelRect)
     {
         var (cellWidth, cellHeight) = PixelToCellSpan(pixelRect.Width, pixelRect.Height);
         return new Rect(
-            pixelRect.X / PixelWidth,
+            GetCellOffsetForPixel(pixelRect.X),
             pixelRect.Y / PixelHeight,
             cellWidth,
             cellHeight);

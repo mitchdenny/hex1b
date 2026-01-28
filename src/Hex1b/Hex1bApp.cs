@@ -710,23 +710,39 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         var width = _adapter.Width;
         var height = _adapter.Height;
         
-        // Ensure we have surfaces of the correct size
-        if (_currentSurface == null || _currentSurface.Width != width || _currentSurface.Height != height)
+        // Get cell metrics from terminal capabilities
+        // Use actual (floating-point) cell width for precise sixel sizing
+        var caps = _adapter.Capabilities;
+        var cellMetrics = new CellMetrics(caps.EffectiveCellPixelWidth, caps.CellPixelHeight);
+        
+        // Ensure we have surfaces of the correct size and cell metrics
+        var needNewSurfaces = _currentSurface == null 
+            || _currentSurface.Width != width 
+            || _currentSurface.Height != height
+            || _currentSurface.CellMetrics != cellMetrics;
+            
+        if (needNewSurfaces)
         {
-            _currentSurface = new Surface(width, height);
-            _previousSurface = new Surface(width, height);
+            // Reset attributes and clear screen on resize to remove artifacts from old layout
+            _adapter.Write("\x1b[0m\x1b[2J");
+            
+            _currentSurface = new Surface(width, height, cellMetrics);
+            _previousSurface = new Surface(width, height, cellMetrics);
             _isFirstFrame = true;
         }
         
         // Swap buffers (reuse previous surface as current for double-buffering)
-        (_previousSurface, _currentSurface) = (_currentSurface, _previousSurface);
+        // After the needNewSurfaces block, both surfaces are guaranteed non-null
+        (_previousSurface, _currentSurface) = (_currentSurface!, _previousSurface!);
         _currentSurface.Clear();
         
         // Create surface-backed render context and render
         var surfaceContext = new SurfaceRenderContext(_currentSurface, _context.Theme)
         {
             MouseX = _mouseX,
-            MouseY = _mouseY
+            MouseY = _mouseY,
+            CellMetrics = cellMetrics,
+            CachingEnabled = false  // TODO: Re-enable after fixing sixel caching issues
         };
         
         if (_rootNode != null)
@@ -735,13 +751,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         }
         
         // Diff current vs previous and emit changes
-        var diff = _isFirstFrame 
+        var diff = _isFirstFrame || _previousSurface == null
             ? SurfaceComparer.CompareToEmpty(_currentSurface)
             : SurfaceComparer.Compare(_previousSurface, _currentSurface);
         
         if (!diff.IsEmpty)
         {
-            var ansiOutput = SurfaceComparer.ToAnsiString(diff);
+            // Pass current surface for sixel-aware rendering
+            var ansiOutput = SurfaceComparer.ToAnsiString(diff, _currentSurface);
             _adapter.Write(ansiOutput);
         }
         

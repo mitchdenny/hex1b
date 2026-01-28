@@ -110,11 +110,11 @@ public sealed class Hex1bTerminalBuilder
 
         SetWorkloadFactory(presentation =>
         {
-            // Get capabilities from presentation adapter
-            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
-
-            // Create workload adapter for Hex1bApp
-            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            // If presentation adapter is available, use it for live capabilities
+            // Otherwise fall back to static capabilities
+            var workloadAdapter = presentation != null
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             var enableMouse = _enableMouse;
             var renderingMode = _renderingMode;
 
@@ -183,8 +183,11 @@ public sealed class Hex1bTerminalBuilder
 
         SetWorkloadFactory(presentation =>
         {
-            var capabilities = presentation?.Capabilities ?? TerminalCapabilities.Modern;
-            var workloadAdapter = new Hex1bAppWorkloadAdapter(capabilities);
+            // If presentation adapter is available, use it for live capabilities
+            // Otherwise fall back to static capabilities
+            var workloadAdapter = presentation != null 
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             var enableMouse = _enableMouse;
             
             // Create options with managed properties already set
