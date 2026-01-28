@@ -77,12 +77,23 @@ public sealed class SurfaceNode : Hex1bNode
             return;
 
         // Create context for the layer builder
-        // TODO: Get actual mouse position from input system when available
+        // Calculate mouse position relative to this node's bounds
+        int relativeMouseX = context.MouseX - Bounds.X;
+        int relativeMouseY = context.MouseY - Bounds.Y;
+        
+        // Only provide valid mouse coordinates if mouse is within bounds
+        if (relativeMouseX < 0 || relativeMouseX >= width ||
+            relativeMouseY < 0 || relativeMouseY >= height)
+        {
+            relativeMouseX = -1;
+            relativeMouseY = -1;
+        }
+        
         var layerContext = new SurfaceLayerContext(
             width: width,
             height: height,
-            mouseX: -1,
-            mouseY: -1,
+            mouseX: relativeMouseX,
+            mouseY: relativeMouseY,
             theme: context.Theme);
 
         // Build the layers
