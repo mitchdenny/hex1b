@@ -56,6 +56,25 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
 
     public override Size Measure(Constraints constraints)
     {
+        // Respect our own size hints first
+        var targetWidth = WidthHint switch
+        {
+            { IsFixed: true } hint => hint.FixedValue,
+            _ => (int?)null
+        };
+        
+        var targetHeight = HeightHint switch
+        {
+            { IsFixed: true } hint => hint.FixedValue,
+            _ => (int?)null
+        };
+
+        // If we have fixed dimensions, use those directly
+        if (targetWidth.HasValue && targetHeight.HasValue)
+        {
+            return constraints.Constrain(new Size(targetWidth.Value, targetHeight.Value));
+        }
+
         // Border adds 2 to width (left + right border) and 2 to height (top + bottom border)
         var childConstraints = new Constraints(
             Math.Max(0, constraints.MinWidth - 2),
@@ -66,7 +85,10 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
 
         var childSize = Child?.Measure(childConstraints) ?? Size.Zero;
         
-        return constraints.Constrain(new Size(childSize.Width + 2, childSize.Height + 2));
+        var width = targetWidth ?? childSize.Width + 2;
+        var height = targetHeight ?? childSize.Height + 2;
+        
+        return constraints.Constrain(new Size(width, height));
     }
 
     public override void Arrange(Rect bounds)

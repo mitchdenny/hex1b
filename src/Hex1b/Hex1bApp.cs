@@ -1,6 +1,7 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
 using System.Threading.Channels;
+using Hex1b.Animation;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -121,6 +122,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private readonly RenderingMode _renderingMode;
     private Surface? _currentSurface;
     private Surface? _previousSurface;
+    
+    // Animation timer for RedrawAfter() support
+    private readonly AnimationTimer _animationTimer = new();
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -344,72 +348,86 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             // Initial render
             await RenderFrameAsync(cancellationToken);
 
-            // React to input events and invalidation signals
+            // React to input events, invalidation signals, and animation timers
             while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
-                // Wait for either an input event or an invalidation signal
+                // Fire any due animation timers before waiting
+                _animationTimer.FireDue();
+                
+                // Wait for either an input event, an invalidation signal, or a timer
                 // Use WaitToReadAsync instead of ReadAsync to avoid ValueTask/Task.WhenAny issues
                 // where ReadAsync().AsTask() continuations weren't being scheduled reliably
                 var inputWaitTask = _adapter.InputEvents.WaitToReadAsync(cancellationToken).AsTask();
                 var invalidateWaitTask = _invalidateChannel.Reader.WaitToReadAsync(cancellationToken).AsTask();
                 
-                var completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask);
+                // Check if we have animation timers - if so, add a delay task
+                var timeUntilTimer = _animationTimer.GetTimeUntilNextDue();
+                Task completedTask;
                 
-                // Now read whichever channel(s) have data
-                if (completedTask == inputWaitTask && await inputWaitTask)
+                if (timeUntilTimer.HasValue)
                 {
-                    // Input is available - read and process it
+                    var timerWaitTask = Task.Delay(timeUntilTimer.Value, cancellationToken);
+                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, timerWaitTask);
+                }
+                else
+                {
+                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask);
+                }
+                
+                // Fire any timers that are now due (may have triggered the wake-up)
+                _animationTimer.FireDue();
+                
+                // Process input - the approach depends on what woke us
+                if (completedTask == inputWaitTask && inputWaitTask.IsCompleted && await inputWaitTask)
+                {
+                    // Input woke us - read and process ONE input event
                     if (_adapter.InputEvents.TryRead(out var inputEvent))
                     {
                         await ProcessInputEventAsync(inputEvent, cancellationToken);
                     }
                     
                     // Input coalescing: batch rapid inputs together before rendering
-                    // This prevents back pressure from rapid input (key repeats, mouse moves)
                     if (_enableInputCoalescing)
                     {
-                        // Adaptive delay: scales based on output queue depth
                         var outputBacklog = _adapter.OutputQueueDepth;
                         var coalescingDelayMs = Math.Min(
                             _inputCoalescingInitialDelayMs + (outputBacklog * 10), 
                             _inputCoalescingMaxDelayMs);
                         await Task.Delay(coalescingDelayMs, cancellationToken);
                     
-                        // Drain any pending input that arrived during the delay
-                        while (_adapter.InputEvents.TryRead(out var pendingEvent))
+                        while (_adapter.InputEvents.TryRead(out var delayedInput))
                         {
-                            await ProcessInputEventAsync(pendingEvent, cancellationToken);
-                            
-                            // Check for stop request between events
+                            await ProcessInputEventAsync(delayedInput, cancellationToken);
                             if (_stopRequested || cancellationToken.IsCancellationRequested)
                                 break;
                         }
                     }
-                    
-                    // Consume invalidation if it also completed
-                    if (invalidateWaitTask.IsCompleted && await invalidateWaitTask)
+                }
+                else
+                {
+                    // Timer or invalidation woke us - drain ALL pending input first
+                    // This ensures resize events are never starved by animation timers
+                    while (_adapter.InputEvents.TryRead(out var pendingInput))
                     {
-                        _invalidateChannel.Reader.TryRead(out _);
+                        await ProcessInputEventAsync(pendingInput, cancellationToken);
+                        if (_stopRequested || cancellationToken.IsCancellationRequested)
+                            break;
                     }
                 }
-                else if (completedTask == invalidateWaitTask && await invalidateWaitTask)
-                {
-                    // Invalidation signaled - consume the item
-                    _invalidateChannel.Reader.TryRead(out _);
-                }
-                // If neither had data (shouldn't happen), just continue
 
-                // Re-render after handling ALL input or invalidation (state may have changed)
+                // Re-render after handling input or invalidation (state may have changed)
                 await RenderFrameAsync(cancellationToken);
                 
                 // IMPORTANT: Handle race condition where output arrived during render.
                 // If invalidation was signaled while we were rendering, we need to re-render
                 // before blocking on WhenAny, otherwise content may not appear until next input.
-                // We use TryRead to check non-blocking - if nothing pending, we fall through
-                // to WhenAny which will block efficiently.
-                while (_invalidateChannel.Reader.TryRead(out _))
+                // Limit to 2 extra renders to prevent animation timer cascades from starving input.
+                int extraRenders = 0;
+                const int maxExtraRenders = 2;
+                
+                while (_invalidateChannel.Reader.TryRead(out _) && extraRenders < maxExtraRenders)
                 {
-                    // Process any pending input before each re-render to prevent starvation
+                    // ALWAYS process pending input before each re-render to prevent starvation
                     while (_adapter.InputEvents.TryRead(out var pendingEvent))
                     {
                         await ProcessInputEventAsync(pendingEvent, cancellationToken);
@@ -419,9 +437,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                     
                     if (_stopRequested || cancellationToken.IsCancellationRequested)
                         break;
+                    
+                    // Fire any timers that became due
+                    _animationTimer.FireDue();
                         
                     await RenderFrameAsync(cancellationToken);
+                    extraRenders++;
                 }
+                
+                // Drain any remaining invalidations without rendering (will be caught next loop)
+                while (_invalidateChannel.Reader.TryRead(out _)) { }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -511,6 +536,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
+        // Clear any pending animation timers before reconciliation
+        // This prevents timer accumulation when multiple renders happen per loop iteration
+        // Each render will schedule fresh timers via RedrawAfter during reconciliation
+        _animationTimer.Clear();
+        
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
         {
@@ -871,7 +901,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             // Clear the previous bounds (where the node was)
             // Use expanded clip rect if content shrunk (PreviousBounds larger than Bounds)
             // This ensures areas outside current bounds but inside previous bounds get cleared
-            if (node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
+            // Only clear if bounds actually changed - if bounds are the same, the node will
+            // simply repaint in place and clearing would cause flicker
+            if (node.PreviousBounds != node.Bounds && 
+                node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
             {
                 // Check if content shrunk in either dimension
                 var shrunk = node.PreviousBounds.Width > node.Bounds.Width ||
@@ -1262,9 +1295,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             return null;
         }
 
-        // Create the root reconcile context
+        // Create the root reconcile context with timer scheduling callback
         var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
-            CaptureInput, ReleaseCapture);
+            CaptureInput, ReleaseCapture, ScheduleTimer);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
         // Delegate to the widget's own ReconcileAsync method
@@ -1299,8 +1332,24 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
+        
+        // Schedule animation timer if widget has RedrawDelay (for root widget)
+        if (widget.RedrawDelay.HasValue)
+        {
+            var capturedNode = node;
+            ScheduleTimer(widget.RedrawDelay.Value, () =>
+            {
+                capturedNode.MarkDirty();
+                Invalidate();
+            });
+        }
 
         return node;
+    }
+    
+    private void ScheduleTimer(TimeSpan delay, Action callback)
+    {
+        _animationTimer.Schedule(delay, callback);
     }
 
     public void Dispose()
