@@ -189,7 +189,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     // No global key bindings needed for drawer - click triggers overlay
     .WithInputBindings(bindings => { }))
     .WithMouse()
-    .WithRenderOptimization()
     .Build();
 
 try

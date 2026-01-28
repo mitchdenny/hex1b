@@ -91,7 +91,6 @@ try
             ]),
         ]))
         .WithMouse()
-        .WithRenderOptimization()
         .Build();
 
     await terminal.RunAsync();

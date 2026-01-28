@@ -46,7 +46,6 @@ public sealed class Hex1bTerminalBuilder
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
     private bool _preserveOPost;
-    private RenderingMode? _renderingMode;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -116,7 +115,6 @@ public sealed class Hex1bTerminalBuilder
                 ? new Hex1bAppWorkloadAdapter(presentation)
                 : new Hex1bAppWorkloadAdapter();
             var enableMouse = _enableMouse;
-            var renderingMode = _renderingMode;
 
             // Create options with managed properties already set
             // Note: WorkloadAdapter and EnableMouse are managed by the builder.
@@ -124,8 +122,7 @@ public sealed class Hex1bTerminalBuilder
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
-                EnableMouse = enableMouse,
-                RenderingMode = renderingMode ?? RenderingMode.Legacy
+                EnableMouse = enableMouse
             };
 
             // Create the run callback - app is created here so user can capture it
@@ -634,61 +631,6 @@ public sealed class Hex1bTerminalBuilder
         _enableMouse = enable;
         return this;
     }
-    
-    /// <summary>
-    /// Sets the rendering mode for Hex1bApp.
-    /// </summary>
-    /// <param name="mode">The rendering mode to use.</param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// <see cref="RenderingMode.Legacy"/> (default) uses the traditional ANSI string-based rendering.
-    /// <see cref="RenderingMode.Surface"/> uses the new Surface-based rendering with efficient diffing.
-    /// <see cref="RenderingMode.Validation"/> runs both paths and throws if they differ (for testing).
-    /// </para>
-    /// <para>
-    /// This can also be set via the HEX1B_RENDERING_MODE environment variable using
-    /// <see cref="WithRenderingModeFromEnvironment"/>.
-    /// </para>
-    /// </remarks>
-    public Hex1bTerminalBuilder WithRenderingMode(RenderingMode mode)
-    {
-        _renderingMode = mode;
-        return this;
-    }
-    
-    /// <summary>
-    /// Sets the rendering mode from the HEX1B_RENDERING_MODE environment variable.
-    /// </summary>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// Valid environment variable values:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description>"Legacy" or "0" - Use legacy ANSI string rendering</description></item>
-    /// <item><description>"Surface" or "1" - Use Surface-based rendering</description></item>
-    /// <item><description>"Validation" or "2" - Run both and compare (throws on mismatch)</description></item>
-    /// </list>
-    /// <para>
-    /// If the environment variable is not set or has an invalid value, Legacy mode is used.
-    /// </para>
-    /// </remarks>
-    public Hex1bTerminalBuilder WithRenderingModeFromEnvironment()
-    {
-        var envValue = Environment.GetEnvironmentVariable("HEX1B_RENDERING_MODE");
-        if (!string.IsNullOrEmpty(envValue))
-        {
-            _renderingMode = envValue.ToUpperInvariant() switch
-            {
-                "LEGACY" or "0" => RenderingMode.Legacy,
-                "SURFACE" or "1" => RenderingMode.Surface,
-                "VALIDATION" or "2" => RenderingMode.Validation,
-                _ => RenderingMode.Legacy
-            };
-        }
-        return this;
-    }
 
     // === Recording and Optimization ===
 
@@ -771,49 +713,6 @@ public sealed class Hex1bTerminalBuilder
         var recorder = new AsciinemaRecorder(filePath, options);
         capture(recorder);
         _workloadFilters.Add(recorder);
-        return this;
-    }
-
-    /// <summary>
-    /// Adds render optimization for Hex1bApp workloads.
-    /// </summary>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// This filter optimizes rendering by only transmitting cells that have changed
-    /// since the last frame. It's specifically designed for Hex1bApp workloads and
-    /// understands the frame boundary tokens emitted by Hex1bApp.
-    /// </para>
-    /// <para>
-    /// Benefits:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item>Reduces bandwidth for remote terminal connections</item>
-    ///   <item>Improves rendering performance by avoiding redundant updates</item>
-    ///   <item>Eliminates flicker from intermediate render states</item>
-    /// </list>
-    /// <para>
-    /// This filter is automatically added when using WithHex1bApp
-    /// with a real presentation adapter.
-    /// </para>
-    /// </remarks>
-    public Hex1bTerminalBuilder WithRenderOptimization()
-    {
-        _presentationFilters.Add(new Hex1bAppRenderOptimizationFilter());
-        return this;
-    }
-
-    /// <summary>
-    /// Adds render optimization for Hex1bApp workloads with access to the filter instance.
-    /// </summary>
-    /// <param name="capture">Callback that receives the filter instance.</param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    public Hex1bTerminalBuilder WithRenderOptimization(Action<Hex1bAppRenderOptimizationFilter> capture)
-    {
-        ArgumentNullException.ThrowIfNull(capture);
-        var filter = new Hex1bAppRenderOptimizationFilter();
-        capture(filter);
-        _presentationFilters.Add(filter);
         return this;
     }
 

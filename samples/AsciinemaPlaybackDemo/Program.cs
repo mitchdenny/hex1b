@@ -227,7 +227,6 @@ Hex1bWidget BuildUI(RootContext ctx)
 // Create the display terminal with the TUI app
 using var appCts = new CancellationTokenSource();
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
-    .WithRenderOptimization()
     .WithMouse()
     .WithHex1bApp((a, options) =>
     {

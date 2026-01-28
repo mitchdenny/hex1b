@@ -30,17 +30,12 @@ public static class AnsiTokenizer
                 tokens.Add(new OscToken(oscCommand, oscParams, oscPayload, oscUseEscBackslash));
                 i += oscConsumed;
             }
-            // Check for APC sequence (ESC _ or 0x9F) - used for frame boundaries
+            // Check for APC sequence (ESC _ or 0x9F)
             else if (TryParseApcSequence(text, i, out var apcConsumed, out var apcContent))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                var apcToken = apcContent switch
-                {
-                    "HEX1BAPP:FRAME:BEGIN" => (AnsiToken)FrameBeginToken.Instance,
-                    "HEX1BAPP:FRAME:END" => FrameEndToken.Instance,
-                    _ => new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\")
-                };
-                tokens.Add(apcToken);
+                // All APC content is treated as unrecognized
+                tokens.Add(new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\"));
                 i += apcConsumed;
             }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q

@@ -60,8 +60,6 @@ public static class AnsiTokenSerializer
             PrivateModeToken pm => SerializePrivateMode(pm),
             OscToken osc => SerializeOsc(osc),
             DcsToken dcs => SerializeDcs(dcs),
-            FrameBeginToken => SerializeApc("HEX1BAPP:FRAME:BEGIN"),
-            FrameEndToken => SerializeApc("HEX1BAPP:FRAME:END"),
             Ss3Token ss3 => $"\x1bO{ss3.Character}",
             SgrMouseToken mouse => SerializeSgrMouse(mouse),
             SpecialKeyToken special => SerializeSpecialKey(special),

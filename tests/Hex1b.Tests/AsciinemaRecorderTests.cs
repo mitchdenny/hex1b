@@ -412,9 +412,7 @@ public class AsciinemaRecorderTests : IDisposable
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult(BuildResponsiveTodoWidget(ctx, state)),
-            // Use Legacy mode because this test counts output events, which differs between modes
-            // Surface mode is more efficient (fewer events), so threshold wouldn't be meaningful
-            new Hex1bAppOptions { WorkloadAdapter = workload, RenderingMode = RenderingMode.Legacy }
+            new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
         var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -586,7 +584,8 @@ public class AsciinemaRecorderTests : IDisposable
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length > 50, $"Should have many events, got {lines.Length}");
+        // Surface mode is more efficient, producing fewer events than Legacy mode
+        Assert.True(lines.Length > 30, $"Should have many events, got {lines.Length}");
         
         // Verify the new todos were added
         Assert.Contains(state.Items, t => t.Title == "Buy holiday gifts");

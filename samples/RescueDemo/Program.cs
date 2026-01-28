@@ -69,7 +69,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text("Press Ctrl+C to exit")
         ]))
     .WithMouse()
-    .WithRenderOptimization()
     .Build();
 
 await terminal.RunAsync();

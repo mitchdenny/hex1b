@@ -118,8 +118,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     private readonly int _inputCoalescingInitialDelayMs;
     private readonly int _inputCoalescingMaxDelayMs;
     
-    // Surface rendering mode
-    private readonly RenderingMode _renderingMode;
+    // Surface rendering double-buffer
     private Surface? _currentSurface;
     private Surface? _previousSurface;
     
@@ -179,9 +178,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         _enableInputCoalescing = options.EnableInputCoalescing;
         _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
         _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
-        
-        // Surface rendering mode
-        _renderingMode = options.RenderingMode;
     }
 
     /// <summary>
@@ -642,19 +638,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 _context.Write("\x1b[?25l"); // Hide cursor
             }
 
-            // Render based on configured mode
-            if (_renderingMode == RenderingMode.Surface)
-            {
-                RenderFrameWithSurface();
-            }
-            else if (_renderingMode == RenderingMode.Validation)
-            {
-                RenderFrameWithValidation();
-            }
-            else // Legacy
-            {
-                RenderFrameWithLegacy();
-            }
+            // Render using Surface-based path
+            RenderFrameWithSurface();
             
             // Clear dirty flags on all nodes (they've been rendered)
             // Nodes with async content (like TerminalNode) may override ClearDirty()
@@ -671,39 +656,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Legacy render path - uses ANSI string rendering via Hex1bRenderContext.
-    /// </summary>
-    private void RenderFrameWithLegacy()
-    {
-        // Begin frame buffering - all changes from here until EndFrame
-        // will be accumulated in the Hex1bAppRenderOptimizationFilter and emitted as net changes
-        _context.BeginFrame();
-
-        // Clear dirty regions (instead of global clear to reduce flicker)
-        // On first frame or when root is new, do a full clear
-        if (_isFirstFrame)
-        {
-            _context.Clear();
-            _isFirstFrame = false;
-        }
-        else if (_rootNode != null)
-        {
-            ClearDirtyRegions(_rootNode);
-        }
-        
-        // Render the node tree to the terminal (only dirty nodes)
-        if (_rootNode != null)
-        {
-            RenderTree(_rootNode);
-        }
-        
-        // End frame buffering - Hex1bAppRenderOptimizationFilter will now emit only
-        // the net changes (e.g., clear + re-render same content = no output)
-        _context.EndFrame();
-    }
-    
-    /// <summary>
-    /// Surface render path - uses Surface-based rendering with efficient diffing.
+    /// Renders the frame using Surface-based rendering with efficient diffing.
     /// </summary>
     private void RenderFrameWithSurface()
     {
@@ -766,23 +719,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Validation render path - runs both Legacy and Surface, compares visual output.
-    /// </summary>
-    private void RenderFrameWithValidation()
-    {
-        // For now, just use legacy path
-        // Full validation requires comparing visual output which is complex
-        // This will be implemented when we have proper visual comparison infrastructure
-        RenderFrameWithLegacy();
-        
-        // TODO: Run Surface path and compare outputs
-        // This requires capturing legacy output to a buffer, applying to a virtual terminal,
-        // then comparing cell-by-cell with the Surface output
-    }
-    
-    /// <summary>
     /// Renders the node tree to a Surface via SurfaceRenderContext.
-    /// Similar to RenderTree but for Surface rendering mode.
     /// </summary>
     private void RenderTreeToSurface(Hex1bNode node, SurfaceRenderContext context, Theming.Hex1bTheme? currentTheme = null)
     {
@@ -806,220 +743,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         // Restore theme
         context.Theme = originalTheme;
-    }
-    
-    /// <summary>
-    /// Renders the node tree, skipping clean subtrees that don't need re-rendering.
-    /// </summary>
-    /// <remarks>
-    /// This method performs a smart traversal:
-    /// - If a node is dirty, render it (which includes its children)
-    /// - If a node is clean but has dirty descendants, traverse children
-    /// - If a subtree is entirely clean, skip it
-    /// Theme mutations from ThemePanelNodes are tracked and applied during traversal.
-    /// </remarks>
-    private void RenderTree(Hex1bNode node, Theming.Hex1bTheme? currentTheme = null)
-    {
-        // If this subtree has no dirty nodes, skip it entirely
-        if (!node.NeedsRender())
-        {
-            return;
-        }
-        
-        // Track theme mutations from ThemePanelNode
-        var effectiveTheme = currentTheme ?? _context.Theme;
-        if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
-        {
-            // Clone the theme before passing to mutator to prevent mutation of parent themes
-            effectiveTheme = themePanelNode.ThemeMutator(effectiveTheme.Clone());
-        }
-        
-        // If this specific node is dirty, render it (and its children)
-        if (node.IsDirty)
-        {
-            // Apply the effective theme before rendering
-            var originalTheme = _context.Theme;
-            _context.Theme = effectiveTheme;
-            
-            _context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
-            node.Render(_context);
-            
-            // Restore original theme
-            _context.Theme = originalTheme;
-            return;
-        }
-        
-        // Node is clean but has dirty descendants - traverse children with the current theme
-        // Check if this node provides custom layout/clipping for its children
-        var childLayoutProvider = node as Nodes.IChildLayoutProvider;
-        
-        foreach (var child in node.GetChildren())
-        {
-            if (!child.NeedsRender()) continue;
-            
-            // Get layout provider for this child (if any)
-            var layoutForChild = childLayoutProvider?.GetChildLayoutProvider(child);
-            
-            if (layoutForChild != null)
-            {
-                // Set up clipping context for this child
-                var previousLayout = _context.CurrentLayoutProvider;
-                layoutForChild.ParentLayoutProvider = previousLayout;
-                _context.CurrentLayoutProvider = layoutForChild;
-                
-                RenderTree(child, effectiveTheme);
-                
-                _context.CurrentLayoutProvider = previousLayout;
-            }
-            else
-            {
-                RenderTree(child, effectiveTheme);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Recursively clears dirty regions in the node tree.
-    /// For each dirty node, clears the union of its previous and current bounds,
-    /// intersected with any active clip rect from ancestor layout providers.
-    /// Tracks theme from ThemePanelNodes to ensure proper clearing with the correct background.
-    /// </summary>
-    private void ClearDirtyRegions(Hex1bNode node, Rect? clipRect = null, Rect? expandedClipRect = null)
-    {
-        // Calculate this node's effective clip rect first
-        var effectiveClipRect = clipRect;
-        var effectiveExpandedClipRect = expandedClipRect;
-        
-        if (node is Nodes.ILayoutProvider layoutProvider && layoutProvider.ClipMode == Widgets.ClipMode.Clip)
-        {
-            // For normal rendering, use current bounds as clip
-            effectiveClipRect = effectiveClipRect.HasValue 
-                ? Intersect(effectiveClipRect.Value, layoutProvider.ClipRect)
-                : layoutProvider.ClipRect;
-            
-            // For orphan clearing, use union of current and previous bounds
-            // This allows clearing areas that were visible before the node shrunk
-            var expandedNodeClip = Union(node.Bounds, node.PreviousBounds);
-            effectiveExpandedClipRect = effectiveExpandedClipRect.HasValue 
-                ? Intersect(effectiveExpandedClipRect.Value, expandedNodeClip)
-                : expandedNodeClip;
-        }
-        
-        // Track theme from ThemePanelNode
-        var previousTheme = _context.Theme;
-        if (node is Nodes.ThemePanelNode themePanelNode && themePanelNode.ThemeMutator != null)
-        {
-            // Clone the theme before passing to mutator to prevent mutation of parent themes
-            _context.Theme = themePanelNode.ThemeMutator(previousTheme.Clone());
-        }
-        
-        if (node.IsDirty)
-        {
-            // Clear the previous bounds (where the node was)
-            // Use expanded clip rect if content shrunk (PreviousBounds larger than Bounds)
-            // This ensures areas outside current bounds but inside previous bounds get cleared
-            // Only clear if bounds actually changed - if bounds are the same, the node will
-            // simply repaint in place and clearing would cause flicker
-            if (node.PreviousBounds != node.Bounds && 
-                node.PreviousBounds.Width > 0 && node.PreviousBounds.Height > 0)
-            {
-                // Check if content shrunk in either dimension
-                var shrunk = node.PreviousBounds.Width > node.Bounds.Width ||
-                             node.PreviousBounds.Height > node.Bounds.Height ||
-                             node.PreviousBounds.X < node.Bounds.X ||
-                             node.PreviousBounds.Y < node.Bounds.Y ||
-                             node.PreviousBounds.X + node.PreviousBounds.Width > node.Bounds.X + node.Bounds.Width ||
-                             node.PreviousBounds.Y + node.PreviousBounds.Height > node.Bounds.Y + node.Bounds.Height;
-                
-                var clipToUse = shrunk && effectiveExpandedClipRect.HasValue 
-                    ? effectiveExpandedClipRect.Value 
-                    : effectiveClipRect;
-                    
-                var regionToClear = clipToUse.HasValue 
-                    ? Intersect(node.PreviousBounds, clipToUse.Value)
-                    : node.PreviousBounds;
-                if (regionToClear.Width > 0 && regionToClear.Height > 0)
-                {
-                    _context.ClearRegion(regionToClear);
-                }
-            }
-            
-            // Clear the current bounds (where the node will be), clipped to effective clip rect
-            // This handles the case where content shrinks or moves
-            if (node.Bounds != node.PreviousBounds)
-            {
-                var regionToClear = effectiveClipRect.HasValue 
-                    ? Intersect(node.Bounds, effectiveClipRect.Value)
-                    : node.Bounds;
-                if (regionToClear.Width > 0 && regionToClear.Height > 0)
-                {
-                    _context.ClearRegion(regionToClear);
-                }
-            }
-            
-            // Clear orphaned child bounds (children that were removed during reconciliation)
-            // Use the EXPANDED clip rect which includes both current and previous bounds
-            // of all ancestor nodes - this allows clearing areas that were visible before
-            // any ancestor container shrunk
-            if (node.OrphanedChildBounds != null)
-            {
-                foreach (var orphanedBounds in node.OrphanedChildBounds)
-                {
-                    var regionToClear = effectiveExpandedClipRect.HasValue 
-                        ? Intersect(orphanedBounds, effectiveExpandedClipRect.Value)
-                        : orphanedBounds;
-                    if (regionToClear.Width > 0 && regionToClear.Height > 0)
-                    {
-                        _context.ClearRegion(regionToClear);
-                    }
-                }
-                node.ClearOrphanedChildBounds();
-            }
-        }
-        
-        // Recurse into children with the effective clip rects
-        foreach (var child in node.GetChildren())
-        {
-            ClearDirtyRegions(child, effectiveClipRect, effectiveExpandedClipRect);
-        }
-        
-        // Restore previous theme after processing children
-        _context.Theme = previousTheme;
-    }
-    
-    /// <summary>
-    /// Computes the intersection of two rectangles.
-    /// Returns a zero-sized rect if they don't intersect.
-    /// </summary>
-    private static Rect Intersect(Rect a, Rect b)
-    {
-        var x = Math.Max(a.X, b.X);
-        var y = Math.Max(a.Y, b.Y);
-        var right = Math.Min(a.X + a.Width, b.X + b.Width);
-        var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
-        
-        var width = Math.Max(0, right - x);
-        var height = Math.Max(0, bottom - y);
-        
-        return new Rect(x, y, width, height);
-    }
-    
-    /// <summary>
-    /// Computes the union (bounding box) of two rectangles.
-    /// If either rect is empty, returns the other.
-    /// </summary>
-    private static Rect Union(Rect a, Rect b)
-    {
-        // Handle empty rects
-        if (a.Width <= 0 || a.Height <= 0) return b;
-        if (b.Width <= 0 || b.Height <= 0) return a;
-        
-        var x = Math.Min(a.X, b.X);
-        var y = Math.Min(a.Y, b.Y);
-        var right = Math.Max(a.X + a.Width, b.X + b.Width);
-        var bottom = Math.Max(a.Y + a.Height, b.Y + b.Height);
-        
-        return new Rect(x, y, right - x, bottom - y);
     }
 
     /// <summary>

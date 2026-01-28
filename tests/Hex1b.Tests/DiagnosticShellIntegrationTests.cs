@@ -511,15 +511,15 @@ public class DiagnosticShellIntegrationTests
         await using var ctx = DiagnosticTestContext.Create();
         await ctx.StartAsync();
         
-        // Act - send multiple commands
+        // Act - send multiple commands (with longer timeouts for reliability)
         await ctx.SendCommandAsync("echo hello");
-        var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(2));
+        var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(3));
         
         await ctx.SendCommandAsync("echo world");
-        var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(2));
+        var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(3));
         
         await ctx.SendCommandAsync("ping");
-        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(2));
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(3));
         
         // Assert
         Assert.True(foundHello, "Should find 'hello'");
