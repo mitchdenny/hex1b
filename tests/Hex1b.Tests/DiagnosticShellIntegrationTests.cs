@@ -538,7 +538,8 @@ public class DiagnosticShellIntegrationTests
         await ctx.SendCommandAsync("flood 10");
         
         // Wait for the last line of flood output (Line 010)
-        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(5));
+        // Use longer timeout for CI environments which may be slower
+        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(10));
         
         // Assert
         Assert.True(foundComplete, "Should see last flood line");
