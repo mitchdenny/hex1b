@@ -6,7 +6,7 @@ using Hex1b.Widgets;
 using SurfaceDemo;
 
 // Available demos
-var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows" };
+var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar" };
 var selectedDemo = 0;
 
 // Initialize firefly state
@@ -33,6 +33,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         3 => SlimeMoldDemo.BuildLayers(s, random),
                         4 => SnowDemo.BuildLayers(s, random),
                         5 => ShadowDemo.BuildLayers(s, random),
+                        6 => GravityDemo.BuildLayers(s, random),
+                        7 => RadarDemo.BuildLayers(s, random),
                         _ => FirefliesDemo.BuildLayers(s, fireflies)
                     })
                     .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
