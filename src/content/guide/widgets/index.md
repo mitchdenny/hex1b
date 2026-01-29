@@ -29,7 +29,8 @@ Widgets that respond to user input.
 Widgets for presenting information.
 
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting
-- **[Progress](/guide/widgets/progress)** — Progress bars and spinners
+- **[Progress](/guide/widgets/progress)** — Progress bars for known completion amounts
+- **[Spinner](/guide/widgets/spinner)** — Animated activity indicators
 - **[Hyperlink](/guide/widgets/hyperlink)** — Clickable terminal hyperlinks (OSC 8)
 - **[QrCode](/guide/widgets/qrcode)** — Render QR codes in the terminal
 

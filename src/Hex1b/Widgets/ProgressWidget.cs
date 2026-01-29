@@ -18,7 +18,7 @@ namespace Hex1b.Widgets;
 /// <item>
 /// <description>
 /// <strong>Indeterminate</strong>: Shows an animated indicator when the completion amount is unknown.
-/// Set <see cref="IsIndeterminate"/> to true for this mode.
+/// Set <see cref="IsIndeterminate"/> to true for this mode. Animation is time-based and automatic.
 /// </description>
 /// </item>
 /// </list>
@@ -36,7 +36,7 @@ namespace Hex1b.Widgets;
 /// <code>
 /// ctx.Progress(current: 1500, min: 0, max: 5000)
 /// </code>
-/// <para>Indeterminate progress:</para>
+/// <para>Indeterminate progress (self-animating):</para>
 /// <code>
 /// ctx.ProgressIndeterminate()
 /// </code>
@@ -44,6 +44,11 @@ namespace Hex1b.Widgets;
 /// <seealso cref="ProgressExtensions"/>
 public sealed record ProgressWidget : Hex1bWidget
 {
+    /// <summary>
+    /// Default animation interval for indeterminate progress bars.
+    /// </summary>
+    public static readonly TimeSpan DefaultAnimationInterval = TimeSpan.FromMilliseconds(50);
+
     /// <summary>
     /// Gets the current value of the progress bar.
     /// </summary>
@@ -74,17 +79,28 @@ public sealed record ProgressWidget : Hex1bWidget
     /// <remarks>
     /// When true, the progress bar shows an animated indicator instead of a fill level.
     /// The <see cref="Value"/>, <see cref="Minimum"/>, and <see cref="Maximum"/> properties are ignored.
+    /// Animation is time-based and redraws are scheduled automatically.
     /// </remarks>
     public bool IsIndeterminate { get; init; }
-    
+
     /// <summary>
-    /// Gets the animation position for indeterminate mode (0.0 to 1.0).
+    /// Gets the redraw delay for animation, auto-configured for indeterminate mode.
     /// </summary>
     /// <remarks>
-    /// This is used internally to control the animation. Users should update this value
-    /// periodically (e.g., via a timer) and call <see cref="Hex1bApp.Invalidate"/> to animate.
+    /// For indeterminate progress bars, this defaults to <see cref="DefaultAnimationInterval"/>
+    /// so animation happens automatically. For determinate mode, no auto-redraw is scheduled.
     /// </remarks>
-    internal double AnimationPosition { get; init; }
+    public new TimeSpan? RedrawDelay
+    {
+        get => base.RedrawDelay ?? GetDefaultRedrawDelay();
+        init => base.RedrawDelay = value;
+    }
+
+    private TimeSpan? GetDefaultRedrawDelay()
+    {
+        // Only auto-schedule for indeterminate mode
+        return IsIndeterminate ? DefaultAnimationInterval : null;
+    }
 
     /// <summary>
     /// Creates a new determinate progress widget.
@@ -92,14 +108,6 @@ public sealed record ProgressWidget : Hex1bWidget
     public ProgressWidget()
     {
     }
-
-    /// <summary>
-    /// Sets the animation position for indeterminate mode.
-    /// </summary>
-    /// <param name="position">A value from 0.0 to 1.0 representing the animation cycle position.</param>
-    /// <returns>A new ProgressWidget with the updated animation position.</returns>
-    public ProgressWidget WithAnimationPosition(double position)
-        => this with { AnimationPosition = position % 1.0 };
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -109,8 +117,7 @@ public sealed record ProgressWidget : Hex1bWidget
         if (node.Value != Value || 
             node.Minimum != Minimum || 
             node.Maximum != Maximum ||
-            node.IsIndeterminate != IsIndeterminate ||
-            node.AnimationPosition != AnimationPosition)
+            node.IsIndeterminate != IsIndeterminate)
         {
             node.MarkDirty();
         }
@@ -119,7 +126,6 @@ public sealed record ProgressWidget : Hex1bWidget
         node.Minimum = Minimum;
         node.Maximum = Maximum;
         node.IsIndeterminate = IsIndeterminate;
-        node.AnimationPosition = AnimationPosition;
         
         return Task.FromResult<Hex1bNode>(node);
     }

@@ -174,7 +174,7 @@ public class ProgressIntegrationTests : IDisposable
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Text("Loading..."),
-                v.ProgressIndeterminate(0.3)
+                v.ProgressIndeterminate()
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -477,12 +477,10 @@ public class ProgressIntegrationTests : IDisposable
         terminalOptions.WorkloadFilters.Add(recorder);
         using var terminal = new Hex1bTerminal(terminalOptions);
 
-        var animationPos = 0.0;
-
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Text("Loading data..."),
-                v.ProgressIndeterminate(animationPos)
+                v.ProgressIndeterminate()
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -492,13 +490,8 @@ public class ProgressIntegrationTests : IDisposable
 
         recorder.AddMarker("Animation Start");
 
-        // Animate for about 2 seconds
-        for (int i = 0; i < 40; i++)
-        {
-            animationPos = (animationPos + 0.05) % 1.0;
-            app.Invalidate();
-            await Task.Delay(50, TestContext.Current.CancellationToken);
-        }
+        // Let the time-based animation run for about 2 seconds
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
 
         recorder.AddMarker("Animation End");
 

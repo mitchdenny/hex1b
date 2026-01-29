@@ -197,26 +197,47 @@ public class ProgressNodeTests
     }
 
     [Fact]
-    public void WithAnimationPosition_ClampsToValidRange()
-    {
-        // Arrange
-        var widget = new ProgressWidget { IsIndeterminate = true };
-
-        // Act
-        var updated = widget.WithAnimationPosition(1.5);
-
-        // Assert
-        Assert.Equal(0.5, updated.AnimationPosition, precision: 5); // 1.5 % 1.0 = 0.5
-    }
-
-    [Fact]
-    public void IndeterminateMode_SetsCorrectProperties()
+    public void IndeterminateMode_SetsIsIndeterminate()
     {
         // Arrange & Act
-        var widget = new ProgressWidget { IsIndeterminate = true, AnimationPosition = 0.3 };
+        var widget = new ProgressWidget { IsIndeterminate = true };
 
         // Assert
         Assert.True(widget.IsIndeterminate);
-        Assert.Equal(0.3, widget.AnimationPosition, precision: 5);
+    }
+
+    [Fact]
+    public void IndeterminateMode_SetsDefaultRedrawDelay()
+    {
+        // Arrange & Act
+        var widget = new ProgressWidget { IsIndeterminate = true };
+
+        // Assert - should auto-schedule redraws
+        Assert.Equal(ProgressWidget.DefaultAnimationInterval, widget.RedrawDelay);
+    }
+
+    [Fact]
+    public void DeterminateMode_DoesNotSetRedrawDelay()
+    {
+        // Arrange & Act
+        var widget = new ProgressWidget { Value = 50 };
+
+        // Assert - no auto-redraw for determinate progress
+        Assert.Null(widget.RedrawDelay);
+    }
+
+    [Fact]
+    public void IndeterminateNode_MeasuresCorrectly()
+    {
+        // Arrange
+        var node = new ProgressNode { IsIndeterminate = true };
+        var constraints = new Constraints(0, 20, 0, 1);
+        
+        // Act
+        var size = node.Measure(constraints);
+        
+        // Assert - should still measure like a normal progress bar
+        Assert.Equal(20, size.Width);
+        Assert.Equal(1, size.Height);
     }
 }

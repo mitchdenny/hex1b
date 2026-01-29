@@ -1,22 +1,33 @@
 using Hex1b.Layout;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b;
 
 /// <summary>
-/// Render node for displaying progress bars. Created by reconciling a <see cref="Widgets.ProgressWidget"/>.
+/// Render node for displaying progress bars. Created by reconciling a <see cref="ProgressWidget"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// ProgressNode handles measuring and rendering progress bars in both determinate and indeterminate modes.
 /// </para>
 /// <para>
+/// For indeterminate mode, animation is time-based: the node tracks when it started and calculates
+/// the current position based on elapsed time. This ensures consistent animation speed regardless
+/// of how often the screen is redrawn.
+/// </para>
+/// <para>
 /// This node is not focusable and does not handle input. It is a display-only widget.
 /// </para>
 /// </remarks>
-/// <seealso cref="Widgets.ProgressWidget"/>
+/// <seealso cref="ProgressWidget"/>
 public sealed class ProgressNode : Hex1bNode
 {
+    /// <summary>
+    /// Duration of one complete animation cycle for indeterminate progress.
+    /// </summary>
+    private static readonly TimeSpan AnimationCycleDuration = TimeSpan.FromMilliseconds(1500);
+
     /// <summary>
     /// Gets or sets the current progress value.
     /// </summary>
@@ -36,11 +47,19 @@ public sealed class ProgressNode : Hex1bNode
     /// Gets or sets whether the progress bar is in indeterminate mode.
     /// </summary>
     public bool IsIndeterminate { get; set; }
-    
+
+    // Time-based animation state for indeterminate mode
+    private DateTime _animationStartTime = DateTime.UtcNow;
+
     /// <summary>
-    /// Gets or sets the animation position for indeterminate mode (0.0 to 1.0).
+    /// Gets the current animation position (0.0 to 1.0) based on elapsed time.
     /// </summary>
-    public double AnimationPosition { get; set; }
+    private double GetCurrentAnimationPosition()
+    {
+        var elapsed = DateTime.UtcNow - _animationStartTime;
+        var cycleMs = AnimationCycleDuration.TotalMilliseconds;
+        return (elapsed.TotalMilliseconds % cycleMs) / cycleMs;
+    }
 
     /// <summary>
     /// Measures the size required for the progress bar.
@@ -160,6 +179,9 @@ public sealed class ProgressNode : Hex1bNode
     {
         if (width <= 0) return "";
         
+        // Get time-based animation position
+        var animationPosition = GetCurrentAnimationPosition();
+        
         // Calculate the position of the animated segment
         // The segment is 3 characters wide and bounces back and forth
         var segmentWidth = Math.Min(3, width);
@@ -173,7 +195,7 @@ public sealed class ProgressNode : Hex1bNode
         else
         {
             // Use a ping-pong animation (0->1->0)
-            var normalizedPos = AnimationPosition * 2;
+            var normalizedPos = animationPosition * 2;
             if (normalizedPos > 1) normalizedPos = 2 - normalizedPos;
             segmentStart = (int)Math.Round(normalizedPos * travelDistance);
         }
