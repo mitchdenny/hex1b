@@ -35,66 +35,72 @@ var products = new List<Product>
 object? focusedKey = 0;  // Key-based focus (using row index as key by default)
 bool isLoading = false;
 bool isEmpty = false;
-bool shouldQuit = false;
+
+// Build the product table with the specified render mode
+TableWidget<Product> BuildProductTable<TParent>(
+    WidgetContext<TParent> ctx, 
+    IReadOnlyList<Product>? data, 
+    TableRenderMode renderMode) where TParent : Hex1bWidget
+{
+    var table = ctx.Table(data)
+        .WithHeader(h => [
+            h.Cell("Product").Width(SizeHint.Fill),
+            h.Cell("Category").Width(SizeHint.Content),
+            h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),
+            h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
+            h.Cell("Level").Width(SizeHint.Fixed(12))
+        ])
+        .WithRow((r, product, state) => [
+            r.Cell(product.Name),
+            r.Cell(c => c.Picker(categories, Array.IndexOf(categories, product.Category))
+                .OnSelectionChanged(e => product.Category = e.SelectedText ?? product.Category)),
+            r.Cell($"${product.Price:F2}"),
+            r.Cell(product.Stock.ToString()),
+            r.Cell(c => c.Progress(product.Stock, 0, MaxStock))
+        ])
+        .WithFooter(f => [
+            f.Cell("Total Products"),
+            f.Cell(products.Count.ToString()),
+            f.Cell($"${products.Sum(p => p.Price):F2}"),
+            f.Cell(products.Sum(p => p.Stock).ToString()),
+            f.Cell("")
+        ])
+        .WithLoading((l, idx) => [
+            l.Cell("████████████"),
+            l.Cell("████████"),
+            l.Cell("██████"),
+            l.Cell("████"),
+            l.Cell("████████")
+        ], rowCount: 5)
+        .WithFocus(focusedKey)
+        .OnFocusChanged(key => focusedKey = key)
+        .WithSelectionColumn();
+    
+    // Apply render mode
+    return renderMode == TableRenderMode.Full ? table.Full() : table.Compact();
+}
 
 // Create the app
 var app = new Hex1bApp(ctx =>
 {
-    if (shouldQuit) return ctx.Text("Goodbye!");
-    
     var displayData = isEmpty ? [] : (isLoading ? null : products);
     
     return ctx.VStack(v => [
         v.Text("╔════════════════════════════════════════════════════════════╗"),
-        v.Text("║  TableWidget Demo - Phase 3: Scrolling with Mouse Support  ║"),
+        v.Text("║  TableWidget Demo - Responsive Compact/Full Mode           ║"),
         v.Text("╚════════════════════════════════════════════════════════════╝"),
         v.Text(""),
-        v.Text("Navigation: Up/Down = move between rows, Page Up/Down = jump by page"),
-        v.Text("            Home/End = first/last row, Mouse wheel = scroll viewport"),
-        v.Text("Selection: Space = toggle selection, Ctrl+A = select all, Shift+arrows = range"),
+        v.Text("Resize terminal: >= 100 cols = Full mode, < 100 cols = Compact mode"),
         v.Text(""),
         
-        // The table (will scroll when there are more rows than fit)
-        // FillHeight() is critical for scrolling - gives the table a constrained height
-        v.Table(displayData)
-            .WithHeader(h => [
-                h.Cell("Product").Width(SizeHint.Fill),           // Fill remaining space
-                h.Cell("Category").Width(SizeHint.Content),       // Auto-measure width from widget content
-                h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),  // Fixed width, right-aligned
-                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right),   // Stock count
-                h.Cell("Level").Width(SizeHint.Fixed(12))         // Stock level progress bar
-            ])
-            .WithRow((r, product, state) => [
-                r.Cell(product.Name),
-                r.Cell(c => c.Picker(categories, Array.IndexOf(categories, product.Category))
-                    .OnSelectionChanged(e => product.Category = e.SelectedText ?? product.Category)),
-                r.Cell($"${product.Price:F2}"),
-                r.Cell(product.Stock.ToString()),
-                r.Cell(c => c.Progress(product.Stock, 0, MaxStock))  // Progress bar for stock level
-            ])
-            .WithFooter(f => [
-                f.Cell("Total Products"),
-                f.Cell(products.Count.ToString()),
-                f.Cell($"${products.Sum(p => p.Price):F2}"),
-                f.Cell(products.Sum(p => p.Stock).ToString()),
-                f.Cell("")  // Empty cell for progress column
-            ])
-            .WithLoading((l, idx) => [
-                l.Cell("████████████"),
-                l.Cell("████████"),
-                l.Cell("██████"),
-                l.Cell("████"),
-                l.Cell("████████")
-            ], rowCount: 5)
-            .WithFocus(focusedKey)
-            .OnFocusChanged(key => focusedKey = key)
-            .WithSelectionColumn()
-            .Full()  // Use Full render mode with separators between rows
-            .FillHeight(),
+        // Responsive table: Full mode when wide, Compact mode when narrow
+        v.Responsive(r => [
+            r.WhenMinWidth(100, c => BuildProductTable(c, displayData, TableRenderMode.Full).FillHeight()),
+            r.Otherwise(c => BuildProductTable(c, displayData, TableRenderMode.Compact).FillHeight())
+        ]).FillHeight(),
         
         v.Text(""),
         v.Text($"Focused Row: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),
-        v.Text("Press Tab to focus table, then use Up/Down arrows to scroll."),
         v.Text(""),
         v.HStack(h => [
             h.Button("[L] Toggle Loading").OnClick(_ => { isLoading = !isLoading; }),
@@ -109,7 +115,7 @@ var app = new Hex1bApp(ctx =>
 // Run the app
 await app.RunAsync();
 
-// Sample data model - must be after top-level statements
+// Sample data model
 class Product(string name, string category, decimal price, int stock)
 {
     public string Name { get; set; } = name;
