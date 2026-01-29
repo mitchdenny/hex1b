@@ -76,7 +76,8 @@ var app = new Hex1bApp(ctx =>
             .OnFocusChanged(key => focusedKey = key),
         
         v.Text(""),
-        v.Text($"Focused: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),
+        v.Text($"Focused Row: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),
+        v.Text("Press Tab to focus table, then use Up/Down arrows to scroll."),
         v.Text(""),
         v.HStack(h => [
             h.Button("[L] Toggle Loading").OnClick(_ => { isLoading = !isLoading; }),

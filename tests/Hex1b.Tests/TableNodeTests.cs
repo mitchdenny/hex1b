@@ -1,4 +1,5 @@
 using Hex1b.Automation;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
@@ -333,6 +334,64 @@ public class TableNodeTests
         var node = await widget.ReconcileAsync(existingNode, context);
 
         Assert.Same(newData, ((TableNode<string>)node).Data);
+    }
+
+    #endregion
+
+    #region Scroll Bindings
+
+    [Fact]
+    public async Task ScrollDown_KeyBinding_ScrollsTable()
+    {
+        // Create a table with enough data to scroll
+        var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)]
+        };
+
+        // Measure with a small height to trigger scrolling
+        var constraints = new Constraints(0, 40, 0, 10); // Only 10 rows visible
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        
+        // Verify initial state
+        Assert.Equal(0, node.ScrollOffset);
+        Assert.True(node.IsScrollable, "Table should be scrollable with 50 rows in 10-row viewport");
+
+        // Simulate key press using InputRouter
+        node.IsFocused = true;
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(1, node.ScrollOffset);
+    }
+
+    [Fact]
+    public async Task PageDown_KeyBinding_ScrollsByViewport()
+    {
+        var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)]
+        };
+
+        // Measure with small viewport
+        var constraints = new Constraints(0, 40, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        
+        node.IsFocused = true;
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(node.ScrollOffset > 1, "PageDown should scroll more than 1 row");
     }
 
     #endregion

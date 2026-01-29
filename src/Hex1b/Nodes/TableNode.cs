@@ -196,37 +196,31 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
 
     private void ScrollUp(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         ScrollByAmount(-1);
     }
 
     private void ScrollDown(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         ScrollByAmount(1);
     }
 
     private void PageUp(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
     }
 
     private void PageDown(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         ScrollByAmount(Math.Max(1, _viewportRowCount - 1));
     }
 
     private void ScrollToStart(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         SetScrollOffset(0);
     }
 
     private void ScrollToEnd(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
         SetScrollOffset(MaxScrollOffset);
     }
 
