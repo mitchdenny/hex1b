@@ -18,8 +18,8 @@ using Hex1b.Widgets;
 /// </item>
 /// <item>
 /// <description>
-/// <strong>Indeterminate</strong>: Use <see cref="ProgressIndeterminate{TParent}(WidgetContext{TParent}, double)"/>
-/// when completion is unknown.
+/// <strong>Indeterminate</strong>: Use <see cref="ProgressIndeterminate{TParent}(WidgetContext{TParent})"/>
+/// when completion is unknown. Animation is automatic and time-based.
 /// </description>
 /// </item>
 /// </list>
@@ -36,9 +36,9 @@ using Hex1b.Widgets;
 /// <code>
 /// ctx.Progress(current: bytesDownloaded, min: 0, max: totalBytes)
 /// </code>
-/// <para>Indeterminate with animation:</para>
+/// <para>Indeterminate (self-animating):</para>
 /// <code>
-/// ctx.ProgressIndeterminate(animationPosition)
+/// ctx.ProgressIndeterminate()
 /// </code>
 /// </example>
 public static class ProgressExtensions
@@ -96,34 +96,20 @@ public static class ProgressExtensions
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
-    /// <param name="animationPosition">
-    /// The animation position from 0.0 to 1.0. Update this value periodically
-    /// and call <see cref="Hex1bApp.Invalidate"/> to animate the progress bar.
-    /// </param>
-    /// <returns>A new ProgressWidget configured for indeterminate mode.</returns>
+    /// <returns>A new ProgressWidget configured for indeterminate mode with automatic animation.</returns>
     /// <remarks>
     /// <para>
-    /// To animate the progress bar, update the animation position over time:
+    /// The progress bar animates automatically using time-based animation.
+    /// No external timer or manual position updates are required.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// var animationPos = 0.0;
-    /// var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
-    /// _ = Task.Run(async () => {
-    ///     while (await timer.WaitForNextTickAsync())
-    ///     {
-    ///         animationPos = (animationPos + 0.02) % 1.0;
-    ///         app.Invalidate();
-    ///     }
-    /// });
-    /// 
-    /// var app = new Hex1bApp(ctx => ctx.ProgressIndeterminate(animationPos));
+    /// ctx.ProgressIndeterminate()
     /// </code>
     /// </example>
     public static ProgressWidget ProgressIndeterminate<TParent>(
-        this WidgetContext<TParent> ctx,
-        double animationPosition = 0.0)
+        this WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
-        => new() { IsIndeterminate = true, AnimationPosition = animationPosition };
+        => new() { IsIndeterminate = true };
 }

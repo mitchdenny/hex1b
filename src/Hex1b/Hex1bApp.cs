@@ -1074,10 +1074,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         node.HeightHint = widget.HeightHint;
         
         // Schedule animation timer if widget has RedrawDelay (for root widget)
-        if (widget.RedrawDelay.HasValue)
+        var effectiveDelay = widget.GetEffectiveRedrawDelay();
+        if (effectiveDelay.HasValue)
         {
             var capturedNode = node;
-            ScheduleTimer(widget.RedrawDelay.Value, () =>
+            ScheduleTimer(effectiveDelay.Value, () =>
             {
                 capturedNode.MarkDirty();
                 Invalidate();

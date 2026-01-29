@@ -26,27 +26,11 @@ await terminal.RunAsync();`
 
 const indeterminateCode = `using Hex1b;
 
-var animationPos = 0.0;
-var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
-
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) =>
-    {
-        // Animate the progress bar
-        _ = Task.Run(async () =>
-        {
-            while (await timer.WaitForNextTickAsync())
-            {
-                animationPos = (animationPos + 0.02) % 1.0;
-                app.Invalidate();
-            }
-        });
-
-        return ctx => ctx.VStack(v => [
-            v.Text("Loading..."),
-            v.ProgressIndeterminate(animationPos)
-        ]);
-    })
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.Text("Loading..."),
+        v.ProgressIndeterminate()  // Self-animating!
+    ]))
     .Build();
 
 await terminal.RunAsync();`
@@ -79,14 +63,11 @@ The range can even include negative values (e.g., for temperature scales).
 
 ## Indeterminate Progress
 
-Use indeterminate progress when you don't know how long an operation will take. An animated segment bounces back and forth:
+Use indeterminate progress when you don't know how long an operation will take. An animated segment bounces back and forth automatically:
 
 <CodeBlock lang="csharp" :code="indeterminateCode" command="dotnet run" example="progress-indeterminate" exampleTitle="Progress Widget - Indeterminate" />
 
-To animate the progress bar:
-1. Store an animation position (0.0 to 1.0)
-2. Update it periodically with a timer
-3. Call `app.Invalidate()` to trigger re-renders
+The progress bar is **self-animating**—no external timer or manual position updates are required. The animation is time-based internally, so it runs at a consistent speed regardless of screen refresh rate.
 
 <StaticTerminalPreview svgPath="/svg/progress-indeterminate.svg" :code="indeterminateSnippet" />
 
@@ -124,5 +105,6 @@ Available theme elements:
 
 ## Related Widgets
 
+- [Spinner](/guide/widgets/spinner) - For indicating activity without progress amount
 - [Text](/guide/widgets/text) - For displaying status messages alongside progress
 - [Layout & Stacks](/guide/widgets/stacks) - For arranging progress bars with labels
