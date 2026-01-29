@@ -21,8 +21,9 @@ public record TableWidget<TRow> : Hex1bWidget
 
     /// <summary>
     /// Builder function for row cells. Called once per row in Data.
+    /// Receives the row context, row data, and row state (focus, selection, index).
     /// </summary>
-    internal Func<TableRowContext, TRow, IReadOnlyList<TableCell>>? RowBuilder { get; init; }
+    internal Func<TableRowContext, TRow, TableRowState, IReadOnlyList<TableCell>>? RowBuilder { get; init; }
 
     /// <summary>
     /// Builder function for footer cells.
@@ -45,19 +46,36 @@ public record TableWidget<TRow> : Hex1bWidget
     internal int LoadingRowCount { get; init; } = 3;
 
     /// <summary>
-    /// The currently selected row index, or null for no selection.
+    /// Selector function to extract a unique key from each row.
+    /// Used for stable selection tracking across data changes.
+    /// If not specified, row index is used as the key.
     /// </summary>
-    public int? SelectedIndex { get; init; }
+    internal Func<TRow, object>? RowKeySelector { get; init; }
+
+    /// <summary>
+    /// The key of the currently focused row (keyboard navigation cursor).
+    /// </summary>
+    public object? FocusedKey { get; init; }
+
+    /// <summary>
+    /// The set of keys for selected rows.
+    /// </summary>
+    public IReadOnlySet<object>? SelectedKeys { get; init; }
+
+    /// <summary>
+    /// Handler called when focus changes.
+    /// </summary>
+    internal Func<object?, Task>? FocusChangedHandler { get; init; }
 
     /// <summary>
     /// Handler called when selection changes.
     /// </summary>
-    internal Func<int, Task>? SelectionChangedHandler { get; init; }
+    internal Func<IReadOnlySet<object>, Task>? SelectionChangedHandler { get; init; }
 
     /// <summary>
     /// Handler called when a row is activated (Enter key or double-click).
     /// </summary>
-    internal Func<int, TRow, Task>? RowActivatedHandler { get; init; }
+    internal Func<object, TRow, Task>? RowActivatedHandler { get; init; }
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -112,12 +130,25 @@ public record TableWidget<TRow> : Hex1bWidget
             needsDirty = true;
         }
 
-        if (node.SelectedIndex != SelectedIndex)
+        if (node.RowKeySelector != RowKeySelector)
         {
-            node.SelectedIndex = SelectedIndex;
+            node.RowKeySelector = RowKeySelector;
             needsDirty = true;
         }
 
+        if (!Equals(node.FocusedKey, FocusedKey))
+        {
+            node.FocusedKey = FocusedKey;
+            needsDirty = true;
+        }
+
+        if (!SetEquals(node.SelectedKeys, SelectedKeys))
+        {
+            node.SelectedKeys = SelectedKeys;
+            needsDirty = true;
+        }
+
+        node.FocusChangedHandler = FocusChangedHandler;
         node.SelectionChangedHandler = SelectionChangedHandler;
         node.RowActivatedHandler = RowActivatedHandler;
 
@@ -127,6 +158,13 @@ public record TableWidget<TRow> : Hex1bWidget
         }
 
         return Task.FromResult<Hex1bNode>(node);
+    }
+
+    private static bool SetEquals(IReadOnlySet<object>? a, IReadOnlySet<object>? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        return a.SetEquals(b);
     }
 
     internal override Type GetExpectedNodeType() => typeof(TableNode<TRow>);

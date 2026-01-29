@@ -33,9 +33,9 @@ public class TableNode<TRow> : Hex1bNode
     public Func<TableHeaderContext, IReadOnlyList<TableCell>>? HeaderBuilder { get; set; }
 
     /// <summary>
-    /// Builder for row cells.
+    /// Builder for row cells. Receives row context, row data, and row state.
     /// </summary>
-    public Func<TableRowContext, TRow, IReadOnlyList<TableCell>>? RowBuilder { get; set; }
+    public Func<TableRowContext, TRow, TableRowState, IReadOnlyList<TableCell>>? RowBuilder { get; set; }
 
     /// <summary>
     /// Builder for footer cells.
@@ -58,26 +58,66 @@ public class TableNode<TRow> : Hex1bNode
     public int LoadingRowCount { get; set; } = 3;
 
     /// <summary>
-    /// Currently selected row index.
+    /// Selector function to extract a unique key from each row.
     /// </summary>
-    public int? SelectedIndex { get; set; }
+    public Func<TRow, object>? RowKeySelector { get; set; }
+
+    /// <summary>
+    /// The key of the currently focused row.
+    /// </summary>
+    public object? FocusedKey { get; set; }
+
+    /// <summary>
+    /// The set of keys for selected rows.
+    /// </summary>
+    public IReadOnlySet<object>? SelectedKeys { get; set; }
+
+    /// <summary>
+    /// Handler for focus changes.
+    /// </summary>
+    public Func<object?, Task>? FocusChangedHandler { get; set; }
 
     /// <summary>
     /// Handler for selection changes.
     /// </summary>
-    public Func<int, Task>? SelectionChangedHandler { get; set; }
+    public Func<IReadOnlySet<object>, Task>? SelectionChangedHandler { get; set; }
 
     /// <summary>
     /// Handler for row activation.
     /// </summary>
-    public Func<int, TRow, Task>? RowActivatedHandler { get; set; }
+    public Func<object, TRow, Task>? RowActivatedHandler { get; set; }
 
     // Computed layout data
     private int _columnCount;
     private int[] _columnWidths = [];
     private IReadOnlyList<TableCell>? _headerCells;
     private List<IReadOnlyList<TableCell>>? _rowCells;
+    private List<TableRowState>? _rowStates;
     private IReadOnlyList<TableCell>? _footerCells;
+
+    /// <summary>
+    /// Gets the row key for a given row and index.
+    /// </summary>
+    private object GetRowKey(TRow row, int index)
+    {
+        return RowKeySelector?.Invoke(row) ?? index;
+    }
+
+    /// <summary>
+    /// Checks if a row key is focused.
+    /// </summary>
+    private bool IsRowFocused(object key)
+    {
+        return FocusedKey is not null && Equals(FocusedKey, key);
+    }
+
+    /// <summary>
+    /// Checks if a row key is selected.
+    /// </summary>
+    private bool IsRowSelected(object key)
+    {
+        return SelectedKeys?.Contains(key) == true;
+    }
 
     /// <summary>
     /// Builds cell data from builders and validates column counts.
@@ -99,11 +139,26 @@ public class TableNode<TRow> : Hex1bNode
 
         // Build rows
         _rowCells = [];
+        _rowStates = [];
         if (Data is not null && RowBuilder is not null)
         {
-            for (int i = 0; i < Data.Count; i++)
+            int rowCount = Data.Count;
+            for (int i = 0; i < rowCount; i++)
             {
-                var cells = RowBuilder(rowContext, Data[i]);
+                var row = Data[i];
+                var rowKey = GetRowKey(row, i);
+                
+                var state = new TableRowState
+                {
+                    RowIndex = i,
+                    RowKey = rowKey,
+                    IsFocused = IsRowFocused(rowKey),
+                    IsSelected = IsRowSelected(rowKey),
+                    IsFirst = i == 0,
+                    IsLast = i == rowCount - 1
+                };
+                
+                var cells = RowBuilder(rowContext, row, state);
                 if (cells.Count != _columnCount)
                 {
                     throw new InvalidOperationException(
@@ -111,6 +166,7 @@ public class TableNode<TRow> : Hex1bNode
                         $"but row {i} has {cells.Count} columns.");
                 }
                 _rowCells.Add(cells);
+                _rowStates.Add(state);
             }
         }
 
@@ -250,13 +306,14 @@ public class TableNode<TRow> : Hex1bNode
             RenderEmptyRow(context, y, totalWidth);
             y++;
         }
-        else if (_rowCells is not null)
+        else if (_rowCells is not null && _rowStates is not null)
         {
             // Render data rows
             for (int i = 0; i < _rowCells.Count && y < Bounds.Height - (_footerCells is not null ? 3 : 1); i++)
             {
-                bool isSelected = SelectedIndex == i;
-                RenderRow(context, y, _rowCells[i], isHeader: false, isSelected: isSelected);
+                var state = _rowStates[i];
+                bool isHighlighted = state.IsFocused || state.IsSelected;
+                RenderRow(context, y, _rowCells[i], isHeader: false, isSelected: isHighlighted);
                 y++;
             }
         }

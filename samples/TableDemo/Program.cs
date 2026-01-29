@@ -15,7 +15,7 @@ var products = new List<Product>
     new("Cable Management Kit", "Accessories", 24.99m, 200),
 };
 
-int selectedIndex = 0;
+object? focusedKey = 0;  // Key-based focus (using row index as key by default)
 bool isLoading = false;
 bool isEmpty = false;
 bool shouldQuit = false;
@@ -41,7 +41,7 @@ var app = new Hex1bApp(ctx =>
                 h.Cell("Price"),
                 h.Cell("Stock")
             ])
-            .WithRow((r, product) => [
+            .WithRow((r, product, _) => [
                 r.Cell(product.Name),
                 r.Cell(product.Category),
                 r.Cell($"${product.Price:F2}"),
@@ -59,11 +59,11 @@ var app = new Hex1bApp(ctx =>
                 l.Cell("██████"),
                 l.Cell("████")
             ], rowCount: 5)
-            .WithSelection(selectedIndex)
-            .OnSelectionChanged(idx => selectedIndex = idx),
+            .WithFocus(focusedKey)
+            .OnFocusChanged(key => focusedKey = key),
         
         v.Text(""),
-        v.Text($"Selected: {(products.Count > 0 && selectedIndex < products.Count ? products[selectedIndex].Name : "None")}"),
+        v.Text($"Focused: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),
         v.Text(""),
         v.HStack(h => [
             h.Button("[L] Toggle Loading").OnClick(_ => { isLoading = !isLoading; }),

@@ -48,11 +48,11 @@ public static class TableExtensions
     /// </summary>
     /// <typeparam name="TRow">The type of data for each row.</typeparam>
     /// <param name="table">The table widget.</param>
-    /// <param name="builder">A function that builds cells for each row.</param>
+    /// <param name="builder">A function that builds cells for each row. Receives row context, row data, and row state.</param>
     /// <returns>The table widget with row builder configured.</returns>
     public static TableWidget<TRow> WithRow<TRow>(
         this TableWidget<TRow> table,
-        Func<TableRowContext, TRow, IReadOnlyList<TableCell>> builder)
+        Func<TableRowContext, TRow, TableRowState, IReadOnlyList<TableCell>> builder)
         => table with { RowBuilder = builder };
 
     /// <summary>
@@ -94,16 +94,64 @@ public static class TableExtensions
         => table with { LoadingRowBuilder = builder, LoadingRowCount = rowCount };
 
     /// <summary>
-    /// Configures row selection for the table.
+    /// Configures the row key selector for stable row identification across data changes.
     /// </summary>
     /// <typeparam name="TRow">The type of data for each row.</typeparam>
     /// <param name="table">The table widget.</param>
-    /// <param name="selectedIndex">The currently selected row index.</param>
+    /// <param name="keySelector">A function that returns a unique key for each row.</param>
+    /// <returns>The table widget with row key selector configured.</returns>
+    public static TableWidget<TRow> WithRowKey<TRow>(
+        this TableWidget<TRow> table,
+        Func<TRow, object> keySelector)
+        => table with { RowKeySelector = keySelector };
+
+    /// <summary>
+    /// Configures the focused row by key.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="focusedKey">The key of the row that has keyboard focus, or null for none.</param>
+    /// <returns>The table widget with focus configured.</returns>
+    public static TableWidget<TRow> WithFocus<TRow>(
+        this TableWidget<TRow> table,
+        object? focusedKey)
+        => table with { FocusedKey = focusedKey };
+
+    /// <summary>
+    /// Configures the selected rows by keys.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="selectedKeys">The set of keys for selected rows.</param>
     /// <returns>The table widget with selection configured.</returns>
     public static TableWidget<TRow> WithSelection<TRow>(
         this TableWidget<TRow> table,
-        int? selectedIndex)
-        => table with { SelectedIndex = selectedIndex };
+        IReadOnlySet<object>? selectedKeys)
+        => table with { SelectedKeys = selectedKeys };
+
+    /// <summary>
+    /// Sets the handler for focus changes.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="handler">The handler to call when focus changes.</param>
+    /// <returns>The table widget with focus handler configured.</returns>
+    public static TableWidget<TRow> OnFocusChanged<TRow>(
+        this TableWidget<TRow> table,
+        Action<object?> handler)
+        => table with { FocusChangedHandler = key => { handler(key); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets the async handler for focus changes.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="handler">The async handler to call when focus changes.</param>
+    /// <returns>The table widget with focus handler configured.</returns>
+    public static TableWidget<TRow> OnFocusChanged<TRow>(
+        this TableWidget<TRow> table,
+        Func<object?, Task> handler)
+        => table with { FocusChangedHandler = handler };
 
     /// <summary>
     /// Sets the handler for selection changes.
@@ -114,8 +162,8 @@ public static class TableExtensions
     /// <returns>The table widget with selection handler configured.</returns>
     public static TableWidget<TRow> OnSelectionChanged<TRow>(
         this TableWidget<TRow> table,
-        Action<int> handler)
-        => table with { SelectionChangedHandler = idx => { handler(idx); return Task.CompletedTask; } };
+        Action<IReadOnlySet<object>> handler)
+        => table with { SelectionChangedHandler = keys => { handler(keys); return Task.CompletedTask; } };
 
     /// <summary>
     /// Sets the async handler for selection changes.
@@ -126,7 +174,7 @@ public static class TableExtensions
     /// <returns>The table widget with selection handler configured.</returns>
     public static TableWidget<TRow> OnSelectionChanged<TRow>(
         this TableWidget<TRow> table,
-        Func<int, Task> handler)
+        Func<IReadOnlySet<object>, Task> handler)
         => table with { SelectionChangedHandler = handler };
 
     /// <summary>
@@ -138,8 +186,8 @@ public static class TableExtensions
     /// <returns>The table widget with activation handler configured.</returns>
     public static TableWidget<TRow> OnRowActivated<TRow>(
         this TableWidget<TRow> table,
-        Action<int, TRow> handler)
-        => table with { RowActivatedHandler = (idx, row) => { handler(idx, row); return Task.CompletedTask; } };
+        Action<object, TRow> handler)
+        => table with { RowActivatedHandler = (key, row) => { handler(key, row); return Task.CompletedTask; } };
 
     /// <summary>
     /// Sets the async handler for row activation.
@@ -150,6 +198,6 @@ public static class TableExtensions
     /// <returns>The table widget with activation handler configured.</returns>
     public static TableWidget<TRow> OnRowActivated<TRow>(
         this TableWidget<TRow> table,
-        Func<int, TRow, Task> handler)
+        Func<object, TRow, Task> handler)
         => table with { RowActivatedHandler = handler };
 }

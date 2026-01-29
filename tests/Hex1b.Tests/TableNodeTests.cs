@@ -27,7 +27,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
         
         Assert.Equal(3, node.Data!.Count);
@@ -45,7 +45,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Col1"), h.Cell("Col2")], // 2 columns
-            RowBuilder = (r, item) => [r.Cell(item)] // 1 column - mismatch!
+            RowBuilder = (r, item, _) => [r.Cell(item)] // 1 column - mismatch!
         };
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -64,7 +64,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Col1")],
-            RowBuilder = (r, item) => [r.Cell(item)],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
             FooterBuilder = f => [f.Cell("A"), f.Cell("B")] // 2 columns - mismatch!
         };
 
@@ -82,7 +82,7 @@ public class TableNodeTests
         {
             Data = ["Item"],
             HeaderBuilder = h => [], // Empty header
-            RowBuilder = (r, item) => []
+            RowBuilder = (r, item, _) => []
         };
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -99,7 +99,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Col1"), h.Cell("Col2")],
-            RowBuilder = (r, item) => [r.Cell(item), r.Cell(item.ToLower())],
+            RowBuilder = (r, item, _) => [r.Cell(item), r.Cell(item.ToLower())],
             FooterBuilder = f => [f.Cell("Total"), f.Cell("2")]
         };
 
@@ -121,7 +121,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var size = node.Measure(new Constraints(0, 40, 0, 24));
@@ -138,7 +138,7 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
             FooterBuilder = f => [f.Cell("Total")]
         };
 
@@ -155,7 +155,7 @@ public class TableNodeTests
         {
             Data = ["A"],
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var size = node.Measure(new Constraints(0, 60, 0, 24));
@@ -170,7 +170,7 @@ public class TableNodeTests
         {
             Data = null, // Loading state
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
             LoadingRowCount = 5
         };
 
@@ -187,7 +187,7 @@ public class TableNodeTests
         {
             Data = [], // Empty
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var size = node.Measure(new Constraints(0, 40, 0, 24));
@@ -208,15 +208,15 @@ public class TableNodeTests
         
         var widget = ctx.Table(data)
             .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item) => [r.Cell(item)])
+            .WithRow((r, item, _) => [r.Cell(item)])
             .WithFooter(f => [f.Cell("End")])
-            .WithSelection(1);
+            .WithFocus(1);  // Use key-based focus
 
         Assert.Same(data, widget.Data);
         Assert.NotNull(widget.HeaderBuilder);
         Assert.NotNull(widget.RowBuilder);
         Assert.NotNull(widget.FooterBuilder);
-        Assert.Equal(1, widget.SelectedIndex);
+        Assert.Equal(1, widget.FocusedKey);
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class TableNodeTests
         
         var widget = ctx.Table(Array.Empty<string>())
             .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item) => [r.Cell(item)])
+            .WithRow((r, item, _) => [r.Cell(item)])
             .WithEmpty(e => e.Text("No items"));
 
         Assert.NotNull(widget.EmptyBuilder);
@@ -239,7 +239,7 @@ public class TableNodeTests
         
         var widget = ctx.Table<string>(null)
             .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item) => [r.Cell(item)])
+            .WithRow((r, item, _) => [r.Cell(item)])
             .WithLoading((l, idx) => [l.Cell("Loading...")], rowCount: 10);
 
         Assert.NotNull(widget.LoadingRowBuilder);
@@ -288,7 +288,7 @@ public class TableNodeTests
         {
             Data = ["A"],
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var context = ReconcileContext.CreateRoot();
@@ -307,7 +307,7 @@ public class TableNodeTests
         {
             Data = ["A"],
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var context = ReconcileContext.CreateRoot();
@@ -326,7 +326,7 @@ public class TableNodeTests
         {
             Data = newData,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var context = ReconcileContext.CreateRoot();
