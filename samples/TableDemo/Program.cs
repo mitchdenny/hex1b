@@ -13,6 +13,16 @@ var products = new List<Product>
     new("Webcam HD", "Electronics", 89.99m, 40),
     new("Desk Lamp", "Furniture", 45.99m, 60),
     new("Cable Management Kit", "Accessories", 24.99m, 200),
+    new("Ergonomic Mouse Pad", "Accessories", 29.99m, 150),
+    new("Blue Light Glasses", "Accessories", 34.99m, 80),
+    new("Laptop Stand", "Furniture", 79.99m, 45),
+    new("Wireless Charger", "Electronics", 39.99m, 120),
+    new("Noise Cancelling Headphones", "Electronics", 249.99m, 30),
+    new("Mechanical Numpad", "Electronics", 59.99m, 35),
+    new("Monitor Light Bar", "Electronics", 69.99m, 55),
+    new("Wrist Rest", "Accessories", 19.99m, 200),
+    new("Cable Clips Pack", "Accessories", 9.99m, 500),
+    new("Portable SSD 1TB", "Electronics", 119.99m, 65),
 };
 
 object? focusedKey = 0;  // Key-based focus (using row index as key by default)
@@ -28,12 +38,15 @@ var app = new Hex1bApp(ctx =>
     var displayData = isEmpty ? [] : (isLoading ? null : products);
     
     return ctx.VStack(v => [
-        v.Text("╔══════════════════════════════════════╗"),
-        v.Text("║       TableWidget Demo - Phase 1     ║"),
-        v.Text("╚══════════════════════════════════════╝"),
+        v.Text("╔════════════════════════════════════════════════════════════╗"),
+        v.Text("║  TableWidget Demo - Phase 3: Scrolling with Mouse Support  ║"),
+        v.Text("╚════════════════════════════════════════════════════════════╝"),
+        v.Text(""),
+        v.Text("Use Up/Down arrows, Page Up/Down, Home/End, or mouse wheel to scroll."),
+        v.Text("Click and drag the scrollbar thumb. Click arrows or track to scroll."),
         v.Text(""),
         
-        // The table
+        // The table (will scroll when there are more rows than fit)
         v.Table(displayData)
             .WithHeader(h => [
                 h.Cell("Product"),
@@ -41,8 +54,8 @@ var app = new Hex1bApp(ctx =>
                 h.Cell("Price"),
                 h.Cell("Stock")
             ])
-            .WithRow((r, product, _) => [
-                r.Cell(product.Name),
+            .WithRow((r, product, state) => [
+                r.Cell(state.IsFocused ? $"> {product.Name}" : product.Name),
                 r.Cell(product.Category),
                 r.Cell($"${product.Price:F2}"),
                 r.Cell(product.Stock.ToString())

@@ -1,13 +1,16 @@
+using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
 
 /// <summary>
 /// Node for rendering a table with columns, rows, and optional header/footer.
+/// Implements ILayoutProvider to clip scrollable content area.
 /// </summary>
 /// <typeparam name="TRow">The type of data for each row.</typeparam>
-public class TableNode<TRow> : Hex1bNode
+public class TableNode<TRow> : Hex1bNode, ILayoutProvider
 {
     // Border characters (single line box drawing)
     private const char TopLeft = '┌';
@@ -21,6 +24,9 @@ public class TableNode<TRow> : Hex1bNode
     private const char TeeRight = '├';
     private const char TeeLeft = '┤';
     private const char Cross = '┼';
+    
+    // Scrollbar constants
+    private const int ScrollbarWidth = 1;
 
     /// <summary>
     /// The data source for table rows.
@@ -87,6 +93,44 @@ public class TableNode<TRow> : Hex1bNode
     /// </summary>
     public Func<object, TRow, Task>? RowActivatedHandler { get; set; }
 
+    // Scroll state
+    private int _scrollOffset;
+    private int _contentRowCount;
+    private int _viewportRowCount;
+    private Rect _contentViewport;
+    
+    /// <summary>
+    /// The current scroll offset (first visible row index).
+    /// </summary>
+    public int ScrollOffset => _scrollOffset;
+    
+    /// <summary>
+    /// Whether the table content is scrollable (more rows than viewport).
+    /// </summary>
+    public bool IsScrollable => _contentRowCount > _viewportRowCount;
+    
+    /// <summary>
+    /// The maximum scroll offset.
+    /// </summary>
+    public int MaxScrollOffset => Math.Max(0, _contentRowCount - _viewportRowCount);
+
+    // Focus state
+    private bool _isFocused;
+    public override bool IsFocused
+    {
+        get => _isFocused;
+        set
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    public override bool IsFocusable => true;
+
     // Computed layout data
     private int _columnCount;
     private int[] _columnWidths = [];
@@ -99,6 +143,190 @@ public class TableNode<TRow> : Hex1bNode
     private List<TextBlockNode>? _headerNodes;
     private List<List<TextBlockNode>>? _rowNodes;
     private List<TextBlockNode>? _footerNodes;
+
+    #region ILayoutProvider Implementation
+    
+    /// <summary>
+    /// The clip rectangle for the scrollable content area.
+    /// </summary>
+    public Rect ClipRect => _contentViewport;
+    
+    /// <summary>
+    /// The clip mode for this layout region.
+    /// </summary>
+    public ClipMode ClipMode => ClipMode.Clip;
+    
+    /// <summary>
+    /// Parent layout provider for nested clipping.
+    /// </summary>
+    public ILayoutProvider? ParentLayoutProvider { get; set; }
+
+    /// <summary>
+    /// Determines if a character at the given absolute position should be rendered.
+    /// </summary>
+    public bool ShouldRenderAt(int x, int y) => LayoutProviderHelper.ShouldRenderAt(this, x, y);
+
+    /// <summary>
+    /// Clips a string that starts at the given position, returning only the visible portion.
+    /// </summary>
+    public (int adjustedX, string clippedText) ClipString(int x, int y, string text) 
+        => LayoutProviderHelper.ClipString(this, x, y, text);
+
+    #endregion
+
+    #region Input Bindings
+
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Scroll navigation
+        bindings.Key(Hex1bKey.UpArrow).Action(ScrollUp, "Scroll up");
+        bindings.Key(Hex1bKey.DownArrow).Action(ScrollDown, "Scroll down");
+        bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
+        bindings.Key(Hex1bKey.Home).Action(ScrollToStart, "Scroll to start");
+        bindings.Key(Hex1bKey.End).Action(ScrollToEnd, "Scroll to end");
+        
+        // Mouse wheel scrolling
+        bindings.Mouse(MouseButton.ScrollUp).Action(_ => ScrollByAmount(-3), "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Action(_ => ScrollByAmount(3), "Scroll down");
+        
+        // Scrollbar drag
+        bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
+    }
+
+    private void ScrollUp(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        ScrollByAmount(-1);
+    }
+
+    private void ScrollDown(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        ScrollByAmount(1);
+    }
+
+    private void PageUp(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
+    }
+
+    private void PageDown(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        ScrollByAmount(Math.Max(1, _viewportRowCount - 1));
+    }
+
+    private void ScrollToStart(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        SetScrollOffset(0);
+    }
+
+    private void ScrollToEnd(InputBindingActionContext ctx)
+    {
+        if (!IsFocused) return;
+        SetScrollOffset(MaxScrollOffset);
+    }
+
+    private void ScrollByAmount(int amount)
+    {
+        SetScrollOffset(_scrollOffset + amount);
+    }
+
+    private void SetScrollOffset(int offset)
+    {
+        var clamped = Math.Clamp(offset, 0, MaxScrollOffset);
+        if (clamped != _scrollOffset)
+        {
+            _scrollOffset = clamped;
+            MarkDirty();
+        }
+    }
+
+    private DragHandler HandleScrollbarDrag(int localX, int localY)
+    {
+        if (!IsScrollable) return new DragHandler();
+        
+        // Check if click is on the scrollbar (rightmost column within bounds)
+        var scrollbarX = Bounds.Width - ScrollbarWidth;
+        if (localX < scrollbarX || localX >= Bounds.Width)
+        {
+            return new DragHandler(); // Click not on scrollbar
+        }
+        
+        // Calculate scrollbar track area (excluding header/footer borders)
+        var headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
+        var footerHeight = _footerNodes is not null ? 2 : 0; // Separator + footer row
+        var trackStart = 1 + headerHeight; // After top border and header
+        var trackEnd = Bounds.Height - 1 - footerHeight; // Before bottom border and footer
+        var trackHeight = trackEnd - trackStart;
+        
+        if (trackHeight <= 2) return new DragHandler(); // Too small for meaningful scroll
+        
+        // Calculate thumb position and size
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * (trackHeight - 2)));
+        var scrollRange = trackHeight - 2 - thumbSize;
+        var thumbPosition = scrollRange > 0 
+            ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
+            : 0;
+        
+        var trackY = localY - trackStart;
+        
+        if (trackY == 0)
+        {
+            // Up arrow clicked
+            ScrollByAmount(-1);
+            return new DragHandler();
+        }
+        else if (trackY == trackHeight - 1)
+        {
+            // Down arrow clicked
+            ScrollByAmount(1);
+            return new DragHandler();
+        }
+        else if (trackY > 0 && trackY < trackHeight - 1)
+        {
+            var thumbTrackY = trackY - 1;
+            
+            if (thumbTrackY >= thumbPosition && thumbTrackY < thumbPosition + thumbSize)
+            {
+                // Clicked on thumb - start drag
+                var startOffset = _scrollOffset;
+                var contentPerPixel = MaxScrollOffset > 0 && trackHeight - 2 > thumbSize
+                    ? (double)MaxScrollOffset / (trackHeight - 2 - thumbSize)
+                    : 0;
+                
+                return new DragHandler(
+                    onMove: (deltaX, deltaY) =>
+                    {
+                        if (contentPerPixel > 0)
+                        {
+                            var newOffset = (int)Math.Round(startOffset + deltaY * contentPerPixel);
+                            SetScrollOffset(newOffset);
+                        }
+                    }
+                );
+            }
+            else if (thumbTrackY < thumbPosition)
+            {
+                // Clicked above thumb - page up
+                ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
+                return new DragHandler();
+            }
+            else
+            {
+                // Clicked below thumb - page down
+                ScrollByAmount(Math.Max(1, _viewportRowCount - 1));
+                return new DragHandler();
+            }
+        }
+        
+        return new DragHandler();
+    }
+
+    #endregion
 
     /// <summary>
     /// Gets the row key for a given row and index.
@@ -271,13 +499,16 @@ public class TableNode<TRow> : Hex1bNode
     /// <summary>
     /// Calculates column widths based on content (equal distribution for Phase 1).
     /// </summary>
-    private void CalculateColumnWidths(int availableWidth)
+    private void CalculateColumnWidths(int availableWidth, bool reserveScrollbar)
     {
         if (_columnCount == 0) return;
 
         // Account for borders: | col1 | col2 | col3 | = columnCount + 1 vertical bars
         int borderWidth = _columnCount + 1;
-        int contentWidth = availableWidth - borderWidth;
+        
+        // Reserve space for scrollbar if needed
+        int scrollbarSpace = reserveScrollbar ? ScrollbarWidth : 0;
+        int contentWidth = availableWidth - borderWidth - scrollbarSpace;
 
         if (contentWidth < _columnCount)
         {
@@ -300,33 +531,54 @@ public class TableNode<TRow> : Hex1bNode
     {
         BuildCellData();
 
-        // Calculate column widths based on available width
-        int width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 80;
-        CalculateColumnWidths(width);
-
-        // Calculate height: borders + header + rows + footer
-        int height = 2; // Top and bottom borders
-
+        // Determine total content row count
+        if (Data is null)
+        {
+            _contentRowCount = LoadingRowCount; // Loading state
+        }
+        else if (Data.Count == 0)
+        {
+            _contentRowCount = 1; // Empty state (message row)
+        }
+        else
+        {
+            _contentRowCount = _rowCells?.Count ?? 0;
+        }
+        
+        // Calculate fixed heights (header, footer, borders)
+        int fixedHeight = 2; // Top and bottom borders
         if (_headerCells is not null)
         {
-            height += 2; // Header row + separator
+            fixedHeight += 2; // Header row + separator
         }
-
-        height += _rowCells?.Count ?? 0;
-
         if (_footerCells is not null)
         {
-            height += 2; // Separator + footer row
+            fixedHeight += 2; // Separator + footer row
         }
+        
+        // Calculate available viewport height for data rows
+        int availableHeight = constraints.MaxHeight > 0 ? constraints.MaxHeight : 24;
+        _viewportRowCount = Math.Max(1, availableHeight - fixedHeight);
+        
+        // Determine if scrollbar is needed
+        bool needsScrollbar = _contentRowCount > _viewportRowCount;
+        
+        // Calculate column widths (reserve space for scrollbar if needed)
+        int width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 80;
+        CalculateColumnWidths(width, needsScrollbar);
 
-        // Ensure at least some height for empty/loading states
-        if ((_rowCells is null || _rowCells.Count == 0) && Data is not null)
+        // Calculate total height (capped by viewport)
+        int dataRowsHeight = Math.Min(_contentRowCount, _viewportRowCount);
+        if (Data is not null && Data.Count == 0)
         {
-            height += 1; // Space for empty message
+            dataRowsHeight = 1; // Empty message
         }
-        else if (Data is null)
+        int height = fixedHeight + dataRowsHeight;
+
+        // Clamp scroll offset
+        if (_scrollOffset > MaxScrollOffset)
         {
-            height += LoadingRowCount; // Loading rows
+            _scrollOffset = MaxScrollOffset;
         }
 
         // Measure all child nodes with their column widths
@@ -377,6 +629,18 @@ public class TableNode<TRow> : Hex1bNode
     public override void Arrange(Rect rect)
     {
         Bounds = rect;
+        
+        // Calculate content viewport for clipping
+        int headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
+        int footerHeight = _footerNodes is not null ? 2 : 0; // Separator + footer row
+        int scrollbarSpace = IsScrollable ? ScrollbarWidth : 0;
+        
+        int viewportY = rect.Y + 1 + headerHeight; // After top border and header
+        int viewportHeight = rect.Height - 2 - headerHeight - footerHeight; // Between borders and header/footer
+        int viewportWidth = rect.Width - scrollbarSpace;
+        
+        _contentViewport = new Rect(rect.X, viewportY, viewportWidth, viewportHeight);
+        
         ArrangeChildNodes();
     }
 
@@ -397,12 +661,13 @@ public class TableNode<TRow> : Hex1bNode
             y += 2; // Header row + separator
         }
         
-        // Arrange row nodes (or skip empty/loading space)
+        // Arrange only visible row nodes (within viewport, offset by scroll)
         if (_rowNodes is not null && _rowNodes.Count > 0)
         {
-            foreach (var rowNodeList in _rowNodes)
+            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _rowNodes.Count);
+            for (int i = _scrollOffset; i < endRow; i++)
             {
-                ArrangeRowNodes(rowNodeList, y);
+                ArrangeRowNodes(_rowNodes[i], y);
                 y++;
             }
         }
@@ -499,13 +764,16 @@ public class TableNode<TRow> : Hex1bNode
         }
         else if (_rowNodes is not null && _rowStates is not null)
         {
-            // Render data rows using child nodes
-            for (int i = 0; i < _rowNodes.Count && y < Bounds.Height - (_footerNodes is not null ? 3 : 1); i++)
+            // Render only visible data rows (using scroll offset)
+            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _rowNodes.Count);
+            int rowsRendered = 0;
+            for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerNodes is not null ? 3 : 1); i++)
             {
                 var state = _rowStates[i];
                 bool isHighlighted = state.IsFocused || state.IsSelected;
                 RenderRowWithNodes(context, y, _rowNodes[i], isHighlighted: isHighlighted);
                 y++;
+                rowsRendered++;
             }
         }
 
@@ -540,6 +808,72 @@ public class TableNode<TRow> : Hex1bNode
                 // Empty state with no footer - solid bottom border
                 RenderSolidHorizontalBorder(context, y, BottomLeft, BottomRight);
             }
+        }
+        
+        // Render scrollbar if needed
+        if (IsScrollable)
+        {
+            RenderScrollbar(context);
+        }
+    }
+
+    private void RenderScrollbar(Hex1bRenderContext context)
+    {
+        var theme = context.Theme;
+        var trackColor = theme.Get(ScrollTheme.TrackColor);
+        var thumbColor = IsFocused 
+            ? theme.Get(ScrollTheme.FocusedThumbColor) 
+            : theme.Get(ScrollTheme.ThumbColor);
+        
+        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
+        var upArrow = theme.Get(ScrollTheme.UpArrowCharacter);
+        var downArrow = theme.Get(ScrollTheme.DownArrowCharacter);
+        
+        // Scrollbar is in the rightmost column, aligned with the content viewport
+        var scrollbarX = Bounds.X + Bounds.Width - ScrollbarWidth;
+        var scrollbarY = _contentViewport.Y;
+        var scrollbarHeight = _contentViewport.Height;
+        
+        if (scrollbarHeight <= 2) return; // Too small
+        
+        // Calculate thumb position and size
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * (scrollbarHeight - 2)));
+        var scrollRange = scrollbarHeight - 2 - thumbSize;
+        var thumbPosition = scrollRange > 0 && MaxScrollOffset > 0
+            ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
+            : 0;
+        
+        // Render scrollbar
+        for (int row = 0; row < scrollbarHeight; row++)
+        {
+            context.SetCursorPosition(scrollbarX, scrollbarY + row);
+            
+            string charToRender;
+            Hex1bColor color;
+            
+            if (row == 0)
+            {
+                charToRender = upArrow;
+                color = thumbColor;
+            }
+            else if (row == scrollbarHeight - 1)
+            {
+                charToRender = downArrow;
+                color = thumbColor;
+            }
+            else if (row - 1 >= thumbPosition && row - 1 < thumbPosition + thumbSize)
+            {
+                charToRender = thumbChar;
+                color = thumbColor;
+            }
+            else
+            {
+                charToRender = trackChar;
+                color = trackColor;
+            }
+            
+            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
         }
     }
 
