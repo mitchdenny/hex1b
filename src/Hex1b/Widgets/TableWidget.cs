@@ -265,7 +265,8 @@ public record TableWidget<TRow> : Hex1bWidget
             var footerWidget = new TableRowWidget(
                 footerCells, 
                 columnDefs,
-                ShowSelectionColumn: ShowSelectionColumn
+                ShowSelectionColumn: ShowSelectionColumn,
+                IsFooter: true
             );
             node.FooterRowNode = await context.ReconcileChildAsync(
                 node.FooterRowNode, 

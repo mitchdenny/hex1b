@@ -19,7 +19,8 @@ internal sealed record TableRowWidget(
     bool IsHighlighted = false,
     bool? IsSelected = null,
     bool ShowSelectionColumn = false,
-    bool IsHeader = false
+    bool IsHeader = false,
+    bool IsFooter = false
 ) : Hex1bWidget
 {
     // Border characters
@@ -64,8 +65,16 @@ internal sealed record TableRowWidget(
         // Selection column (if enabled)
         if (ShowSelectionColumn)
         {
-            // Show checkbox based on selection state
-            var checkText = IsSelected == true ? "[x]" : "[ ]";
+            // Footer rows get an empty cell, others get a checkbox
+            string checkText;
+            if (IsFooter)
+            {
+                checkText = "   "; // Empty space for footer
+            }
+            else
+            {
+                checkText = IsSelected == true ? "[x]" : "[ ]";
+            }
             widgets.Add(new TextBlockWidget(checkText).FixedWidth(3));
             widgets.Add(new TextBlockWidget(Vertical.ToString()));
         }
