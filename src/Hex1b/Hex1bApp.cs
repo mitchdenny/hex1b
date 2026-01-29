@@ -935,7 +935,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             if (dragBinding.Matches(eventWithClickCount))
             {
                 // Start the drag - capture mouse until release
-                _activeDragHandler = dragBinding.StartDrag(localX, localY);
+                var handler = dragBinding.StartDrag(localX, localY);
+                
+                // If the handler is empty, the drag was rejected (click wasn't in drag area)
+                // Continue to check mouse bindings instead
+                if (handler.IsEmpty)
+                {
+                    continue;
+                }
+                
+                _activeDragHandler = handler;
                 _dragStartX = mouseEvent.X;
                 _dragStartY = mouseEvent.Y;
                 return;

@@ -220,6 +220,117 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         
         // Scrollbar drag
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
+        
+        // Mouse click on rows
+        bindings.Mouse(MouseButton.Left).Action(HandleRowClick, "Click row");
+    }
+
+    /// <summary>
+    /// Handles mouse click on a table row or header.
+    /// </summary>
+    private async Task HandleRowClick(InputBindingActionContext ctx)
+    {
+        var mouseY = ctx.MouseY;
+        var mouseX = ctx.MouseX;
+        
+        // Check if click is on header checkbox
+        if (ShowSelectionColumn && _headerNodes is not null)
+        {
+            int headerY = Bounds.Y + 1; // After top border
+            int checkboxEndX = Bounds.X + 1 + SelectionColumnWidth;
+            
+            if (mouseY == headerY && mouseX >= Bounds.X + 1 && mouseX < checkboxEndX)
+            {
+                // Toggle select all/none
+                await ToggleSelectAll();
+                return;
+            }
+        }
+        
+        if (Data is null || Data.Count == 0) return;
+        
+        // Calculate which row was clicked
+        int headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
+        int dataStartY = Bounds.Y + 1 + headerHeight; // After top border + header
+        
+        int clickedRowIndex = mouseY - dataStartY + _scrollOffset;
+        
+        if (clickedRowIndex < 0 || clickedRowIndex >= Data.Count) 
+            return;
+        
+        // Check if click is on the selection column (checkbox area)
+        bool clickedCheckbox = false;
+        if (ShowSelectionColumn)
+        {
+            int checkboxEndX = Bounds.X + 1 + SelectionColumnWidth; // After left border + checkbox width
+            clickedCheckbox = mouseX >= Bounds.X + 1 && mouseX < checkboxEndX;
+        }
+        
+        // Update focus to clicked row
+        var key = RowKeySelector?.Invoke(Data[clickedRowIndex]) ?? clickedRowIndex;
+        FocusedKey = key;
+        if (FocusChangedHandler != null)
+        {
+            await FocusChangedHandler(key);
+        }
+        
+        // If clicked on checkbox, toggle selection
+        if (clickedCheckbox)
+        {
+            await ToggleSelectionForKey(key);
+        }
+    }
+    
+    /// <summary>
+    /// Toggles selection for a specific key.
+    /// </summary>
+    private Task ToggleSelectionForKey(object key)
+    {
+        SyncInternalSelection();
+        
+        if (_internalSelectedKeys.Contains(key))
+        {
+            _internalSelectedKeys.Remove(key);
+        }
+        else
+        {
+            _internalSelectedKeys.Add(key);
+        }
+        
+        // Notify selection changed
+        var newSelection = _internalSelectedKeys.ToHashSet();
+        SelectionChangedHandler?.Invoke(newSelection);
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Toggles between select all and deselect all.
+    /// </summary>
+    private Task ToggleSelectAll()
+    {
+        if (Data is null || Data.Count == 0) return Task.CompletedTask;
+        
+        SyncInternalSelection();
+        
+        // If all selected, deselect all; otherwise select all
+        bool allSelected = _internalSelectedKeys.Count == Data.Count;
+        
+        _internalSelectedKeys.Clear();
+        
+        if (!allSelected)
+        {
+            for (int i = 0; i < Data.Count; i++)
+            {
+                var key = RowKeySelector?.Invoke(Data[i]) ?? i;
+                _internalSelectedKeys.Add(key);
+            }
+        }
+        
+        var newSelection = _internalSelectedKeys.ToHashSet();
+        SelectionChangedHandler?.Invoke(newSelection);
+        
+        return Task.CompletedTask;
     }
 
     // Selection anchor for range selection (the row where Shift-selection started)
@@ -673,11 +784,25 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     }
 
     /// <summary>
-    /// Checks if a row key is selected.
+    /// Checks if a row key is selected (uses internal selection for runtime updates).
     /// </summary>
     private bool IsRowSelected(object key)
     {
+        // Check internal selection first (updated at runtime), fall back to external prop
+        if (_internalSelectedKeys.Count > 0)
+        {
+            return _internalSelectedKeys.Contains(key);
+        }
         return SelectedKeys?.Contains(key) == true;
+    }
+    
+    /// <summary>
+    /// Checks if a row key is currently selected (for rendering).
+    /// This is the runtime-aware version that checks internal state.
+    /// </summary>
+    private bool IsRowSelectedForRender(object key)
+    {
+        return _internalSelectedKeys.Contains(key) || (SelectedKeys?.Contains(key) == true);
     }
 
     /// <summary>
@@ -1106,7 +1231,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 var loadingCells = LoadingRowBuilder?.Invoke(loadingContext, i);
                 if (loadingCells is not null)
                 {
-                    RenderRowDirect(context, y, loadingCells, isHeader: false);
+                    RenderRowDirect(context, y, loadingCells, isHeader: false, isLoading: true);
                 }
                 else
                 {
@@ -1130,8 +1255,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerNodes is not null ? 3 : 1); i++)
             {
                 var state = _rowStates[i];
-                bool isHighlighted = state.IsFocused || state.IsSelected;
-                RenderRowWithNodes(context, y, _rowNodes[i], isHighlighted: isHighlighted, isSelected: state.IsSelected);
+                // Use runtime selection check instead of cached state
+                bool isSelected = IsRowSelectedForRender(state.RowKey);
+                bool isHighlighted = state.IsFocused || isSelected;
+                RenderRowWithNodes(context, y, _rowNodes[i], isHighlighted: isHighlighted, isSelected: isSelected);
                 y++;
                 rowsRendered++;
             }
@@ -1285,9 +1412,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             var selWidth = SelectionColumnWidth;
             if (isHeader)
             {
-                // Header checkbox - show based on selection state
-                var allSelected = Data != null && Data.Count > 0 && SelectedKeys != null && SelectedKeys.Count == Data.Count;
-                var someSelected = SelectedKeys != null && SelectedKeys.Count > 0 && !allSelected;
+                // Header checkbox - show based on selection state (use internal selection for runtime)
+                var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
+                var allSelected = Data != null && Data.Count > 0 && effectiveSelectedCount == Data.Count;
+                var someSelected = effectiveSelectedCount > 0 && !allSelected;
                 var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
                     : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
                     : theme.Get(TableTheme.CheckboxUnchecked);
@@ -1356,7 +1484,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// Renders a row directly from cells (used for loading state).
     /// </summary>
     private void RenderRowDirect(Hex1bRenderContext context, int y, IReadOnlyList<TableCell> cells, 
-        bool isHeader, bool isSelected = false, bool isFooter = false)
+        bool isHeader, bool isSelected = false, bool isFooter = false, bool isLoading = false)
     {
         var sb = new System.Text.StringBuilder();
         var theme = context.Theme;
@@ -1375,15 +1503,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             var selWidth = SelectionColumnWidth;
             if (isHeader)
             {
-                // Header checkbox - show based on selection state
-                var allSelected = Data != null && Data.Count > 0 && SelectedKeys != null && SelectedKeys.Count == Data.Count;
-                var someSelected = SelectedKeys != null && SelectedKeys.Count > 0 && !allSelected;
+                // Header checkbox - show based on selection state (use internal selection for runtime)
+                var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
+                var allSelected = Data != null && Data.Count > 0 && effectiveSelectedCount == Data.Count;
+                var someSelected = effectiveSelectedCount > 0 && !allSelected;
                 var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
                     : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
                     : theme.Get(TableTheme.CheckboxUnchecked);
                 sb.Append(PadRightByDisplayWidth(checkChar, selWidth));
             }
-            else if (!isFooter)
+            else if (!isFooter && !isLoading)
             {
                 // Data row checkbox
                 var checkChar = isSelected ? theme.Get(TableTheme.CheckboxChecked) : theme.Get(TableTheme.CheckboxUnchecked);
@@ -1391,7 +1520,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             }
             else
             {
-                // Footer - just empty
+                // Footer or loading row - just empty
                 sb.Append(new string(' ', selWidth));
             }
             sb.Append(Vertical);
@@ -1436,12 +1565,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         var sb = new System.Text.StringBuilder();
         sb.Append(Vertical);
 
-        // Selection column (if enabled) - show unchecked
+        // Selection column (if enabled) - show empty for loading rows (no data to select)
         if (ShowSelectionColumn)
         {
-            var theme = context.Theme;
-            var checkChar = theme.Get(TableTheme.CheckboxUnchecked);
-            sb.Append(PadRightByDisplayWidth(checkChar, SelectionColumnWidth));
+            sb.Append(new string(' ', SelectionColumnWidth));
             sb.Append(Vertical);
         }
 

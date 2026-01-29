@@ -934,5 +934,211 @@ public class TableNodeTests
         Assert.Contains("Product", screenText);
     }
 
+    [Fact]
+    public async Task Integration_SelectionColumn_SpaceTogglesSelection()
+    {
+        // Test that pressing Space toggles selection of the focused row
+        using var workload = new Hex1bAppWorkloadAdapter();
+        
+        var recordingPath = Path.Combine(Path.GetTempPath(), $"table_selection_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12)
+            .WithAsciinemaRecording(recordingPath)
+            .Build();
+
+        var products = new[] { "Laptop", "Keyboard", "Mouse" };
+        HashSet<object> selectedKeys = new();
+        object? focusedKey = 0;
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(products)
+                .WithHeader(h => [h.Cell("Product")])
+                .WithRow((r, item, state) => [
+                    r.Cell(state.IsFocused ? $"> {item}" : item)
+                ])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .WithSelectionColumn()
+                .OnSelectionChanged(keys => selectedKeys = keys.ToHashSet()),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for render, then press Space to select the focused row
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Capture initial state
+        var initialSnapshot = terminal.CreateSnapshot();
+        var initialText = initialSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(initialText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        
+        // Initial state - first row focused, no selection
+        Assert.Contains("[ ]", initialText); // Unchecked checkbox
+        Assert.Empty(selectedKeys);
+
+        // Press Space to toggle selection
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Spacebar)
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var afterSpaceSnapshot = terminal.CreateSnapshot();
+        var afterSpaceText = afterSpaceSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== After Space ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(afterSpaceText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+
+        // After Space, first row should be selected
+        Assert.Contains("[x]", afterSpaceText); // Checked checkbox
+        Assert.Single(selectedKeys);
+
+        // Navigate down and select that row too
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.Spacebar)
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var afterDownSpaceSnapshot = terminal.CreateSnapshot();
+        var afterDownSpaceText = afterDownSpaceSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== After Down+Space ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(afterDownSpaceText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+
+        // Now two rows should be selected
+        Assert.Equal(2, selectedKeys.Count);
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording: {recordingPath}");
+    }
+
+    [Fact]
+    public async Task Integration_SelectionColumn_MouseClickTogglesSelection()
+    {
+        // Test that clicking on checkbox toggles selection
+        using var workload = new Hex1bAppWorkloadAdapter();
+        
+        var recordingPath = Path.Combine(Path.GetTempPath(), $"table_mouse_selection_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12)
+            .WithAsciinemaRecording(recordingPath)
+            .Build();
+
+        var products = new[] { "Laptop", "Keyboard", "Mouse" };
+        HashSet<object> selectedKeys = new();
+        object? focusedKey = 0;
+        string? debugBounds = null;
+        
+        using var app = new Hex1bApp(
+            ctx => {
+                var table = ctx.Table(products)
+                    .WithHeader(h => [h.Cell("Product")])
+                    .WithRow((r, item, state) => [
+                        r.Cell(state.IsFocused ? $"> {item}" : item)
+                    ])
+                    .WithFocus(focusedKey)
+                    .OnFocusChanged(key => focusedKey = key)
+                    .WithSelectionColumn()
+                    .OnSelectionChanged(keys => selectedKeys = keys.ToHashSet());
+                    
+                // Store bounds info for debugging after render
+                debugBounds = $"TableBounds will be set at render time";
+                return table;
+            },
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for table to render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Capture initial state
+        var initialSnapshot = terminal.CreateSnapshot();
+        var initialText = initialSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(initialText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        
+        // Initial state - no selection
+        Assert.Empty(selectedKeys);
+
+        // Click on the checkbox of the first data row
+        // Table structure: │[ ]│> Laptop...
+        // Top border at Y=0: ┌───┬...
+        // Header at Y=1: │[ ]│Product...
+        // Separator at Y=2: ├───┼...
+        // First data row at Y=3: │[ ]│> Laptop...
+        // Checkbox is at X positions 1-3 (after left border │ at position 0)
+        
+        // Let's try clicking more towards the center of the checkbox area
+        // Position X=2 should be right in the middle of "[ ]"
+        TestContext.Current.TestOutputHelper?.WriteLine($"Clicking at (2, 3) - should be on checkbox of first data row");
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(2, 3)  // Click on checkbox of first data row
+            .Wait(200)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var afterClickSnapshot = terminal.CreateSnapshot();
+        var afterClickText = afterClickSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== After Mouse Click on Checkbox ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(afterClickText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+
+        // After click on checkbox, first row should be selected
+        // If this fails, the mouse event might not be reaching the table
+        if (selectedKeys.Count == 0)
+        {
+            TestContext.Current.TestOutputHelper?.WriteLine("FAIL: Selection is still empty after click");
+            TestContext.Current.TestOutputHelper?.WriteLine("This could mean:");
+            TestContext.Current.TestOutputHelper?.WriteLine("  1. HitTest didn't find the table node");
+            TestContext.Current.TestOutputHelper?.WriteLine("  2. Mouse binding didn't match");
+            TestContext.Current.TestOutputHelper?.WriteLine("  3. HandleRowClick didn't process the click correctly");
+            TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording saved to: {recordingPath}");
+        }
+        
+        Assert.Single(selectedKeys);
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording: {recordingPath}");
+    }
+
     #endregion
 }
