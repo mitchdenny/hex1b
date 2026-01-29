@@ -445,6 +445,8 @@ public class TableNode<TRow> : Hex1bNode
         int y = 0;
         int totalWidth = _columnWidths.Sum() + _columnCount + 1;
         bool hasDataRows = Data is not null && Data.Count > 0;
+        bool isLoading = Data is null;
+        bool hasColumnStructure = hasDataRows || isLoading; // Loading rows also have column structure
 
         // Top border
         RenderHorizontalBorder(context, y, TopLeft, TeeDown, TopRight);
@@ -456,8 +458,8 @@ public class TableNode<TRow> : Hex1bNode
             RenderRowWithNodes(context, y, _headerNodes);
             y++;
             
-            // Use different separator when transitioning to empty/loading state vs data rows
-            if (hasDataRows)
+            // Use different separator when transitioning to empty state vs data/loading rows
+            if (hasColumnStructure)
             {
                 RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
             }
@@ -510,7 +512,7 @@ public class TableNode<TRow> : Hex1bNode
         // Footer
         if (_footerNodes is not null)
         {
-            if (hasDataRows)
+            if (hasColumnStructure)
             {
                 RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
             }
@@ -527,8 +529,8 @@ public class TableNode<TRow> : Hex1bNode
         // Bottom border
         if (y < Bounds.Height)
         {
-            // Use TeeUp for column positions when we have data/footer, just horizontal when empty with no footer
-            bool showColumnTees = hasDataRows || _footerCells is not null;
+            // Use TeeUp for column positions when we have data/loading/footer, just horizontal when empty with no footer
+            bool showColumnTees = hasColumnStructure || _footerNodes is not null;
             if (showColumnTees)
             {
                 RenderHorizontalBorder(context, y, BottomLeft, TeeUp, BottomRight);
