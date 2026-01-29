@@ -11,19 +11,19 @@ public static class TableTheme
     /// Character shown for unchecked (unselected) rows.
     /// </summary>
     public static readonly Hex1bThemeElement<string> CheckboxUnchecked = 
-        new($"{nameof(TableTheme)}.{nameof(CheckboxUnchecked)}", () => "☐");
+        new($"{nameof(TableTheme)}.{nameof(CheckboxUnchecked)}", () => "[ ]");
     
     /// <summary>
     /// Character shown for checked (selected) rows.
     /// </summary>
     public static readonly Hex1bThemeElement<string> CheckboxChecked = 
-        new($"{nameof(TableTheme)}.{nameof(CheckboxChecked)}", () => "☑");
+        new($"{nameof(TableTheme)}.{nameof(CheckboxChecked)}", () => "[x]");
     
     /// <summary>
     /// Character shown in header when some (but not all) rows are selected.
     /// </summary>
     public static readonly Hex1bThemeElement<string> CheckboxIndeterminate = 
-        new($"{nameof(TableTheme)}.{nameof(CheckboxIndeterminate)}", () => "☒");
+        new($"{nameof(TableTheme)}.{nameof(CheckboxIndeterminate)}", () => "[-]");
     
     // Selection column colors
     

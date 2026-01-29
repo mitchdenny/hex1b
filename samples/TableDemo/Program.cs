@@ -91,7 +91,7 @@ var app = new Hex1bApp(ctx =>
         v.Text(""),
         v.Text("Press Ctrl+C to quit")
     ]);
-});
+}, new Hex1b.Hex1bAppOptions { EnableMouse = true });
 
 // Run the app
 await app.RunAsync();

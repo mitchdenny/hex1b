@@ -706,7 +706,7 @@ public class TableNodeTests
         TestContext.Current.TestOutputHelper?.WriteLine($"Header row (first 15): '{headerRow}'");
         
         // Check that we have the selection column separator at position 4
-        // Expected: │☐  │Name...
+        // Expected: │[ ]│Name...
         Assert.True(char0 == "│", $"Expected left border '│' at position 0, got '{char0}'"); // Left border
         Assert.True(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
     }
