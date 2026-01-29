@@ -63,6 +63,11 @@ public record TableWidget<TRow> : Hex1bWidget
     public IReadOnlySet<object>? SelectedKeys { get; init; }
 
     /// <summary>
+    /// Whether to show a selection column with checkboxes.
+    /// </summary>
+    public bool ShowSelectionColumn { get; init; }
+
+    /// <summary>
     /// Handler called when focus changes.
     /// </summary>
     internal Func<object?, Task>? FocusChangedHandler { get; init; }
@@ -145,6 +150,12 @@ public record TableWidget<TRow> : Hex1bWidget
         if (!SetEquals(node.SelectedKeys, SelectedKeys))
         {
             node.SelectedKeys = SelectedKeys;
+            needsDirty = true;
+        }
+
+        if (node.ShowSelectionColumn != ShowSelectionColumn)
+        {
+            node.ShowSelectionColumn = ShowSelectionColumn;
             needsDirty = true;
         }
 

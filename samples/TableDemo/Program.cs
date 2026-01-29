@@ -44,6 +44,7 @@ var app = new Hex1bApp(ctx =>
         v.Text(""),
         v.Text("Navigation: Up/Down = move between rows, Page Up/Down = jump by page"),
         v.Text("            Home/End = first/last row, Mouse wheel = scroll viewport"),
+        v.Text("Selection: Space = toggle selection, Ctrl+A = select all, Shift+arrows = range"),
         v.Text(""),
         
         // The table (will scroll when there are more rows than fit)
@@ -75,6 +76,7 @@ var app = new Hex1bApp(ctx =>
             ], rowCount: 5)
             .WithFocus(focusedKey)
             .OnFocusChanged(key => focusedKey = key)
+            .WithSelectionColumn()
             .FillHeight(),
         
         v.Text(""),

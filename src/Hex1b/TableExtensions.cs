@@ -200,4 +200,15 @@ public static class TableExtensions
         this TableWidget<TRow> table,
         Func<object, TRow, Task> handler)
         => table with { RowActivatedHandler = handler };
+
+    /// <summary>
+    /// Enables a selection column with checkboxes for multi-select.
+    /// The selection column appears as the first column and allows clicking to select rows.
+    /// Checkbox appearance is controlled by TableTheme.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <returns>The table widget with selection column enabled.</returns>
+    public static TableWidget<TRow> WithSelectionColumn<TRow>(this TableWidget<TRow> table)
+        => table with { ShowSelectionColumn = true };
 }

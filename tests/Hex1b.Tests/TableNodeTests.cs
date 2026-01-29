@@ -484,6 +484,237 @@ public class TableNodeTests
         Assert.True(node.ScrollOffset > 0, "Table should have scrolled to show last row");
     }
 
+    #endregion
+
+    #region Selection Tests
+
+    [Fact]
+    public async Task Space_KeyBinding_TogglesSelection()
+    {
+        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 2 // Focus on row 2
+        };
+
+        var constraints = new Constraints(0, 40, 0, 15);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 15));
+        
+        node.IsFocused = true;
+        
+        // Initially no selection
+        Assert.Null(node.SelectedKeys);
+
+        // Press Space to select
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.NotNull(node.SelectedKeys);
+        Assert.Single(node.SelectedKeys);
+        Assert.Contains(2, node.SelectedKeys.Cast<int>());
+
+        // Press Space again to deselect
+        result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+        
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Empty(node.SelectedKeys);
+    }
+
+    [Fact]
+    public async Task CtrlA_KeyBinding_SelectsAllRows()
+    {
+        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 0
+        };
+
+        var constraints = new Constraints(0, 40, 0, 15);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 15));
+        
+        node.IsFocused = true;
+        
+        // Press Ctrl+A
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.NotNull(node.SelectedKeys);
+        Assert.Equal(10, node.SelectedKeys.Count); // All 10 rows selected
+    }
+
+    [Fact]
+    public async Task ShiftDown_KeyBinding_ExtendsSelection()
+    {
+        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 2 // Start at row 2
+        };
+
+        var constraints = new Constraints(0, 40, 0, 15);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 15));
+        
+        node.IsFocused = true;
+
+        // Press Shift+Down twice
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.Shift);
+        await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+        await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.NotNull(node.SelectedKeys);
+        Assert.Equal(3, node.SelectedKeys.Count); // Rows 2, 3, 4 selected
+        Assert.Equal(4, node.FocusedKey); // Focus moved to row 4
+    }
+
+    [Fact]
+    public async Task ShiftEnd_KeyBinding_SelectsToLastRow()
+    {
+        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 5 // Start at row 5
+        };
+
+        var constraints = new Constraints(0, 40, 0, 15);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 15));
+        
+        node.IsFocused = true;
+
+        // Press Shift+End
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Shift);
+        await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.NotNull(node.SelectedKeys);
+        Assert.Equal(5, node.SelectedKeys.Count); // Rows 5, 6, 7, 8, 9 selected
+        Assert.Equal(9, node.FocusedKey); // Focus at last row
+    }
+
+    [Fact]
+    public async Task SelectionChangedHandler_IsCalled()
+    {
+        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
+        IReadOnlySet<object>? lastSelection = null;
+        
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 0,
+            SelectionChangedHandler = selection =>
+            {
+                lastSelection = selection;
+                return Task.CompletedTask;
+            }
+        };
+
+        var constraints = new Constraints(0, 40, 0, 15);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 15));
+        
+        node.IsFocused = true;
+
+        // Press Space to select
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
+        await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.NotNull(lastSelection);
+        Assert.Single(lastSelection);
+    }
+
+    [Fact]
+    public void SelectionColumn_CellNodesAreArrangedCorrectly()
+    {
+        var data = new[] { "Item1", "Item2" };
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            ShowSelectionColumn = true
+        };
+
+        var constraints = new Constraints(0, 50, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 50, 10));
+
+        // Access header nodes via reflection to check their bounds
+        var headerNodesField = typeof(TableNode<string>).GetField("_headerNodes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var headerNodes = (List<TextBlockNode>?)headerNodesField?.GetValue(node);
+        
+        Assert.NotNull(headerNodes);
+        Assert.Single(headerNodes);
+        
+        // The first cell should start at position: Bounds.X + 1 (left border) + SelectionColumnWidth (3) + 1 (separator) = 5
+        var firstCell = headerNodes[0];
+        Assert.Equal(5, firstCell.Bounds.X);
+    }
+
+    [Fact]
+    public void SelectionColumn_RendersSeparators()
+    {
+        var data = new[] { "Item1" };
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            ShowSelectionColumn = true
+        };
+
+        var constraints = new Constraints(0, 30, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 30, 10));
+
+        // Render to a surface
+        var surface = new Hex1b.Surfaces.Surface(30, 10);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface);
+        node.Render(context);
+
+        // Get characters from the header row (row 1, after top border at row 0)
+        var char0 = surface[0, 1].Character;
+        var char4 = surface[4, 1].Character;
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"char[0,1]='{char0}' char[4,1]='{char4}'");
+        
+        // Build header row text for debugging - show each position
+        var headerRow = new System.Text.StringBuilder();
+        for (int x = 0; x < 15; x++)
+        {
+            var c = surface[x, 1].Character;
+            TestContext.Current.TestOutputHelper?.WriteLine($"  [{x}] = '{c}' (len={c?.Length ?? -1})");
+            headerRow.Append(c);
+        }
+        TestContext.Current.TestOutputHelper?.WriteLine($"Header row (first 15): '{headerRow}'");
+        
+        // Check that we have the selection column separator at position 4
+        // Expected: │☐  │Name...
+        Assert.True(char0 == "│", $"Expected left border '│' at position 0, got '{char0}'"); // Left border
+        Assert.True(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
+    }
+
+    #endregion
+
+    #region Integration Tests
+
     [Fact]
     public async Task Integration_TableWithKeyboardScroll_WorksEndToEnd()
     {
