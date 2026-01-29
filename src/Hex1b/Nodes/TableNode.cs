@@ -1405,18 +1405,26 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             var selWidth = SelectionColumnWidth;
             if (isHeader)
             {
-                // Header checkbox - show based on selection state (use internal selection for runtime)
-                var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
-                var allSelected = Data != null && Data.Count > 0 && effectiveSelectedCount == Data.Count;
-                var someSelected = effectiveSelectedCount > 0 && !allSelected;
-                var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
-                    : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
-                    : theme.Get(TableTheme.CheckboxUnchecked);
-                var checkColor = allSelected ? theme.Get(TableTheme.CheckboxCheckedForeground)
-                    : theme.Get(TableTheme.CheckboxUncheckedForeground);
-                sb.Append(checkColor.ToForegroundAnsi());
-                sb.Append(PadRightByDisplayWidth(checkChar, selWidth));
-                sb.Append(Hex1bColor.Default.ToForegroundAnsi());
+                // Header checkbox - only show when there's data to select
+                if (Data != null && Data.Count > 0)
+                {
+                    var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
+                    var allSelected = effectiveSelectedCount == Data.Count;
+                    var someSelected = effectiveSelectedCount > 0 && !allSelected;
+                    var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
+                        : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
+                        : theme.Get(TableTheme.CheckboxUnchecked);
+                    var checkColor = allSelected ? theme.Get(TableTheme.CheckboxCheckedForeground)
+                        : theme.Get(TableTheme.CheckboxUncheckedForeground);
+                    sb.Append(checkColor.ToForegroundAnsi());
+                    sb.Append(PadRightByDisplayWidth(checkChar, selWidth));
+                    sb.Append(Hex1bColor.Default.ToForegroundAnsi());
+                }
+                else
+                {
+                    // No data (loading or empty) - show empty space
+                    sb.Append(new string(' ', selWidth));
+                }
             }
             else if (isSelected.HasValue)
             {
@@ -1496,14 +1504,22 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             var selWidth = SelectionColumnWidth;
             if (isHeader)
             {
-                // Header checkbox - show based on selection state (use internal selection for runtime)
-                var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
-                var allSelected = Data != null && Data.Count > 0 && effectiveSelectedCount == Data.Count;
-                var someSelected = effectiveSelectedCount > 0 && !allSelected;
-                var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
-                    : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
-                    : theme.Get(TableTheme.CheckboxUnchecked);
-                sb.Append(PadRightByDisplayWidth(checkChar, selWidth));
+                // Header checkbox - only show when there's data to select
+                if (Data != null && Data.Count > 0)
+                {
+                    var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
+                    var allSelected = effectiveSelectedCount == Data.Count;
+                    var someSelected = effectiveSelectedCount > 0 && !allSelected;
+                    var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
+                        : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
+                        : theme.Get(TableTheme.CheckboxUnchecked);
+                    sb.Append(PadRightByDisplayWidth(checkChar, selWidth));
+                }
+                else
+                {
+                    // No data (loading or empty) - show empty space
+                    sb.Append(new string(' ', selWidth));
+                }
             }
             else if (!isFooter && !isLoading)
             {
@@ -1600,12 +1616,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         var sb = new System.Text.StringBuilder();
         sb.Append(Vertical);
 
-        // Selection column (if enabled) - show unchecked
+        // Selection column (if enabled) - show empty (no checkbox for empty state)
         if (ShowSelectionColumn)
         {
-            var theme = context.Theme;
-            var checkChar = theme.Get(TableTheme.CheckboxUnchecked);
-            sb.Append(PadRightByDisplayWidth(checkChar, SelectionColumnWidth));
+            sb.Append(new string(' ', SelectionColumnWidth));
             sb.Append(Vertical);
         }
 
