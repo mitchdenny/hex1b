@@ -1209,7 +1209,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             else
             {
                 // No column breaks in separator when empty - columns "close off"
-                RenderHorizontalBorder(context, y, TeeRight, TeeUp, TeeLeft);
+                // But selection column still needs a cross since it's still visible
+                RenderHorizontalBorder(context, y, TeeRight, TeeUp, TeeLeft, selectionColumnMiddle: Cross);
             }
             y++;
         }
@@ -1267,7 +1268,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             else
             {
                 // Transition from empty to footer - columns "open up" again
-                RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft);
+                // Selection column still needs a cross since it's still visible
+                RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft, selectionColumnMiddle: Cross);
             }
             y++;
             RenderRowWithNodes(context, y, _footerNodes);
@@ -1357,7 +1359,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         }
     }
 
-    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right)
+    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)
     {
         var sb = new System.Text.StringBuilder();
         sb.Append(left);
@@ -1366,7 +1368,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (ShowSelectionColumn)
         {
             sb.Append(new string(Horizontal, SelectionColumnWidth));
-            sb.Append(middle);
+            // Use specific character for selection column separator if provided, otherwise use middle
+            sb.Append(selectionColumnMiddle ?? middle);
         }
 
         for (int col = 0; col < _columnCount; col++)
