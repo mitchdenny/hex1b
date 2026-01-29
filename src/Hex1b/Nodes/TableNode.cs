@@ -1185,18 +1185,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     {
         int maxWidth = 0;
         
-        // Measure header - prefer measuring from reconciled nodes if available
+        // Measure header - try both node and text, take max
         if (_headerRowNode != null)
         {
             maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(_headerRowNode, columnIndex));
         }
-        else if (_headerCells != null && columnIndex < _headerCells.Count)
+        if (_headerCells != null && columnIndex < _headerCells.Count)
         {
             var text = _headerCells[columnIndex].Text ?? "";
             maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
         }
         
-        // Measure data rows - prefer measuring from reconciled nodes if available
+        // Measure data rows - try both nodes and text cells, take max
         if (_dataRowNodes != null)
         {
             foreach (var rowNode in _dataRowNodes)
@@ -1204,24 +1204,29 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(rowNode, columnIndex));
             }
         }
-        else if (_rowCells != null)
+        if (_rowCells != null)
         {
             foreach (var row in _rowCells)
             {
                 if (columnIndex < row.Count)
                 {
-                    var text = row[columnIndex].Text ?? "";
-                    maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
+                    var cell = row[columnIndex];
+                    if (cell.Text != null)
+                    {
+                        maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(cell.Text));
+                    }
+                    // For widget cells, we can't easily measure without reconciliation,
+                    // so rely on the node measurement above
                 }
             }
         }
         
-        // Measure footer - prefer measuring from reconciled nodes if available
+        // Measure footer - try both node and text, take max
         if (_footerRowNode != null)
         {
             maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(_footerRowNode, columnIndex));
         }
-        else if (_footerCells != null && columnIndex < _footerCells.Count)
+        if (_footerCells != null && columnIndex < _footerCells.Count)
         {
             var text = _footerCells[columnIndex].Text ?? "";
             maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
@@ -1239,10 +1244,27 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Compact: │ [sel] │ cell0 │ cell1 │ ... │ cellN │
         // Full:    │ [sel] │ pad cell0 pad │ pad cell1 pad │ ... │ pad cellN pad │
         
+        // Note: HasSelectionColumn and HasCellPadding might not be set yet during Measure,
+        // so use the node's properties directly from reconciliation
+        bool hasCellPadding = rowNode.HasCellPadding;
+        bool hasSelectionColumn = rowNode.HasSelectionColumn;
+        
+        // Fallback: check if this table has selection column (node might not have it set yet)
+        if (!hasSelectionColumn && ShowSelectionColumn)
+        {
+            hasSelectionColumn = true;
+        }
+        
+        // Fallback: check if this is Full mode (node might not have it set yet)
+        if (!hasCellPadding && RenderMode == TableRenderMode.Full)
+        {
+            hasCellPadding = true;
+        }
+        
         int childIndex = 1; // Start after left border
         
         // Skip selection column if present
-        if (rowNode.HasSelectionColumn)
+        if (hasSelectionColumn)
         {
             childIndex += 2; // selection cell + border
         }
@@ -1250,11 +1272,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Navigate to the correct column
         // In Full mode (with padding), each column has: pad + cell + pad + border = 4 widgets
         // In Compact mode, each column has: cell + border = 2 widgets
-        int widgetsPerColumn = rowNode.HasCellPadding ? 4 : 2;
+        int widgetsPerColumn = hasCellPadding ? 4 : 2;
         childIndex += columnIndex * widgetsPerColumn;
         
         // In Full mode, skip the left padding to get to the cell
-        if (rowNode.HasCellPadding)
+        if (hasCellPadding)
         {
             childIndex += 1; // Skip left padding
         }
@@ -1626,26 +1648,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private void RenderScrollbar(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var trackColor = theme.Get(ScrollTheme.TrackColor);
-        var thumbColor = IsFocused 
-            ? theme.Get(ScrollTheme.FocusedThumbColor) 
-            : theme.Get(ScrollTheme.ThumbColor);
+        var borderColor = theme.Get(TableTheme.BorderColor);
+        var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         
-        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
-        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
-        var upArrow = theme.Get(ScrollTheme.UpArrowCharacter);
-        var downArrow = theme.Get(ScrollTheme.DownArrowCharacter);
+        // Use border characters: thin (│) for track, thick (┃) for thumb
+        const char trackChar = '│';
+        const char thumbChar = '┃';
         
         // Scrollbar is in the rightmost column, aligned with the content viewport
         var scrollbarX = Bounds.X + Bounds.Width - ScrollbarWidth;
         var scrollbarY = _contentViewport.Y;
         var scrollbarHeight = _contentViewport.Height;
         
-        if (scrollbarHeight <= 2) return; // Too small
+        if (scrollbarHeight <= 0) return;
         
-        // Calculate thumb position and size
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * (scrollbarHeight - 2)));
-        var scrollRange = scrollbarHeight - 2 - thumbSize;
+        // Calculate thumb position and size (no arrows, use full height)
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * scrollbarHeight));
+        var scrollRange = scrollbarHeight - thumbSize;
         var thumbPosition = scrollRange > 0 && MaxScrollOffset > 0
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
@@ -1655,31 +1674,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         {
             context.SetCursorPosition(scrollbarX, scrollbarY + row);
             
-            string charToRender;
-            Hex1bColor color;
-            
-            if (row == 0)
+            if (row >= thumbPosition && row < thumbPosition + thumbSize)
             {
-                charToRender = upArrow;
-                color = thumbColor;
-            }
-            else if (row == scrollbarHeight - 1)
-            {
-                charToRender = downArrow;
-                color = thumbColor;
-            }
-            else if (row - 1 >= thumbPosition && row - 1 < thumbPosition + thumbSize)
-            {
-                charToRender = thumbChar;
-                color = thumbColor;
+                // Thumb - use thick line with focused color
+                context.Write($"{focusedBorderColor.ToForegroundAnsi()}{thumbChar}\x1b[0m");
             }
             else
             {
-                charToRender = trackChar;
-                color = trackColor;
+                // Track - use thin line with border color
+                context.Write($"{borderColor.ToForegroundAnsi()}{trackChar}\x1b[0m");
             }
-            
-            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
         }
     }
 
