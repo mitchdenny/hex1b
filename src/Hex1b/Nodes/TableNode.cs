@@ -94,6 +94,11 @@ public class TableNode<TRow> : Hex1bNode
     private List<IReadOnlyList<TableCell>>? _rowCells;
     private List<TableRowState>? _rowStates;
     private IReadOnlyList<TableCell>? _footerCells;
+    
+    // Child nodes for cell rendering
+    private List<TextBlockNode>? _headerNodes;
+    private List<List<TextBlockNode>>? _rowNodes;
+    private List<TextBlockNode>? _footerNodes;
 
     /// <summary>
     /// Gets the row key for a given row and index.
@@ -178,6 +183,89 @@ public class TableNode<TRow> : Hex1bNode
                 $"Table column count mismatch: header has {_columnCount} columns, " +
                 $"but footer has {_footerCells.Count} columns.");
         }
+        
+        // Create child nodes for cells
+        BuildChildNodes();
+    }
+
+    /// <summary>
+    /// Creates or updates TextBlockNode children for each cell.
+    /// </summary>
+    private void BuildChildNodes()
+    {
+        // Header nodes
+        if (_headerCells is not null)
+        {
+            _headerNodes = CreateOrUpdateCellNodes(_headerNodes, _headerCells);
+        }
+        else
+        {
+            _headerNodes = null;
+        }
+        
+        // Row nodes
+        if (_rowCells is not null && _rowCells.Count > 0)
+        {
+            _rowNodes ??= [];
+            
+            // Resize the list
+            while (_rowNodes.Count > _rowCells.Count)
+            {
+                _rowNodes.RemoveAt(_rowNodes.Count - 1);
+            }
+            while (_rowNodes.Count < _rowCells.Count)
+            {
+                _rowNodes.Add([]);
+            }
+            
+            for (int i = 0; i < _rowCells.Count; i++)
+            {
+                _rowNodes[i] = CreateOrUpdateCellNodes(_rowNodes[i], _rowCells[i]);
+            }
+        }
+        else
+        {
+            _rowNodes = null;
+        }
+        
+        // Footer nodes
+        if (_footerCells is not null)
+        {
+            _footerNodes = CreateOrUpdateCellNodes(_footerNodes, _footerCells);
+        }
+        else
+        {
+            _footerNodes = null;
+        }
+    }
+
+    /// <summary>
+    /// Creates or updates a list of TextBlockNodes from cells.
+    /// </summary>
+    private static List<TextBlockNode> CreateOrUpdateCellNodes(
+        List<TextBlockNode>? existing, 
+        IReadOnlyList<TableCell> cells)
+    {
+        existing ??= [];
+        
+        // Resize the list
+        while (existing.Count > cells.Count)
+        {
+            existing.RemoveAt(existing.Count - 1);
+        }
+        while (existing.Count < cells.Count)
+        {
+            existing.Add(new TextBlockNode());
+        }
+        
+        // Update text values
+        for (int i = 0; i < cells.Count; i++)
+        {
+            existing[i].Text = cells[i].Text ?? "";
+            existing[i].Overflow = TextOverflow.Ellipsis; // Use ellipsis for table cells
+        }
+        
+        return existing;
     }
 
     /// <summary>
@@ -241,12 +329,113 @@ public class TableNode<TRow> : Hex1bNode
             height += LoadingRowCount; // Loading rows
         }
 
+        // Measure all child nodes with their column widths
+        MeasureChildNodes();
+
         return constraints.Constrain(new Size(width, height));
+    }
+
+    /// <summary>
+    /// Measures all child nodes with appropriate constraints.
+    /// </summary>
+    private void MeasureChildNodes()
+    {
+        // Measure header nodes
+        if (_headerNodes is not null)
+        {
+            for (int col = 0; col < _headerNodes.Count && col < _columnWidths.Length; col++)
+            {
+                var constraints = new Constraints(0, _columnWidths[col], 0, 1);
+                _headerNodes[col].Measure(constraints);
+            }
+        }
+        
+        // Measure row nodes
+        if (_rowNodes is not null)
+        {
+            foreach (var rowNodeList in _rowNodes)
+            {
+                for (int col = 0; col < rowNodeList.Count && col < _columnWidths.Length; col++)
+                {
+                    var constraints = new Constraints(0, _columnWidths[col], 0, 1);
+                    rowNodeList[col].Measure(constraints);
+                }
+            }
+        }
+        
+        // Measure footer nodes
+        if (_footerNodes is not null)
+        {
+            for (int col = 0; col < _footerNodes.Count && col < _columnWidths.Length; col++)
+            {
+                var constraints = new Constraints(0, _columnWidths[col], 0, 1);
+                _footerNodes[col].Measure(constraints);
+            }
+        }
     }
 
     public override void Arrange(Rect rect)
     {
         Bounds = rect;
+        ArrangeChildNodes();
+    }
+
+    /// <summary>
+    /// Arranges all child nodes within their cell bounds.
+    /// </summary>
+    private void ArrangeChildNodes()
+    {
+        int y = 0;
+        
+        // Skip top border
+        y++;
+        
+        // Arrange header nodes
+        if (_headerNodes is not null)
+        {
+            ArrangeRowNodes(_headerNodes, y);
+            y += 2; // Header row + separator
+        }
+        
+        // Arrange row nodes (or skip empty/loading space)
+        if (_rowNodes is not null && _rowNodes.Count > 0)
+        {
+            foreach (var rowNodeList in _rowNodes)
+            {
+                ArrangeRowNodes(rowNodeList, y);
+                y++;
+            }
+        }
+        else if (Data is not null && Data.Count == 0)
+        {
+            y++; // Empty message row
+        }
+        else if (Data is null)
+        {
+            y += LoadingRowCount; // Loading rows
+        }
+        
+        // Arrange footer nodes (skip separator)
+        if (_footerNodes is not null)
+        {
+            y++; // Skip footer separator
+            ArrangeRowNodes(_footerNodes, y);
+        }
+    }
+
+    /// <summary>
+    /// Arranges nodes for a single row.
+    /// </summary>
+    private void ArrangeRowNodes(List<TextBlockNode> nodes, int rowY)
+    {
+        int x = Bounds.X + 1; // Start after left border
+        
+        for (int col = 0; col < nodes.Count && col < _columnWidths.Length; col++)
+        {
+            var cellRect = new Rect(x, Bounds.Y + rowY, _columnWidths[col], 1);
+            nodes[col].Arrange(cellRect);
+            x += _columnWidths[col] + 1; // Move past column + separator
+        }
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -262,9 +451,9 @@ public class TableNode<TRow> : Hex1bNode
         y++;
 
         // Header
-        if (_headerCells is not null)
+        if (_headerNodes is not null)
         {
-            RenderRow(context, y, _headerCells, isHeader: true);
+            RenderRowWithNodes(context, y, _headerNodes);
             y++;
             
             // Use different separator when transitioning to empty/loading state vs data rows
@@ -290,7 +479,7 @@ public class TableNode<TRow> : Hex1bNode
                 var loadingCells = LoadingRowBuilder?.Invoke(loadingContext, i);
                 if (loadingCells is not null)
                 {
-                    RenderRow(context, y, loadingCells, isHeader: false);
+                    RenderRowDirect(context, y, loadingCells, isHeader: false);
                 }
                 else
                 {
@@ -306,20 +495,20 @@ public class TableNode<TRow> : Hex1bNode
             RenderEmptyRow(context, y, totalWidth);
             y++;
         }
-        else if (_rowCells is not null && _rowStates is not null)
+        else if (_rowNodes is not null && _rowStates is not null)
         {
-            // Render data rows
-            for (int i = 0; i < _rowCells.Count && y < Bounds.Height - (_footerCells is not null ? 3 : 1); i++)
+            // Render data rows using child nodes
+            for (int i = 0; i < _rowNodes.Count && y < Bounds.Height - (_footerNodes is not null ? 3 : 1); i++)
             {
                 var state = _rowStates[i];
                 bool isHighlighted = state.IsFocused || state.IsSelected;
-                RenderRow(context, y, _rowCells[i], isHeader: false, isSelected: isHighlighted);
+                RenderRowWithNodes(context, y, _rowNodes[i], isHighlighted: isHighlighted);
                 y++;
             }
         }
 
         // Footer
-        if (_footerCells is not null)
+        if (_footerNodes is not null)
         {
             if (hasDataRows)
             {
@@ -331,7 +520,7 @@ public class TableNode<TRow> : Hex1bNode
                 RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft);
             }
             y++;
-            RenderRow(context, y, _footerCells, isHeader: false, isFooter: true);
+            RenderRowWithNodes(context, y, _footerNodes);
             y++;
         }
 
@@ -370,7 +559,56 @@ public class TableNode<TRow> : Hex1bNode
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
-    private void RenderRow(Hex1bRenderContext context, int y, IReadOnlyList<TableCell> cells, 
+    /// <summary>
+    /// Renders a row using child TextBlockNodes.
+    /// </summary>
+    private void RenderRowWithNodes(Hex1bRenderContext context, int y, List<TextBlockNode> nodes, bool isHighlighted = false)
+    {
+        // Render borders
+        var sb = new System.Text.StringBuilder();
+        
+        // Apply reverse video for highlighted rows
+        if (isHighlighted)
+        {
+            sb.Append("\x1b[7m"); // Reverse video on
+        }
+        
+        sb.Append(Vertical);
+        
+        int x = 1; // Start after left border
+        for (int col = 0; col < _columnCount && col < nodes.Count; col++)
+        {
+            // Add padding (cell content will be rendered by child node)
+            sb.Append(new string(' ', _columnWidths[col]));
+            
+            if (col < _columnCount - 1)
+            {
+                sb.Append(Vertical);
+            }
+            x += _columnWidths[col] + 1;
+        }
+        
+        sb.Append(Vertical);
+        
+        if (isHighlighted)
+        {
+            sb.Append("\x1b[27m"); // Reverse video off
+        }
+        
+        // Write borders (with spaces for cell content)
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+        
+        // Now render each cell node on top
+        foreach (var node in nodes)
+        {
+            context.RenderChild(node);
+        }
+    }
+
+    /// <summary>
+    /// Renders a row directly from cells (used for loading state).
+    /// </summary>
+    private void RenderRowDirect(Hex1bRenderContext context, int y, IReadOnlyList<TableCell> cells, 
         bool isHeader, bool isSelected = false, bool isFooter = false)
     {
         var sb = new System.Text.StringBuilder();
