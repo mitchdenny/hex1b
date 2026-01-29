@@ -199,6 +199,7 @@ public class TableNode<TRow> : Hex1bNode
 
         int y = 0;
         int totalWidth = _columnWidths.Sum() + _columnCount + 1;
+        bool hasDataRows = Data is not null && Data.Count > 0;
 
         // Top border
         RenderHorizontalBorder(context, y, TopLeft, TeeDown, TopRight);
@@ -209,14 +210,24 @@ public class TableNode<TRow> : Hex1bNode
         {
             RenderRow(context, y, _headerCells, isHeader: true);
             y++;
-            RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+            
+            // Use different separator when transitioning to empty/loading state vs data rows
+            if (hasDataRows)
+            {
+                RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+            }
+            else
+            {
+                // No column breaks in separator when empty - columns "close off"
+                RenderHorizontalBorder(context, y, TeeRight, TeeUp, TeeLeft);
+            }
             y++;
         }
 
         // Data rows or loading/empty state
         if (Data is null)
         {
-            // Loading state
+            // Loading state - still show column structure
             var loadingContext = new TableLoadingContext();
             for (int i = 0; i < LoadingRowCount && y < Bounds.Height - 1; i++)
             {
@@ -235,9 +246,8 @@ public class TableNode<TRow> : Hex1bNode
         }
         else if (Data.Count == 0)
         {
-            // Empty state - for now just show a message
-            // TODO: Support custom empty widget
-            context.WriteClipped(Bounds.X + 1, Bounds.Y + y, "No data");
+            // Empty state - render with just left/right borders, no column separators
+            RenderEmptyRow(context, y, totalWidth);
             y++;
         }
         else if (_rowCells is not null)
@@ -254,7 +264,15 @@ public class TableNode<TRow> : Hex1bNode
         // Footer
         if (_footerCells is not null)
         {
-            RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+            if (hasDataRows)
+            {
+                RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+            }
+            else
+            {
+                // Transition from empty to footer - columns "open up" again
+                RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft);
+            }
             y++;
             RenderRow(context, y, _footerCells, isHeader: false, isFooter: true);
             y++;
@@ -263,14 +281,24 @@ public class TableNode<TRow> : Hex1bNode
         // Bottom border
         if (y < Bounds.Height)
         {
-            RenderHorizontalBorder(context, y, TopLeft: BottomLeft, middle: TeeUp, right: BottomRight);
+            // Use TeeUp for column positions when we have data/footer, just horizontal when empty with no footer
+            bool showColumnTees = hasDataRows || _footerCells is not null;
+            if (showColumnTees)
+            {
+                RenderHorizontalBorder(context, y, BottomLeft, TeeUp, BottomRight);
+            }
+            else
+            {
+                // Empty state with no footer - solid bottom border
+                RenderSolidHorizontalBorder(context, y, BottomLeft, BottomRight);
+            }
         }
     }
 
-    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char TopLeft, char middle, char right)
+    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right)
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append(TopLeft);
+        sb.Append(left);
 
         for (int col = 0; col < _columnCount; col++)
         {
@@ -345,6 +373,48 @@ public class TableNode<TRow> : Hex1bNode
             {
                 sb.Append(Vertical);
             }
+        }
+
+        sb.Append(Vertical);
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+    }
+
+    private void RenderSolidHorizontalBorder(Hex1bRenderContext context, int y, char left, char right)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(left);
+
+        // Total content width = sum of column widths + (columnCount - 1) separators
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1);
+        sb.Append(new string(Horizontal, contentWidth));
+
+        sb.Append(right);
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+    }
+
+    private void RenderEmptyRow(Hex1bRenderContext context, int y, int totalWidth)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(Vertical);
+
+        // Content area without column separators
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1);
+        
+        // Center the "No data" message
+        const string emptyMessage = "No data";
+        int padding = (contentWidth - emptyMessage.Length) / 2;
+        if (padding > 0)
+        {
+            sb.Append(new string(' ', padding));
+            sb.Append(emptyMessage);
+            sb.Append(new string(' ', contentWidth - padding - emptyMessage.Length));
+        }
+        else
+        {
+            // If content area is too small, just show what fits
+            sb.Append(emptyMessage.Length <= contentWidth 
+                ? emptyMessage.PadRight(contentWidth) 
+                : emptyMessage[..contentWidth]);
         }
 
         sb.Append(Vertical);
