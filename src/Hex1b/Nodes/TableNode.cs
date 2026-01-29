@@ -551,8 +551,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         }
         
         // Calculate available viewport height for data rows
-        int availableHeight = constraints.MaxHeight > 0 ? constraints.MaxHeight : 24;
-        _viewportRowCount = Math.Max(1, availableHeight - fixedHeight);
+        // If height is unbounded (int.MaxValue), use content row count - no scrolling needed
+        int maxHeight = constraints.MaxHeight;
+        if (maxHeight <= 0 || maxHeight >= int.MaxValue - 1000)
+        {
+            // Unbounded or very large - use content size (no scrolling in unbounded context)
+            maxHeight = fixedHeight + _contentRowCount + 10; // Add some padding
+        }
+        _viewportRowCount = Math.Max(1, maxHeight - fixedHeight);
         
         // Determine if scrollbar is needed
         bool needsScrollbar = _contentRowCount > _viewportRowCount;
@@ -569,11 +575,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         }
         int height = fixedHeight + dataRowsHeight;
 
-        // Clamp scroll offset
-        if (_scrollOffset > MaxScrollOffset)
-        {
-            _scrollOffset = MaxScrollOffset;
-        }
+        // NOTE: Do NOT clamp scroll offset here in Measure!
+        // Measure may receive unbounded constraints from VStack, which would incorrectly reset scroll.
+        // Scroll clamping happens in Arrange when we know the real viewport size.
 
         // Measure all child nodes with their column widths
         MeasureChildNodes();
@@ -627,6 +631,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Calculate content viewport for clipping
         int headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
         int footerHeight = _footerNodes is not null ? 2 : 0; // Separator + footer row
+        
+        // Recalculate viewport row count based on actual arranged height
+        // This is critical for scrolling to work correctly since Measure may receive unbounded constraints
+        int fixedHeight = 2 + headerHeight + footerHeight; // Top/bottom borders + header/footer
+        _viewportRowCount = Math.Max(1, rect.Height - fixedHeight);
+        
+        // Clamp scroll offset now that we know the real viewport size
+        if (_scrollOffset > MaxScrollOffset)
+        {
+            _scrollOffset = MaxScrollOffset;
+        }
+        
         int scrollbarSpace = IsScrollable ? ScrollbarWidth : 0;
         
         int viewportY = rect.Y + 1 + headerHeight; // After top border and header

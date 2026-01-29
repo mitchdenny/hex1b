@@ -47,6 +47,7 @@ var app = new Hex1bApp(ctx =>
         v.Text(""),
         
         // The table (will scroll when there are more rows than fit)
+        // FillHeight() is critical for scrolling - gives the table a constrained height
         v.Table(displayData)
             .WithHeader(h => [
                 h.Cell("Product"),
@@ -73,7 +74,8 @@ var app = new Hex1bApp(ctx =>
                 l.Cell("████")
             ], rowCount: 5)
             .WithFocus(focusedKey)
-            .OnFocusChanged(key => focusedKey = key),
+            .OnFocusChanged(key => focusedKey = key)
+            .FillHeight(),
         
         v.Text(""),
         v.Text($"Focused Row: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),

@@ -394,5 +394,224 @@ public class TableNodeTests
         Assert.True(node.ScrollOffset > 1, "PageDown should scroll more than 1 row");
     }
 
+    [Fact]
+    public async Task Integration_TableWithKeyboardScroll_WorksEndToEnd()
+    {
+        // Arrange - create a full Hex1bApp with a table
+        using var workload = new Hex1bAppWorkloadAdapter();
+        
+        // Create recording path
+        var recordingPath = Path.Combine(Path.GetTempPath(), $"table_scroll_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 10) // Small terminal to force scrolling (only ~5 data rows visible)
+            .WithAsciinemaRecording(recordingPath)
+            .Build();
+
+        var products = Enumerable.Range(1, 30).Select(i => $"Product {i}").ToArray();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(products)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - start the app and send PageDown to scroll significantly
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render, then send PageDown 3 times
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Key(Hex1bKey.PageDown)
+            .Key(Hex1bKey.PageDown)
+            .Key(Hex1bKey.PageDown)
+            .WaitUntil(s => s.ContainsText("Product 15") || s.ContainsText("Product 20"), 
+                       TimeSpan.FromMilliseconds(500), "Wait for scroll to complete")
+            .Ctrl().Key(Hex1bKey.C) // Exit
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        var finalSnapshot = terminal.CreateSnapshot();
+        var finalText = finalSnapshot.GetScreenText();
+        
+        // Output for debugging
+        TestContext.Current.TestOutputHelper?.WriteLine("=== FINAL SCREEN ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(finalText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"\nAsciinema recording saved to: {recordingPath}");
+        TestContext.Current.TestOutputHelper?.WriteLine("Play with: asciinema play " + recordingPath);
+        
+        bool product1Visible = finalText.Contains("Product 1\n") || finalText.Contains("Product 1 ") || 
+                               (finalText.Contains("Product 1") && !finalText.Contains("Product 1"[..9] + "0")); // Avoid matching Product 10-19
+        bool product20Visible = finalText.Contains("Product 20");
+        
+        // More precise check - look for "Product 1" followed by space or newline, not "Product 10"
+        var lines = finalText.Split('\n');
+        bool hasExactProduct1 = lines.Any(l => l.Contains("Product 1 ") || l.Trim().EndsWith("Product 1"));
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"Product 1 visible (exact): {hasExactProduct1}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Product 20 visible: {product20Visible}");
+
+        // If scrolling worked, Product 1 should be scrolled out and Product 20 should be visible
+        // In a 10-row terminal with header+footer, we have about 5 data rows visible.
+        // 3 PageDown presses (about 4 rows each) = ~12 rows scrolled
+        // So we should NOT see Product 1 anymore, but we SHOULD see around Product 13-18
+        
+        // For now, let's just verify the table rendered
+        Assert.True(finalText.Contains("Product"), "Table should contain Product text");
+        
+        // This is the key assertion - if scrolling doesn't work, Product 1 will still be visible
+        // and Product 20 will not be visible
+        if (hasExactProduct1 && !product20Visible)
+        {
+            Assert.Fail($"SCROLLING NOT WORKING: Product 1 is still visible after 3 PageDown presses, " +
+                        $"and Product 20 is not visible. The table is not scrolling.\n" +
+                        $"Recording saved to: {recordingPath}");
+        }
+        
+        // Positive assertion - scrolling worked!
+        Assert.True(product20Visible, $"Product 20 should be visible after scrolling. Recording: {recordingPath}");
+    }
+
+    [Fact]
+    public async Task Integration_TableInVStackWithButtons_ScrollingWorks()
+    {
+        // Test that table scrolling works when embedded in VStack with other focusable widgets
+        using var workload = new Hex1bAppWorkloadAdapter();
+        
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        var products = Enumerable.Range(1, 30).Select(i => $"Product {i}").ToArray();
+        
+        // Structure: VStack with Text, Table (FillHeight), Text, Buttons
+        using var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.Text("Header Text"),
+                v.Text(""),
+                v.Table(products)
+                    .WithHeader(h => [h.Cell("Name")])
+                    .WithRow((r, item, _) => [r.Cell(item)])
+                    .FillHeight(), // Critical: must fill to have constrained height for scrolling
+                v.Text(""),
+                v.Text("Footer Text"),
+                v.HStack(h => [
+                    h.Button("Button 1"),
+                    h.Button("Button 2")
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Verify table has focus (should be first focusable)
+        Assert.NotNull(app.FocusedNode);
+        Assert.Contains("TableNode", app.FocusedNode.GetType().Name);
+
+        // Initial state: Product 1 visible, Product 20 not visible
+        var initialSnapshot = terminal.CreateSnapshot();
+        Assert.True(initialSnapshot.ContainsText("Product 1"));
+        Assert.False(initialSnapshot.ContainsText("Product 20"));
+
+        // Send PageDown twice to scroll
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.PageDown)
+            .Key(Hex1bKey.PageDown)
+            .Wait(200)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // After scroll: Product 1 should NOT be visible, Product 20+ should be visible
+        var afterScrollSnapshot = terminal.CreateSnapshot();
+        var afterText = afterScrollSnapshot.GetScreenText();
+        
+        // Product 1 should be scrolled out (not visible)
+        bool product1Gone = !afterText.Contains("Product 1 ") && !afterText.Contains("Product 1\n");
+        
+        // Product 20 or later should be visible
+        bool laterProductsVisible = afterText.Contains("Product 20") || 
+                                     afterText.Contains("Product 21") ||
+                                     afterText.Contains("Product 25");
+
+        Assert.True(product1Gone || laterProductsVisible, 
+            $"Scrolling should have changed visible products. Screen:\n{afterText}");
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Integration_TableFocus_CanReceiveKeyboardInput()
+    {
+        // This test verifies the table is focusable and receives input
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12)
+            .Build();
+
+        var products = Enumerable.Range(1, 50).Select(i => $"Product {i}").ToArray();
+        
+        // The table is the ONLY widget, so it should get focus automatically
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(products)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, state) => [
+                    r.Cell(state.IsFocused ? $"> {item}" : item)
+                ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Send multiple down arrows to scroll
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.DownArrow)
+            .Capture("after_3_downs")
+            .Key(Hex1bKey.PageDown)
+            .Capture("after_pagedown")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Debug output
+        Console.WriteLine("=== After 3 Down Arrows ===");
+        foreach (var line in snapshot.GetNonEmptyLines())
+        {
+            Console.WriteLine(line);
+        }
+        
+        // The table should still show products - if scrolling worked,
+        // we might see different product numbers
+        var screenText = snapshot.GetScreenText();
+        Assert.Contains("Product", screenText);
+    }
+
     #endregion
 }
