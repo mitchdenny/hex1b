@@ -155,10 +155,60 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private List<TableRowState>? _rowStates;
     private IReadOnlyList<TableCell>? _footerCells;
     
-    // Child nodes for cell rendering
-    private List<TextBlockNode>? _headerNodes;
-    private List<List<TextBlockNode>>? _rowNodes;
-    private List<TextBlockNode>? _footerNodes;
+    // Column definitions derived from header cells
+    private List<TableColumnDef>? _columnDefs;
+    
+    // Child nodes for row rendering (using TableRowNode now)
+    private TableRowNode? _headerRowNode;
+    private List<TableRowNode>? _dataRowNodes;
+    private TableRowNode? _footerRowNode;
+    
+    /// <summary>
+    /// Sets column definitions from the widget reconciliation.
+    /// </summary>
+    internal void SetColumnDefs(List<TableColumnDef> defs)
+    {
+        _columnDefs = defs;
+        _columnCount = defs.Count;
+    }
+    
+    /// <summary>
+    /// Gets/sets the header row node.
+    /// </summary>
+    internal TableRowNode? HeaderRowNode
+    {
+        get => _headerRowNode;
+        set => _headerRowNode = value;
+    }
+    
+    /// <summary>
+    /// Gets/sets the data row nodes.
+    /// </summary>
+    internal List<TableRowNode>? DataRowNodes
+    {
+        get => _dataRowNodes;
+        set => _dataRowNodes = value;
+    }
+    
+    /// <summary>
+    /// Gets/sets the footer row node.
+    /// </summary>
+    internal TableRowNode? FooterRowNode
+    {
+        get => _footerRowNode;
+        set => _footerRowNode = value;
+    }
+    
+    /// <summary>
+    /// Gets the internal focused key for widget reconciliation.
+    /// </summary>
+    internal object? GetInternalFocusedKey() => FocusedKey;
+    
+    /// <summary>
+    /// Gets the internal selected keys for widget reconciliation.
+    /// </summary>
+    internal IReadOnlySet<object>? GetInternalSelectedKeys() => 
+        _internalSelectedKeys.Count > 0 ? _internalSelectedKeys : SelectedKeys;
 
     #region ILayoutProvider Implementation
     
@@ -234,7 +284,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         var mouseX = ctx.MouseX;
         
         // Check if click is on header checkbox
-        if (ShowSelectionColumn && _headerNodes is not null)
+        if (ShowSelectionColumn && _headerRowNode is not null)
         {
             int headerY = Bounds.Y + 1; // After top border
             int checkboxEndX = Bounds.X + 1 + SelectionColumnWidth;
@@ -250,7 +300,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (Data is null || Data.Count == 0) return;
         
         // Calculate which row was clicked
-        int headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
+        int headerHeight = _headerRowNode is not null ? 2 : 0; // Header row + separator
         int dataStartY = Bounds.Y + 1 + headerHeight; // After top border + header
         
         int clickedRowIndex = mouseY - dataStartY + _scrollOffset;
@@ -689,8 +739,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         }
         
         // Calculate scrollbar track area (excluding header/footer borders)
-        var headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
-        var footerHeight = _footerNodes is not null ? 2 : 0; // Separator + footer row
+        var headerHeight = _headerRowNode is not null ? 2 : 0; // Header row + separator
+        var footerHeight = _footerRowNode is not null ? 2 : 0; // Separator + footer row
         var trackStart = 1 + headerHeight; // After top border and header
         var trackEnd = Bounds.Height - 1 - footerHeight; // Before bottom border and footer
         var trackHeight = trackEnd - trackStart;
@@ -858,89 +908,128 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 $"but footer has {_footerCells.Count} columns.");
         }
         
-        // Create child nodes for cells
-        BuildChildNodes();
+        // Build row nodes directly if not already built by widget reconciliation
+        // This supports standalone usage and testing
+        if (_headerRowNode == null && _headerCells != null)
+        {
+            BuildRowNodesDirect();
+        }
     }
 
     /// <summary>
-    /// Creates or updates TextBlockNode children for each cell.
+    /// Builds row nodes directly without widget reconciliation.
+    /// Used for standalone usage and testing when TableNode is created directly.
     /// </summary>
-    private void BuildChildNodes()
+    private void BuildRowNodesDirect()
     {
-        // Header nodes
-        if (_headerCells is not null)
+        // Build column definitions
+        if (_columnDefs == null && _headerCells != null)
         {
-            _headerNodes = CreateOrUpdateCellNodes(_headerNodes, _headerCells);
-        }
-        else
-        {
-            _headerNodes = null;
+            _columnDefs = [];
+            foreach (var cell in _headerCells)
+            {
+                _columnDefs.Add(new TableColumnDef(
+                    cell.Width ?? SizeHint.Fill,
+                    cell.Alignment
+                ));
+            }
         }
         
-        // Row nodes
-        if (_rowCells is not null && _rowCells.Count > 0)
+        _columnDefs ??= [];
+        
+        // Build header row node
+        if (_headerCells != null && _headerCells.Count > 0)
         {
-            _rowNodes ??= [];
-            
-            // Resize the list
-            while (_rowNodes.Count > _rowCells.Count)
-            {
-                _rowNodes.RemoveAt(_rowNodes.Count - 1);
-            }
-            while (_rowNodes.Count < _rowCells.Count)
-            {
-                _rowNodes.Add([]);
-            }
-            
+            var headerRowWidget = new TableRowWidget(
+                _headerCells, 
+                _columnDefs, 
+                IsHeader: true,
+                ShowSelectionColumn: ShowSelectionColumn
+            );
+            _headerRowNode = new TableRowNode();
+            BuildRowNodeChildren(_headerRowNode, _headerCells, isHeader: true);
+        }
+        
+        // Build data row nodes
+        if (_rowCells != null && _rowCells.Count > 0)
+        {
+            _dataRowNodes = [];
             for (int i = 0; i < _rowCells.Count; i++)
             {
-                _rowNodes[i] = CreateOrUpdateCellNodes(_rowNodes[i], _rowCells[i]);
+                var rowNode = new TableRowNode();
+                var isSelected = _rowStates != null && i < _rowStates.Count && _rowStates[i].IsSelected;
+                var isFocused = _rowStates != null && i < _rowStates.Count && _rowStates[i].IsFocused;
+                rowNode.IsHighlighted = isFocused;
+                rowNode.IsSelected = isSelected;
+                BuildRowNodeChildren(rowNode, _rowCells[i], isSelected: isSelected);
+                _dataRowNodes.Add(rowNode);
             }
         }
-        else
-        {
-            _rowNodes = null;
-        }
         
-        // Footer nodes
-        if (_footerCells is not null)
+        // Build footer row node
+        if (_footerCells != null && _footerCells.Count > 0)
         {
-            _footerNodes = CreateOrUpdateCellNodes(_footerNodes, _footerCells);
-        }
-        else
-        {
-            _footerNodes = null;
+            _footerRowNode = new TableRowNode();
+            BuildRowNodeChildren(_footerRowNode, _footerCells);
         }
     }
 
     /// <summary>
-    /// Creates or updates a list of TextBlockNodes from cells.
+    /// Builds children for a row node from cells.
     /// </summary>
-    private static List<TextBlockNode> CreateOrUpdateCellNodes(
-        List<TextBlockNode>? existing, 
-        IReadOnlyList<TableCell> cells)
+    private void BuildRowNodeChildren(TableRowNode rowNode, IReadOnlyList<TableCell> cells, bool isHeader = false, bool isSelected = false)
     {
-        existing ??= [];
+        rowNode.Children.Clear();
         
-        // Resize the list
-        while (existing.Count > cells.Count)
+        // Left border
+        rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+        
+        // Selection column (if enabled)
+        if (ShowSelectionColumn)
         {
-            existing.RemoveAt(existing.Count - 1);
-        }
-        while (existing.Count < cells.Count)
-        {
-            existing.Add(new TextBlockNode());
+            var checkText = isSelected ? "[x]" : "[ ]";
+            var selNode = new TextBlockNode { Text = checkText };
+            selNode.WidthHint = SizeHint.Fixed(3);
+            rowNode.Children.Add(selNode);
+            rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
         }
         
-        // Update text values
+        // Cell widgets with borders between them
         for (int i = 0; i < cells.Count; i++)
         {
-            existing[i].Text = cells[i].Text ?? "";
-            existing[i].Overflow = TextOverflow.Ellipsis; // Use ellipsis for table cells
+            var cell = cells[i];
+            var alignment = _columnDefs != null && i < _columnDefs.Count ? _columnDefs[i].Alignment : Alignment.Left;
+            var widthHint = _columnDefs != null && i < _columnDefs.Count ? _columnDefs[i].Width : SizeHint.Fill;
+            
+            Hex1bNode cellNode;
+            var textNode = new TextBlockNode { Text = cell.Text ?? "", Overflow = TextOverflow.Ellipsis };
+            
+            // Wrap in AlignNode if not left-aligned
+            if (alignment != Alignment.Left && alignment != Alignment.None)
+            {
+                var alignNode = new AlignNode { Child = textNode, Alignment = alignment };
+                alignNode.WidthHint = widthHint;
+                cellNode = alignNode;
+            }
+            else
+            {
+                textNode.WidthHint = widthHint;
+                cellNode = textNode;
+            }
+            
+            rowNode.Children.Add(cellNode);
+            
+            // Separator between cells (not after last cell)
+            if (i < cells.Count - 1)
+            {
+                rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+            }
         }
         
-        return existing;
+        // Right border
+        rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
     }
+
 
     /// <summary>
     /// Gets the selection column width from theme when selection column is enabled.
@@ -1048,41 +1137,31 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     }
 
     /// <summary>
-    /// Measures all child nodes with appropriate constraints.
+    /// Measures all child row nodes with appropriate constraints.
     /// </summary>
     private void MeasureChildNodes()
     {
-        // Measure header nodes
-        if (_headerNodes is not null)
+        int width = Bounds.Width > 0 ? Bounds.Width : (_columnWidths.Sum() + _columnCount + 1);
+        
+        // Measure header row node
+        if (_headerRowNode is not null)
         {
-            for (int col = 0; col < _headerNodes.Count && col < _columnWidths.Length; col++)
+            _headerRowNode.Measure(new Constraints(0, width, 0, 1));
+        }
+        
+        // Measure data row nodes
+        if (_dataRowNodes is not null)
+        {
+            foreach (var rowNode in _dataRowNodes)
             {
-                var constraints = new Constraints(0, _columnWidths[col], 0, 1);
-                _headerNodes[col].Measure(constraints);
+                rowNode.Measure(new Constraints(0, width, 0, 1));
             }
         }
         
-        // Measure row nodes
-        if (_rowNodes is not null)
+        // Measure footer row node
+        if (_footerRowNode is not null)
         {
-            foreach (var rowNodeList in _rowNodes)
-            {
-                for (int col = 0; col < rowNodeList.Count && col < _columnWidths.Length; col++)
-                {
-                    var constraints = new Constraints(0, _columnWidths[col], 0, 1);
-                    rowNodeList[col].Measure(constraints);
-                }
-            }
-        }
-        
-        // Measure footer nodes
-        if (_footerNodes is not null)
-        {
-            for (int col = 0; col < _footerNodes.Count && col < _columnWidths.Length; col++)
-            {
-                var constraints = new Constraints(0, _columnWidths[col], 0, 1);
-                _footerNodes[col].Measure(constraints);
-            }
+            _footerRowNode.Measure(new Constraints(0, width, 0, 1));
         }
     }
 
@@ -1091,8 +1170,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         Bounds = rect;
         
         // Calculate content viewport for clipping
-        int headerHeight = _headerNodes is not null ? 2 : 0; // Header row + separator
-        int footerHeight = _footerNodes is not null ? 2 : 0; // Separator + footer row
+        int headerHeight = _headerRowNode is not null ? 2 : 0; // Header row + separator
+        int footerHeight = _footerRowNode is not null ? 2 : 0; // Separator + footer row
         
         // Recalculate viewport row count based on actual arranged height
         // This is critical for scrolling to work correctly since Measure may receive unbounded constraints
@@ -1117,29 +1196,30 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     }
 
     /// <summary>
-    /// Arranges all child nodes within their cell bounds.
+    /// Arranges all child row nodes within their bounds.
     /// </summary>
     private void ArrangeChildNodes()
     {
         int y = 0;
+        int width = Bounds.Width;
         
         // Skip top border
         y++;
         
-        // Arrange header nodes
-        if (_headerNodes is not null)
+        // Arrange header row
+        if (_headerRowNode is not null)
         {
-            ArrangeRowNodes(_headerNodes, y);
+            _headerRowNode.Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
             y += 2; // Header row + separator
         }
         
-        // Arrange only visible row nodes (within viewport, offset by scroll)
-        if (_rowNodes is not null && _rowNodes.Count > 0)
+        // Arrange only visible data row nodes (within viewport, offset by scroll)
+        if (_dataRowNodes is not null && _dataRowNodes.Count > 0)
         {
-            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _rowNodes.Count);
+            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _dataRowNodes.Count);
             for (int i = _scrollOffset; i < endRow; i++)
             {
-                ArrangeRowNodes(_rowNodes[i], y);
+                _dataRowNodes[i].Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
                 y++;
             }
         }
@@ -1152,32 +1232,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             y += LoadingRowCount; // Loading rows
         }
         
-        // Arrange footer nodes (skip separator)
-        if (_footerNodes is not null)
+        // Arrange footer row (skip separator)
+        if (_footerRowNode is not null)
         {
             y++; // Skip footer separator
-            ArrangeRowNodes(_footerNodes, y);
-        }
-    }
-
-    /// <summary>
-    /// Arranges nodes for a single row.
-    /// </summary>
-    private void ArrangeRowNodes(List<TextBlockNode> nodes, int rowY)
-    {
-        int x = Bounds.X + 1; // Start after left border
-        
-        // Skip selection column if enabled
-        if (ShowSelectionColumn)
-        {
-            x += SelectionColumnWidth + 1; // Skip selection column + separator
-        }
-        
-        for (int col = 0; col < nodes.Count && col < _columnWidths.Length; col++)
-        {
-            var cellRect = new Rect(x, Bounds.Y + rowY, _columnWidths[col], 1);
-            nodes[col].Arrange(cellRect);
-            x += _columnWidths[col] + 1; // Move past column + separator
+            _footerRowNode.Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
         }
     }
 
@@ -1196,9 +1255,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         y++;
 
         // Header
-        if (_headerNodes is not null)
+        if (_headerRowNode is not null)
         {
-            RenderRowWithNodes(context, y, _headerNodes, isHeader: true);
+            // Render the header row node (it handles its own children)
+            context.RenderChild(_headerRowNode);
             y++;
             
             // Use different separator when transitioning to empty state vs data/loading rows
@@ -1241,25 +1301,29 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             RenderEmptyRow(context, y, totalWidth);
             y++;
         }
-        else if (_rowNodes is not null && _rowStates is not null)
+        else if (_dataRowNodes is not null && _rowStates is not null)
         {
             // Render only visible data rows (using scroll offset)
-            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _rowNodes.Count);
+            int endRow = Math.Min(_scrollOffset + _viewportRowCount, _dataRowNodes.Count);
             int rowsRendered = 0;
-            for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerNodes is not null ? 3 : 1); i++)
+            for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1); i++)
             {
                 var state = _rowStates[i];
                 // Use runtime selection check instead of cached state
                 bool isSelected = IsRowSelectedForRender(state.RowKey);
-                bool isHighlighted = state.IsFocused || isSelected;
-                RenderRowWithNodes(context, y, _rowNodes[i], isHighlighted: isHighlighted, isSelected: isSelected);
+                
+                // Update row node highlight/selection state for rendering
+                _dataRowNodes[i].IsHighlighted = state.IsFocused;
+                _dataRowNodes[i].IsSelected = isSelected;
+                
+                context.RenderChild(_dataRowNodes[i]);
                 y++;
                 rowsRendered++;
             }
         }
 
         // Footer
-        if (_footerNodes is not null)
+        if (_footerRowNode is not null)
         {
             if (hasColumnStructure)
             {
@@ -1272,7 +1336,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft, selectionColumnMiddle: Cross);
             }
             y++;
-            RenderRowWithNodes(context, y, _footerNodes);
+            context.RenderChild(_footerRowNode);
             y++;
         }
 
@@ -1280,7 +1344,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (y < Bounds.Height)
         {
             // Use TeeUp for column positions when we have data/loading/footer, just horizontal when empty with no footer
-            bool showColumnTees = hasColumnStructure || _footerNodes is not null;
+            bool showColumnTees = hasColumnStructure || _footerRowNode is not null;
             if (showColumnTees)
             {
                 RenderHorizontalBorder(context, y, BottomLeft, TeeUp, BottomRight);

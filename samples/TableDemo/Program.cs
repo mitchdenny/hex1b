@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Layout;
 using Hex1b.Widgets;
 
 var products = new List<Product>
@@ -51,10 +52,10 @@ var app = new Hex1bApp(ctx =>
         // FillHeight() is critical for scrolling - gives the table a constrained height
         v.Table(displayData)
             .WithHeader(h => [
-                h.Cell("Product"),
-                h.Cell("Category"),
-                h.Cell("Price"),
-                h.Cell("Stock")
+                h.Cell("Product").Width(SizeHint.Fill),           // Fill remaining space
+                h.Cell("Category").Width(SizeHint.Content),       // Size to widest content
+                h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),  // Fixed width, right-aligned
+                h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)    // Fixed width, right-aligned
             ])
             .WithRow((r, product, state) => [
                 r.Cell(state.IsFocused ? $"> {product.Name}" : product.Name),

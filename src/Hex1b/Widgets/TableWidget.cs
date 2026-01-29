@@ -82,7 +82,7 @@ public record TableWidget<TRow> : Hex1bWidget
     /// </summary>
     internal Func<object, TRow, Task>? RowActivatedHandler { get; init; }
 
-    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TableNode<TRow> ?? new TableNode<TRow>();
 
@@ -163,12 +163,140 @@ public record TableWidget<TRow> : Hex1bWidget
         node.SelectionChangedHandler = SelectionChangedHandler;
         node.RowActivatedHandler = RowActivatedHandler;
 
+        // Build row widgets and reconcile them
+        await ReconcileRowWidgets(node, context);
+
         if (needsDirty)
         {
             node.MarkDirty();
         }
 
-        return Task.FromResult<Hex1bNode>(node);
+        return node;
+    }
+
+    /// <summary>
+    /// Builds row widgets from cell data and reconciles them as children.
+    /// </summary>
+    private async Task ReconcileRowWidgets(TableNode<TRow> node, ReconcileContext context)
+    {
+        // Build header cells and column definitions
+        var headerCells = HeaderBuilder?.Invoke(new TableHeaderContext());
+        var columnDefs = BuildColumnDefs(headerCells);
+        node.SetColumnDefs(columnDefs);
+        
+        // Reconcile header row
+        if (headerCells != null && headerCells.Count > 0)
+        {
+            var headerWidget = new TableRowWidget(
+                headerCells, 
+                columnDefs, 
+                IsHeader: true,
+                ShowSelectionColumn: ShowSelectionColumn
+            );
+            node.HeaderRowNode = await context.ReconcileChildAsync(
+                node.HeaderRowNode, 
+                headerWidget, 
+                node
+            ) as TableRowNode;
+        }
+        else
+        {
+            node.HeaderRowNode = null;
+        }
+        
+        // Reconcile data rows
+        if (Data != null && Data.Count > 0 && RowBuilder != null)
+        {
+            var rowContext = new TableRowContext();
+            node.DataRowNodes ??= [];
+            
+            // Resize to match data count
+            while (node.DataRowNodes.Count > Data.Count)
+            {
+                node.DataRowNodes.RemoveAt(node.DataRowNodes.Count - 1);
+            }
+            while (node.DataRowNodes.Count < Data.Count)
+            {
+                node.DataRowNodes.Add(null!);
+            }
+            
+            for (int i = 0; i < Data.Count; i++)
+            {
+                var rowData = Data[i];
+                var rowKey = RowKeySelector?.Invoke(rowData) ?? i;
+                var isFocused = Equals(rowKey, FocusedKey ?? node.GetInternalFocusedKey());
+                var isSelected = (SelectedKeys ?? node.GetInternalSelectedKeys())?.Contains(rowKey) ?? false;
+                
+                var rowState = new TableRowState 
+                { 
+                    RowIndex = i, 
+                    IsFocused = isFocused, 
+                    IsSelected = isSelected,
+                    RowKey = rowKey,
+                    IsFirst = i == 0,
+                    IsLast = i == Data.Count - 1
+                };
+                var rowCells = RowBuilder(rowContext, rowData, rowState);
+                
+                var rowWidget = new TableRowWidget(
+                    rowCells, 
+                    columnDefs, 
+                    IsHighlighted: isFocused,
+                    IsSelected: isSelected,
+                    ShowSelectionColumn: ShowSelectionColumn
+                );
+                
+                node.DataRowNodes[i] = await context.ReconcileChildAsync(
+                    node.DataRowNodes[i], 
+                    rowWidget, 
+                    node
+                ) as TableRowNode ?? new TableRowNode();
+            }
+        }
+        else
+        {
+            node.DataRowNodes = null;
+        }
+        
+        // Reconcile footer row
+        var footerCells = FooterBuilder?.Invoke(new TableFooterContext());
+        if (footerCells != null && footerCells.Count > 0)
+        {
+            var footerWidget = new TableRowWidget(
+                footerCells, 
+                columnDefs,
+                ShowSelectionColumn: ShowSelectionColumn
+            );
+            node.FooterRowNode = await context.ReconcileChildAsync(
+                node.FooterRowNode, 
+                footerWidget, 
+                node
+            ) as TableRowNode;
+        }
+        else
+        {
+            node.FooterRowNode = null;
+        }
+    }
+
+    /// <summary>
+    /// Builds column definitions from header cells.
+    /// </summary>
+    private static List<TableColumnDef> BuildColumnDefs(IReadOnlyList<TableCell>? headerCells)
+    {
+        var defs = new List<TableColumnDef>();
+        
+        if (headerCells == null) return defs;
+        
+        foreach (var cell in headerCells)
+        {
+            defs.Add(new TableColumnDef(
+                cell.Width ?? Layout.SizeHint.Fill,
+                cell.Alignment
+            ));
+        }
+        
+        return defs;
     }
 
     private static bool SetEquals(IReadOnlySet<object>? a, IReadOnlySet<object>? b)
