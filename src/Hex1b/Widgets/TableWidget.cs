@@ -68,6 +68,11 @@ public record TableWidget<TRow> : Hex1bWidget
     public bool ShowSelectionColumn { get; init; }
 
     /// <summary>
+    /// The render mode for the table (Compact or Full).
+    /// </summary>
+    public TableRenderMode RenderMode { get; init; } = TableRenderMode.Compact;
+
+    /// <summary>
     /// Handler called when focus changes.
     /// </summary>
     internal Func<object?, Task>? FocusChangedHandler { get; init; }
@@ -159,6 +164,12 @@ public record TableWidget<TRow> : Hex1bWidget
             needsDirty = true;
         }
 
+        if (node.RenderMode != RenderMode)
+        {
+            node.RenderMode = RenderMode;
+            needsDirty = true;
+        }
+
         node.FocusChangedHandler = FocusChangedHandler;
         node.SelectionChangedHandler = SelectionChangedHandler;
         node.RowActivatedHandler = RowActivatedHandler;
@@ -191,7 +202,8 @@ public record TableWidget<TRow> : Hex1bWidget
                 headerCells, 
                 columnDefs, 
                 IsHeader: true,
-                ShowSelectionColumn: ShowSelectionColumn
+                ShowSelectionColumn: ShowSelectionColumn,
+                RenderMode: RenderMode
             );
             node.HeaderRowNode = await context.ReconcileChildAsync(
                 node.HeaderRowNode, 
@@ -243,7 +255,8 @@ public record TableWidget<TRow> : Hex1bWidget
                     columnDefs, 
                     IsHighlighted: isFocused,
                     IsSelected: isSelected,
-                    ShowSelectionColumn: ShowSelectionColumn
+                    ShowSelectionColumn: ShowSelectionColumn,
+                    RenderMode: RenderMode
                 );
                 
                 node.DataRowNodes[i] = await context.ReconcileChildAsync(
@@ -266,7 +279,8 @@ public record TableWidget<TRow> : Hex1bWidget
                 footerCells, 
                 columnDefs,
                 ShowSelectionColumn: ShowSelectionColumn,
-                IsFooter: true
+                IsFooter: true,
+                RenderMode: RenderMode
             );
             node.FooterRowNode = await context.ReconcileChildAsync(
                 node.FooterRowNode, 

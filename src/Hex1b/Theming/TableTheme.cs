@@ -5,6 +5,20 @@ namespace Hex1b.Theming;
 /// </summary>
 public static class TableTheme
 {
+    // Border colors
+    
+    /// <summary>
+    /// Color for table borders.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> BorderColor = 
+        new($"{nameof(TableTheme)}.{nameof(BorderColor)}", () => Hex1bColor.DarkGray);
+    
+    /// <summary>
+    /// Color for focused row borders (heavy lines).
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedBorderColor = 
+        new($"{nameof(TableTheme)}.{nameof(FocusedBorderColor)}", () => Hex1bColor.Default);
+    
     // Selection column checkbox characters
     
     /// <summary>

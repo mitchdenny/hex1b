@@ -2,6 +2,12 @@ using Hex1b;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
+// Max stock level for progress bar scaling
+const int MaxStock = 500;
+
+// Available categories for the picker
+var categories = new[] { "Electronics", "Furniture", "Accessories" };
+
 var products = new List<Product>
 {
     new("Laptop", "Electronics", 999.99m, 15),
@@ -53,31 +59,37 @@ var app = new Hex1bApp(ctx =>
         v.Table(displayData)
             .WithHeader(h => [
                 h.Cell("Product").Width(SizeHint.Fill),           // Fill remaining space
-                h.Cell("Category").Width(SizeHint.Content),       // Size to widest content
+                h.Cell("Category").Width(SizeHint.Content),       // Auto-measure width from widget content
                 h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),  // Fixed width, right-aligned
-                h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)    // Fixed width, right-aligned
+                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right),   // Stock count
+                h.Cell("Level").Width(SizeHint.Fixed(12))         // Stock level progress bar
             ])
             .WithRow((r, product, state) => [
-                r.Cell(state.IsFocused ? $"> {product.Name}" : product.Name),
-                r.Cell(product.Category),
+                r.Cell(product.Name),
+                r.Cell(c => c.Picker(categories, Array.IndexOf(categories, product.Category))
+                    .OnSelectionChanged(e => product.Category = e.SelectedText ?? product.Category)),
                 r.Cell($"${product.Price:F2}"),
-                r.Cell(product.Stock.ToString())
+                r.Cell(product.Stock.ToString()),
+                r.Cell(c => c.Progress(product.Stock, 0, MaxStock))  // Progress bar for stock level
             ])
             .WithFooter(f => [
                 f.Cell("Total Products"),
                 f.Cell(products.Count.ToString()),
                 f.Cell($"${products.Sum(p => p.Price):F2}"),
-                f.Cell(products.Sum(p => p.Stock).ToString())
+                f.Cell(products.Sum(p => p.Stock).ToString()),
+                f.Cell("")  // Empty cell for progress column
             ])
             .WithLoading((l, idx) => [
                 l.Cell("████████████"),
                 l.Cell("████████"),
                 l.Cell("██████"),
-                l.Cell("████")
+                l.Cell("████"),
+                l.Cell("████████")
             ], rowCount: 5)
             .WithFocus(focusedKey)
             .OnFocusChanged(key => focusedKey = key)
             .WithSelectionColumn()
+            .Full()  // Use Full render mode with separators between rows
             .FillHeight(),
         
         v.Text(""),
@@ -98,4 +110,10 @@ var app = new Hex1bApp(ctx =>
 await app.RunAsync();
 
 // Sample data model - must be after top-level statements
-record Product(string Name, string Category, decimal Price, int Stock);
+class Product(string name, string category, decimal price, int stock)
+{
+    public string Name { get; set; } = name;
+    public string Category { get; set; } = category;
+    public decimal Price { get; set; } = price;
+    public int Stock { get; set; } = stock;
+}

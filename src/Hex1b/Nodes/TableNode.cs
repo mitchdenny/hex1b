@@ -109,6 +109,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// </summary>
     public bool ShowSelectionColumn { get; set; }
 
+    /// <summary>
+    /// The render mode for the table (Compact or Full).
+    /// </summary>
+    public TableRenderMode RenderMode { get; set; } = TableRenderMode.Compact;
+
     // Scroll state
     private int _scrollOffset;
     private int _contentRowCount;
@@ -146,6 +151,37 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     }
 
     public override bool IsFocusable => true;
+
+    /// <summary>
+    /// Returns focusable nodes including this table and any focusable children in row cells.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        // Return ourselves first (table handles its own focus for row navigation)
+        yield return this;
+        
+        // Also return focusable children from row nodes (e.g., Picker buttons in cells)
+        if (_headerRowNode is not null)
+        {
+            foreach (var focusable in _headerRowNode.GetFocusableNodes())
+                yield return focusable;
+        }
+        
+        if (_dataRowNodes is not null)
+        {
+            foreach (var row in _dataRowNodes)
+            {
+                foreach (var focusable in row.GetFocusableNodes())
+                    yield return focusable;
+            }
+        }
+        
+        if (_footerRowNode is not null)
+        {
+            foreach (var focusable in _footerRowNode.GetFocusableNodes())
+                yield return focusable;
+        }
+    }
 
     // Computed layout data
     private int _columnCount;
@@ -1053,7 +1089,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Reserve space for selection column if enabled
         int selectionSpace = ShowSelectionColumn ? SelectionColumnWidth + 1 : 0; // +1 for separator
         
-        int contentWidth = availableWidth - borderWidth - scrollbarSpace - selectionSpace;
+        // Reserve space for cell padding in Full mode (1 char left + 1 char right per cell)
+        int paddingSpace = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+        
+        int contentWidth = availableWidth - borderWidth - scrollbarSpace - selectionSpace - paddingSpace;
 
         if (contentWidth < _columnCount)
         {
@@ -1140,20 +1179,32 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     
     /// <summary>
     /// Measures the maximum content width for a column across all rows.
+    /// Uses both text cells and reconciled widget nodes for measurement.
     /// </summary>
     private int MeasureColumnContentWidth(int columnIndex)
     {
         int maxWidth = 0;
         
-        // Measure header
-        if (_headerCells != null && columnIndex < _headerCells.Count)
+        // Measure header - prefer measuring from reconciled nodes if available
+        if (_headerRowNode != null)
+        {
+            maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(_headerRowNode, columnIndex));
+        }
+        else if (_headerCells != null && columnIndex < _headerCells.Count)
         {
             var text = _headerCells[columnIndex].Text ?? "";
             maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
         }
         
-        // Measure data rows
-        if (_rowCells != null)
+        // Measure data rows - prefer measuring from reconciled nodes if available
+        if (_dataRowNodes != null)
+        {
+            foreach (var rowNode in _dataRowNodes)
+            {
+                maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(rowNode, columnIndex));
+            }
+        }
+        else if (_rowCells != null)
         {
             foreach (var row in _rowCells)
             {
@@ -1165,14 +1216,59 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             }
         }
         
-        // Measure footer
-        if (_footerCells != null && columnIndex < _footerCells.Count)
+        // Measure footer - prefer measuring from reconciled nodes if available
+        if (_footerRowNode != null)
+        {
+            maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(_footerRowNode, columnIndex));
+        }
+        else if (_footerCells != null && columnIndex < _footerCells.Count)
         {
             var text = _footerCells[columnIndex].Text ?? "";
             maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
         }
         
         return maxWidth;
+    }
+    
+    /// <summary>
+    /// Measures the width of a specific column cell in a row node.
+    /// </summary>
+    private int MeasureRowNodeColumnWidth(TableRowNode rowNode, int columnIndex)
+    {
+        // Row structure depends on render mode:
+        // Compact: │ [sel] │ cell0 │ cell1 │ ... │ cellN │
+        // Full:    │ [sel] │ pad cell0 pad │ pad cell1 pad │ ... │ pad cellN pad │
+        
+        int childIndex = 1; // Start after left border
+        
+        // Skip selection column if present
+        if (rowNode.HasSelectionColumn)
+        {
+            childIndex += 2; // selection cell + border
+        }
+        
+        // Navigate to the correct column
+        // In Full mode (with padding), each column has: pad + cell + pad + border = 4 widgets
+        // In Compact mode, each column has: cell + border = 2 widgets
+        int widgetsPerColumn = rowNode.HasCellPadding ? 4 : 2;
+        childIndex += columnIndex * widgetsPerColumn;
+        
+        // In Full mode, skip the left padding to get to the cell
+        if (rowNode.HasCellPadding)
+        {
+            childIndex += 1; // Skip left padding
+        }
+        
+        if (childIndex >= rowNode.Children.Count)
+        {
+            return 0;
+        }
+        
+        var cellNode = rowNode.Children[childIndex];
+        
+        // Measure the cell node with loose constraints
+        var size = cellNode.Measure(Constraints.Unbounded);
+        return size.Width;
     }
 
     public override Size Measure(Constraints constraints)
@@ -1210,9 +1306,25 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (maxHeight <= 0 || maxHeight >= int.MaxValue - 1000)
         {
             // Unbounded or very large - use content size (no scrolling in unbounded context)
-            maxHeight = fixedHeight + _contentRowCount + 10; // Add some padding
+            int dataHeight = _contentRowCount;
+            if (RenderMode == TableRenderMode.Full && _contentRowCount > 0)
+            {
+                dataHeight += _contentRowCount - 1; // Add separators between rows
+            }
+            maxHeight = fixedHeight + dataHeight + 10; // Add some padding
         }
-        _viewportRowCount = Math.Max(1, maxHeight - fixedHeight);
+        
+        // In Full mode, each row takes 2 lines (row + separator) except the last
+        // So viewport capacity is: (availableHeight + 1) / 2 for Full mode
+        int availableForData = Math.Max(1, maxHeight - fixedHeight);
+        if (RenderMode == TableRenderMode.Full)
+        {
+            _viewportRowCount = Math.Max(1, (availableForData + 1) / 2);
+        }
+        else
+        {
+            _viewportRowCount = availableForData;
+        }
         
         // Determine if scrollbar is needed
         bool needsScrollbar = _contentRowCount > _viewportRowCount;
@@ -1222,10 +1334,19 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         CalculateColumnWidths(width, needsScrollbar);
 
         // Calculate total height (capped by viewport)
-        int dataRowsHeight = Math.Min(_contentRowCount, _viewportRowCount);
+        int visibleRows = Math.Min(_contentRowCount, _viewportRowCount);
+        int dataRowsHeight;
         if (Data is not null && Data.Count == 0)
         {
             dataRowsHeight = 1; // Empty message
+        }
+        else if (RenderMode == TableRenderMode.Full && visibleRows > 0)
+        {
+            dataRowsHeight = visibleRows + (visibleRows - 1); // Rows + separators between them
+        }
+        else
+        {
+            dataRowsHeight = visibleRows;
         }
         int height = fixedHeight + dataRowsHeight;
 
@@ -1279,7 +1400,17 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Recalculate viewport row count based on actual arranged height
         // This is critical for scrolling to work correctly since Measure may receive unbounded constraints
         int fixedHeight = 2 + headerHeight + footerHeight; // Top/bottom borders + header/footer
-        _viewportRowCount = Math.Max(1, rect.Height - fixedHeight);
+        int availableForData = Math.Max(1, rect.Height - fixedHeight);
+        
+        // In Full mode, each row takes 2 lines (row + separator) except the last
+        if (RenderMode == TableRenderMode.Full)
+        {
+            _viewportRowCount = Math.Max(1, (availableForData + 1) / 2);
+        }
+        else
+        {
+            _viewportRowCount = availableForData;
+        }
         
         // Clamp scroll offset now that we know the real viewport size
         if (_scrollOffset > MaxScrollOffset)
@@ -1326,6 +1457,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 SetRowNodeColumnWidths(_dataRowNodes[i]);
                 _dataRowNodes[i].Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
                 y++;
+                
+                // In Full mode, account for separator between rows
+                if (RenderMode == TableRenderMode.Full && i < endRow - 1)
+                {
+                    y++; // Skip separator line
+                }
             }
         }
         else if (Data is not null && Data.Count == 0)
@@ -1435,6 +1572,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 context.RenderChild(_dataRowNodes[i]);
                 y++;
                 rowsRendered++;
+                
+                // In Full mode, render separator between rows (but not after the last visible row)
+                if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
+                {
+                    RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+                    y++;
+                }
             }
         }
 
@@ -1542,6 +1686,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)
     {
         var sb = new System.Text.StringBuilder();
+        
+        // Apply border color from theme
+        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        sb.Append(borderColor.ToForegroundAnsi());
+        
         sb.Append(left);
 
         // Selection column border (if enabled)
@@ -1552,9 +1701,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             sb.Append(selectionColumnMiddle ?? middle);
         }
 
+        // In Full mode, each column has 1 char padding on left and right
+        int paddingPerColumn = RenderMode == TableRenderMode.Full ? 2 : 0;
+
         for (int col = 0; col < _columnCount; col++)
         {
-            sb.Append(new string(Horizontal, _columnWidths[col]));
+            sb.Append(new string(Horizontal, _columnWidths[col] + paddingPerColumn));
             if (col < _columnCount - 1)
             {
                 sb.Append(middle);
@@ -1562,6 +1714,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         }
 
         sb.Append(right);
+        sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
@@ -1781,16 +1934,25 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private void RenderSolidHorizontalBorder(Hex1bRenderContext context, int y, char left, char right)
     {
         var sb = new System.Text.StringBuilder();
+        
+        // Apply border color from theme
+        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        sb.Append(borderColor.ToForegroundAnsi());
+        
         sb.Append(left);
 
         // Selection column (if enabled)
         int selectionWidth = ShowSelectionColumn ? SelectionColumnWidth + 1 : 0; // +1 for separator
         
-        // Total content width = sum of column widths + (columnCount - 1) separators + selection column
-        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + selectionWidth;
+        // In Full mode, each column has 1 char padding on left and right
+        int paddingTotal = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+        
+        // Total content width = sum of column widths + (columnCount - 1) separators + selection column + padding
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + selectionWidth + paddingTotal;
         sb.Append(new string(Horizontal, contentWidth));
 
         sb.Append(right);
+        sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
@@ -1806,8 +1968,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             sb.Append(Vertical);
         }
 
+        // In Full mode, account for padding
+        int paddingTotal = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+
         // Content area without column separators
-        int contentWidth = _columnWidths.Sum() + (_columnCount - 1);
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
         
         // Center the "No data" message
         const string emptyMessage = "No data";

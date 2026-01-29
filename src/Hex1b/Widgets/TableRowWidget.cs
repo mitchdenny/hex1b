@@ -20,7 +20,8 @@ internal sealed record TableRowWidget(
     bool? IsSelected = null,
     bool ShowSelectionColumn = false,
     bool IsHeader = false,
-    bool IsFooter = false
+    bool IsFooter = false,
+    TableRenderMode RenderMode = TableRenderMode.Compact
 ) : Hex1bWidget
 {
     // Border characters
@@ -51,6 +52,7 @@ internal sealed record TableRowWidget(
         node.Children = newChildren;
         node.IsHighlighted = IsHighlighted;
         node.IsSelected = IsSelected;
+        node.HasCellPadding = RenderMode == TableRenderMode.Full;
         
         return node;
     }
@@ -85,6 +87,12 @@ internal sealed record TableRowWidget(
             var cell = Cells[i];
             var column = Columns[i];
             
+            // In Full mode, add left padding
+            if (RenderMode == TableRenderMode.Full)
+            {
+                widgets.Add(new TextBlockWidget(" "));
+            }
+            
             // Build cell content widget
             Hex1bWidget cellWidget;
             if (cell.WidgetBuilder != null)
@@ -106,6 +114,12 @@ internal sealed record TableRowWidget(
             cellWidget = cellWidget.Width(column.Width);
             
             widgets.Add(cellWidget);
+            
+            // In Full mode, add right padding
+            if (RenderMode == TableRenderMode.Full)
+            {
+                widgets.Add(new TextBlockWidget(" "));
+            }
             
             // Separator between cells (not after last cell)
             if (i < Cells.Count - 1)

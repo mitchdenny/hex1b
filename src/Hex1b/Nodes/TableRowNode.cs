@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
@@ -38,6 +39,11 @@ internal sealed class TableRowNode : Hex1bNode
     /// Width of the selection column if present.
     /// </summary>
     public int SelectionColumnWidth { get; set; }
+    
+    /// <summary>
+    /// Whether this row uses Full render mode (has padding around cells).
+    /// </summary>
+    public bool HasCellPadding { get; set; }
 
     public override Size Measure(Constraints constraints)
     {
@@ -109,22 +115,32 @@ internal sealed class TableRowNode : Hex1bNode
         int x = rect.X;
         int colIndex = 0;
         
+        // In Full mode with padding, the structure for each cell is:
+        // [border] [padding] [content] [padding] [border] ...
+        // We need to track where we are in this pattern
+        
         for (int i = 0; i < Children.Count; i++)
         {
             var child = Children[i];
             int width;
             
-            // Determine if this child is a border character (width 1)
-            bool isBorder = child is TextBlockNode textNode && 
-                           (textNode.Text == "│" || textNode.Text?.Length == 1);
+            // Check if this is a border character
+            bool isBorder = child is TextBlockNode textNode && textNode.Text == "│";
+            
+            // Check if this is a padding space (single space in Full mode)
+            bool isPadding = HasCellPadding && child is TextBlockNode padNode && padNode.Text == " ";
             
             if (isBorder)
             {
                 width = 1;
             }
+            else if (isPadding)
+            {
+                width = 1; // Padding is always 1 character
+            }
             else if (HasSelectionColumn && colIndex == 0)
             {
-                // First non-border child is selection column
+                // First non-border, non-padding child is selection column
                 width = SelectionColumnWidth;
                 colIndex++; // Don't count this as a data column
             }
@@ -221,21 +237,37 @@ internal sealed class TableRowNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Apply highlight (reverse video) if this row is focused
-        if (IsHighlighted)
-        {
-            context.Write("\x1b[7m"); // Reverse video on
-        }
-
-        // Render all children
+        var theme = context.Theme;
+        var borderColor = theme.Get(TableTheme.BorderColor);
+        var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
+        
+        // Render children, applying border colors and replacing vertical bars with thicker ones if highlighted
         foreach (var child in Children)
         {
-            context.RenderChild(child);
-        }
-
-        if (IsHighlighted)
-        {
-            context.Write("\x1b[27m"); // Reverse video off
+            // Check if this is a vertical border
+            if (child is TextBlockNode textNode && textNode.Text == "│")
+            {
+                context.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                
+                if (IsHighlighted)
+                {
+                    // Render a thicker border with focused color
+                    context.Write(focusedBorderColor.ToForegroundAnsi());
+                    context.Write("┃"); // Heavy vertical line as focus indicator
+                }
+                else
+                {
+                    // Render normal border with border color
+                    context.Write(borderColor.ToForegroundAnsi());
+                    context.Write("│");
+                }
+                
+                context.Write("\x1b[0m"); // Reset
+            }
+            else
+            {
+                context.RenderChild(child);
+            }
         }
     }
 

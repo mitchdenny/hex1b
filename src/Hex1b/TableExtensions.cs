@@ -211,4 +211,23 @@ public static class TableExtensions
     /// <returns>The table widget with selection column enabled.</returns>
     public static TableWidget<TRow> WithSelectionColumn<TRow>(this TableWidget<TRow> table)
         => table with { ShowSelectionColumn = true };
+
+    /// <summary>
+    /// Sets the table to Compact render mode (no separators between rows).
+    /// This is the default mode.
+    /// </summary>
+    /// <typeparam name="TRow">The row data type.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <returns>The table widget with Compact render mode.</returns>
+    public static TableWidget<TRow> Compact<TRow>(this TableWidget<TRow> table)
+        => table with { RenderMode = Widgets.TableRenderMode.Compact };
+
+    /// <summary>
+    /// Sets the table to Full render mode (horizontal separators between each row).
+    /// </summary>
+    /// <typeparam name="TRow">The row data type.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <returns>The table widget with Full render mode.</returns>
+    public static TableWidget<TRow> Full<TRow>(this TableWidget<TRow> table)
+        => table with { RenderMode = Widgets.TableRenderMode.Full };
 }
