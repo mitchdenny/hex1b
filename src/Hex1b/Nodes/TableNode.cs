@@ -284,7 +284,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Toggles selection for a specific key.
     /// </summary>
-    private Task ToggleSelectionForKey(object key)
+    private async Task ToggleSelectionForKey(object key)
     {
         SyncInternalSelection();
         
@@ -297,19 +297,15 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             _internalSelectedKeys.Add(key);
         }
         
-        // Notify selection changed
-        var newSelection = _internalSelectedKeys.ToHashSet();
-        SelectionChangedHandler?.Invoke(newSelection);
-        
-        return Task.CompletedTask;
+        await NotifySelectionChanged();
     }
     
     /// <summary>
     /// Toggles between select all and deselect all.
     /// </summary>
-    private Task ToggleSelectAll()
+    private async Task ToggleSelectAll()
     {
-        if (Data is null || Data.Count == 0) return Task.CompletedTask;
+        if (Data is null || Data.Count == 0) return;
         
         SyncInternalSelection();
         
@@ -327,10 +323,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             }
         }
         
-        var newSelection = _internalSelectedKeys.ToHashSet();
-        SelectionChangedHandler?.Invoke(newSelection);
-        
-        return Task.CompletedTask;
+        await NotifySelectionChanged();
     }
 
     // Selection anchor for range selection (the row where Shift-selection started)
