@@ -22,6 +22,22 @@ internal sealed class TableRowNode : Hex1bNode
     /// Whether this row is selected. Null for non-data rows (header/footer).
     /// </summary>
     public bool? IsSelected { get; set; }
+    
+    /// <summary>
+    /// Pre-calculated column widths from parent TableNode.
+    /// When set, these are used instead of calculating from child hints.
+    /// </summary>
+    public int[]? ColumnWidths { get; set; }
+    
+    /// <summary>
+    /// Whether this row has a selection column (first cell after left border).
+    /// </summary>
+    public bool HasSelectionColumn { get; set; }
+    
+    /// <summary>
+    /// Width of the selection column if present.
+    /// </summary>
+    public int SelectionColumnWidth { get; set; }
 
     public override Size Measure(Constraints constraints)
     {
@@ -74,6 +90,70 @@ internal sealed class TableRowNode : Hex1bNode
 
         if (Children.Count == 0) return;
 
+        // If we have pre-calculated column widths from the parent table, use those
+        if (ColumnWidths != null && ColumnWidths.Length > 0)
+        {
+            ArrangeWithColumnWidths(rect);
+            return;
+        }
+
+        // Otherwise calculate widths from child hints (fallback for standalone usage)
+        ArrangeWithChildHints(rect);
+    }
+    
+    /// <summary>
+    /// Arranges children using pre-calculated column widths from parent TableNode.
+    /// </summary>
+    private void ArrangeWithColumnWidths(Rect rect)
+    {
+        int x = rect.X;
+        int colIndex = 0;
+        
+        for (int i = 0; i < Children.Count; i++)
+        {
+            var child = Children[i];
+            int width;
+            
+            // Determine if this child is a border character (width 1)
+            bool isBorder = child is TextBlockNode textNode && 
+                           (textNode.Text == "│" || textNode.Text?.Length == 1);
+            
+            if (isBorder)
+            {
+                width = 1;
+            }
+            else if (HasSelectionColumn && colIndex == 0)
+            {
+                // First non-border child is selection column
+                width = SelectionColumnWidth;
+                colIndex++; // Don't count this as a data column
+            }
+            else
+            {
+                // Data cell - use column width
+                int dataColIndex = HasSelectionColumn ? colIndex - 1 : colIndex;
+                if (dataColIndex >= 0 && dataColIndex < ColumnWidths!.Length)
+                {
+                    width = ColumnWidths[dataColIndex];
+                }
+                else
+                {
+                    width = 1; // Fallback
+                }
+                colIndex++;
+            }
+            
+            var childRect = new Rect(x, rect.Y, width, 1);
+            child.Arrange(childRect);
+            x += width;
+        }
+    }
+    
+    /// <summary>
+    /// Arranges children by calculating widths from their hints (fallback for standalone usage).
+    /// </summary>
+    private void ArrangeWithChildHints(Rect rect)
+    {
         // Calculate widths for each child
         var childWidths = new int[Children.Count];
         int totalFixedWidth = 0;

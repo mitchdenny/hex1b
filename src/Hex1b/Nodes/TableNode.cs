@@ -1038,7 +1038,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private int SelectionColumnWidth => ShowSelectionColumn ? TableTheme.SelectionColumnWidth.DefaultValue() : 0;
 
     /// <summary>
-    /// Calculates column widths based on content (equal distribution for Phase 1).
+    /// Calculates column widths based on column definitions (Fixed, Content, Fill hints).
     /// </summary>
     private void CalculateColumnWidths(int availableWidth, bool reserveScrollbar)
     {
@@ -1061,15 +1061,118 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             contentWidth = _columnCount;
         }
 
-        // Equal distribution for Phase 1
-        int baseWidth = contentWidth / _columnCount;
-        int remainder = contentWidth % _columnCount;
-
         _columnWidths = new int[_columnCount];
-        for (int i = 0; i < _columnCount; i++)
+        
+        // If we have column definitions, use them
+        if (_columnDefs != null && _columnDefs.Count > 0)
         {
-            _columnWidths[i] = baseWidth + (i < remainder ? 1 : 0);
+            // First pass: allocate fixed widths and measure content widths
+            int usedWidth = 0;
+            int fillWeightTotal = 0;
+            var fillColumns = new List<int>();
+            
+            for (int i = 0; i < _columnCount; i++)
+            {
+                var hint = i < _columnDefs.Count ? _columnDefs[i].Width : SizeHint.Fill;
+                
+                if (hint.IsFixed)
+                {
+                    _columnWidths[i] = Math.Max(1, hint.FixedValue);
+                    usedWidth += _columnWidths[i];
+                }
+                else if (hint.IsContent)
+                {
+                    // Measure max content width for this column
+                    int maxWidth = MeasureColumnContentWidth(i);
+                    _columnWidths[i] = Math.Max(1, maxWidth);
+                    usedWidth += _columnWidths[i];
+                }
+                else // Fill
+                {
+                    fillColumns.Add(i);
+                    fillWeightTotal += hint.IsFill ? hint.FillWeight : 1;
+                }
+            }
+            
+            // Second pass: distribute remaining width to fill columns
+            int remainingWidth = contentWidth - usedWidth;
+            if (fillColumns.Count > 0 && remainingWidth > 0)
+            {
+                int distributed = 0;
+                for (int j = 0; j < fillColumns.Count; j++)
+                {
+                    int i = fillColumns[j];
+                    var hint = i < _columnDefs.Count ? _columnDefs[i].Width : SizeHint.Fill;
+                    int weight = hint.IsFill ? hint.FillWeight : 1;
+                    
+                    if (j == fillColumns.Count - 1)
+                    {
+                        _columnWidths[i] = Math.Max(1, remainingWidth - distributed);
+                    }
+                    else
+                    {
+                        int share = (int)Math.Floor((double)remainingWidth * weight / fillWeightTotal);
+                        _columnWidths[i] = Math.Max(1, share);
+                        distributed += _columnWidths[i];
+                    }
+                }
+            }
+            else if (fillColumns.Count > 0)
+            {
+                // No remaining width - give fill columns minimum of 1
+                foreach (int i in fillColumns)
+                {
+                    _columnWidths[i] = 1;
+                }
+            }
         }
+        else
+        {
+            // Fallback: equal distribution
+            int baseWidth = contentWidth / _columnCount;
+            int remainder = contentWidth % _columnCount;
+            for (int i = 0; i < _columnCount; i++)
+            {
+                _columnWidths[i] = baseWidth + (i < remainder ? 1 : 0);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Measures the maximum content width for a column across all rows.
+    /// </summary>
+    private int MeasureColumnContentWidth(int columnIndex)
+    {
+        int maxWidth = 0;
+        
+        // Measure header
+        if (_headerCells != null && columnIndex < _headerCells.Count)
+        {
+            var text = _headerCells[columnIndex].Text ?? "";
+            maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
+        }
+        
+        // Measure data rows
+        if (_rowCells != null)
+        {
+            foreach (var row in _rowCells)
+            {
+                if (columnIndex < row.Count)
+                {
+                    var text = row[columnIndex].Text ?? "";
+                    maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
+                }
+            }
+        }
+        
+        // Measure footer
+        if (_footerCells != null && columnIndex < _footerCells.Count)
+        {
+            var text = _footerCells[columnIndex].Text ?? "";
+            maxWidth = Math.Max(maxWidth, DisplayWidth.GetStringWidth(text));
+        }
+        
+        return maxWidth;
     }
 
     public override Size Measure(Constraints constraints)
@@ -1209,6 +1312,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Arrange header row
         if (_headerRowNode is not null)
         {
+            SetRowNodeColumnWidths(_headerRowNode);
             _headerRowNode.Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
             y += 2; // Header row + separator
         }
@@ -1219,6 +1323,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             int endRow = Math.Min(_scrollOffset + _viewportRowCount, _dataRowNodes.Count);
             for (int i = _scrollOffset; i < endRow; i++)
             {
+                SetRowNodeColumnWidths(_dataRowNodes[i]);
                 _dataRowNodes[i].Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
                 y++;
             }
@@ -1236,8 +1341,19 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (_footerRowNode is not null)
         {
             y++; // Skip footer separator
+            SetRowNodeColumnWidths(_footerRowNode);
             _footerRowNode.Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
         }
+    }
+    
+    /// <summary>
+    /// Sets the column widths on a row node so it uses the same widths as border rendering.
+    /// </summary>
+    private void SetRowNodeColumnWidths(TableRowNode rowNode)
+    {
+        rowNode.ColumnWidths = _columnWidths;
+        rowNode.HasSelectionColumn = ShowSelectionColumn;
+        rowNode.SelectionColumnWidth = SelectionColumnWidth;
     }
 
     public override void Render(Hex1bRenderContext context)

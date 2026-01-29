@@ -711,6 +711,94 @@ public class TableNodeTests
         Assert.True(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
     }
 
+    [Fact]
+    public void ColumnBorders_AlignAcrossHeaderRowsAndFooter()
+    {
+        // Arrange - table with multiple columns and alignment
+        var data = new[] { "Laptop", "Mouse" };
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [
+                h.Cell("Name").Width(SizeHint.Fixed(10)),
+                h.Cell("Price").Width(SizeHint.Fixed(8)).Align(Alignment.Right),
+                h.Cell("Qty").Width(SizeHint.Fixed(5)).Align(Alignment.Right)
+            ],
+            RowBuilder = (r, item, state) => [
+                r.Cell(item),
+                r.Cell("$99.99"),
+                r.Cell("10")
+            ],
+            FooterBuilder = f => [
+                f.Cell("Total"),
+                f.Cell("$199.98"),
+                f.Cell("20")
+            ]
+        };
+
+        // Total width = 1 (left) + 10 + 1 + 8 + 1 + 5 + 1 (right) = 27
+        var constraints = new Constraints(0, 30, 0, 12);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 30, 12));
+
+        // Render to a surface
+        var surface = new Hex1b.Surfaces.Surface(30, 12);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface);
+        node.Render(context);
+
+        // Print all rows for debugging
+        for (int y = 0; y < 8; y++)
+        {
+            var row = new System.Text.StringBuilder();
+            for (int x = 0; x < 30; x++)
+            {
+                row.Append(surface[x, y].Character ?? " ");
+            }
+            TestContext.Current.TestOutputHelper?.WriteLine($"Row {y}: '{row}'");
+        }
+
+        // Expected column borders at positions:
+        // 0: left border │
+        // 11: after Name (10 chars) │
+        // 20: after Price (8 chars) │
+        // 26: after Qty (5 chars) │ (right border)
+        
+        // Check top border has correct separators
+        Assert.Equal("┌", surface[0, 0].Character);
+        Assert.Equal("┬", surface[11, 0].Character);
+        Assert.Equal("┬", surface[20, 0].Character);
+        
+        // Check header row (y=1) has vertical borders at correct positions
+        Assert.Equal("│", surface[0, 1].Character);
+        Assert.Equal("│", surface[11, 1].Character);
+        Assert.Equal("│", surface[20, 1].Character);
+        
+        // Check header separator (y=2) has correct crosses
+        Assert.Equal("├", surface[0, 2].Character);
+        Assert.Equal("┼", surface[11, 2].Character);
+        Assert.Equal("┼", surface[20, 2].Character);
+        
+        // Check data row 1 (y=3) has vertical borders at same positions
+        Assert.Equal("│", surface[0, 3].Character);
+        Assert.Equal("│", surface[11, 3].Character);
+        Assert.Equal("│", surface[20, 3].Character);
+        
+        // Check data row 2 (y=4) has vertical borders at same positions
+        Assert.Equal("│", surface[0, 4].Character);
+        Assert.Equal("│", surface[11, 4].Character);
+        Assert.Equal("│", surface[20, 4].Character);
+        
+        // Check footer separator (y=5) has correct crosses
+        Assert.Equal("├", surface[0, 5].Character);
+        Assert.Equal("┼", surface[11, 5].Character);
+        Assert.Equal("┼", surface[20, 5].Character);
+        
+        // Check footer row (y=6) has vertical borders at same positions
+        Assert.Equal("│", surface[0, 6].Character);
+        Assert.Equal("│", surface[11, 6].Character);
+        Assert.Equal("│", surface[20, 6].Character);
+    }
+
     #endregion
 
     #region Integration Tests
