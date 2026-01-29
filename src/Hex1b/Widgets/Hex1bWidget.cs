@@ -40,6 +40,12 @@ public abstract record Hex1bWidget
     public TimeSpan? RedrawDelay { get; init; }
 
     /// <summary>
+    /// Gets the effective redraw delay for this widget.
+    /// Override in derived classes to provide computed defaults.
+    /// </summary>
+    internal virtual TimeSpan? GetEffectiveRedrawDelay() => RedrawDelay;
+
+    /// <summary>
     /// Creates or updates a node from this widget asynchronously.
     /// </summary>
     /// <param name="existingNode">The existing node to update, or null to create a new one.</param>

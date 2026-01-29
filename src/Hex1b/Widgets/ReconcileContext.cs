@@ -180,10 +180,11 @@ public sealed class ReconcileContext
         node.HeightHint = widget.HeightHint;
         
         // Schedule animation timer if widget has RedrawDelay
-        if (widget.RedrawDelay.HasValue && ScheduleTimerCallback is not null)
+        var effectiveDelay = widget.GetEffectiveRedrawDelay();
+        if (effectiveDelay.HasValue && ScheduleTimerCallback is not null)
         {
             var capturedNode = node;
-            ScheduleTimerCallback(widget.RedrawDelay.Value, () =>
+            ScheduleTimerCallback(effectiveDelay.Value, () =>
             {
                 capturedNode.MarkDirty();
                 InvalidateCallback?.Invoke();

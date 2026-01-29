@@ -272,7 +272,7 @@ public class SpinnerNodeTests
         var widget = new SpinnerWidget();
 
         // Assert - should auto-schedule redraws based on default style interval
-        Assert.Equal(SpinnerStyle.Dots.Interval, widget.RedrawDelay);
+        Assert.Equal(SpinnerStyle.Dots.Interval, widget.GetEffectiveRedrawDelay());
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public class SpinnerNodeTests
         var widget = new SpinnerWidget { Style = SpinnerStyle.Circle }; // 120ms interval
 
         // Assert
-        Assert.Equal(SpinnerStyle.Circle.Interval, widget.RedrawDelay);
+        Assert.Equal(SpinnerStyle.Circle.Interval, widget.GetEffectiveRedrawDelay());
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public class SpinnerNodeTests
         var widget = new SpinnerWidget { FrameIndex = 5 };
 
         // Assert - no auto-redraw for manual mode
-        Assert.Null(widget.RedrawDelay);
+        Assert.Null(widget.GetEffectiveRedrawDelay());
     }
 
     [Fact]

@@ -213,7 +213,7 @@ public class ProgressNodeTests
         var widget = new ProgressWidget { IsIndeterminate = true };
 
         // Assert - should auto-schedule redraws
-        Assert.Equal(ProgressWidget.DefaultAnimationInterval, widget.RedrawDelay);
+        Assert.Equal(ProgressWidget.DefaultAnimationInterval, widget.GetEffectiveRedrawDelay());
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public class ProgressNodeTests
         var widget = new ProgressWidget { Value = 50 };
 
         // Assert - no auto-redraw for determinate progress
-        Assert.Null(widget.RedrawDelay);
+        Assert.Null(widget.GetEffectiveRedrawDelay());
     }
 
     [Fact]

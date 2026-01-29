@@ -83,21 +83,15 @@ public sealed record ProgressWidget : Hex1bWidget
     /// </remarks>
     public bool IsIndeterminate { get; init; }
 
-    /// <summary>
-    /// Gets the redraw delay for animation, auto-configured for indeterminate mode.
-    /// </summary>
-    /// <remarks>
-    /// For indeterminate progress bars, this defaults to <see cref="DefaultAnimationInterval"/>
-    /// so animation happens automatically. For determinate mode, no auto-redraw is scheduled.
-    /// </remarks>
-    public new TimeSpan? RedrawDelay
+    /// <inheritdoc/>
+    internal override TimeSpan? GetEffectiveRedrawDelay()
     {
-        get => base.RedrawDelay ?? GetDefaultRedrawDelay();
-        init => base.RedrawDelay = value;
-    }
+        // If explicitly set, use that value
+        if (RedrawDelay.HasValue)
+        {
+            return RedrawDelay;
+        }
 
-    private TimeSpan? GetDefaultRedrawDelay()
-    {
         // Only auto-schedule for indeterminate mode
         return IsIndeterminate ? DefaultAnimationInterval : null;
     }

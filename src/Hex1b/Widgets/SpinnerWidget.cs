@@ -57,21 +57,15 @@ public sealed record SpinnerWidget : Hex1bWidget
     /// </remarks>
     public int? FrameIndex { get; init; }
 
-    /// <summary>
-    /// Gets the redraw delay for animation, auto-configured from style interval.
-    /// </summary>
-    /// <remarks>
-    /// For time-based spinners (FrameIndex is null), this defaults to the style's interval
-    /// so animation happens automatically. For manual frame control, no auto-redraw is scheduled.
-    /// </remarks>
-    public new TimeSpan? RedrawDelay
+    /// <inheritdoc/>
+    internal override TimeSpan? GetEffectiveRedrawDelay()
     {
-        get => base.RedrawDelay ?? GetDefaultRedrawDelay();
-        init => base.RedrawDelay = value;
-    }
+        // If explicitly set, use that value
+        if (RedrawDelay.HasValue)
+        {
+            return RedrawDelay;
+        }
 
-    private TimeSpan? GetDefaultRedrawDelay()
-    {
         // Only auto-schedule for time-based mode (no explicit frame)
         if (FrameIndex.HasValue)
         {
