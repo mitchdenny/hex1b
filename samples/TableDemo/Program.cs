@@ -42,8 +42,8 @@ var app = new Hex1bApp(ctx =>
         v.Text("║  TableWidget Demo - Phase 3: Scrolling with Mouse Support  ║"),
         v.Text("╚════════════════════════════════════════════════════════════╝"),
         v.Text(""),
-        v.Text("Use Up/Down arrows, Page Up/Down, Home/End, or mouse wheel to scroll."),
-        v.Text("Click and drag the scrollbar thumb. Click arrows or track to scroll."),
+        v.Text("Navigation: Up/Down = move between rows, Page Up/Down = jump by page"),
+        v.Text("            Home/End = first/last row, Mouse wheel = scroll viewport"),
         v.Text(""),
         
         // The table (will scroll when there are more rows than fit)

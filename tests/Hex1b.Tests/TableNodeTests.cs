@@ -338,10 +338,10 @@ public class TableNodeTests
 
     #endregion
 
-    #region Scroll Bindings
+    #region Row Navigation Bindings
 
     [Fact]
-    public async Task ScrollDown_KeyBinding_ScrollsTable()
+    public async Task DownArrow_KeyBinding_MovesFocusToNextRow()
     {
         // Create a table with enough data to scroll
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
@@ -349,7 +349,8 @@ public class TableNodeTests
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 0 // Start with first row focused
         };
 
         // Measure with a small height to trigger scrolling
@@ -358,8 +359,8 @@ public class TableNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         // Verify initial state
+        Assert.Equal(0, node.FocusedKey);
         Assert.Equal(0, node.ScrollOffset);
-        Assert.True(node.IsScrollable, "Table should be scrollable with 50 rows in 10-row viewport");
 
         // Simulate key press using InputRouter
         node.IsFocused = true;
@@ -367,18 +368,54 @@ public class TableNodeTests
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.Equal(1, node.FocusedKey); // Focus moved to row 1
     }
 
     [Fact]
-    public async Task PageDown_KeyBinding_ScrollsByViewport()
+    public async Task DownArrow_AtBottomOfViewport_ScrollsToKeepFocusVisible()
     {
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
         var node = new TableNode<string>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 5 // Focus on row 5 (last visible in 6-row viewport with header)
+        };
+
+        var constraints = new Constraints(0, 40, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        
+        // With 10 height, we have about 6-7 data rows visible
+        // If focused row is at the bottom edge and we press Down,
+        // the view should scroll to keep the new focused row visible
+        Assert.Equal(0, node.ScrollOffset);
+
+        node.IsFocused = true;
+        
+        // Press down multiple times to reach the edge of viewport
+        for (int i = 5; i < 10; i++)
+        {
+            node.FocusedKey = i;
+            var keyEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
+            await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+        }
+
+        // After moving focus past the visible area, scroll should have adjusted
+        Assert.True(node.ScrollOffset > 0, "Table should have scrolled to keep focus visible");
+    }
+
+    [Fact]
+    public async Task PageDown_KeyBinding_MovesFocusByPage()
+    {
+        var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 0 // Start at first row
         };
 
         // Measure with small viewport
@@ -391,7 +428,60 @@ public class TableNodeTests
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.True(node.ScrollOffset > 1, "PageDown should scroll more than 1 row");
+        
+        // Focus should have moved by approximately one page
+        var focusedIndex = (int)node.FocusedKey!;
+        Assert.True(focusedIndex > 3, $"PageDown should move focus by multiple rows, but focus is at {focusedIndex}");
+    }
+
+    [Fact]
+    public async Task Home_KeyBinding_MovesFocusToFirstRow()
+    {
+        var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 25 // Start in the middle
+        };
+
+        var constraints = new Constraints(0, 40, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        
+        node.IsFocused = true;
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.FocusedKey); // Focus moved to first row
+        Assert.Equal(0, node.ScrollOffset); // Scrolled to show first row
+    }
+
+    [Fact]
+    public async Task End_KeyBinding_MovesFocusToLastRow()
+    {
+        var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            FocusedKey = 0 // Start at first row
+        };
+
+        var constraints = new Constraints(0, 40, 0, 10);
+        node.Measure(constraints);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        
+        node.IsFocused = true;
+        var keyEvent = new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None);
+        var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(49, node.FocusedKey); // Focus moved to last row (index 49)
+        Assert.True(node.ScrollOffset > 0, "Table should have scrolled to show last row");
     }
 
     [Fact]

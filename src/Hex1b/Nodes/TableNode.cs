@@ -178,13 +178,15 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Scroll navigation
-        bindings.Key(Hex1bKey.UpArrow).Action(ScrollUp, "Scroll up");
-        bindings.Key(Hex1bKey.DownArrow).Action(ScrollDown, "Scroll down");
+        // Row navigation (moves focus between rows, auto-scrolls to keep focus visible)
+        bindings.Key(Hex1bKey.UpArrow).Action(MoveFocusUp, "Previous row");
+        bindings.Key(Hex1bKey.DownArrow).Action(MoveFocusDown, "Next row");
+        bindings.Key(Hex1bKey.Home).Action(MoveFocusToFirst, "First row");
+        bindings.Key(Hex1bKey.End).Action(MoveFocusToLast, "Last row");
+        
+        // Page scrolling (scrolls viewport, keeps focus if possible)
         bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
         bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
-        bindings.Key(Hex1bKey.Home).Action(ScrollToStart, "Scroll to start");
-        bindings.Key(Hex1bKey.End).Action(ScrollToEnd, "Scroll to end");
         
         // Mouse wheel scrolling
         bindings.Mouse(MouseButton.ScrollUp).Action(_ => ScrollByAmount(-3), "Scroll up");
@@ -194,34 +196,152 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
     }
 
-    private void ScrollUp(InputBindingActionContext ctx)
+    /// <summary>
+    /// Gets the index of the currently focused row, or -1 if no row is focused.
+    /// </summary>
+    private int GetFocusedRowIndex()
     {
-        ScrollByAmount(-1);
+        if (FocusedKey == null || Data == null || Data.Count == 0)
+            return -1;
+
+        for (int i = 0; i < Data.Count; i++)
+        {
+            var key = GetRowKey(Data[i], i);
+            if (Equals(key, FocusedKey))
+                return i;
+        }
+        return -1;
     }
 
-    private void ScrollDown(InputBindingActionContext ctx)
+    /// <summary>
+    /// Sets focus to the row at the given index and ensures it's visible.
+    /// </summary>
+    private async Task SetFocusedRowIndexAsync(int index)
     {
-        ScrollByAmount(1);
+        if (Data == null || Data.Count == 0)
+            return;
+
+        // Clamp index to valid range
+        index = Math.Clamp(index, 0, Data.Count - 1);
+        
+        var row = Data[index];
+        var newKey = GetRowKey(row, index);
+        
+        if (!Equals(newKey, FocusedKey))
+        {
+            FocusedKey = newKey;
+            
+            // Notify handler if present
+            if (FocusChangedHandler != null)
+            {
+                await FocusChangedHandler(newKey);
+            }
+            
+            MarkDirty();
+        }
+
+        // Ensure the focused row is visible (auto-scroll if needed)
+        EnsureRowVisible(index);
+    }
+
+    /// <summary>
+    /// Scrolls the viewport if necessary to make the given row index visible.
+    /// </summary>
+    private void EnsureRowVisible(int rowIndex)
+    {
+        if (rowIndex < 0 || _viewportRowCount <= 0)
+            return;
+
+        // If row is above the visible area, scroll up
+        if (rowIndex < _scrollOffset)
+        {
+            SetScrollOffset(rowIndex);
+        }
+        // If row is below the visible area, scroll down
+        else if (rowIndex >= _scrollOffset + _viewportRowCount)
+        {
+            SetScrollOffset(rowIndex - _viewportRowCount + 1);
+        }
+    }
+
+    private void MoveFocusUp(InputBindingActionContext ctx)
+    {
+        var currentIndex = GetFocusedRowIndex();
+        if (currentIndex < 0)
+        {
+            // No focus - focus the first visible row
+            _ = SetFocusedRowIndexAsync(_scrollOffset);
+        }
+        else if (currentIndex > 0)
+        {
+            _ = SetFocusedRowIndexAsync(currentIndex - 1);
+        }
+    }
+
+    private void MoveFocusDown(InputBindingActionContext ctx)
+    {
+        var currentIndex = GetFocusedRowIndex();
+        var maxIndex = (Data?.Count ?? 0) - 1;
+        
+        if (currentIndex < 0)
+        {
+            // No focus - focus the first visible row
+            _ = SetFocusedRowIndexAsync(_scrollOffset);
+        }
+        else if (currentIndex < maxIndex)
+        {
+            _ = SetFocusedRowIndexAsync(currentIndex + 1);
+        }
+    }
+
+    private void MoveFocusToFirst(InputBindingActionContext ctx)
+    {
+        if (Data != null && Data.Count > 0)
+        {
+            _ = SetFocusedRowIndexAsync(0);
+        }
+    }
+
+    private void MoveFocusToLast(InputBindingActionContext ctx)
+    {
+        if (Data != null && Data.Count > 0)
+        {
+            _ = SetFocusedRowIndexAsync(Data.Count - 1);
+        }
     }
 
     private void PageUp(InputBindingActionContext ctx)
     {
-        ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
+        var pageSize = Math.Max(1, _viewportRowCount - 1);
+        var currentIndex = GetFocusedRowIndex();
+        
+        if (currentIndex >= 0)
+        {
+            // Move focus up by a page
+            _ = SetFocusedRowIndexAsync(currentIndex - pageSize);
+        }
+        else
+        {
+            // Just scroll the viewport
+            ScrollByAmount(-pageSize);
+        }
     }
 
     private void PageDown(InputBindingActionContext ctx)
     {
-        ScrollByAmount(Math.Max(1, _viewportRowCount - 1));
-    }
-
-    private void ScrollToStart(InputBindingActionContext ctx)
-    {
-        SetScrollOffset(0);
-    }
-
-    private void ScrollToEnd(InputBindingActionContext ctx)
-    {
-        SetScrollOffset(MaxScrollOffset);
+        var pageSize = Math.Max(1, _viewportRowCount - 1);
+        var currentIndex = GetFocusedRowIndex();
+        
+        if (currentIndex >= 0)
+        {
+            // Move focus down by a page
+            _ = SetFocusedRowIndexAsync(currentIndex + pageSize);
+        }
+        else
+        {
+            // Just scroll the viewport
+            ScrollByAmount(pageSize);
+        }
     }
 
     private void ScrollByAmount(int amount)
