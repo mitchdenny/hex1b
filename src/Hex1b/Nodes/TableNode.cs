@@ -65,16 +65,6 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     public Func<RootContext, Hex1bWidget>? EmptyBuilder { get; set; }
 
     /// <summary>
-    /// Builder for loading row cells.
-    /// </summary>
-    public Func<TableLoadingContext, int, IReadOnlyList<TableCell>>? LoadingRowBuilder { get; set; }
-
-    /// <summary>
-    /// Number of loading placeholder rows.
-    /// </summary>
-    public int LoadingRowCount { get; set; } = 3;
-
-    /// <summary>
     /// Selector function to extract a unique key from each row.
     /// </summary>
     public Func<TRow, object>? RowKeySelector { get; set; }
@@ -85,19 +75,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     public object? FocusedKey { get; set; }
 
     /// <summary>
-    /// The set of keys for selected rows.
-    /// </summary>
-    public IReadOnlySet<object>? SelectedKeys { get; set; }
-
-    /// <summary>
     /// Handler for focus changes.
     /// </summary>
     public Func<object?, Task>? FocusChangedHandler { get; set; }
-
-    /// <summary>
-    /// Handler for selection changes.
-    /// </summary>
-    public Func<IReadOnlySet<object>, Task>? SelectionChangedHandler { get; set; }
 
     /// <summary>
     /// Handler for row activation.
@@ -108,6 +88,26 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// Whether to show a selection column with checkboxes.
     /// </summary>
     public bool ShowSelectionColumn { get; set; }
+
+    /// <summary>
+    /// Selector to determine if a row is selected (reads from view model).
+    /// </summary>
+    public Func<TRow, bool>? IsSelectedSelector { get; set; }
+
+    /// <summary>
+    /// Callback invoked when a row's selection state changes.
+    /// </summary>
+    public Action<TRow, bool>? SelectionChangedCallback { get; set; }
+
+    /// <summary>
+    /// Callback invoked when select all is triggered.
+    /// </summary>
+    public Action? SelectAllCallback { get; set; }
+
+    /// <summary>
+    /// Callback invoked when deselect all is triggered.
+    /// </summary>
+    public Action? DeselectAllCallback { get; set; }
 
     /// <summary>
     /// The render mode for the table (Compact or Full).
@@ -239,12 +239,6 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// Gets the internal focused key for widget reconciliation.
     /// </summary>
     internal object? GetInternalFocusedKey() => FocusedKey;
-    
-    /// <summary>
-    /// Gets the internal selected keys for widget reconciliation.
-    /// </summary>
-    internal IReadOnlySet<object>? GetInternalSelectedKeys() => 
-        _internalSelectedKeys.Count > 0 ? _internalSelectedKeys : SelectedKeys;
 
     #region ILayoutProvider Implementation
     
@@ -328,7 +322,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             if (mouseY == headerY && mouseX >= Bounds.X + 1 && mouseX < checkboxEndX)
             {
                 // Toggle select all/none
-                await ToggleSelectAll();
+                ToggleSelectAll();
                 return;
             }
         }
@@ -339,7 +333,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         int headerHeight = _headerRowNode is not null ? 2 : 0; // Header row + separator
         int dataStartY = Bounds.Y + 1 + headerHeight; // After top border + header
         
-        int clickedRowIndex = mouseY - dataStartY + _scrollOffset;
+        // In Full mode, each row takes 2 lines (content + separator)
+        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
+        int clickedRowIndex = (mouseY - dataStartY) / rowHeight + _scrollOffset;
         
         if (clickedRowIndex < 0 || clickedRowIndex >= Data.Count) 
             return;
@@ -363,60 +359,53 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // If clicked on checkbox, toggle selection
         if (clickedCheckbox)
         {
-            await ToggleSelectionForKey(key);
+            ToggleSelectionForRow(Data[clickedRowIndex]);
         }
     }
     
     /// <summary>
-    /// Toggles selection for a specific key.
+    /// Toggles selection for a specific row by invoking the callback.
     /// </summary>
-    private async Task ToggleSelectionForKey(object key)
+    private void ToggleSelectionForRow(TRow row)
     {
-        SyncInternalSelection();
+        if (SelectionChangedCallback is null) return;
         
-        if (_internalSelectedKeys.Contains(key))
-        {
-            _internalSelectedKeys.Remove(key);
-        }
-        else
-        {
-            _internalSelectedKeys.Add(key);
-        }
-        
-        await NotifySelectionChanged();
+        var currentlySelected = IsSelectedSelector?.Invoke(row) ?? false;
+        SelectionChangedCallback(row, !currentlySelected);
+        MarkDirty();
     }
     
     /// <summary>
     /// Toggles between select all and deselect all.
     /// </summary>
-    private async Task ToggleSelectAll()
+    private void ToggleSelectAll()
     {
         if (Data is null || Data.Count == 0) return;
         
-        SyncInternalSelection();
-        
-        // If all selected, deselect all; otherwise select all
-        bool allSelected = _internalSelectedKeys.Count == Data.Count;
-        
-        _internalSelectedKeys.Clear();
-        
-        if (!allSelected)
+        // Count how many are currently selected
+        int selectedCount = 0;
+        if (IsSelectedSelector != null)
         {
-            for (int i = 0; i < Data.Count; i++)
-            {
-                var key = RowKeySelector?.Invoke(Data[i]) ?? i;
-                _internalSelectedKeys.Add(key);
-            }
+            selectedCount = Data.Count(IsSelectedSelector);
         }
         
-        await NotifySelectionChanged();
+        // If all selected, deselect all; otherwise select all
+        bool allSelected = selectedCount == Data.Count;
+        
+        if (allSelected)
+        {
+            DeselectAllCallback?.Invoke();
+        }
+        else
+        {
+            SelectAllCallback?.Invoke();
+        }
+        
+        MarkDirty();
     }
 
     // Selection anchor for range selection (the row where Shift-selection started)
     private int _selectionAnchorIndex = -1;
-    
-    // Internal mutable set for selection management
-    private HashSet<object> _internalSelectedKeys = new();
 
     /// <summary>
     /// Gets the index of the currently focused row, or -1 if no row is focused.
@@ -577,23 +566,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (currentIndex < 0 || Data == null)
             return;
 
-        var key = GetRowKey(Data[currentIndex], currentIndex);
-        
-        // Toggle in internal set
-        SyncInternalSelection();
-        if (_internalSelectedKeys.Contains(key))
-        {
-            _internalSelectedKeys.Remove(key);
-        }
-        else
-        {
-            _internalSelectedKeys.Add(key);
-        }
-        
-        // Update anchor to current position
-        _selectionAnchorIndex = currentIndex;
-        
-        _ = NotifySelectionChanged();
+        ToggleSelectionForRow(Data[currentIndex]);
     }
 
     /// <summary>
@@ -604,13 +577,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         if (Data == null || Data.Count == 0)
             return;
 
-        _internalSelectedKeys.Clear();
-        for (int i = 0; i < Data.Count; i++)
-        {
-            _internalSelectedKeys.Add(GetRowKey(Data[i], i));
-        }
-        
-        _ = NotifySelectionChanged();
+        SelectAllCallback?.Invoke();
+        MarkDirty();
     }
 
     /// <summary>
@@ -630,7 +598,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         _ = SetFocusedRowIndexAsync(currentIndex - 1);
         
         // Select range from anchor to new focus
-        _ = SelectRangeAsync(_selectionAnchorIndex, currentIndex - 1);
+        SelectRange(_selectionAnchorIndex, currentIndex - 1);
     }
 
     /// <summary>
@@ -652,7 +620,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         _ = SetFocusedRowIndexAsync(currentIndex + 1);
         
         // Select range from anchor to new focus
-        _ = SelectRangeAsync(_selectionAnchorIndex, currentIndex + 1);
+        SelectRange(_selectionAnchorIndex, currentIndex + 1);
     }
 
     /// <summary>
@@ -672,7 +640,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         _ = SetFocusedRowIndexAsync(0);
         
         // Select range from anchor to first
-        _ = SelectRangeAsync(_selectionAnchorIndex, 0);
+        SelectRange(_selectionAnchorIndex, 0);
     }
 
     /// <summary>
@@ -694,15 +662,15 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         _ = SetFocusedRowIndexAsync(maxIndex);
         
         // Select range from anchor to last
-        _ = SelectRangeAsync(_selectionAnchorIndex, maxIndex);
+        SelectRange(_selectionAnchorIndex, maxIndex);
     }
 
     /// <summary>
     /// Selects all rows in the range from startIndex to endIndex (inclusive).
     /// </summary>
-    private async Task SelectRangeAsync(int startIndex, int endIndex)
+    private void SelectRange(int startIndex, int endIndex)
     {
-        if (Data == null)
+        if (Data == null || SelectionChangedCallback == null)
             return;
 
         var minIndex = Math.Min(startIndex, endIndex);
@@ -712,38 +680,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         minIndex = Math.Max(0, minIndex);
         maxIndex = Math.Min(Data.Count - 1, maxIndex);
 
-        _internalSelectedKeys.Clear();
+        // Select all rows in range
         for (int i = minIndex; i <= maxIndex; i++)
         {
-            _internalSelectedKeys.Add(GetRowKey(Data[i], i));
+            var row = Data[i];
+            var isSelected = IsSelectedSelector?.Invoke(row) ?? false;
+            if (!isSelected)
+            {
+                SelectionChangedCallback(row, true);
+            }
         }
 
-        await NotifySelectionChanged();
-    }
-
-    /// <summary>
-    /// Syncs internal selection set with external SelectedKeys.
-    /// </summary>
-    private void SyncInternalSelection()
-    {
-        if (SelectedKeys != null)
-        {
-            _internalSelectedKeys = new HashSet<object>(SelectedKeys);
-        }
-    }
-
-    /// <summary>
-    /// Notifies the selection changed handler and updates SelectedKeys.
-    /// </summary>
-    private async Task NotifySelectionChanged()
-    {
-        SelectedKeys = _internalSelectedKeys.ToHashSet();
         MarkDirty();
-        
-        if (SelectionChangedHandler != null)
-        {
-            await SelectionChangedHandler(SelectedKeys);
-        }
     }
 
     #endregion
@@ -863,25 +811,21 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     }
 
     /// <summary>
-    /// Checks if a row key is selected (uses internal selection for runtime updates).
+    /// Checks if a row is selected using the selector.
     /// </summary>
-    private bool IsRowSelected(object key)
+    private bool IsRowSelected(TRow row)
     {
-        // Check internal selection first (updated at runtime), fall back to external prop
-        if (_internalSelectedKeys.Count > 0)
-        {
-            return _internalSelectedKeys.Contains(key);
-        }
-        return SelectedKeys?.Contains(key) == true;
+        return IsSelectedSelector?.Invoke(row) ?? false;
     }
     
     /// <summary>
-    /// Checks if a row key is currently selected (for rendering).
-    /// This is the runtime-aware version that checks internal state.
+    /// Checks if a row at the given index is currently selected (for rendering).
     /// </summary>
-    private bool IsRowSelectedForRender(object key)
+    private bool IsRowSelectedForRender(int rowIndex)
     {
-        return _internalSelectedKeys.Contains(key) || (SelectedKeys?.Contains(key) == true);
+        if (Data == null || rowIndex < 0 || rowIndex >= Data.Count)
+            return false;
+        return IsSelectedSelector?.Invoke(Data[rowIndex]) ?? false;
     }
 
     /// <summary>
@@ -918,7 +862,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                     RowIndex = i,
                     RowKey = rowKey,
                     IsFocused = IsRowFocused(rowKey),
-                    IsSelected = IsRowSelected(rowKey),
+                    IsSelected = IsRowSelected(row),
                     IsFirst = i == 0,
                     IsLast = i == rowCount - 1
                 };
@@ -1298,11 +1242,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         BuildCellData();
 
         // Determine total content row count
-        if (Data is null)
-        {
-            _contentRowCount = LoadingRowCount; // Loading state
-        }
-        else if (Data.Count == 0)
+        // Both null data and empty data show the empty state
+        if (Data is null || Data.Count == 0)
         {
             _contentRowCount = 1; // Empty state (message row)
         }
@@ -1487,13 +1428,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 }
             }
         }
-        else if (Data is not null && Data.Count == 0)
+        else if (Data is null || Data.Count == 0)
         {
             y++; // Empty message row
-        }
-        else if (Data is null)
-        {
-            y += LoadingRowCount; // Loading rows
         }
         
         // Arrange footer row (skip separator)
@@ -1550,27 +1487,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             y++;
         }
 
-        // Data rows or loading/empty state
-        if (Data is null)
-        {
-            // Loading state - still show column structure
-            var loadingContext = new TableLoadingContext();
-            for (int i = 0; i < LoadingRowCount && y < Bounds.Height - 1; i++)
-            {
-                var loadingCells = LoadingRowBuilder?.Invoke(loadingContext, i);
-                if (loadingCells is not null)
-                {
-                    RenderRowDirect(context, y, loadingCells, isHeader: false, isLoading: true);
-                }
-                else
-                {
-                    // Default loading placeholder
-                    RenderLoadingRow(context, y);
-                }
-                y++;
-            }
-        }
-        else if (Data.Count == 0)
+        // Data rows or empty state
+        if (Data is null || Data.Count == 0)
         {
             // Empty state - render with just left/right borders, no column separators
             RenderEmptyRow(context, y, totalWidth);
@@ -1585,7 +1503,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
             {
                 var state = _rowStates[i];
                 // Use runtime selection check instead of cached state
-                bool isSelected = IsRowSelectedForRender(state.RowKey);
+                bool isSelected = IsRowSelectedForRender(i);
                 
                 // Update row node highlight/selection state for rendering
                 _dataRowNodes[i].IsHighlighted = state.IsFocused;
@@ -1748,9 +1666,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 // Header checkbox - only show when there's data to select
                 if (Data != null && Data.Count > 0)
                 {
-                    var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
-                    var allSelected = effectiveSelectedCount == Data.Count;
-                    var someSelected = effectiveSelectedCount > 0 && !allSelected;
+                    var selectedCount = IsSelectedSelector != null ? Data.Count(IsSelectedSelector) : 0;
+                    var allSelected = selectedCount == Data.Count;
+                    var someSelected = selectedCount > 0 && !allSelected;
                     var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
                         : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
                         : theme.Get(TableTheme.CheckboxUnchecked);
@@ -1847,9 +1765,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 // Header checkbox - only show when there's data to select
                 if (Data != null && Data.Count > 0)
                 {
-                    var effectiveSelectedCount = _internalSelectedKeys.Count > 0 ? _internalSelectedKeys.Count : (SelectedKeys?.Count ?? 0);
-                    var allSelected = effectiveSelectedCount == Data.Count;
-                    var someSelected = effectiveSelectedCount > 0 && !allSelected;
+                    var selectedCount = IsSelectedSelector != null ? Data.Count(IsSelectedSelector) : 0;
+                    var allSelected = selectedCount == Data.Count;
+                    var someSelected = selectedCount > 0 && !allSelected;
                     var checkChar = allSelected ? theme.Get(TableTheme.CheckboxChecked) 
                         : someSelected ? theme.Get(TableTheme.CheckboxIndeterminate)
                         : theme.Get(TableTheme.CheckboxUnchecked);
@@ -1909,32 +1827,6 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
-    private void RenderLoadingRow(Hex1bRenderContext context, int y)
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.Append(Vertical);
-
-        // Selection column (if enabled) - show empty for loading rows (no data to select)
-        if (ShowSelectionColumn)
-        {
-            sb.Append(new string(' ', SelectionColumnWidth));
-            sb.Append(Vertical);
-        }
-
-        for (int col = 0; col < _columnCount; col++)
-        {
-            int width = _columnWidths[col];
-            sb.Append(new string('░', width));
-            if (col < _columnCount - 1)
-            {
-                sb.Append(Vertical);
-            }
-        }
-
-        sb.Append(Vertical);
-        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
-    }
-
     private void RenderSolidHorizontalBorder(Hex1bRenderContext context, int y, char left, char right)
     {
         var sb = new System.Text.StringBuilder();
@@ -1963,12 +1855,19 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     private void RenderEmptyRow(Hex1bRenderContext context, int y, int totalWidth)
     {
         var sb = new System.Text.StringBuilder();
+        
+        // Apply border color from theme
+        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        sb.Append(borderColor.ToForegroundAnsi());
+        
         sb.Append(Vertical);
 
         // Selection column (if enabled) - show empty (no checkbox for empty state)
         if (ShowSelectionColumn)
         {
+            sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
+            sb.Append(borderColor.ToForegroundAnsi());
             sb.Append(Vertical);
         }
 
@@ -1981,6 +1880,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         // Center the "No data" message
         const string emptyMessage = "No data";
         int padding = (contentWidth - emptyMessage.Length) / 2;
+        
+        sb.Append("\x1b[0m"); // Reset for content
         if (padding > 0)
         {
             sb.Append(new string(' ', padding));
@@ -1995,7 +1896,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
                 : emptyMessage[..contentWidth]);
         }
 
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(Vertical);
+        sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 }

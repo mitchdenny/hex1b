@@ -32,8 +32,7 @@ var products = new List<Product>
     new("Portable SSD 1TB", "Electronics", 119.99m, 65),
 };
 
-object? focusedKey = 0;  // Key-based focus (using row index as key by default)
-bool isLoading = false;
+object? focusedKey = products[0].Name;  // Key-based focus using product name
 bool isEmpty = false;
 
 // Build the product table with the specified render mode
@@ -43,6 +42,7 @@ TableWidget<Product> BuildProductTable<TParent>(
     TableRenderMode renderMode) where TParent : Hex1bWidget
 {
     var table = ctx.Table(data)
+        .WithRowKey(p => p.Name)  // Use product name as key
         .WithHeader(h => [
             h.Cell("Product").Width(SizeHint.Fill),
             h.Cell("Category").Width(SizeHint.Content),
@@ -65,16 +65,14 @@ TableWidget<Product> BuildProductTable<TParent>(
             f.Cell(products.Sum(p => p.Stock).ToString()),
             f.Cell("")
         ])
-        .WithLoading((l, idx) => [
-            l.Cell("████████████"),
-            l.Cell("████████"),
-            l.Cell("██████"),
-            l.Cell("████"),
-            l.Cell("████████")
-        ], rowCount: 5)
         .WithFocus(focusedKey)
         .OnFocusChanged(key => focusedKey = key)
-        .WithSelectionColumn();
+        .WithSelectionColumn(
+            isSelected: p => p.IsSelected,
+            onChanged: (p, selected) => p.IsSelected = selected
+        )
+        .OnSelectAll(() => { foreach (var p in products) p.IsSelected = true; })
+        .OnDeselectAll(() => { foreach (var p in products) p.IsSelected = false; });
     
     // Apply render mode
     return renderMode == TableRenderMode.Full ? table.Full() : table.Compact();
@@ -83,7 +81,7 @@ TableWidget<Product> BuildProductTable<TParent>(
 // Create the app
 var app = new Hex1bApp(ctx =>
 {
-    var displayData = isEmpty ? [] : (isLoading ? null : products);
+    var displayData = isEmpty ? [] : products;
     
     return ctx.VStack(v => [
         v.Text("╔════════════════════════════════════════════════════════════╗"),
@@ -100,11 +98,9 @@ var app = new Hex1bApp(ctx =>
         ]).FillHeight(),
         
         v.Text(""),
-        v.Text($"Focused Row: {(focusedKey != null && focusedKey is int idx && idx < products.Count ? products[idx].Name : "None")}"),
+        v.Text($"Focused Row: {focusedKey ?? "None"}  |  Selected: {products.Count(p => p.IsSelected)} items"),
         v.Text(""),
         v.HStack(h => [
-            h.Button("[L] Toggle Loading").OnClick(_ => { isLoading = !isLoading; }),
-            h.Text(" "),
             h.Button("[E] Toggle Empty").OnClick(_ => { isEmpty = !isEmpty; })
         ]),
         v.Text(""),
@@ -122,4 +118,5 @@ class Product(string name, string category, decimal price, int stock)
     public string Category { get; set; } = category;
     public decimal Price { get; set; } = price;
     public int Stock { get; set; } = stock;
+    public bool IsSelected { get; set; }
 }

@@ -6,6 +6,15 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+/// <summary>
+/// Test item with selection state for view model selection tests.
+/// </summary>
+internal class SelectableItem
+{
+    public string Name { get; set; } = "";
+    public bool IsSelected { get; set; }
+}
+
 public class TableNodeTests
 {
     #region Construction & Basics
@@ -165,20 +174,19 @@ public class TableNodeTests
     }
 
     [Fact]
-    public void Measure_LoadingState_UsesLoadingRowCount()
+    public void Measure_NullData_ShowsEmptyState()
     {
         var node = new TableNode<string>
         {
-            Data = null, // Loading state
+            Data = null, // Null data shows empty state
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            LoadingRowCount = 5
+            RowBuilder = (r, item, _) => [r.Cell(item)]
         };
 
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
-        // Height = top (1) + header (1) + sep (1) + 5 loading rows (5) + bottom (1) = 9
-        Assert.Equal(9, size.Height);
+        // Height = top (1) + header (1) + sep (1) + 1 empty row (1) + bottom (1) = 5
+        Assert.Equal(5, size.Height);
     }
 
     [Fact]
@@ -231,20 +239,6 @@ public class TableNodeTests
             .WithEmpty(e => e.Text("No items"));
 
         Assert.NotNull(widget.EmptyBuilder);
-    }
-
-    [Fact]
-    public void Widget_WithLoading_ConfiguresLoadingBuilder()
-    {
-        var ctx = new RootContext();
-        
-        var widget = ctx.Table<string>(null)
-            .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item, _) => [r.Cell(item)])
-            .WithLoading((l, idx) => [l.Cell("Loading...")], rowCount: 10);
-
-        Assert.NotNull(widget.LoadingRowBuilder);
-        Assert.Equal(10, widget.LoadingRowCount);
     }
 
     #endregion
@@ -491,13 +485,16 @@ public class TableNodeTests
     [Fact]
     public async Task Space_KeyBinding_TogglesSelection()
     {
-        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
-        var node = new TableNode<string>
+        var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
+        var node = new TableNode<SelectableItem>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            FocusedKey = 2 // Focus on row 2
+            RowBuilder = (r, item, _) => [r.Cell(item.Name)],
+            RowKeySelector = item => item.Name,
+            FocusedKey = "Row 3", // Focus on row 3
+            IsSelectedSelector = item => item.IsSelected,
+            SelectionChangedCallback = (item, selected) => item.IsSelected = selected
         };
 
         var constraints = new Constraints(0, 40, 0, 15);
@@ -507,34 +504,35 @@ public class TableNodeTests
         node.IsFocused = true;
         
         // Initially no selection
-        Assert.Null(node.SelectedKeys);
+        Assert.False(data[2].IsSelected);
 
         // Press Space to select
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.NotNull(node.SelectedKeys);
-        Assert.Single(node.SelectedKeys);
-        Assert.Contains(2, node.SelectedKeys.Cast<int>());
+        Assert.True(data[2].IsSelected);
 
         // Press Space again to deselect
         result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
         
         Assert.Equal(InputResult.Handled, result);
-        Assert.Empty(node.SelectedKeys);
+        Assert.False(data[2].IsSelected);
     }
 
     [Fact]
     public async Task CtrlA_KeyBinding_SelectsAllRows()
     {
-        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
-        var node = new TableNode<string>
+        var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
+        var node = new TableNode<SelectableItem>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            FocusedKey = 0
+            RowBuilder = (r, item, _) => [r.Cell(item.Name)],
+            RowKeySelector = item => item.Name,
+            FocusedKey = "Row 1",
+            IsSelectedSelector = item => item.IsSelected,
+            SelectAllCallback = () => { foreach (var item in data) item.IsSelected = true; }
         };
 
         var constraints = new Constraints(0, 40, 0, 15);
@@ -548,20 +546,22 @@ public class TableNodeTests
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.NotNull(node.SelectedKeys);
-        Assert.Equal(10, node.SelectedKeys.Count); // All 10 rows selected
+        Assert.Equal(10, data.Count(item => item.IsSelected)); // All 10 rows selected
     }
 
     [Fact]
     public async Task ShiftDown_KeyBinding_ExtendsSelection()
     {
-        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
-        var node = new TableNode<string>
+        var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
+        var node = new TableNode<SelectableItem>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            FocusedKey = 2 // Start at row 2
+            RowBuilder = (r, item, _) => [r.Cell(item.Name)],
+            RowKeySelector = item => item.Name,
+            FocusedKey = "Row 3", // Start at row 3
+            IsSelectedSelector = item => item.IsSelected,
+            SelectionChangedCallback = (item, selected) => item.IsSelected = selected
         };
 
         var constraints = new Constraints(0, 40, 0, 15);
@@ -575,21 +575,23 @@ public class TableNodeTests
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.NotNull(node.SelectedKeys);
-        Assert.Equal(3, node.SelectedKeys.Count); // Rows 2, 3, 4 selected
-        Assert.Equal(4, node.FocusedKey); // Focus moved to row 4
+        Assert.Equal(3, data.Count(item => item.IsSelected)); // Rows 3, 4, 5 selected
+        Assert.Equal("Row 5", node.FocusedKey); // Focus moved to row 5
     }
 
     [Fact]
     public async Task ShiftEnd_KeyBinding_SelectsToLastRow()
     {
-        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
-        var node = new TableNode<string>
+        var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
+        var node = new TableNode<SelectableItem>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            FocusedKey = 5 // Start at row 5
+            RowBuilder = (r, item, _) => [r.Cell(item.Name)],
+            RowKeySelector = item => item.Name,
+            FocusedKey = "Row 6", // Start at row 6
+            IsSelectedSelector = item => item.IsSelected,
+            SelectionChangedCallback = (item, selected) => item.IsSelected = selected
         };
 
         var constraints = new Constraints(0, 40, 0, 15);
@@ -602,27 +604,30 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Shift);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.NotNull(node.SelectedKeys);
-        Assert.Equal(5, node.SelectedKeys.Count); // Rows 5, 6, 7, 8, 9 selected
-        Assert.Equal(9, node.FocusedKey); // Focus at last row
+        Assert.Equal(5, data.Count(item => item.IsSelected)); // Rows 6, 7, 8, 9, 10 selected
+        Assert.Equal("Row 10", node.FocusedKey); // Focus at last row
     }
 
     [Fact]
-    public async Task SelectionChangedHandler_IsCalled()
+    public async Task SelectionChangedCallback_IsCalled()
     {
-        var data = Enumerable.Range(1, 10).Select(i => $"Row {i}").ToArray();
-        IReadOnlySet<object>? lastSelection = null;
+        var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
+        SelectableItem? lastChangedItem = null;
+        bool? lastChangedState = null;
         
-        var node = new TableNode<string>
+        var node = new TableNode<SelectableItem>
         {
             Data = data,
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)],
-            FocusedKey = 0,
-            SelectionChangedHandler = selection =>
+            RowBuilder = (r, item, _) => [r.Cell(item.Name)],
+            RowKeySelector = item => item.Name,
+            FocusedKey = "Row 1",
+            IsSelectedSelector = item => item.IsSelected,
+            SelectionChangedCallback = (item, selected) =>
             {
-                lastSelection = selection;
-                return Task.CompletedTask;
+                lastChangedItem = item;
+                lastChangedState = selected;
+                item.IsSelected = selected;
             }
         };
 
@@ -636,8 +641,9 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.NotNull(lastSelection);
-        Assert.Single(lastSelection);
+        Assert.NotNull(lastChangedItem);
+        Assert.Equal("Row 1", lastChangedItem.Name);
+        Assert.True(lastChangedState);
     }
 
     [Fact]
@@ -1038,20 +1044,27 @@ public class TableNodeTests
             .WithAsciinemaRecording(recordingPath)
             .Build();
 
-        var products = new[] { "Laptop", "Keyboard", "Mouse" };
-        HashSet<object> selectedKeys = new();
-        object? focusedKey = 0;
+        var products = new List<SelectableItem>
+        {
+            new() { Name = "Laptop" },
+            new() { Name = "Keyboard" },
+            new() { Name = "Mouse" }
+        };
+        object? focusedKey = "Laptop";
         
         using var app = new Hex1bApp(
-            ctx => ctx.Table(products)
+            ctx => ctx.Table((IReadOnlyList<SelectableItem>)products)
+                .WithRowKey(p => p.Name)
                 .WithHeader(h => [h.Cell("Product")])
                 .WithRow((r, item, state) => [
-                    r.Cell(state.IsFocused ? $"> {item}" : item)
+                    r.Cell(state.IsFocused ? $"> {item.Name}" : item.Name)
                 ])
                 .WithFocus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
-                .WithSelectionColumn()
-                .OnSelectionChanged(keys => selectedKeys = keys.ToHashSet()),
+                .WithSelectionColumn(
+                    isSelected: p => p.IsSelected,
+                    onChanged: (p, selected) => p.IsSelected = selected
+                ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -1069,11 +1082,11 @@ public class TableNodeTests
         var initialText = initialSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
         TestContext.Current.TestOutputHelper?.WriteLine(initialText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
         
         // Initial state - first row focused, no selection
         Assert.Contains("[ ]", initialText); // Unchecked checkbox
-        Assert.Empty(selectedKeys);
+        Assert.Equal(0, products.Count(p => p.IsSelected));
 
         // Press Space to toggle selection
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1086,11 +1099,11 @@ public class TableNodeTests
         var afterSpaceText = afterSpaceSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== After Space ===");
         TestContext.Current.TestOutputHelper?.WriteLine(afterSpaceText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // After Space, first row should be selected
         Assert.Contains("[x]", afterSpaceText); // Checked checkbox
-        Assert.Single(selectedKeys);
+        Assert.Equal(1, products.Count(p => p.IsSelected));
 
         // Navigate down and select that row too
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1104,10 +1117,10 @@ public class TableNodeTests
         var afterDownSpaceText = afterDownSpaceSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== After Down+Space ===");
         TestContext.Current.TestOutputHelper?.WriteLine(afterDownSpaceText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // Now two rows should be selected
-        Assert.Equal(2, selectedKeys.Count);
+        Assert.Equal(2, products.Count(p => p.IsSelected));
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1136,22 +1149,29 @@ public class TableNodeTests
             .WithAsciinemaRecording(recordingPath)
             .Build();
 
-        var products = new[] { "Laptop", "Keyboard", "Mouse" };
-        HashSet<object> selectedKeys = new();
-        object? focusedKey = 0;
+        var products = new List<SelectableItem>
+        {
+            new() { Name = "Laptop" },
+            new() { Name = "Keyboard" },
+            new() { Name = "Mouse" }
+        };
+        object? focusedKey = "Laptop";
         string? debugBounds = null;
         
         using var app = new Hex1bApp(
             ctx => {
-                var table = ctx.Table(products)
+                var table = ctx.Table((IReadOnlyList<SelectableItem>)products)
+                    .WithRowKey(p => p.Name)
                     .WithHeader(h => [h.Cell("Product")])
                     .WithRow((r, item, state) => [
-                        r.Cell(state.IsFocused ? $"> {item}" : item)
+                        r.Cell(state.IsFocused ? $"> {item.Name}" : item.Name)
                     ])
                     .WithFocus(focusedKey)
                     .OnFocusChanged(key => focusedKey = key)
-                    .WithSelectionColumn()
-                    .OnSelectionChanged(keys => selectedKeys = keys.ToHashSet());
+                    .WithSelectionColumn(
+                        isSelected: p => p.IsSelected,
+                        onChanged: (p, selected) => p.IsSelected = selected
+                    );
                     
                 // Store bounds info for debugging after render
                 debugBounds = $"TableBounds will be set at render time";
@@ -1174,10 +1194,10 @@ public class TableNodeTests
         var initialText = initialSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
         TestContext.Current.TestOutputHelper?.WriteLine(initialText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
         
         // Initial state - no selection
-        Assert.Empty(selectedKeys);
+        Assert.Equal(0, products.Count(p => p.IsSelected));
 
         // Click on the checkbox of the first data row
         // Table structure: │[ ]│> Laptop...
@@ -1201,11 +1221,12 @@ public class TableNodeTests
         var afterClickText = afterClickSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== After Mouse Click on Checkbox ===");
         TestContext.Current.TestOutputHelper?.WriteLine(afterClickText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: [{string.Join(",", selectedKeys)}]");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // After click on checkbox, first row should be selected
         // If this fails, the mouse event might not be reaching the table
-        if (selectedKeys.Count == 0)
+        var selectedCount = products.Count(p => p.IsSelected);
+        if (selectedCount == 0)
         {
             TestContext.Current.TestOutputHelper?.WriteLine("FAIL: Selection is still empty after click");
             TestContext.Current.TestOutputHelper?.WriteLine("This could mean:");
@@ -1215,7 +1236,7 @@ public class TableNodeTests
             TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording saved to: {recordingPath}");
         }
         
-        Assert.Single(selectedKeys);
+        Assert.Equal(1, selectedCount);
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()

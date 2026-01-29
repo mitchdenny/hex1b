@@ -54,23 +54,6 @@ public class TableFooterContext
 }
 
 /// <summary>
-/// Context for building loading placeholder rows.
-/// </summary>
-public class TableLoadingContext
-{
-    /// <summary>
-    /// Creates a text cell for the loading row.
-    /// </summary>
-    public TableCell Cell(string text) => new() { Text = text };
-
-    /// <summary>
-    /// Creates a widget cell for the loading row.
-    /// </summary>
-    public TableCell Cell(Func<TableCellContext, Hex1bWidget> builder) 
-        => new() { WidgetBuilder = builder };
-}
-
-/// <summary>
 /// Extension methods for TableCell to enable fluent column configuration.
 /// </summary>
 public static class TableCellExtensions

@@ -36,16 +36,6 @@ public record TableWidget<TRow> : Hex1bWidget
     internal Func<RootContext, Hex1bWidget>? EmptyBuilder { get; init; }
 
     /// <summary>
-    /// Builder function for loading row cells, shown when Data is null.
-    /// </summary>
-    internal Func<TableLoadingContext, int, IReadOnlyList<TableCell>>? LoadingRowBuilder { get; init; }
-
-    /// <summary>
-    /// Number of loading placeholder rows to show.
-    /// </summary>
-    internal int LoadingRowCount { get; init; } = 3;
-
-    /// <summary>
     /// Selector function to extract a unique key from each row.
     /// Used for stable selection tracking across data changes.
     /// If not specified, row index is used as the key.
@@ -58,14 +48,31 @@ public record TableWidget<TRow> : Hex1bWidget
     public object? FocusedKey { get; init; }
 
     /// <summary>
-    /// The set of keys for selected rows.
-    /// </summary>
-    public IReadOnlySet<object>? SelectedKeys { get; init; }
-
-    /// <summary>
     /// Whether to show a selection column with checkboxes.
     /// </summary>
     public bool ShowSelectionColumn { get; init; }
+
+    /// <summary>
+    /// Selector function to determine if a row is selected.
+    /// Called during render to determine checkbox state.
+    /// </summary>
+    internal Func<TRow, bool>? IsSelectedSelector { get; init; }
+
+    /// <summary>
+    /// Callback invoked when a row's selection state changes.
+    /// Receives the row and the new selection state (true = selected, false = deselected).
+    /// </summary>
+    internal Action<TRow, bool>? SelectionChangedCallback { get; init; }
+
+    /// <summary>
+    /// Callback invoked when "select all" is triggered from the header checkbox.
+    /// </summary>
+    internal Action? SelectAllCallback { get; init; }
+
+    /// <summary>
+    /// Callback invoked when "deselect all" is triggered from the header checkbox.
+    /// </summary>
+    internal Action? DeselectAllCallback { get; init; }
 
     /// <summary>
     /// The render mode for the table (Compact or Full).
@@ -76,11 +83,6 @@ public record TableWidget<TRow> : Hex1bWidget
     /// Handler called when focus changes.
     /// </summary>
     internal Func<object?, Task>? FocusChangedHandler { get; init; }
-
-    /// <summary>
-    /// Handler called when selection changes.
-    /// </summary>
-    internal Func<IReadOnlySet<object>, Task>? SelectionChangedHandler { get; init; }
 
     /// <summary>
     /// Handler called when a row is activated (Enter key or double-click).
@@ -128,18 +130,6 @@ public record TableWidget<TRow> : Hex1bWidget
             needsDirty = true;
         }
 
-        if (node.LoadingRowBuilder != LoadingRowBuilder)
-        {
-            node.LoadingRowBuilder = LoadingRowBuilder;
-            needsDirty = true;
-        }
-
-        if (node.LoadingRowCount != LoadingRowCount)
-        {
-            node.LoadingRowCount = LoadingRowCount;
-            needsDirty = true;
-        }
-
         if (node.RowKeySelector != RowKeySelector)
         {
             node.RowKeySelector = RowKeySelector;
@@ -152,17 +142,17 @@ public record TableWidget<TRow> : Hex1bWidget
             needsDirty = true;
         }
 
-        if (!SetEquals(node.SelectedKeys, SelectedKeys))
-        {
-            node.SelectedKeys = SelectedKeys;
-            needsDirty = true;
-        }
-
         if (node.ShowSelectionColumn != ShowSelectionColumn)
         {
             node.ShowSelectionColumn = ShowSelectionColumn;
             needsDirty = true;
         }
+
+        // Selection callbacks (always update, no dirty check needed)
+        node.IsSelectedSelector = IsSelectedSelector;
+        node.SelectionChangedCallback = SelectionChangedCallback;
+        node.SelectAllCallback = SelectAllCallback;
+        node.DeselectAllCallback = DeselectAllCallback;
 
         if (node.RenderMode != RenderMode)
         {
@@ -171,7 +161,6 @@ public record TableWidget<TRow> : Hex1bWidget
         }
 
         node.FocusChangedHandler = FocusChangedHandler;
-        node.SelectionChangedHandler = SelectionChangedHandler;
         node.RowActivatedHandler = RowActivatedHandler;
 
         // Build row widgets and reconcile them
@@ -237,7 +226,7 @@ public record TableWidget<TRow> : Hex1bWidget
                 var rowData = Data[i];
                 var rowKey = RowKeySelector?.Invoke(rowData) ?? i;
                 var isFocused = Equals(rowKey, FocusedKey ?? node.GetInternalFocusedKey());
-                var isSelected = (SelectedKeys ?? node.GetInternalSelectedKeys())?.Contains(rowKey) ?? false;
+                var isSelected = IsSelectedSelector?.Invoke(rowData) ?? false;
                 
                 var rowState = new TableRowState 
                 { 
@@ -312,13 +301,6 @@ public record TableWidget<TRow> : Hex1bWidget
         }
         
         return defs;
-    }
-
-    private static bool SetEquals(IReadOnlySet<object>? a, IReadOnlySet<object>? b)
-    {
-        if (a is null && b is null) return true;
-        if (a is null || b is null) return false;
-        return a.SetEquals(b);
     }
 
     internal override Type GetExpectedNodeType() => typeof(TableNode<TRow>);

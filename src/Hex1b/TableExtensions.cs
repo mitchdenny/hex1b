@@ -80,20 +80,6 @@ public static class TableExtensions
         => table with { EmptyBuilder = builder };
 
     /// <summary>
-    /// Configures the loading state rows shown when data is null.
-    /// </summary>
-    /// <typeparam name="TRow">The type of data for each row.</typeparam>
-    /// <param name="table">The table widget.</param>
-    /// <param name="builder">A function that builds loading placeholder cells.</param>
-    /// <param name="rowCount">Number of loading rows to display.</param>
-    /// <returns>The table widget with loading state configured.</returns>
-    public static TableWidget<TRow> WithLoading<TRow>(
-        this TableWidget<TRow> table,
-        Func<TableLoadingContext, int, IReadOnlyList<TableCell>> builder,
-        int rowCount = 3)
-        => table with { LoadingRowBuilder = builder, LoadingRowCount = rowCount };
-
-    /// <summary>
     /// Configures the row key selector for stable row identification across data changes.
     /// </summary>
     /// <typeparam name="TRow">The type of data for each row.</typeparam>
@@ -118,18 +104,6 @@ public static class TableExtensions
         => table with { FocusedKey = focusedKey };
 
     /// <summary>
-    /// Configures the selected rows by keys.
-    /// </summary>
-    /// <typeparam name="TRow">The type of data for each row.</typeparam>
-    /// <param name="table">The table widget.</param>
-    /// <param name="selectedKeys">The set of keys for selected rows.</param>
-    /// <returns>The table widget with selection configured.</returns>
-    public static TableWidget<TRow> WithSelection<TRow>(
-        this TableWidget<TRow> table,
-        IReadOnlySet<object>? selectedKeys)
-        => table with { SelectedKeys = selectedKeys };
-
-    /// <summary>
     /// Sets the handler for focus changes.
     /// </summary>
     /// <typeparam name="TRow">The type of data for each row.</typeparam>
@@ -152,30 +126,6 @@ public static class TableExtensions
         this TableWidget<TRow> table,
         Func<object?, Task> handler)
         => table with { FocusChangedHandler = handler };
-
-    /// <summary>
-    /// Sets the handler for selection changes.
-    /// </summary>
-    /// <typeparam name="TRow">The type of data for each row.</typeparam>
-    /// <param name="table">The table widget.</param>
-    /// <param name="handler">The handler to call when selection changes.</param>
-    /// <returns>The table widget with selection handler configured.</returns>
-    public static TableWidget<TRow> OnSelectionChanged<TRow>(
-        this TableWidget<TRow> table,
-        Action<IReadOnlySet<object>> handler)
-        => table with { SelectionChangedHandler = keys => { handler(keys); return Task.CompletedTask; } };
-
-    /// <summary>
-    /// Sets the async handler for selection changes.
-    /// </summary>
-    /// <typeparam name="TRow">The type of data for each row.</typeparam>
-    /// <param name="table">The table widget.</param>
-    /// <param name="handler">The async handler to call when selection changes.</param>
-    /// <returns>The table widget with selection handler configured.</returns>
-    public static TableWidget<TRow> OnSelectionChanged<TRow>(
-        this TableWidget<TRow> table,
-        Func<IReadOnlySet<object>, Task> handler)
-        => table with { SelectionChangedHandler = handler };
 
     /// <summary>
     /// Sets the handler for row activation (Enter key or double-click).
@@ -211,6 +161,50 @@ public static class TableExtensions
     /// <returns>The table widget with selection column enabled.</returns>
     public static TableWidget<TRow> WithSelectionColumn<TRow>(this TableWidget<TRow> table)
         => table with { ShowSelectionColumn = true };
+
+    /// <summary>
+    /// Enables a selection column with checkboxes for multi-select, with view model binding.
+    /// The selection state is read from and written to the row's view model.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="isSelected">Selector to read selection state from the row.</param>
+    /// <param name="onChanged">Callback invoked when selection state changes. Receives the row and new selection state.</param>
+    /// <returns>The table widget with selection column enabled.</returns>
+    public static TableWidget<TRow> WithSelectionColumn<TRow>(
+        this TableWidget<TRow> table,
+        Func<TRow, bool> isSelected,
+        Action<TRow, bool> onChanged)
+        => table with 
+        { 
+            ShowSelectionColumn = true, 
+            IsSelectedSelector = isSelected,
+            SelectionChangedCallback = onChanged
+        };
+
+    /// <summary>
+    /// Sets the callback for "select all" action triggered from the header checkbox.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="onSelectAll">Callback invoked when select all is triggered.</param>
+    /// <returns>The table widget with select all handler configured.</returns>
+    public static TableWidget<TRow> OnSelectAll<TRow>(
+        this TableWidget<TRow> table,
+        Action onSelectAll)
+        => table with { SelectAllCallback = onSelectAll };
+
+    /// <summary>
+    /// Sets the callback for "deselect all" action triggered from the header checkbox.
+    /// </summary>
+    /// <typeparam name="TRow">The type of data for each row.</typeparam>
+    /// <param name="table">The table widget.</param>
+    /// <param name="onDeselectAll">Callback invoked when deselect all is triggered.</param>
+    /// <returns>The table widget with deselect all handler configured.</returns>
+    public static TableWidget<TRow> OnDeselectAll<TRow>(
+        this TableWidget<TRow> table,
+        Action onDeselectAll)
+        => table with { DeselectAllCallback = onDeselectAll };
 
     /// <summary>
     /// Sets the table to Compact render mode (no separators between rows).
