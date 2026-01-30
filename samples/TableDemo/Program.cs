@@ -12,6 +12,7 @@ var scenarios = new[]
 {
     "Products (Static)",
     "Observable Collection",
+    "Observable + Selection",
     // Future: "Large List (10k)", "Async API"
 };
 
@@ -55,6 +56,20 @@ object? observableFocusedKey = observableProducts[0].Name;
 int nextProductId = 4;
 
 // ============================================================================
+// Scenario 3: Observable + Selection - Selectable observable collection
+// ============================================================================
+
+var selectableObservable = new ObservableCollection<Product>
+{
+    new("Item Alpha", "Electronics", 25.00m, 80),
+    new("Item Beta", "Furniture", 50.00m, 40),
+    new("Item Gamma", "Accessories", 12.50m, 150),
+};
+
+object? selectableFocusedKey = selectableObservable[0].Name;
+int nextSelectableId = 4;
+
+// ============================================================================
 // Build scenario content
 // ============================================================================
 
@@ -64,6 +79,7 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
     {
         0 => BuildStaticScenario(ctx),
         1 => BuildObservableScenario(ctx),
+        2 => BuildSelectableObservableScenario(ctx),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -140,6 +156,55 @@ Hex1bWidget BuildObservableScenario<TParent>(WidgetContext<TParent> ctx) where T
             h.Text(" "),
             h.Button("[C] Clear All").OnClick(_ => {
                 observableProducts.Clear();
+            })
+        ])
+    ]);
+}
+
+Hex1bWidget BuildSelectableObservableScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("Observable + Selection"),
+        v.Text("──────────────────────"),
+        v.Text(""),
+        v.Table((IReadOnlyList<Product>)selectableObservable)
+            .WithRowKey(p => p.Name)
+            .WithHeader(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+            ])
+            .WithRow((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .WithFocus(selectableFocusedKey)
+            .OnFocusChanged(key => selectableFocusedKey = key)
+            .WithSelectionColumn(
+                isSelected: p => p.IsSelected,
+                onChanged: (p, selected) => p.IsSelected = selected
+            )
+            .OnSelectAll(() => { foreach (var p in selectableObservable) p.IsSelected = true; })
+            .OnDeselectAll(() => { foreach (var p in selectableObservable) p.IsSelected = false; })
+            .FillHeight(),
+        v.Text(""),
+        v.Text($"Items: {selectableObservable.Count}  |  Selected: {selectableObservable.Count(p => p.IsSelected)}"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Button("[A] Add Item").OnClick(_ => {
+                selectableObservable.Add(new Product($"Item {nextSelectableId++}", "Electronics", 15.00m, 75));
+            }),
+            h.Text(" "),
+            h.Button("[R] Remove Last").OnClick(_ => {
+                if (selectableObservable.Count > 0)
+                    selectableObservable.RemoveAt(selectableObservable.Count - 1);
+            }),
+            h.Text(" "),
+            h.Button("[C] Clear All").OnClick(_ => {
+                selectableObservable.Clear();
             })
         ])
     ]);
