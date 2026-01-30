@@ -1982,6 +1982,8 @@ public class TableNodeTests
         await runTask;
         
         // Check each separator line ends with ┤ (not │)
+        // With scrollbar present, lines end with: ┤││ or ┤▉│ (table border + scrollbar column)
+        // So we check that ┤ appears before the scrollbar column, not that ┤ is the last char
         var lines = screenText.Split('\n');
         var separatorLines = lines.Where(l => l.Contains("├") && l.Contains("─") && l.Contains("┼")).ToList();
         
@@ -1993,15 +1995,32 @@ public class TableNodeTests
             var trimmed = line.TrimEnd();
             TestContext.Current.TestOutputHelper?.WriteLine($"  Ends with: '{trimmed[^1]}' - {trimmed[^20..]}");
             
-            // Separator lines should end with ┤ (right tee), not │ (vertical bar)
-            if (trimmed.EndsWith("│") && !trimmed.EndsWith("┤"))
+            // Separator lines should have ┤ as the table's right border
+            // With scrollbar: ends with ┤││ or ┤▉│ (TeeLeft + scrollbar track + scrollbar border)
+            // Without scrollbar: ends with ┤
+            // The key check: ┤ should appear, and no bare │ should be the table's right border
+            
+            // Find the last occurrence of ┤ - this is the table's right edge
+            int lastTeeLeft = trimmed.LastIndexOf('┤');
+            if (lastTeeLeft < 0)
             {
+                // No TeeLeft at all - this is wrong
                 linesWithWrongEnding.Add(line);
+            }
+            else
+            {
+                // After TeeLeft, we should only have scrollbar characters (│ or ▉) or nothing
+                var afterTeeLeft = trimmed[(lastTeeLeft + 1)..];
+                bool validScrollbarSuffix = afterTeeLeft.All(c => c == '│' || c == '▉');
+                if (!validScrollbarSuffix && afterTeeLeft.Length > 0)
+                {
+                    linesWithWrongEnding.Add(line);
+                }
             }
         }
         
         Assert.True(linesWithWrongEnding.Count == 0, 
-            $"Found {linesWithWrongEnding.Count} separator lines ending with │ instead of ┤.\n" +
+            $"Found {linesWithWrongEnding.Count} separator lines with incorrect ending.\n" +
             $"First bad line: {linesWithWrongEnding.FirstOrDefault()}\n\nScreen:\n{screenText}");
     }
 

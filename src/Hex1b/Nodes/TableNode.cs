@@ -98,6 +98,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private IReadOnlyList<TRow>? _cachedItems;
     private int? _cachedItemCount;
     private (int Start, int End)? _cachedRange;
+    
+    // Async loading state
+    private CancellationTokenSource? _loadCts;
+    private bool _isLoading;
+    private (int Start, int End)? _loadingRange;
 
     /// <summary>
     /// Builder for header cells.
@@ -1687,9 +1692,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Data rows or empty state
         if (Data is null || Data.Count == 0)
         {
-            // Empty state - render with just left/right borders, no column separators
-            RenderEmptyRow(context, y, totalWidth);
-            y++;
+            // Check if we're loading async data - show loading placeholder
+            if (_dataSource is not null && _isLoading)
+            {
+                RenderLoadingRow(context, y, totalWidth);
+                y++;
+            }
+            else
+            {
+                // Empty state - render with just left/right borders, no column separators
+                RenderEmptyRow(context, y, totalWidth);
+                y++;
+            }
         }
         else if (_dataRowNodes is not null && _rowStates is not null)
         {
@@ -1699,19 +1713,27 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             
             // For async data sources, we need to adjust indices since _rowStates uses relative indices
             int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+            int cachedStart = _cachedRange?.Start ?? 0;
+            int cachedEnd = _cachedRange?.End ?? 0;
             
             for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1); i++)
             {
                 var rowNode = _dataRowNodes[i];
                 
-                // Skip null nodes (not yet materialized due to virtualization)
-                // This shouldn't happen for visible rows, but handle gracefully
-                if (rowNode is null)
+                // Check if this row is outside the cached range (needs loading placeholder)
+                bool isOutsideCachedRange = _dataSource is not null && (i < cachedStart || i >= cachedEnd);
+                
+                // Render loading placeholder for rows outside cached range or null nodes
+                if (rowNode is null || isOutsideCachedRange)
                 {
+                    RenderLoadingRow(context, y, totalWidth);
                     y++;
                     rowsRendered++;
-                    if (RenderMode == TableRenderMode.Full && i < endRow - 1)
+                    if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
+                    {
+                        RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
                         y++;
+                    }
                     continue;
                 }
                 
@@ -2179,6 +2201,60 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
+    /// <summary>
+    /// Renders a loading placeholder row for async data that is being fetched.
+    /// </summary>
+    private void RenderLoadingRow(Hex1bRenderContext context, int y, int totalWidth)
+    {
+        var sb = new System.Text.StringBuilder();
+        
+        // Apply border color from theme
+        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        sb.Append(borderColor.ToForegroundAnsi());
+        
+        sb.Append(Vertical);
+
+        // Selection column (if enabled) - show empty placeholder
+        if (ShowSelectionColumn)
+        {
+            sb.Append("\x1b[0m"); // Reset for content
+            sb.Append(new string(' ', SelectionColumnWidth));
+            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(Vertical);
+        }
+
+        // In Full mode, account for padding
+        int paddingTotal = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+
+        // Content area - show "Loading..." centered or fill with dots
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
+        
+        // Use dim color for loading text
+        const string loadingMessage = "Loading...";
+        int padding = (contentWidth - loadingMessage.Length) / 2;
+        
+        sb.Append("\x1b[2m"); // Dim text
+        if (padding > 0)
+        {
+            sb.Append(new string(' ', padding));
+            sb.Append(loadingMessage);
+            sb.Append(new string(' ', contentWidth - padding - loadingMessage.Length));
+        }
+        else
+        {
+            // If content area is too small, just show what fits
+            sb.Append(loadingMessage.Length <= contentWidth 
+                ? loadingMessage.PadRight(contentWidth) 
+                : loadingMessage[..contentWidth]);
+        }
+
+        sb.Append("\x1b[0m"); // Reset
+        sb.Append(borderColor.ToForegroundAnsi());
+        sb.Append(Vertical);
+        sb.Append("\x1b[0m"); // Reset
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+    }
+
     #region INotifyCollectionChanged Support
 
     /// <summary>
@@ -2294,19 +2370,51 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             return; // Already have the data
         }
         
-        // Load the requested range
-        _cachedItems = await _dataSource.GetItemsAsync(startIndex, count, cancellationToken);
-        _cachedRange = (startIndex, startIndex + count);
+        // Cancel any in-flight request
+        if (_loadCts is not null)
+        {
+            await _loadCts.CancelAsync();
+            _loadCts.Dispose();
+        }
         
-        // Set Data to cached items so rendering code can use it
-        // Note: This bypasses the setter to avoid re-subscribing
-        _data = _cachedItems;
+        // Create new cancellation token source linked to the caller's token
+        _loadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var linkedToken = _loadCts.Token;
         
-        // Resolve integer-based focus key to actual row key if the focused row is now loaded
-        ResolveFocusKeyIfNeeded();
+        // Track loading state for placeholder rendering
+        _isLoading = true;
+        _loadingRange = (startIndex, startIndex + count);
         
-        // Set initial focus if no focus is set and we have data
-        SetInitialFocusIfNeeded();
+        try
+        {
+            // Load the requested range
+            _cachedItems = await _dataSource.GetItemsAsync(startIndex, count, linkedToken);
+            
+            // Only update state if not cancelled
+            if (!linkedToken.IsCancellationRequested)
+            {
+                _cachedRange = (startIndex, startIndex + count);
+                
+                // Set Data to cached items so rendering code can use it
+                // Note: This bypasses the setter to avoid re-subscribing
+                _data = _cachedItems;
+                
+                // Resolve integer-based focus key to actual row key if the focused row is now loaded
+                ResolveFocusKeyIfNeeded();
+                
+                // Set initial focus if no focus is set and we have data
+                SetInitialFocusIfNeeded();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Request was cancelled, ignore
+        }
+        finally
+        {
+            _isLoading = false;
+            _loadingRange = null;
+        }
     }
     
     /// <summary>
@@ -2374,6 +2482,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         UnsubscribeFromCollectionChanged();
         UnsubscribeFromDataSource();
+        
+        // Dispose cancellation token source
+        _loadCts?.Dispose();
+        _loadCts = null;
+        
         GC.SuppressFinalize(this);
     }
 
