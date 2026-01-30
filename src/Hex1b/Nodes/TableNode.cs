@@ -13,26 +13,26 @@ namespace Hex1b.Nodes;
 /// <typeparam name="TRow">The type of data for each row.</typeparam>
 public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 {
-    // Border characters (single line box drawing)
-    private const char TopLeft = '┌';
-    private const char TopRight = '┐';
-    private const char BottomLeft = '└';
-    private const char BottomRight = '┘';
-    private const char Horizontal = '─';
-    private const char Vertical = '│';
-    private const char TeeDown = '┬';
-    private const char TeeUp = '┴';
-    private const char TeeRight = '├';
-    private const char TeeLeft = '┤';
-    private const char Cross = '┼';
-    
     // Scrollbar column constants
     // Scrollbar column overlays the table's right border
     // Layout: [table right border becomes scrollbar left border] track rightBorder = 2 chars extra
     private const int ScrollbarColumnWidth = 2;
-    private const char ScrollbarTrack = '│';      // Thin vertical for track
-    private const char ScrollbarThumb = '▉';      // 7/8 block character for thumb (U+2589)
 
+    // Cached theme values - set at start of Render()
+    private char _topLeft;
+    private char _topRight;
+    private char _bottomLeft;
+    private char _bottomRight;
+    private char _horizontal;
+    private char _vertical;
+    private char _teeDown;
+    private char _teeUp;
+    private char _teeRight;
+    private char _teeLeft;
+    private char _cross;
+    private char _scrollbarTrack;
+    private char _scrollbarThumb;
+    
     // INotifyCollectionChanged subscription
     private INotifyCollectionChanged? _subscribedCollection;
 
@@ -1139,8 +1139,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         rowNode.Children.Clear();
         
+        // Use default vertical character for layout (theme is applied at render time by TableRowNode)
+        var vertical = TableTheme.Vertical.DefaultValue();
+        
         // Left border
-        rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+        rowNode.Children.Add(new TextBlockNode { Text = vertical.ToString() });
         
         // Selection column (if enabled)
         if (ShowSelectionColumn)
@@ -1149,7 +1152,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             var selNode = new TextBlockNode { Text = checkText };
             selNode.WidthHint = SizeHint.Fixed(3);
             rowNode.Children.Add(selNode);
-            rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+            rowNode.Children.Add(new TextBlockNode { Text = vertical.ToString() });
         }
         
         // Cell widgets with borders between them
@@ -1180,12 +1183,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             // Separator between cells (not after last cell)
             if (i < cells.Count - 1)
             {
-                rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+                rowNode.Children.Add(new TextBlockNode { Text = vertical.ToString() });
             }
         }
         
         // Right border
-        rowNode.Children.Add(new TextBlockNode { Text = Vertical.ToString() });
+        rowNode.Children.Add(new TextBlockNode { Text = vertical.ToString() });
     }
 
 
@@ -1646,9 +1649,32 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         rowNode.SelectionColumnWidth = SelectionColumnWidth;
     }
 
+    /// <summary>
+    /// Caches theme values for use during rendering.
+    /// </summary>
+    private void CacheThemeValues(Hex1bTheme theme)
+    {
+        _topLeft = theme.Get(TableTheme.TopLeft);
+        _topRight = theme.Get(TableTheme.TopRight);
+        _bottomLeft = theme.Get(TableTheme.BottomLeft);
+        _bottomRight = theme.Get(TableTheme.BottomRight);
+        _horizontal = theme.Get(TableTheme.Horizontal);
+        _vertical = theme.Get(TableTheme.Vertical);
+        _teeDown = theme.Get(TableTheme.TeeDown);
+        _teeUp = theme.Get(TableTheme.TeeUp);
+        _teeRight = theme.Get(TableTheme.TeeRight);
+        _teeLeft = theme.Get(TableTheme.TeeLeft);
+        _cross = theme.Get(TableTheme.Cross);
+        _scrollbarTrack = theme.Get(TableTheme.ScrollbarTrack);
+        _scrollbarThumb = theme.Get(TableTheme.ScrollbarThumb);
+    }
+
     public override void Render(Hex1bRenderContext context)
     {
         if (_columnCount == 0 || _columnWidths.Length == 0) return;
+        
+        // Cache theme values at start of render
+        CacheThemeValues(context.Theme);
 
         int y = 0;
         int totalWidth = _columnWidths.Sum() + _columnCount + 1;
@@ -1657,12 +1683,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         bool hasColumnStructure = hasDataRows || isLoading; // Loading rows also have column structure
         
         // When scrollbar is present, use connecting characters for the right edge
-        char topRightCorner = IsScrollable ? TeeDown : TopRight;
-        char rightTee = TeeLeft; // Always TeeLeft - scrollbar track is separate column
-        char bottomRightCorner = IsScrollable ? TeeUp : BottomRight;
+        char topRightCorner = IsScrollable ? _teeDown : _topRight;
+        char rightTee = _teeLeft; // Always TeeLeft - scrollbar track is separate column
+        char bottomRightCorner = IsScrollable ? _teeUp : _bottomRight;
 
         // Top border
-        RenderHorizontalBorder(context, y, TopLeft, TeeDown, topRightCorner);
+        RenderHorizontalBorder(context, y, _topLeft, _teeDown, topRightCorner);
         y++;
 
         // Header
@@ -1676,15 +1702,15 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             if (hasColumnStructure)
             {
                 // Header separator uses Cross when scrollable to connect to scrollbar track
-                char headerRightTee = IsScrollable ? Cross : TeeLeft;
-                RenderHorizontalBorder(context, y, TeeRight, Cross, headerRightTee);
+                char headerRightTee = IsScrollable ? _cross : _teeLeft;
+                RenderHorizontalBorder(context, y, _teeRight, _cross, headerRightTee);
             }
             else
             {
                 // No column breaks in separator when empty - columns "close off"
                 // But selection column still needs a cross since it's still visible
-                char emptyRightTee = IsScrollable ? Cross : TeeLeft;
-                RenderHorizontalBorder(context, y, TeeRight, TeeUp, emptyRightTee, selectionColumnMiddle: Cross);
+                char emptyRightTee = IsScrollable ? _cross : _teeLeft;
+                RenderHorizontalBorder(context, y, _teeRight, _teeUp, emptyRightTee, selectionColumnMiddle: _cross);
             }
             y++;
         }
@@ -1732,7 +1758,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                     rowsRendered++;
                     if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
                     {
-                        RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
+                        RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee);
                         y++;
                     }
                     continue;
@@ -1773,7 +1799,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 // In Full mode, render separator between rows (but not after the last visible row)
                 if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
                 {
-                    RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
+                    RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee);
                     y++;
                 }
             }
@@ -1784,14 +1810,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             if (hasColumnStructure)
             {
-                RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
+                RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee);
             }
             else
             {
                 // Transition from empty to footer - columns "open up" again
                 // Selection column still needs a cross since it's still visible
-                char emptyRightTee = IsScrollable ? Cross : TeeLeft;
-                RenderHorizontalBorder(context, y, TeeRight, TeeDown, emptyRightTee, selectionColumnMiddle: Cross);
+                char emptyRightTee = IsScrollable ? _cross : _teeLeft;
+                RenderHorizontalBorder(context, y, _teeRight, _teeDown, emptyRightTee, selectionColumnMiddle: _cross);
             }
             y++;
             context.RenderChild(_footerRowNode);
@@ -1805,13 +1831,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             bool showColumnTees = hasColumnStructure || _footerRowNode is not null;
             if (showColumnTees)
             {
-                RenderHorizontalBorder(context, y, BottomLeft, TeeUp, bottomRightCorner);
+                RenderHorizontalBorder(context, y, _bottomLeft, _teeUp, bottomRightCorner);
             }
             else
             {
                 // Empty state with no footer - solid bottom border
-                char emptyBottomRight = IsScrollable ? TeeUp : BottomRight;
-                RenderSolidHorizontalBorder(context, y, BottomLeft, emptyBottomRight);
+                char emptyBottomRight = IsScrollable ? _teeUp : _bottomRight;
+                RenderSolidHorizontalBorder(context, y, _bottomLeft, emptyBottomRight);
             }
         }
         
@@ -1827,6 +1853,15 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var theme = context.Theme;
         var borderColor = theme.Get(TableTheme.BorderColor);
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
+        
+        // Get border characters from theme
+        var horizontal = theme.Get(TableTheme.Horizontal);
+        var vertical = theme.Get(TableTheme.Vertical);
+        var topRight = theme.Get(TableTheme.TopRight);
+        var bottomRight = theme.Get(TableTheme.BottomRight);
+        var teeLeft = theme.Get(TableTheme.TeeLeft);
+        var scrollbarTrack = theme.Get(TableTheme.ScrollbarTrack);
+        var scrollbarThumb = theme.Get(TableTheme.ScrollbarThumb);
         
         // Scrollbar column starts after the table's right border
         var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
@@ -1860,7 +1895,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Render top border of scrollbar column
         int y = 0;
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TopRight}\x1b[0m");
+        context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{topRight}\x1b[0m");
         y++;
         
         // Render header row(s) - empty scrollbar area with track
@@ -1868,12 +1903,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             // Header row - empty cell + border (no track in header area)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()} {vertical}\x1b[0m");
             y++;
             
             // Header separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{teeLeft}\x1b[0m");
             y++;
         }
         
@@ -1884,11 +1919,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
             
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
-            char trackChar = isThumb ? ScrollbarThumb : ScrollbarTrack;
+            char trackChar = isThumb ? scrollbarThumb : scrollbarTrack;
             var trackColor = isThumb ? focusedBorderColor : borderColor;
             
             // Always use vertical border - continuous clean track
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{Vertical}\x1b[0m");
+            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{vertical}\x1b[0m");
             y++;
         }
         
@@ -1897,18 +1932,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             // Footer separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{teeLeft}\x1b[0m");
             y++;
             
             // Footer row - track + border
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{Vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{scrollbarTrack}{vertical}\x1b[0m");
             y++;
         }
         
         // Render bottom border
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{BottomRight}\x1b[0m");
+        context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{bottomRight}\x1b[0m");
     }
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)
@@ -1924,7 +1959,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Selection column border (if enabled)
         if (ShowSelectionColumn)
         {
-            sb.Append(new string(Horizontal, SelectionColumnWidth));
+            sb.Append(new string(_horizontal, SelectionColumnWidth));
             // Use specific character for selection column separator if provided, otherwise use middle
             sb.Append(selectionColumnMiddle ?? middle);
         }
@@ -1934,7 +1969,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
         for (int col = 0; col < _columnCount; col++)
         {
-            sb.Append(new string(Horizontal, _columnWidths[col] + paddingPerColumn));
+            sb.Append(new string(_horizontal, _columnWidths[col] + paddingPerColumn));
             if (col < _columnCount - 1)
             {
                 sb.Append(middle);
@@ -1961,7 +1996,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append("\x1b[7m"); // Reverse video on
         }
         
-        sb.Append(Vertical);
+        sb.Append(_vertical);
         
         // Selection column (if enabled)
         if (ShowSelectionColumn)
@@ -2004,7 +2039,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 // Footer or other - just empty
                 sb.Append(new string(' ', selWidth));
             }
-            sb.Append(Vertical);
+            sb.Append(_vertical);
         }
         
         int x = 1; // Start after left border
@@ -2015,12 +2050,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             
             if (col < _columnCount - 1)
             {
-                sb.Append(Vertical);
+                sb.Append(_vertical);
             }
             x += _columnWidths[col] + 1;
         }
         
-        sb.Append(Vertical);
+        sb.Append(_vertical);
         
         if (isHighlighted)
         {
@@ -2060,7 +2095,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append("\x1b[7m"); // Reverse video on
         }
         
-        sb.Append(Vertical);
+        sb.Append(_vertical);
 
         // Selection column (if enabled)
         if (ShowSelectionColumn)
@@ -2096,7 +2131,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 // Footer or loading row - just empty
                 sb.Append(new string(' ', selWidth));
             }
-            sb.Append(Vertical);
+            sb.Append(_vertical);
         }
 
         for (int col = 0; col < _columnCount && col < cells.Count; col++)
@@ -2119,11 +2154,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
             if (col < _columnCount - 1)
             {
-                sb.Append(Vertical);
+                sb.Append(_vertical);
             }
         }
 
-        sb.Append(Vertical);
+        sb.Append(_vertical);
         
         if (isSelected)
         {
@@ -2146,8 +2181,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Selection column (if enabled)
         if (ShowSelectionColumn)
         {
-            sb.Append(new string(Horizontal, SelectionColumnWidth));
-            sb.Append(TeeUp); // ┴ character where selection column ends
+            sb.Append(new string(_horizontal, SelectionColumnWidth));
+            sb.Append(_teeUp); // ┴ character where selection column ends
         }
         
         // In Full mode, each column has 1 char padding on left and right
@@ -2155,7 +2190,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Total content width = sum of column widths + (columnCount - 1) separators + padding
         int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
-        sb.Append(new string(Horizontal, contentWidth));
+        sb.Append(new string(_horizontal, contentWidth));
 
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
@@ -2170,7 +2205,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var borderColor = context.Theme.Get(TableTheme.BorderColor);
         sb.Append(borderColor.ToForegroundAnsi());
         
-        sb.Append(Vertical);
+        sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty (no checkbox for empty state)
         if (ShowSelectionColumn)
@@ -2178,7 +2213,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
             sb.Append(borderColor.ToForegroundAnsi());
-            sb.Append(Vertical);
+            sb.Append(_vertical);
         }
 
         // In Full mode, account for padding
@@ -2207,7 +2242,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
 
         sb.Append(borderColor.ToForegroundAnsi());
-        sb.Append(Vertical);
+        sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
@@ -2223,7 +2258,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var borderColor = context.Theme.Get(TableTheme.BorderColor);
         sb.Append(borderColor.ToForegroundAnsi());
         
-        sb.Append(Vertical);
+        sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty placeholder
         if (ShowSelectionColumn)
@@ -2231,7 +2266,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
             sb.Append(borderColor.ToForegroundAnsi());
-            sb.Append(Vertical);
+            sb.Append(_vertical);
         }
 
         // In Full mode, account for padding
@@ -2261,7 +2296,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
         sb.Append("\x1b[0m"); // Reset
         sb.Append(borderColor.ToForegroundAnsi());
-        sb.Append(Vertical);
+        sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
