@@ -1864,13 +1864,17 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         sb.Append(left);
 
         // Selection column (if enabled)
-        int selectionWidth = ShowSelectionColumn ? SelectionColumnWidth + 1 : 0; // +1 for separator
+        if (ShowSelectionColumn)
+        {
+            sb.Append(new string(Horizontal, SelectionColumnWidth));
+            sb.Append(TeeUp); // ┴ character where selection column ends
+        }
         
         // In Full mode, each column has 1 char padding on left and right
         int paddingTotal = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
         
-        // Total content width = sum of column widths + (columnCount - 1) separators + selection column + padding
-        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + selectionWidth + paddingTotal;
+        // Total content width = sum of column widths + (columnCount - 1) separators + padding
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
         sb.Append(new string(Horizontal, contentWidth));
 
         sb.Append(right);
