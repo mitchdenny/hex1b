@@ -257,7 +257,7 @@ public static class TableTheme
     /// Border color when table is focused.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> TableFocusedBorderColor = 
-        new($"{nameof(TableTheme)}.{nameof(TableFocusedBorderColor)}", () => Hex1bColor.Cyan);
+        new($"{nameof(TableTheme)}.{nameof(TableFocusedBorderColor)}", () => Hex1bColor.Default);
     
     #endregion
 }
