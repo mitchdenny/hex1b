@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Hex1b;
+using Hex1b.Automation;
 using Hex1b.Data;
 using Hex1b.Layout;
 using Hex1b.Widgets;
@@ -8,6 +9,28 @@ using Hex1b.Widgets;
 // ============================================================================
 // TableWidget Demo - Scenario Picker
 // ============================================================================
+
+// Screenshot state
+string? lastScreenshotPath = null;
+Hex1bTerminal? terminalRef = null;
+
+// Screenshot helper
+async Task TakeScreenshot()
+{
+    if (terminalRef == null) return;
+    
+    var snapshot = terminalRef.CreateSnapshot();
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+    var tempPath = Path.GetTempPath();
+    
+    var svgPath = Path.Combine(tempPath, $"hex1b_screenshot_{timestamp}.svg");
+    var ansiPath = Path.Combine(tempPath, $"hex1b_screenshot_{timestamp}.ansi");
+    
+    await File.WriteAllTextAsync(svgPath, snapshot.ToSvg());
+    await File.WriteAllTextAsync(ansiPath, snapshot.ToAnsi());
+    
+    lastScreenshotPath = svgPath;
+}
 
 // Available scenarios
 var scenarios = new[]
@@ -326,31 +349,41 @@ Hex1bWidget BuildAsyncScenario<TParent>(
 // Main app with splitter layout
 // ============================================================================
 
-var app = new Hex1bApp(ctx =>
-{
-    return new SplitterWidget(
-        // Left pane: Scenario picker
-        ctx.VStack(v => [
-            v.Text("┌─────────────────┐"),
-            v.Text("│    Scenarios    │"),
-            v.Text("└─────────────────┘"),
-            v.Text(""),
-            v.List(scenarios)
-                .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
-                .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
-                .FillHeight(),
-            v.Text(""),
-            v.Text("Press Ctrl+C to quit")
-        ]),
-        // Right pane: Active scenario
-        ctx.VStack(v => [
-            BuildScenarioContent(v).FillHeight()
-        ]),
-        firstSize: 22
-    );
-}, new Hex1bAppOptions { EnableMouse = true });
+using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        return new SplitterWidget(
+            // Left pane: Scenario picker
+            ctx.VStack(v => [
+                v.Text("┌─────────────────┐"),
+                v.Text("│    Scenarios    │"),
+                v.Text("└─────────────────┘"),
+                v.Text(""),
+                v.List(scenarios)
+                    .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
+                    .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
+                    .FillHeight(),
+                v.Text(""),
+                v.Button("📷 Screenshot")
+                    .OnClick(async _ => await TakeScreenshot()),
+                v.Text(lastScreenshotPath != null ? $"Saved: {Path.GetFileName(lastScreenshotPath)}" : ""),
+                v.Text(""),
+                v.Text("Press Ctrl+C to quit")
+            ]),
+            // Right pane: Active scenario
+            ctx.VStack(v => [
+                BuildScenarioContent(v).FillHeight()
+            ]),
+            firstSize: 22
+        );
+    })
+    .Build();
 
-await app.RunAsync();
+// Capture terminal reference for screenshots
+terminalRef = terminal;
+
+await terminal.RunAsync();
 
 // ============================================================================
 // Data model
