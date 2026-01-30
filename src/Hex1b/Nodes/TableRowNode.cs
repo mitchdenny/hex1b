@@ -309,8 +309,8 @@ internal sealed class TableRowNode : Hex1bNode
                 }
                 else
                 {
-                    // Inner borders use regular border color
-                    context.Write(borderColor.ToForegroundAnsi());
+                    // Inner borders use mid grey (tableFocusedBorderColor)
+                    context.Write(tableFocusedBorderColor.ToForegroundAnsi());
                     context.Write("│");
                 }
                 

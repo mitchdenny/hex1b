@@ -1943,7 +1943,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
             char trackChar = isThumb ? _scrollbarThumb : _scrollbarTrack;
-            var trackColor = isThumb ? focusedBorderColor : _borderColor;
+            var trackColor = isThumb ? focusedBorderColor : _tableFocusedBorderColor; // Track uses mid grey
             
             // Track uses inner color, right edge uses outer color
             context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
@@ -1958,9 +1958,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
             
-            // Footer row - track (inner) + border (outer)
+            // Footer row - track (mid grey) + border (outer)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{_borderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            context.Write($"{_tableFocusedBorderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
@@ -1973,9 +1973,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Outer border uses focus-aware color, inner borders use regular border color
+        // Outer border color: mid grey when focused, dark grey when not
+        // Inner elements (column separators, row separators): always mid grey
         var outerColor = EffectiveBorderColor;
-        var innerColor = _borderColor;
+        var innerColor = _tableFocusedBorderColor; // Internal elements always use mid grey
         
         // For outer borders (top, bottom, header/footer separators), use outer color for everything
         // For inner borders (row separators), use inner color for horizontal lines and intersections
@@ -2214,9 +2215,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Outer edges use focus-aware color, inner content uses regular border color
+        // Outer edges use focus-aware color, inner elements always use mid grey
         var outerColor = EffectiveBorderColor;
-        var innerColor = _borderColor;
+        var innerColor = _tableFocusedBorderColor;
         
         // Left edge (outer)
         sb.Append(outerColor.ToForegroundAnsi());
@@ -2250,9 +2251,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Outer edges use focus-aware color, inner borders use regular border color
+        // Outer edges use focus-aware color, inner elements always use mid grey
         var outerColor = EffectiveBorderColor;
-        var innerColor = _borderColor;
+        var innerColor = _tableFocusedBorderColor;
         
         // Left edge (outer)
         sb.Append(outerColor.ToForegroundAnsi());
@@ -2306,9 +2307,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Outer edges use focus-aware color, inner borders use regular border color
+        // Outer edges use focus-aware color, inner elements always use mid grey
         var outerColor = EffectiveBorderColor;
-        var innerColor = _borderColor;
+        var innerColor = _tableFocusedBorderColor;
         
         // Left edge (outer)
         sb.Append(outerColor.ToForegroundAnsi());
