@@ -273,7 +273,6 @@ internal sealed class TableRowNode : Hex1bNode
         
         // Render children, applying border colors and replacing vertical bars with thicker ones if highlighted
         var selectionColumnVertical = theme.Get(TableTheme.SelectionColumnVertical);
-        var selectionColumnBorderColor = theme.Get(TableTheme.SelectionColumnBorderColor);
         
         for (int i = 0; i < Children.Count; i++)
         {
@@ -301,8 +300,8 @@ internal sealed class TableRowNode : Hex1bNode
                 }
                 else if (isSelectionColumnSeparator)
                 {
-                    // Selection column separator uses its own theme
-                    context.Write(selectionColumnBorderColor.ToForegroundAnsi());
+                    // Selection column separator uses effective border color (dark when unfocused, mid when focused)
+                    context.Write(effectiveBorderColor.ToForegroundAnsi());
                     context.Write(selectionColumnVertical.ToString());
                 }
                 else if (isOuterEdge)
