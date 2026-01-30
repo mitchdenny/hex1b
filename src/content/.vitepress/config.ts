@@ -81,14 +81,16 @@ export default defineConfig({
           text: 'Namespaces',
           items: [
             { text: 'Hex1b', link: '/reference/Hex1b' },
-            { text: 'Hex1b.Widgets', link: '/reference/Hex1b.Widgets' },
-            { text: 'Hex1b.Nodes', link: '/reference/Hex1b.Nodes' },
-            { text: 'Hex1b.Layout', link: '/reference/Hex1b.Layout' },
-            { text: 'Hex1b.Input', link: '/reference/Hex1b.Input' },
+            { text: 'Hex1b.Animation', link: '/reference/Hex1b.Animation' },
+            { text: 'Hex1b.Automation', link: '/reference/Hex1b.Automation' },
             { text: 'Hex1b.Events', link: '/reference/Hex1b.Events' },
+            { text: 'Hex1b.Input', link: '/reference/Hex1b.Input' },
+            { text: 'Hex1b.Layout', link: '/reference/Hex1b.Layout' },
+            { text: 'Hex1b.Nodes', link: '/reference/Hex1b.Nodes' },
+            { text: 'Hex1b.Surfaces', link: '/reference/Hex1b.Surfaces' },
             { text: 'Hex1b.Theming', link: '/reference/Hex1b.Theming' },
             { text: 'Hex1b.Tokens', link: '/reference/Hex1b.Tokens' },
-            { text: 'Hex1b.Terminal', link: '/reference/Hex1b.Terminal' }
+            { text: 'Hex1b.Widgets', link: '/reference/Hex1b.Widgets' }
           ]
         }
       ]
