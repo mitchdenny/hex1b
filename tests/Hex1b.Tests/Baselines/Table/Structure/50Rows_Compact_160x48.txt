@@ -1,0 +1,48 @@
+┌───────────────┬────────────┬──────────┬──────┬                                                                                                              ─┐
+│Name           │Category    │     Price│ Stock│                                                                                                               │
+├───────────────┼────────────┼──────────┼──────┼                                                                                                              ─┤
+│Laptop         │Electronics │     $9.99│    10│                                                                                                              ▉│
+│Mouse          │Clothing    │    $19.99│    11│                                                                                                              ▉│
+│Keyboard       │Food        │    $29.99│    12│                                                                                                              ▉│
+│Monitor        │Books       │    $39.99│    13│                                                                                                              ▉│
+│Headphones     │Toys        │    $49.99│    14│                                                                                                              ▉│
+│Shirt          │Electronics │    $59.99│    15│                                                                                                              ▉│
+│Pants          │Clothing    │    $69.99│    16│                                                                                                              ▉│
+│Bread          │Food        │    $79.99│    17│                                                                                                              ▉│
+│Milk           │Books       │    $89.99│    18│                                                                                                              ▉│
+│Novel          │Toys        │    $99.99│    19│                                                                                                              ▉│
+│Laptop 2       │Electronics │   $109.99│    20│                                                                                                              ▉│
+│Mouse 2        │Clothing    │   $119.99│    21│                                                                                                              ▉│
+│Keyboard 2     │Food        │   $129.99│    22│                                                                                                              ▉│
+│Monitor 2      │Books       │   $139.99│    23│                                                                                                              ▉│
+│Headphones 2   │Toys        │   $149.99│    24│                                                                                                              ▉│
+│Shirt 2        │Electronics │   $159.99│    25│                                                                                                              ▉│
+│Pants 2        │Clothing    │   $169.99│    26│                                                                                                              ▉│
+│Bread 2        │Food        │   $179.99│    27│                                                                                                              ▉│
+│Milk 2         │Books       │   $189.99│    28│                                                                                                              ▉│
+│Novel 2        │Toys        │   $199.99│    29│                                                                                                              ▉│
+│Laptop 3       │Electronics │   $209.99│    30│                                                                                                              ▉│
+│Mouse 3        │Clothing    │   $219.99│    31│                                                                                                              ▉│
+│Keyboard 3     │Food        │   $229.99│    32│                                                                                                              ▉│
+│Monitor 3      │Books       │   $239.99│    33│                                                                                                              ▉│
+│Headphones 3   │Toys        │   $249.99│    34│                                                                                                              ▉│
+│Shirt 3        │Electronics │   $259.99│    35│                                                                                                              ▉│
+│Pants 3        │Clothing    │   $269.99│    36│                                                                                                              ▉│
+│Bread 3        │Food        │   $279.99│    37│                                                                                                              ▉│
+│Milk 3         │Books       │   $289.99│    38│                                                                                                              ▉│
+│Novel 3        │Toys        │   $299.99│    39│                                                                                                              ▉│
+│Laptop 4       │Electronics │   $309.99│    40│                                                                                                              ▉│
+│Mouse 4        │Clothing    │   $319.99│    41│                                                                                                              ▉│
+│Keyboard 4     │Food        │   $329.99│    42│                                                                                                              ▉│
+│Monitor 4      │Books       │   $339.99│    43│                                                                                                              ▉│
+│Headphones 4   │Toys        │   $349.99│    44│                                                                                                              ▉│
+│Shirt 4        │Electronics │   $359.99│    45│                                                                                                              ▉│
+│Pants 4        │Clothing    │   $369.99│    46│                                                                                                              ▉│
+│Bread 4        │Food        │   $379.99│    47│                                                                                                              ▉│
+│Milk 4         │Books       │   $389.99│    48│                                                                                                              ▉│
+│Novel 4        │Toys        │   $399.99│    49│                                                                                                              ││
+│Laptop 5       │Electronics │   $409.99│    50│                                                                                                              ││
+│Mouse 5        │Clothing    │   $419.99│    51│                                                                                                              ││
+│Keyboard 5     │Food        │   $429.99│    52│                                                                                                              ││
+│Monitor 5      │Books       │   $439.99│    53│                                                                                                              ││
+└───────────────┴────────────┴──────────┴──────┴                                                                                                              ─┘

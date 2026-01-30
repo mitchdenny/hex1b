@@ -120,6 +120,11 @@ builder.Services.AddSingleton<IGalleryExample, TerminalBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, QrCodeBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, QrCodeCustomExample>();
 
+// Register Table widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, TableBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, TableSelectionExample>();
+builder.Services.AddSingleton<IGalleryExample, TableFocusExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

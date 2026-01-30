@@ -267,6 +267,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     /// Useful for testing focus navigation.
     /// </summary>
     public string? LastFocusChange => _focusRing.LastFocusChange;
+    
+    /// <summary>
+    /// Gets the last hit test debug log from the focus ring.
+    /// Useful for debugging mouse click focus issues.
+    /// </summary>
+    public string? LastHitTestDebug => _focusRing.LastHitTestDebug;
+    
+    /// <summary>
+    /// Gets the last Focus() call debug log.
+    /// </summary>
+    public string? LastFocusDebug => _focusRing.LastFocusDebug;
 
     /// <summary>
     /// Focuses the first node in the focus ring that matches the given predicate.
@@ -915,11 +926,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
         
         if (hitNode == null) return;
         
-        // Focus the clicked node (if not already focused)
-        if (!hitNode.IsFocused)
-        {
-            _focusRing.Focus(hitNode);
-        }
+        // Always focus the clicked node through the focus ring
+        // This ensures proper state sync (clears old focus, sets new focus)
+        _focusRing.Focus(hitNode);
         
         // Calculate local coordinates for this node
         var localX = mouseEvent.X - hitNode.Bounds.X;
@@ -935,7 +944,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
             if (dragBinding.Matches(eventWithClickCount))
             {
                 // Start the drag - capture mouse until release
-                _activeDragHandler = dragBinding.StartDrag(localX, localY);
+                var handler = dragBinding.StartDrag(localX, localY);
+                
+                // If the handler is empty, the drag was rejected (click wasn't in drag area)
+                // Continue to check mouse bindings instead
+                if (handler.IsEmpty)
+                {
+                    continue;
+                }
+                
+                _activeDragHandler = handler;
                 _dragStartX = mouseEvent.X;
                 _dragStartY = mouseEvent.Y;
                 return;

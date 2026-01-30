@@ -1,0 +1,24 @@
+┌───────────────┬────────────┬──────────┬──────┬                              ─┐
+│Name           │Category    │     Price│ Stock│                               │
+├───────────────┼────────────┼──────────┼──────┼                              ─┤
+│Laptop         │Electronics │     $9.99│    10│                              ▉│
+│Mouse          │Clothing    │    $19.99│    11│                              ││
+│Keyboard       │Food        │    $29.99│    12│                              ││
+│Monitor        │Books       │    $39.99│    13│                              ││
+│Headphones     │Toys        │    $49.99│    14│                              ││
+│Shirt          │Electronics │    $59.99│    15│                              ││
+│Pants          │Clothing    │    $69.99│    16│                              ││
+│Bread          │Food        │    $79.99│    17│                              ││
+│Milk           │Books       │    $89.99│    18│                              ││
+│Novel          │Toys        │    $99.99│    19│                              ││
+│Laptop 2       │Electronics │   $109.99│    20│                              ││
+│Mouse 2        │Clothing    │   $119.99│    21│                              ││
+│Keyboard 2     │Food        │   $129.99│    22│                              ││
+│Monitor 2      │Books       │   $139.99│    23│                              ││
+│Headphones 2   │Toys        │   $149.99│    24│                              ││
+│Shirt 2        │Electronics │   $159.99│    25│                              ││
+│Pants 2        │Clothing    │   $169.99│    26│                              ││
+│Bread 2        │Food        │   $179.99│    27│                              ││
+│Milk 2         │Books       │   $189.99│    28│                              ││
+│Novel 2        │Toys        │   $199.99│    29│                              ││
+└───────────────┴────────────┴──────────┴──────┴                              ─┘

@@ -16,6 +16,12 @@ public sealed class DragHandler
     /// Called when the drag ends (mouse button released).
     /// </summary>
     public Action? OnEnd { get; }
+    
+    /// <summary>
+    /// Gets whether this handler is empty (no callbacks set).
+    /// An empty handler indicates the drag was rejected and should not be captured.
+    /// </summary>
+    public bool IsEmpty => OnMove == null && OnEnd == null;
 
     public DragHandler(Action<int, int>? onMove = null, Action? onEnd = null)
     {

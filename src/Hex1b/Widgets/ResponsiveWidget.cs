@@ -24,23 +24,8 @@ public sealed record ResponsiveWidget(IReadOnlyList<ConditionalWidget> Branches)
         }
         node.ChildNodes = newChildNodes;
 
-        // Set initial focus on the first focusable node in each branch.
-        // Since we don't know which branch will be active until Measure(),
-        // we pre-set focus on all branches' first focusable nodes.
-        if (context.IsNew)
-        {
-            foreach (var child in newChildNodes)
-            {
-                if (child != null)
-                {
-                    var firstFocusable = child.GetFocusableNodes().FirstOrDefault();
-                    if (firstFocusable != null)
-                    {
-                        ReconcileContext.SetNodeFocus(firstFocusable, true);
-                    }
-                }
-            }
-        }
+        // Note: We don't set initial focus here. Focus is managed by the FocusRing
+        // which will call EnsureFocus() to set focus on the first focusable if needed.
 
         return node;
     }
