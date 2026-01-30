@@ -95,6 +95,145 @@ public record TableWidget<TRow> : Hex1bWidget
     /// </summary>
     internal Func<object, TRow, Task>? RowActivatedHandler { get; init; }
 
+    #region Fluent Configuration Methods
+
+    /// <summary>
+    /// Configures the header cells for the table.
+    /// </summary>
+    /// <param name="builder">A function that returns the header cells.</param>
+    /// <returns>The table widget with header configured.</returns>
+    public TableWidget<TRow> Header(Func<TableHeaderContext, IReadOnlyList<TableCell>> builder)
+        => this with { HeaderBuilder = builder };
+
+    /// <summary>
+    /// Configures the row cell builder for the table.
+    /// </summary>
+    /// <param name="builder">A function that builds cells for each row. Receives row context, row data, and row state.</param>
+    /// <returns>The table widget with row builder configured.</returns>
+    public TableWidget<TRow> Row(Func<TableRowContext, TRow, TableRowState, IReadOnlyList<TableCell>> builder)
+        => this with { RowBuilder = builder };
+
+    /// <summary>
+    /// Configures the footer cells for the table.
+    /// </summary>
+    /// <param name="builder">A function that returns the footer cells.</param>
+    /// <returns>The table widget with footer configured.</returns>
+    public TableWidget<TRow> Footer(Func<TableFooterContext, IReadOnlyList<TableCell>> builder)
+        => this with { FooterBuilder = builder };
+
+    /// <summary>
+    /// Configures the empty state widget shown when data is empty.
+    /// </summary>
+    /// <param name="builder">A function that builds the empty state widget.</param>
+    /// <returns>The table widget with empty state configured.</returns>
+    public TableWidget<TRow> Empty(Func<RootContext, Hex1bWidget> builder)
+        => this with { EmptyBuilder = builder };
+
+    /// <summary>
+    /// Configures the row key selector for stable row identification across data changes.
+    /// </summary>
+    /// <param name="keySelector">A function that returns a unique key for each row.</param>
+    /// <returns>The table widget with row key selector configured.</returns>
+    public TableWidget<TRow> RowKey(Func<TRow, object> keySelector)
+        => this with { RowKeySelector = keySelector };
+
+    /// <summary>
+    /// Configures the focused row by key.
+    /// </summary>
+    /// <param name="focusedKey">The key of the row that has keyboard focus, or null for none.</param>
+    /// <returns>The table widget with focus configured.</returns>
+    public TableWidget<TRow> Focus(object? focusedKey)
+        => this with { FocusedKey = focusedKey };
+
+    /// <summary>
+    /// Enables a selection column with checkboxes for multi-select.
+    /// </summary>
+    /// <returns>The table widget with selection column enabled.</returns>
+    public TableWidget<TRow> SelectionColumn()
+        => this with { ShowSelectionColumn = true };
+
+    /// <summary>
+    /// Enables a selection column with checkboxes for multi-select, with view model binding.
+    /// </summary>
+    /// <param name="isSelected">Selector to read selection state from the row.</param>
+    /// <param name="onChanged">Callback invoked when selection state changes.</param>
+    /// <returns>The table widget with selection column enabled.</returns>
+    public TableWidget<TRow> SelectionColumn(Func<TRow, bool> isSelected, Action<TRow, bool> onChanged)
+        => this with 
+        { 
+            ShowSelectionColumn = true, 
+            IsSelectedSelector = isSelected,
+            SelectionChangedCallback = onChanged
+        };
+
+    /// <summary>
+    /// Sets the table to Compact render mode (no separators between rows). This is the default.
+    /// </summary>
+    /// <returns>The table widget with Compact render mode.</returns>
+    public TableWidget<TRow> Compact()
+        => this with { RenderMode = TableRenderMode.Compact };
+
+    /// <summary>
+    /// Sets the table to Full render mode (horizontal separators between each row).
+    /// </summary>
+    /// <returns>The table widget with Full render mode.</returns>
+    public TableWidget<TRow> Full()
+        => this with { RenderMode = TableRenderMode.Full };
+
+    #endregion
+
+    #region Event Handlers
+
+    /// <summary>
+    /// Sets the handler for focus changes.
+    /// </summary>
+    /// <param name="handler">The handler to call when focus changes.</param>
+    /// <returns>The table widget with focus handler configured.</returns>
+    public TableWidget<TRow> OnFocusChanged(Action<object?> handler)
+        => this with { FocusChangedHandler = key => { handler(key); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets the async handler for focus changes.
+    /// </summary>
+    /// <param name="handler">The async handler to call when focus changes.</param>
+    /// <returns>The table widget with focus handler configured.</returns>
+    public TableWidget<TRow> OnFocusChanged(Func<object?, Task> handler)
+        => this with { FocusChangedHandler = handler };
+
+    /// <summary>
+    /// Sets the handler for row activation (Enter key or double-click).
+    /// </summary>
+    /// <param name="handler">The handler to call when a row is activated.</param>
+    /// <returns>The table widget with activation handler configured.</returns>
+    public TableWidget<TRow> OnRowActivated(Action<object, TRow> handler)
+        => this with { RowActivatedHandler = (key, row) => { handler(key, row); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets the async handler for row activation.
+    /// </summary>
+    /// <param name="handler">The async handler to call when a row is activated.</param>
+    /// <returns>The table widget with activation handler configured.</returns>
+    public TableWidget<TRow> OnRowActivated(Func<object, TRow, Task> handler)
+        => this with { RowActivatedHandler = handler };
+
+    /// <summary>
+    /// Sets the callback for "select all" action triggered from the header checkbox.
+    /// </summary>
+    /// <param name="onSelectAll">Callback invoked when select all is triggered.</param>
+    /// <returns>The table widget with select all handler configured.</returns>
+    public TableWidget<TRow> OnSelectAll(Action onSelectAll)
+        => this with { SelectAllCallback = onSelectAll };
+
+    /// <summary>
+    /// Sets the callback for "deselect all" action triggered from the header checkbox.
+    /// </summary>
+    /// <param name="onDeselectAll">Callback invoked when deselect all is triggered.</param>
+    /// <returns>The table widget with deselect all handler configured.</returns>
+    public TableWidget<TRow> OnDeselectAll(Action onDeselectAll)
+        => this with { DeselectAllCallback = onDeselectAll };
+
+    #endregion
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TableNode<TRow> ?? new TableNode<TRow>();

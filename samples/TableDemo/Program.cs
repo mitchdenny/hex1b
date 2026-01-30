@@ -179,22 +179,22 @@ Hex1bWidget BuildStaticScenario<TParent>(WidgetContext<TParent> ctx) where TPare
 TableWidget<Product> BuildStaticTable<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
 {
     return ctx.Table((IReadOnlyList<Product>)staticProducts)
-        .WithRowKey(p => p.Name)
-        .WithHeader(h => [
+        .RowKey(p => p.Name)
+        .Header(h => [
             h.Cell("Product").Width(SizeHint.Fill),
             h.Cell("Category").Width(SizeHint.Content),
             h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
             h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
         ])
-        .WithRow((r, product, state) => [
+        .Row((r, product, state) => [
             r.Cell(product.Name),
             r.Cell(product.Category),
             r.Cell($"${product.Price:F2}"),
             r.Cell(product.Stock.ToString())
         ])
-        .WithFocus(staticFocusedKey)
+        .Focus(staticFocusedKey)
         .OnFocusChanged(key => staticFocusedKey = key)
-        .WithSelectionColumn(
+        .SelectionColumn(
             isSelected: p => p.IsSelected,
             onChanged: (p, selected) => p.IsSelected = selected
         )
@@ -210,20 +210,20 @@ Hex1bWidget BuildObservableScenario<TParent>(WidgetContext<TParent> ctx) where T
         v.Text("─────────────────────────────────────"),
         v.Text(""),
         v.Table((IReadOnlyList<Product>)observableProducts)
-            .WithRowKey(p => p.Name)
-            .WithHeader(h => [
+            .RowKey(p => p.Name)
+            .Header(h => [
                 h.Cell("Product").Width(SizeHint.Fill),
                 h.Cell("Category").Width(SizeHint.Content),
                 h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
                 h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
             ])
-            .WithRow((r, product, state) => [
+            .Row((r, product, state) => [
                 r.Cell(product.Name),
                 r.Cell(product.Category),
                 r.Cell($"${product.Price:F2}"),
                 r.Cell(product.Stock.ToString())
             ])
-            .WithFocus(observableFocusedKey)
+            .Focus(observableFocusedKey)
             .OnFocusChanged(key => observableFocusedKey = key)
             .FillHeight(),
         v.Text(""),
@@ -253,22 +253,22 @@ Hex1bWidget BuildSelectableObservableScenario<TParent>(WidgetContext<TParent> ct
         v.Text("──────────────────────"),
         v.Text(""),
         v.Table((IReadOnlyList<Product>)selectableObservable)
-            .WithRowKey(p => p.Name)
-            .WithHeader(h => [
+            .RowKey(p => p.Name)
+            .Header(h => [
                 h.Cell("Product").Width(SizeHint.Fill),
                 h.Cell("Category").Width(SizeHint.Content),
                 h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
                 h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
             ])
-            .WithRow((r, product, state) => [
+            .Row((r, product, state) => [
                 r.Cell(product.Name),
                 r.Cell(product.Category),
                 r.Cell($"${product.Price:F2}"),
                 r.Cell(product.Stock.ToString())
             ])
-            .WithFocus(selectableFocusedKey)
+            .Focus(selectableFocusedKey)
             .OnFocusChanged(key => selectableFocusedKey = key)
-            .WithSelectionColumn(
+            .SelectionColumn(
                 isSelected: p => p.IsSelected,
                 onChanged: (p, selected) => p.IsSelected = selected
             )
@@ -313,20 +313,20 @@ Hex1bWidget BuildLargeListScenario<TParent>(WidgetContext<TParent> ctx) where TP
 TableWidget<Product> BuildLargeTable<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
 {
     return ctx.Table((IReadOnlyList<Product>)largeList)
-        .WithRowKey(p => p.Name)
-        .WithHeader(h => [
+        .RowKey(p => p.Name)
+        .Header(h => [
             h.Cell("Product").Width(SizeHint.Fill),
             h.Cell("Category").Width(SizeHint.Content),
             h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
             h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
         ])
-        .WithRow((r, product, state) => [
+        .Row((r, product, state) => [
             r.Cell(product.Name),
             r.Cell(product.Category),
             r.Cell($"${product.Price:F2}"),
             r.Cell(product.Stock.ToString())
         ])
-        .WithFocus(largeFocusedKey)
+        .Focus(largeFocusedKey)
         .OnFocusChanged(key => largeFocusedKey = key)
         .FillHeight();
 }
@@ -343,20 +343,20 @@ Hex1bWidget BuildAsyncScenario<TParent>(
         v.Text("──────────────────────────────────────────"),
         v.Text(""),
         v.Table(dataSource)
-            .WithRowKey(p => p.Name)
-            .WithHeader(h => [
+            .RowKey(p => p.Name)
+            .Header(h => [
                 h.Cell("Product").Width(SizeHint.Fill),
                 h.Cell("Category").Width(SizeHint.Content),
                 h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
                 h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
             ])
-            .WithRow((r, product, state) => [
+            .Row((r, product, state) => [
                 r.Cell(product.Name),
                 r.Cell(product.Category),
                 r.Cell($"${product.Price:F2}"),
                 r.Cell(product.Stock.ToString())
             ])
-            .WithFocus(getFocusedKey())
+            .Focus(getFocusedKey())
             .OnFocusChanged(key => setFocusedKey(key))
             .FillHeight(),
         v.Text(""),
@@ -408,22 +408,22 @@ Hex1bWidget BuildThemedScenario<TParent>(WidgetContext<TParent> ctx) where TPare
                 .Set(TableTheme.SelectedRowBackground, Hex1bColor.FromRgb(30, 60, 90)),
             v2 => [
                 v2.Table((IReadOnlyList<Product>)themedProducts)
-                    .WithRowKey(p => p.Name)
-                    .WithHeader(h => [
+                    .RowKey(p => p.Name)
+                    .Header(h => [
                         h.Cell("Product").Width(SizeHint.Fill),
                         h.Cell("Category").Width(SizeHint.Content),
                         h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),
                         h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
                     ])
-                    .WithRow((r, product, state) => [
+                    .Row((r, product, state) => [
                         r.Cell(product.Name),
                         r.Cell(product.Category),
                         r.Cell($"${product.Price:F2}"),
                         r.Cell(product.Stock.ToString())
                     ])
-                    .WithFocus(themedFocusedKey)
+                    .Focus(themedFocusedKey)
                     .OnFocusChanged(key => themedFocusedKey = key)
-                    .WithSelectionColumn(
+                    .SelectionColumn(
                         isSelected: p => p.IsSelected,
                         onChanged: (p, selected) => p.IsSelected = selected
                     )

@@ -218,10 +218,10 @@ public class TableNodeTests
         var ctx = new RootContext();
         
         var widget = ctx.Table(data)
-            .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item, _) => [r.Cell(item)])
-            .WithFooter(f => [f.Cell("End")])
-            .WithFocus(1);  // Use key-based focus
+            .Header(h => [h.Cell("Name")])
+            .Row((r, item, _) => [r.Cell(item)])
+            .Footer(f => [f.Cell("End")])
+            .Focus(1);  // Use key-based focus
 
         Assert.Same(data, widget.Data);
         Assert.NotNull(widget.HeaderBuilder);
@@ -236,9 +236,9 @@ public class TableNodeTests
         var ctx = new RootContext();
         
         var widget = ctx.Table(Array.Empty<string>())
-            .WithHeader(h => [h.Cell("Name")])
-            .WithRow((r, item, _) => [r.Cell(item)])
-            .WithEmpty(e => e.Text("No items"));
+            .Header(h => [h.Cell("Name")])
+            .Row((r, item, _) => [r.Cell(item)])
+            .Empty(e => e.Text("No items"));
 
         Assert.NotNull(widget.EmptyBuilder);
     }
@@ -832,8 +832,8 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(products)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)]),
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -915,8 +915,8 @@ public class TableNodeTests
                 v.Text("Header Text"),
                 v.Text(""),
                 v.Table(products)
-                    .WithHeader(h => [h.Cell("Name")])
-                    .WithRow((r, item, _) => [r.Cell(item)])
+                    .Header(h => [h.Cell("Name")])
+                    .Row((r, item, _) => [r.Cell(item)])
                     .FillHeight(), // Critical: must fill to have constrained height for scrolling
                 v.Text(""),
                 v.Text("Footer Text"),
@@ -993,8 +993,8 @@ public class TableNodeTests
         // The table is the ONLY widget, so it should get focus automatically
         using var app = new Hex1bApp(
             ctx => ctx.Table(products)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, state) => [
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, state) => [
                     r.Cell(state.IsFocused ? $"> {item}" : item)
                 ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1056,14 +1056,14 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table((IReadOnlyList<SelectableItem>)products)
-                .WithRowKey(p => p.Name)
-                .WithHeader(h => [h.Cell("Product")])
-                .WithRow((r, item, state) => [
+                .RowKey(p => p.Name)
+                .Header(h => [h.Cell("Product")])
+                .Row((r, item, state) => [
                     r.Cell(state.IsFocused ? $"> {item.Name}" : item.Name)
                 ])
-                .WithFocus(focusedKey)
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
-                .WithSelectionColumn(
+                .SelectionColumn(
                     isSelected: p => p.IsSelected,
                     onChanged: (p, selected) => p.IsSelected = selected
                 ),
@@ -1163,14 +1163,14 @@ public class TableNodeTests
         using var app = new Hex1bApp(
             ctx => {
                 var table = ctx.Table((IReadOnlyList<SelectableItem>)products)
-                    .WithRowKey(p => p.Name)
-                    .WithHeader(h => [h.Cell("Product")])
-                    .WithRow((r, item, state) => [
+                    .RowKey(p => p.Name)
+                    .Header(h => [h.Cell("Product")])
+                    .Row((r, item, state) => [
                         r.Cell(state.IsFocused ? $"> {item.Name}" : item.Name)
                     ])
-                    .WithFocus(focusedKey)
+                    .Focus(focusedKey)
                     .OnFocusChanged(key => focusedKey = key)
-                    .WithSelectionColumn(
+                    .SelectionColumn(
                         isSelected: p => p.IsSelected,
                         onChanged: (p, selected) => p.IsSelected = selected
                     );
@@ -1305,10 +1305,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1363,10 +1363,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1413,10 +1413,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => { focusedKey = key; focusHistory.Add(key); })
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1489,10 +1489,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1531,10 +1531,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1590,10 +1590,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
@@ -1666,10 +1666,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(data)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1734,8 +1734,8 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(data)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
                 .Full(),  // Full mode with row separators
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1796,8 +1796,8 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table((IReadOnlyList<string>)data)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1865,8 +1865,8 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table((IReadOnlyList<string>)data)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
                 .Full()  // Full mode has row separators
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1944,12 +1944,12 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table((IReadOnlyList<(string Name, string Category, decimal Price)>)data)
-                .WithHeader(h => [
+                .Header(h => [
                     h.Cell("Name").Width(SizeHint.Fill),
                     h.Cell("Category").Width(SizeHint.Content),
                     h.Cell("Price").Width(SizeHint.Fixed(10))
                 ])
-                .WithRow((r, item, _) => [
+                .Row((r, item, _) => [
                     r.Cell(item.Name),
                     r.Cell(item.Category),
                     r.Cell($"${item.Price:F2}")
@@ -2040,10 +2040,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(dataSource)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -2096,10 +2096,10 @@ public class TableNodeTests
         
         using var app = new Hex1bApp(
             ctx => ctx.Table(largeList)
-                .WithRowKey(s => s)
-                .WithHeader(h => [h.Cell("Name")])
-                .WithRow((r, item, _) => [r.Cell(item)])
-                .WithFocus(focusedKey)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .Full()
                 .FillHeight(),

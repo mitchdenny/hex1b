@@ -48,15 +48,15 @@ public static class TableVisualTestHelper
         List<TestProduct> data)
     {
         var widget = ctx.Table(data)
-            .WithRowKey(p => p.Id)
-            .WithHeader(h =>
+            .RowKey(p => p.Id)
+            .Header(h =>
             [
                 h.Cell("Name").Width(SizeHint.Fixed(15)),
                 h.Cell("Category").Width(SizeHint.Fixed(12)),
                 h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
                 h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
             ])
-            .WithRow((r, item, state) =>
+            .Row((r, item, state) =>
             [
                 r.Cell(item.Name),
                 r.Cell(item.Category),
@@ -70,11 +70,11 @@ public static class TableVisualTestHelper
         // Configure selection if needed
         if (testCase.HasSelection)
         {
-            widget = widget.WithSelectionColumn();
+            widget = widget.SelectionColumn();
             if (testCase.SelectedRows != null)
             {
                 var selectedSet = testCase.SelectedRows.ToHashSet();
-                widget = widget.WithSelectionColumn(
+                widget = widget.SelectionColumn(
                     isSelected: item => selectedSet.Contains(item.Id - 1), // Id is 1-based
                     onChanged: (_, _) => { });
             }
@@ -83,7 +83,7 @@ public static class TableVisualTestHelper
         // Set focused row if specified
         if (testCase.FocusedRow >= 0 && testCase.FocusedRow < data.Count)
         {
-            widget = widget.WithFocus(data[testCase.FocusedRow].Id);
+            widget = widget.Focus(data[testCase.FocusedRow].Id);
         }
         
         return widget;
