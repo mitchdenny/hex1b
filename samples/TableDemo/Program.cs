@@ -101,32 +101,40 @@ Hex1bWidget BuildStaticScenario<TParent>(WidgetContext<TParent> ctx) where TPare
         v.Text("Static Product List"),
         v.Text("───────────────────"),
         v.Text(""),
-        v.Table((IReadOnlyList<Product>)staticProducts)
-            .WithRowKey(p => p.Name)
-            .WithHeader(h => [
-                h.Cell("Product").Width(SizeHint.Fill),
-                h.Cell("Category").Width(SizeHint.Content),
-                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
-                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
-            ])
-            .WithRow((r, product, state) => [
-                r.Cell(product.Name),
-                r.Cell(product.Category),
-                r.Cell($"${product.Price:F2}"),
-                r.Cell(product.Stock.ToString())
-            ])
-            .WithFocus(staticFocusedKey)
-            .OnFocusChanged(key => staticFocusedKey = key)
-            .WithSelectionColumn(
-                isSelected: p => p.IsSelected,
-                onChanged: (p, selected) => p.IsSelected = selected
-            )
-            .OnSelectAll(() => { foreach (var p in staticProducts) p.IsSelected = true; })
-            .OnDeselectAll(() => { foreach (var p in staticProducts) p.IsSelected = false; })
-            .FillHeight(),
+        v.Responsive(r => [
+            r.WhenMinWidth(90, r => BuildStaticTable(r).Full()),
+            r.Otherwise(r => BuildStaticTable(r).Compact())
+        ]).FillHeight(),
         v.Text(""),
         v.Text($"Items: {staticProducts.Count}  |  Selected: {staticProducts.Count(p => p.IsSelected)}")
     ]);
+}
+
+TableWidget<Product> BuildStaticTable<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.Table((IReadOnlyList<Product>)staticProducts)
+        .WithRowKey(p => p.Name)
+        .WithHeader(h => [
+            h.Cell("Product").Width(SizeHint.Fill),
+            h.Cell("Category").Width(SizeHint.Content),
+            h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+            h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+        ])
+        .WithRow((r, product, state) => [
+            r.Cell(product.Name),
+            r.Cell(product.Category),
+            r.Cell($"${product.Price:F2}"),
+            r.Cell(product.Stock.ToString())
+        ])
+        .WithFocus(staticFocusedKey)
+        .OnFocusChanged(key => staticFocusedKey = key)
+        .WithSelectionColumn(
+            isSelected: p => p.IsSelected,
+            onChanged: (p, selected) => p.IsSelected = selected
+        )
+        .OnSelectAll(() => { foreach (var p in staticProducts) p.IsSelected = true; })
+        .OnDeselectAll(() => { foreach (var p in staticProducts) p.IsSelected = false; })
+        .FillHeight();
 }
 
 Hex1bWidget BuildObservableScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
@@ -227,26 +235,34 @@ Hex1bWidget BuildLargeListScenario<TParent>(WidgetContext<TParent> ctx) where TP
         v.Text("Large List (10,000 items - Virtualized)"),
         v.Text("───────────────────────────────────────"),
         v.Text(""),
-        v.Table((IReadOnlyList<Product>)largeList)
-            .WithRowKey(p => p.Name)
-            .WithHeader(h => [
-                h.Cell("Product").Width(SizeHint.Fill),
-                h.Cell("Category").Width(SizeHint.Content),
-                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
-                h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
-            ])
-            .WithRow((r, product, state) => [
-                r.Cell(product.Name),
-                r.Cell(product.Category),
-                r.Cell($"${product.Price:F2}"),
-                r.Cell(product.Stock.ToString())
-            ])
-            .WithFocus(largeFocusedKey)
-            .OnFocusChanged(key => largeFocusedKey = key)
-            .FillHeight(),
+        v.Responsive(r => [
+            r.WhenMinWidth(90, r => BuildLargeTable(r).Full()),
+            r.Otherwise(r => BuildLargeTable(r).Compact())
+        ]).FillHeight(),
         v.Text(""),
         v.Text($"Total items: {largeList.Count:N0}")
     ]);
+}
+
+TableWidget<Product> BuildLargeTable<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.Table((IReadOnlyList<Product>)largeList)
+        .WithRowKey(p => p.Name)
+        .WithHeader(h => [
+            h.Cell("Product").Width(SizeHint.Fill),
+            h.Cell("Category").Width(SizeHint.Content),
+            h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+            h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
+        ])
+        .WithRow((r, product, state) => [
+            r.Cell(product.Name),
+            r.Cell(product.Category),
+            r.Cell($"${product.Price:F2}"),
+            r.Cell(product.Stock.ToString())
+        ])
+        .WithFocus(largeFocusedKey)
+        .OnFocusChanged(key => largeFocusedKey = key)
+        .FillHeight();
 }
 
 // ============================================================================
