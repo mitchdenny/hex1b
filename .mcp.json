@@ -3,8 +3,8 @@
     "aspire": {
       "command": "aspire",
       "args": [
-        "mcp",
-        "start"
+        "agent",
+        "mcp"
       ]
     },
     "playwright": {
