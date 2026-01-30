@@ -1868,8 +1868,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void RenderScrollbar(Hex1bRenderContext context)
     {
-        // Use cached theme values - use effective border color based on focus state
-        var borderColor = EffectiveBorderColor;
+        // Scrollbar is on the outer edge, so use focus-aware outer color
+        var outerColor = EffectiveBorderColor;
         var focusedBorderColor = _focusedBorderColor;
         
         // Scrollbar column starts after the table's right border
@@ -1901,23 +1901,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
         
-        // Render top border of scrollbar column
+        // Render top border of scrollbar column (outer edge)
         int y = 0;
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
+        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
         y++;
         
         // Render header row(s) - empty scrollbar area with track
         if (_headerRowNode is not null)
         {
-            // Header row - empty cell + border (no track in header area)
+            // Header row - empty cell + border (outer edge)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
+            context.Write($"{outerColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
             y++;
             
-            // Header separator - connects to table's horizontal line
+            // Header separator - connects to table's horizontal line (outer edge)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
         }
         
@@ -1929,48 +1929,56 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
             char trackChar = isThumb ? _scrollbarThumb : _scrollbarTrack;
-            var trackColor = isThumb ? focusedBorderColor : borderColor;
+            var trackColor = isThumb ? focusedBorderColor : _borderColor;
             
-            // Always use vertical border - continuous clean track
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            // Track uses inner color, right edge uses outer color
+            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
         // Render footer row(s) if present
         if (_footerRowNode is not null)
         {
-            // Footer separator - connects to table's horizontal line
+            // Footer separator - outer edge
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
             
-            // Footer row - track + border
+            // Footer row - track (inner) + border (outer)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{_scrollbarTrack}{_vertical}\x1b[0m");
+            context.Write($"{_borderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
-        // Render bottom border
+        // Render bottom border (outer edge)
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
+        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
     }
 
-    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)
+    private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null, bool isOuterBorder = false)
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color based on focus state
-        var borderColor = EffectiveBorderColor;
-        sb.Append(borderColor.ToForegroundAnsi());
+        // Outer border uses focus-aware color, inner borders use regular border color
+        var outerColor = EffectiveBorderColor;
+        var innerColor = _borderColor;
         
+        // Left edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(left);
 
-        // Selection column border (if enabled)
+        // Selection column border (if enabled) - inner
         if (ShowSelectionColumn)
         {
+            sb.Append(innerColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, SelectionColumnWidth));
             // Use specific character for selection column separator if provided, otherwise use middle
             sb.Append(selectionColumnMiddle ?? middle);
+        }
+        else
+        {
+            // Switch to inner color for horizontal content
+            sb.Append(innerColor.ToForegroundAnsi());
         }
 
         // In Full mode, each column has 1 char padding on left and right
@@ -1985,6 +1993,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             }
         }
 
+        // Right edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2181,11 +2191,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color based on focus state
-        var borderColor = EffectiveBorderColor;
-        sb.Append(borderColor.ToForegroundAnsi());
+        // Outer edges use focus-aware color, inner content uses regular border color
+        var outerColor = EffectiveBorderColor;
+        var innerColor = _borderColor;
         
+        // Left edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(left);
+
+        // Switch to inner color for content
+        sb.Append(innerColor.ToForegroundAnsi());
 
         // Selection column (if enabled)
         if (ShowSelectionColumn)
@@ -2201,6 +2216,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
         sb.Append(new string(_horizontal, contentWidth));
 
+        // Right edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2210,10 +2227,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color based on focus state
-        var borderColor = EffectiveBorderColor;
-        sb.Append(borderColor.ToForegroundAnsi());
+        // Outer edges use focus-aware color, inner borders use regular border color
+        var outerColor = EffectiveBorderColor;
+        var innerColor = _borderColor;
         
+        // Left edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty (no checkbox for empty state)
@@ -2221,7 +2240,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
-            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(innerColor.ToForegroundAnsi());
             sb.Append(_vertical);
         }
 
@@ -2250,7 +2269,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 : emptyMessage[..contentWidth]);
         }
 
-        sb.Append(borderColor.ToForegroundAnsi());
+        // Right edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2263,10 +2283,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color based on focus state
-        var borderColor = EffectiveBorderColor;
-        sb.Append(borderColor.ToForegroundAnsi());
+        // Outer edges use focus-aware color, inner borders use regular border color
+        var outerColor = EffectiveBorderColor;
+        var innerColor = _borderColor;
         
+        // Left edge (outer)
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty placeholder
@@ -2274,7 +2296,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
-            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(innerColor.ToForegroundAnsi());
             sb.Append(_vertical);
         }
 
@@ -2303,8 +2325,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 : loadingMessage[..contentWidth]);
         }
 
+        // Right edge (outer)
         sb.Append("\x1b[0m"); // Reset
-        sb.Append(borderColor.ToForegroundAnsi());
+        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
