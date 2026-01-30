@@ -4,6 +4,7 @@ using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Data;
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 // ============================================================================
@@ -43,6 +44,7 @@ var scenarios = new[]
     "Async (1k, 0ms)",
     "Async (10k, 0ms)",
     "Async (100k, 0ms)",
+    "Themed Table",
 };
 
 int selectedScenario = 0;
@@ -123,6 +125,22 @@ object? asyncFocusedKey10k0ms = null;
 object? asyncFocusedKey100k0ms = null;
 
 // ============================================================================
+// Scenario 9: Themed Table - Custom table styling with ThemePanel
+// ============================================================================
+
+var themedProducts = new List<Product>
+{
+    new("Neon Keyboard", "Electronics", 199.99m, 25),
+    new("RGB Mouse", "Electronics", 79.99m, 50),
+    new("Gaming Chair", "Furniture", 449.99m, 10),
+    new("LED Strip", "Accessories", 29.99m, 100),
+    new("Holographic Display", "Electronics", 1299.99m, 5),
+    new("Ambient Light Bar", "Accessories", 89.99m, 30),
+};
+
+object? themedFocusedKey = themedProducts[0].Name;
+
+// ============================================================================
 // Build scenario content
 // ============================================================================
 
@@ -138,6 +156,7 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
         5 => BuildAsyncScenario(ctx, asyncDataSource1k0ms, () => asyncFocusedKey1k0ms, key => asyncFocusedKey1k0ms = key, "1k items, no delay"),
         6 => BuildAsyncScenario(ctx, asyncDataSource10k0ms, () => asyncFocusedKey10k0ms, key => asyncFocusedKey10k0ms = key, "10k items, no delay"),
         7 => BuildAsyncScenario(ctx, asyncDataSource100k0ms, () => asyncFocusedKey100k0ms, key => asyncFocusedKey100k0ms = key, "100k items, no delay"),
+        8 => BuildThemedScenario(ctx),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -342,6 +361,78 @@ Hex1bWidget BuildAsyncScenario<TParent>(
             .FillHeight(),
         v.Text(""),
         v.Text($"Total items: {dataSource.TotalCount:N0} | Delay: {dataSource.DelayMs}ms")
+    ]);
+}
+
+Hex1bWidget BuildThemedScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("Themed Table (Custom Styling via ThemePanel)"),
+        v.Text("─────────────────────────────────────────────"),
+        v.Text(""),
+        v.ThemePanel(
+            theme => theme
+                // Cyberpunk-style borders - magenta/cyan color scheme
+                .Set(TableTheme.BorderColor, Hex1bColor.Magenta)
+                .Set(TableTheme.FocusedBorderColor, Hex1bColor.Cyan)
+                .Set(TableTheme.TableFocusedBorderColor, Hex1bColor.Yellow)
+                
+                // Use double-line box drawing characters
+                .Set(TableTheme.TopLeft, '╔')
+                .Set(TableTheme.TopRight, '╗')
+                .Set(TableTheme.BottomLeft, '╚')
+                .Set(TableTheme.BottomRight, '╝')
+                .Set(TableTheme.Horizontal, '═')
+                .Set(TableTheme.Vertical, '║')
+                .Set(TableTheme.TeeDown, '╦')
+                .Set(TableTheme.TeeUp, '╩')
+                .Set(TableTheme.TeeRight, '╠')
+                .Set(TableTheme.TeeLeft, '╣')
+                .Set(TableTheme.Cross, '╬')
+                
+                // Stylized scrollbar
+                .Set(TableTheme.ScrollbarTrack, '░')
+                .Set(TableTheme.ScrollbarThumb, '█')
+                .Set(TableTheme.ScrollbarTrackColor, Hex1bColor.FromRgb(128, 0, 128))
+                .Set(TableTheme.ScrollbarThumbColor, Hex1bColor.Cyan)
+                
+                // Selection styling
+                .Set(TableTheme.CheckboxUnchecked, "○")
+                .Set(TableTheme.CheckboxChecked, "●")
+                .Set(TableTheme.CheckboxIndeterminate, "◐")
+                .Set(TableTheme.CheckboxCheckedForeground, Hex1bColor.Cyan)
+                .Set(TableTheme.CheckboxUncheckedForeground, Hex1bColor.FromRgb(128, 0, 128))
+                
+                // Row colors
+                .Set(TableTheme.FocusedRowBackground, Hex1bColor.FromRgb(60, 20, 80))
+                .Set(TableTheme.SelectedRowBackground, Hex1bColor.FromRgb(30, 60, 90)),
+            v2 => [
+                v2.Table((IReadOnlyList<Product>)themedProducts)
+                    .WithRowKey(p => p.Name)
+                    .WithHeader(h => [
+                        h.Cell("Product").Width(SizeHint.Fill),
+                        h.Cell("Category").Width(SizeHint.Content),
+                        h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),
+                        h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+                    ])
+                    .WithRow((r, product, state) => [
+                        r.Cell(product.Name),
+                        r.Cell(product.Category),
+                        r.Cell($"${product.Price:F2}"),
+                        r.Cell(product.Stock.ToString())
+                    ])
+                    .WithFocus(themedFocusedKey)
+                    .OnFocusChanged(key => themedFocusedKey = key)
+                    .WithSelectionColumn(
+                        isSelected: p => p.IsSelected,
+                        onChanged: (p, selected) => p.IsSelected = selected
+                    )
+                    .Full()
+                    .FillHeight()
+            ]
+        ).FillHeight(),
+        v.Text(""),
+        v.Text("This table uses ThemePanel to customize borders, colors, and characters.")
     ]);
 }
 
