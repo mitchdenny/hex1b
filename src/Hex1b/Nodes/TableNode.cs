@@ -26,8 +26,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private const char TeeLeft = '┤';
     private const char Cross = '┼';
     
-    // Scrollbar constants
-    private const int ScrollbarWidth = 1;
+    // Scrollbar column constants
+    // Scrollbar column overlays the table's right border
+    // Layout: [table right border becomes scrollbar left border] track rightBorder = 2 chars extra
+    private const int ScrollbarColumnWidth = 2;
+    private const char ScrollbarTrack = ' ';      // Space for track background
+    private const char ScrollbarThumb = '█';      // Block character for thumb
 
     // INotifyCollectionChanged subscription
     private INotifyCollectionChanged? _subscribedCollection;
@@ -850,7 +854,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (!IsScrollable) return new DragHandler();
         
         // Check if click is on the scrollbar (rightmost column within bounds)
-        var scrollbarX = Bounds.Width - ScrollbarWidth;
+        var scrollbarX = Bounds.Width - ScrollbarColumnWidth;
         if (localX < scrollbarX || localX >= Bounds.Width)
         {
             return new DragHandler(); // Click not on scrollbar
@@ -1184,8 +1188,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Account for borders: | col1 | col2 | col3 | = columnCount + 1 vertical bars
         int borderWidth = _columnCount + 1;
         
-        // Reserve space for scrollbar if needed
-        int scrollbarSpace = reserveScrollbar ? ScrollbarWidth : 0;
+        // Reserve space for scrollbar column if needed (includes its own border)
+        // Scrollbar column: │ track │ = 3 chars total
+        int scrollbarSpace = reserveScrollbar ? ScrollbarColumnWidth : 0;
         
         // Reserve space for selection column if enabled
         int selectionSpace = ShowSelectionColumn ? SelectionColumnWidth + 1 : 0; // +1 for separator
@@ -1542,7 +1547,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             _scrollOffset = MaxScrollOffset;
         }
         
-        int scrollbarSpace = IsScrollable ? ScrollbarWidth : 0;
+        // Recalculate column widths if scrollbar state changed after Arrange's viewport recalculation
+        // This happens when Measure receives unbounded height but Arrange has bounded height
+        bool needsScrollbar = IsScrollable;
+        CalculateColumnWidths(rect.Width, needsScrollbar);
+        
+        int scrollbarSpace = needsScrollbar ? ScrollbarColumnWidth : 0;
         
         int viewportY = rect.Y + 1 + headerHeight; // After top border and header
         int viewportHeight = rect.Height - 2 - headerHeight - footerHeight; // Between borders and header/footer
@@ -1559,7 +1569,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private void ArrangeChildNodes()
     {
         int y = 0;
-        int width = Bounds.Width;
+        // Width should exclude scrollbar if present
+        int scrollbarSpace = IsScrollable ? ScrollbarColumnWidth : 0;
+        int width = Bounds.Width - scrollbarSpace;
         
         // Skip top border
         y++;
@@ -1626,9 +1638,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         bool hasDataRows = Data is not null && Data.Count > 0;
         bool isLoading = Data is null;
         bool hasColumnStructure = hasDataRows || isLoading; // Loading rows also have column structure
+        
+        // When scrollbar is present, use connecting characters for the right edge
+        char topRightCorner = IsScrollable ? TeeDown : TopRight;
+        char rightTee = IsScrollable ? Cross : TeeLeft;
+        char bottomRightCorner = IsScrollable ? TeeUp : BottomRight;
 
         // Top border
-        RenderHorizontalBorder(context, y, TopLeft, TeeDown, TopRight);
+        RenderHorizontalBorder(context, y, TopLeft, TeeDown, topRightCorner);
         y++;
 
         // Header
@@ -1641,13 +1658,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             // Use different separator when transitioning to empty state vs data/loading rows
             if (hasColumnStructure)
             {
-                RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+                RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
             }
             else
             {
                 // No column breaks in separator when empty - columns "close off"
                 // But selection column still needs a cross since it's still visible
-                RenderHorizontalBorder(context, y, TeeRight, TeeUp, TeeLeft, selectionColumnMiddle: Cross);
+                char emptyRightTee = IsScrollable ? Cross : TeeLeft;
+                RenderHorizontalBorder(context, y, TeeRight, TeeUp, emptyRightTee, selectionColumnMiddle: Cross);
             }
             y++;
         }
@@ -1708,7 +1726,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 // In Full mode, render separator between rows (but not after the last visible row)
                 if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
                 {
-                    RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+                    RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
                     y++;
                 }
             }
@@ -1719,13 +1737,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             if (hasColumnStructure)
             {
-                RenderHorizontalBorder(context, y, TeeRight, Cross, TeeLeft);
+                RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
             }
             else
             {
                 // Transition from empty to footer - columns "open up" again
                 // Selection column still needs a cross since it's still visible
-                RenderHorizontalBorder(context, y, TeeRight, TeeDown, TeeLeft, selectionColumnMiddle: Cross);
+                char emptyRightTee = IsScrollable ? Cross : TeeLeft;
+                RenderHorizontalBorder(context, y, TeeRight, TeeDown, emptyRightTee, selectionColumnMiddle: Cross);
             }
             y++;
             context.RenderChild(_footerRowNode);
@@ -1739,12 +1758,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             bool showColumnTees = hasColumnStructure || _footerRowNode is not null;
             if (showColumnTees)
             {
-                RenderHorizontalBorder(context, y, BottomLeft, TeeUp, BottomRight);
+                RenderHorizontalBorder(context, y, BottomLeft, TeeUp, bottomRightCorner);
             }
             else
             {
                 // Empty state with no footer - solid bottom border
-                RenderSolidHorizontalBorder(context, y, BottomLeft, BottomRight);
+                char emptyBottomRight = IsScrollable ? TeeUp : BottomRight;
+                RenderSolidHorizontalBorder(context, y, BottomLeft, emptyBottomRight);
             }
         }
         
@@ -1761,60 +1781,84 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var borderColor = theme.Get(TableTheme.BorderColor);
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         
-        // Use border characters: 
-        // - For data rows: thin (│) for track, thick (┃) for thumb
-        // - For separator rows in Full mode: tee (┤) for track, thick (┃) for thumb
-        const char trackChar = '│';
-        const char thumbChar = '┃';
-        const char trackTeeChar = '┤';
+        // Scrollbar column starts at position: table's right border position
+        // We render: track + right border (2 chars)
+        // The table's right border is at position Bounds.Width - ScrollbarColumnWidth - 1
+        // We start rendering at the track position which is after the table's right border
+        var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
         
-        // Scrollbar is in the rightmost column, aligned with the content viewport
-        var scrollbarX = Bounds.X + Bounds.Width - ScrollbarWidth;
-        var scrollbarY = _contentViewport.Y;
+        // Calculate thumb position and size based on content viewport
         var scrollbarHeight = _contentViewport.Height;
-        
         if (scrollbarHeight <= 0) return;
         
-        // Calculate thumb position and size (no arrows, use full height)
         var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * scrollbarHeight));
         var scrollRange = scrollbarHeight - thumbSize;
         var thumbPosition = scrollRange > 0 && MaxScrollOffset > 0
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
         
-        // Calculate row height in Full mode (data row + separator = 2 lines per logical row)
-        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
+        // Render top border of scrollbar column (extends from table's top-right corner)
+        int y = 0;
+        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+        context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TopRight}\x1b[0m");
+        y++;
         
-        // Render scrollbar
+        // Render header row(s) - empty scrollbar area
+        if (_headerRowNode is not null)
+        {
+            // Header row - just space + border
+            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
+            y++;
+            
+            // Header separator
+            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            y++;
+        }
+        
+        // Render content rows with scrollbar track/thumb
+        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
         for (int row = 0; row < scrollbarHeight; row++)
         {
-            context.SetCursorPosition(scrollbarX, scrollbarY + row);
+            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
             
             // In Full mode, odd rows (1, 3, 5...) are separator lines
             bool isSeparatorRow = RenderMode == TableRenderMode.Full && (row % rowHeight) == 1;
-            
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
             
-            char charToRender;
-            if (isThumb)
+            if (isSeparatorRow)
             {
-                // Thumb always uses thick vertical bar for visual consistency
-                charToRender = thumbChar;
-            }
-            else if (isSeparatorRow)
-            {
-                // Track on separator row - use tee to connect with horizontal line
-                charToRender = trackTeeChar;
+                // Separator row - horizontal line connecting to right border
+                context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
             }
             else
             {
-                // Track on data row - use vertical bar
-                charToRender = trackChar;
+                // Data row - show track or thumb
+                char trackChar = isThumb ? ScrollbarThumb : ScrollbarTrack;
+                var trackColor = isThumb ? focusedBorderColor : borderColor;
+                context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{Vertical}\x1b[0m");
             }
-            
-            var color = isThumb ? focusedBorderColor : borderColor;
-            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
+            y++;
         }
+        
+        // Render footer row(s) if present
+        if (_footerRowNode is not null)
+        {
+            // Footer separator
+            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            y++;
+            
+            // Footer row
+            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
+            y++;
+        }
+        
+        // Render bottom border
+        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
+        context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{BottomRight}\x1b[0m");
     }
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)

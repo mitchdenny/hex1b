@@ -2005,5 +2005,110 @@ public class TableNodeTests
             $"First bad line: {linesWithWrongEnding.FirstOrDefault()}\n\nScreen:\n{screenText}");
     }
 
+        [Fact]
+    public async Task Table_WithLargeAsyncDataSource_ShouldShowScrollbar()
+    {
+        // Arrange - simulate 10k items
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(100, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(10000);
+        var focusedKey = (object?)"Item 00001";
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render with data loaded
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Capture screen to check for scrollbar
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        
+        // Exit app
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Check that scrollbar characters are present (│ for track or ┃ for thumb)
+        // The scrollbar should be in the rightmost column of the table
+        var lines = screenText.Split('\n');
+        var scrollbarChars = new[] { '│', '┃' };
+        var hasScrollbar = lines.Any(line => 
+            line.Length > 0 && scrollbarChars.Contains(line[^1]));
+        
+        Assert.True(hasScrollbar, $"Expected scrollbar in rightmost column.\n\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task Table_WithLargeSyncDataSource_ShouldShowScrollbar()
+    {
+        // Arrange - 10k items with synchronous data (IReadOnlyList)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(150, 25) // Wide enough for Full mode
+            .Build();
+            
+        var largeList = Enumerable.Range(1, 10000)
+            .Select(i => $"Product {i:D5}")
+            .ToList();
+        var focusedKey = (object?)"Product 00001";
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(largeList)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .Full()
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Product 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Capture screen to check for scrollbar
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        
+        // Exit app
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Check that scrollbar thumb character (┃) is present
+        Assert.Contains("┃", screenText, StringComparison.Ordinal);
+    }
+
     #endregion
 }
