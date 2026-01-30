@@ -30,7 +30,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     // Scrollbar column overlays the table's right border
     // Layout: [table right border becomes scrollbar left border] track rightBorder = 2 chars extra
     private const int ScrollbarColumnWidth = 2;
-    private const char ScrollbarTrack = ' ';      // Space for track background
+    private const char ScrollbarTrack = '│';      // Thin vertical for track
     private const char ScrollbarThumb = '█';      // Block character for thumb
 
     // INotifyCollectionChanged subscription
@@ -867,53 +867,44 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var trackEnd = Bounds.Height - 1 - footerHeight; // Before bottom border and footer
         var trackHeight = trackEnd - trackStart;
         
-        if (trackHeight <= 2) return new DragHandler(); // Too small for meaningful scroll
+        if (trackHeight <= 0) return new DragHandler(); // Too small for meaningful scroll
         
-        // Calculate thumb position and size
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * (trackHeight - 2)));
-        var scrollRange = trackHeight - 2 - thumbSize;
+        // Calculate thumb position and size (uses full track, no arrow buttons)
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * trackHeight));
+        var scrollRange = trackHeight - thumbSize;
         var thumbPosition = scrollRange > 0 
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
         
         var trackY = localY - trackStart;
         
-        if (trackY == 0)
+        if (trackY >= 0 && trackY < trackHeight)
         {
-            // Up arrow clicked
-            ScrollByAmount(-1);
-            return new DragHandler();
-        }
-        else if (trackY == trackHeight - 1)
-        {
-            // Down arrow clicked
-            ScrollByAmount(1);
-            return new DragHandler();
-        }
-        else if (trackY > 0 && trackY < trackHeight - 1)
-        {
-            var thumbTrackY = trackY - 1;
-            
-            if (thumbTrackY >= thumbPosition && thumbTrackY < thumbPosition + thumbSize)
+            if (trackY >= thumbPosition && trackY < thumbPosition + thumbSize)
             {
                 // Clicked on thumb - start drag
                 var startOffset = _scrollOffset;
-                var contentPerPixel = MaxScrollOffset > 0 && trackHeight - 2 > thumbSize
-                    ? (double)MaxScrollOffset / (trackHeight - 2 - thumbSize)
+                var contentPerPixel = MaxScrollOffset > 0 && scrollRange > 0
+                    ? (double)MaxScrollOffset / scrollRange
                     : 0;
                 
-                return new DragHandler(
-                    onMove: (deltaX, deltaY) =>
-                    {
-                        if (contentPerPixel > 0)
+                if (contentPerPixel > 0)
+                {
+                    return new DragHandler(
+                        onMove: (deltaX, deltaY) =>
                         {
                             var newOffset = (int)Math.Round(startOffset + deltaY * contentPerPixel);
                             SetScrollOffset(newOffset);
                         }
-                    }
-                );
+                    );
+                }
+                else
+                {
+                    // Thumb fills entire track (1-cell thumb) - use click position to scroll proportionally
+                    return HandleProportionalScroll(trackY, trackHeight);
+                }
             }
-            else if (thumbTrackY < thumbPosition)
+            else if (trackY < thumbPosition)
             {
                 // Clicked above thumb - page up
                 ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
@@ -928,6 +919,27 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
         
         return new DragHandler();
+    }
+    
+    /// <summary>
+    /// Handles proportional scrolling when thumb can't be dragged (fills entire track).
+    /// </summary>
+    private DragHandler HandleProportionalScroll(int clickY, int trackHeight)
+    {
+        // When thumb fills entire track, use click position to scroll proportionally
+        var proportion = (double)clickY / Math.Max(1, trackHeight - 1);
+        var targetOffset = (int)Math.Round(proportion * MaxScrollOffset);
+        SetScrollOffset(targetOffset);
+        
+        return new DragHandler(
+            onMove: (deltaX, deltaY) =>
+            {
+                // Allow dragging to scroll proportionally
+                var newProportion = Math.Clamp((clickY + deltaY) / (double)Math.Max(1, trackHeight - 1), 0, 1);
+                var newOffset = (int)Math.Round(newProportion * MaxScrollOffset);
+                SetScrollOffset(newOffset);
+            }
+        );
     }
 
     #endregion
@@ -1781,78 +1793,71 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var borderColor = theme.Get(TableTheme.BorderColor);
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         
-        // Scrollbar column starts at position: table's right border position
-        // We render: track + right border (2 chars)
-        // The table's right border is at position Bounds.Width - ScrollbarColumnWidth - 1
-        // We start rendering at the track position which is after the table's right border
+        // Scrollbar column starts after the table's right border
         var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
         
-        // Calculate thumb position and size based on content viewport
+        // Calculate the full scrollbar track height (all screen rows in content area)
         var scrollbarHeight = _contentViewport.Height;
         if (scrollbarHeight <= 0) return;
         
+        // Calculate thumb size and position based on screen rows
+        // Thumb size is proportional to viewport/content ratio
         var thumbSize = Math.Max(1, (int)Math.Ceiling((double)_viewportRowCount / _contentRowCount * scrollbarHeight));
         var scrollRange = scrollbarHeight - thumbSize;
         var thumbPosition = scrollRange > 0 && MaxScrollOffset > 0
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
         
-        // Render top border of scrollbar column (extends from table's top-right corner)
+        // Render top border of scrollbar column
         int y = 0;
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
         context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TopRight}\x1b[0m");
         y++;
         
-        // Render header row(s) - empty scrollbar area
+        // Render header row(s) - empty scrollbar area with track
         if (_headerRowNode is not null)
         {
-            // Header row - just space + border
+            // Header row - track + border
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{Vertical}\x1b[0m");
             y++;
             
-            // Header separator
+            // Header separator - track continues through (no horizontal break)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{TeeLeft}\x1b[0m");
             y++;
         }
         
-        // Render content rows with scrollbar track/thumb
-        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
+        // Render content rows with continuous scrollbar track/thumb
+        // The track runs continuously - no breaks for row separators in Full mode
         for (int row = 0; row < scrollbarHeight; row++)
         {
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
             
-            // In Full mode, odd rows (1, 3, 5...) are separator lines
-            bool isSeparatorRow = RenderMode == TableRenderMode.Full && (row % rowHeight) == 1;
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
+            char trackChar = isThumb ? ScrollbarThumb : ScrollbarTrack;
+            var trackColor = isThumb ? focusedBorderColor : borderColor;
             
-            if (isSeparatorRow)
-            {
-                // Separator row - horizontal line connecting to right border
-                context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
-            }
-            else
-            {
-                // Data row - show track or thumb
-                char trackChar = isThumb ? ScrollbarThumb : ScrollbarTrack;
-                var trackColor = isThumb ? focusedBorderColor : borderColor;
-                context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{Vertical}\x1b[0m");
-            }
+            // Determine right border character
+            // In Full mode, odd rows are separator lines - use TeeLeft to connect
+            bool isSeparatorRow = RenderMode == TableRenderMode.Full && (row % 2) == 1;
+            char rightBorder = isSeparatorRow ? TeeLeft : Vertical;
+            
+            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{rightBorder}\x1b[0m");
             y++;
         }
         
         // Render footer row(s) if present
         if (_footerRowNode is not null)
         {
-            // Footer separator
+            // Footer separator - track continues
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{TeeLeft}\x1b[0m");
             y++;
             
-            // Footer row
+            // Footer row - track + border
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{Vertical}\x1b[0m");
             y++;
         }
         
