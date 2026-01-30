@@ -146,10 +146,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private int _viewportRowCount;
     private Rect _contentViewport;
     
+    // Virtualization buffer (rows above/below visible area to pre-render)
+    private const int VirtualizationBuffer = 5;
+    
     /// <summary>
     /// The current scroll offset (first visible row index).
     /// </summary>
     public int ScrollOffset => _scrollOffset;
+    
+    /// <summary>
+    /// The number of rows visible in the viewport.
+    /// </summary>
+    public int ViewportRowCount => _viewportRowCount;
     
     /// <summary>
     /// Whether the table content is scrollable (more rows than viewport).
@@ -160,6 +168,21 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// The maximum scroll offset.
     /// </summary>
     public int MaxScrollOffset => Math.Max(0, _contentRowCount - _viewportRowCount);
+    
+    /// <summary>
+    /// Gets the range of rows that should be materialized (visible + buffer).
+    /// </summary>
+    /// <param name="totalRows">Total number of data rows.</param>
+    /// <returns>Tuple of (startIndex, endIndex) for rows to materialize.</returns>
+    public (int Start, int End) GetVisibleRowRange(int totalRows)
+    {
+        if (totalRows == 0 || _viewportRowCount == 0)
+            return (0, 0);
+            
+        int start = Math.Max(0, _scrollOffset - VirtualizationBuffer);
+        int end = Math.Min(totalRows, _scrollOffset + _viewportRowCount + VirtualizationBuffer);
+        return (start, end);
+    }
 
     // Focus state
     private bool _isFocused;
@@ -197,6 +220,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             foreach (var row in _dataRowNodes)
             {
+                if (row is null) continue; // Skip unmaterialized rows
                 foreach (var focusable in row.GetFocusableNodes())
                     yield return focusable;
             }
@@ -1175,6 +1199,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             foreach (var rowNode in _dataRowNodes)
             {
+                if (rowNode is null) continue; // Skip unmaterialized rows
                 maxWidth = Math.Max(maxWidth, MeasureRowNodeColumnWidth(rowNode, columnIndex));
             }
         }
@@ -1371,6 +1396,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             foreach (var rowNode in _dataRowNodes)
             {
+                if (rowNode is null) continue; // Skip unmaterialized rows
                 rowNode.Measure(new Constraints(0, width, 0, 1));
             }
         }
@@ -1447,8 +1473,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             int endRow = Math.Min(_scrollOffset + _viewportRowCount, _dataRowNodes.Count);
             for (int i = _scrollOffset; i < endRow; i++)
             {
-                SetRowNodeColumnWidths(_dataRowNodes[i]);
-                _dataRowNodes[i].Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
+                var rowNode = _dataRowNodes[i];
+                if (rowNode is not null)
+                {
+                    SetRowNodeColumnWidths(rowNode);
+                    rowNode.Arrange(new Rect(Bounds.X, Bounds.Y + y, width, 1));
+                }
                 y++;
                 
                 // In Full mode, account for separator between rows
@@ -1531,15 +1561,28 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             int rowsRendered = 0;
             for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1); i++)
             {
+                var rowNode = _dataRowNodes[i];
+                
+                // Skip null nodes (not yet materialized due to virtualization)
+                // This shouldn't happen for visible rows, but handle gracefully
+                if (rowNode is null)
+                {
+                    y++;
+                    rowsRendered++;
+                    if (RenderMode == TableRenderMode.Full && i < endRow - 1)
+                        y++;
+                    continue;
+                }
+                
                 var state = _rowStates[i];
                 // Use runtime selection check instead of cached state
                 bool isSelected = IsRowSelectedForRender(i);
                 
                 // Update row node highlight/selection state for rendering
-                _dataRowNodes[i].IsHighlighted = state.IsFocused;
-                _dataRowNodes[i].IsSelected = isSelected;
+                rowNode.IsHighlighted = state.IsFocused;
+                rowNode.IsSelected = isSelected;
                 
-                context.RenderChild(_dataRowNodes[i]);
+                context.RenderChild(rowNode);
                 y++;
                 rowsRendered++;
                 

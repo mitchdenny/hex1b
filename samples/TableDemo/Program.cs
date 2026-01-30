@@ -13,7 +13,7 @@ var scenarios = new[]
     "Products (Static)",
     "Observable Collection",
     "Observable + Selection",
-    // Future: "Large List (10k)", "Async API"
+    "Large List (10k)",
 };
 
 int selectedScenario = 0;
@@ -70,6 +70,16 @@ object? selectableFocusedKey = selectableObservable[0].Name;
 int nextSelectableId = 4;
 
 // ============================================================================
+// Scenario 4: Large List - 10k items for virtualization testing
+// ============================================================================
+
+var largeList = Enumerable.Range(1, 10000)
+    .Select(i => new Product($"Product {i:D5}", categories[i % 3], 10.00m + (i % 100), i * 10))
+    .ToList();
+
+object? largeFocusedKey = largeList[0].Name;
+
+// ============================================================================
 // Build scenario content
 // ============================================================================
 
@@ -80,6 +90,7 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
         0 => BuildStaticScenario(ctx),
         1 => BuildObservableScenario(ctx),
         2 => BuildSelectableObservableScenario(ctx),
+        3 => BuildLargeListScenario(ctx),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -207,6 +218,34 @@ Hex1bWidget BuildSelectableObservableScenario<TParent>(WidgetContext<TParent> ct
                 selectableObservable.Clear();
             })
         ])
+    ]);
+}
+
+Hex1bWidget BuildLargeListScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("Large List (10,000 items - Virtualized)"),
+        v.Text("───────────────────────────────────────"),
+        v.Text(""),
+        v.Table((IReadOnlyList<Product>)largeList)
+            .WithRowKey(p => p.Name)
+            .WithHeader(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
+            ])
+            .WithRow((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .WithFocus(largeFocusedKey)
+            .OnFocusChanged(key => largeFocusedKey = key)
+            .FillHeight(),
+        v.Text(""),
+        v.Text($"Total items: {largeList.Count:N0}")
     ]);
 }
 

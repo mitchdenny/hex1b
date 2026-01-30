@@ -208,13 +208,13 @@ public record TableWidget<TRow> : Hex1bWidget
             node.HeaderRowNode = null;
         }
         
-        // Reconcile data rows
+        // Reconcile data rows (with lazy virtualization)
         if (Data != null && Data.Count > 0 && RowBuilder != null)
         {
             var rowContext = new TableRowContext();
             node.DataRowNodes ??= [];
             
-            // Resize to match data count
+            // Resize to match data count (slots can be null for non-materialized rows)
             while (node.DataRowNodes.Count > Data.Count)
             {
                 node.DataRowNodes.RemoveAt(node.DataRowNodes.Count - 1);
@@ -224,8 +224,21 @@ public record TableWidget<TRow> : Hex1bWidget
                 node.DataRowNodes.Add(null!);
             }
             
+            // Get the range of rows to materialize (visible + buffer)
+            var (startRow, endRow) = node.GetVisibleRowRange(Data.Count);
+            
+            // For small datasets or first render (viewport not yet calculated), build all rows
+            bool buildAllRows = Data.Count <= 50 || node.ViewportRowCount == 0;
+            
             for (int i = 0; i < Data.Count; i++)
             {
+                // Skip rows outside the visible range (unless building all)
+                if (!buildAllRows && (i < startRow || i >= endRow))
+                {
+                    // Keep existing node if present, otherwise leave as null
+                    continue;
+                }
+                
                 var rowData = Data[i];
                 var rowKey = RowKeySelector?.Invoke(rowData) ?? i;
                 var isFocused = Equals(rowKey, FocusedKey ?? node.GetInternalFocusedKey());
