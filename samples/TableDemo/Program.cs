@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using Hex1b;
+using Hex1b.Data;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -14,6 +16,7 @@ var scenarios = new[]
     "Observable Collection",
     "Observable + Selection",
     "Large List (10k)",
+    "Async Data Source",
 };
 
 int selectedScenario = 0;
@@ -80,6 +83,13 @@ var largeList = Enumerable.Range(1, 10000)
 object? largeFocusedKey = largeList[0].Name;
 
 // ============================================================================
+// Scenario 5: Async Data Source - Simulated async API with delay
+// ============================================================================
+
+var asyncDataSource = new SimulatedAsyncDataSource(5000); // 5000 items with simulated delay
+object? asyncFocusedKey = null;
+
+// ============================================================================
 // Build scenario content
 // ============================================================================
 
@@ -91,6 +101,7 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
         1 => BuildObservableScenario(ctx),
         2 => BuildSelectableObservableScenario(ctx),
         3 => BuildLargeListScenario(ctx),
+        4 => BuildAsyncScenario(ctx),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -265,6 +276,34 @@ TableWidget<Product> BuildLargeTable<TParent>(WidgetContext<TParent> ctx) where 
         .FillHeight();
 }
 
+Hex1bWidget BuildAsyncScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("Async Data Source (Simulated API)"),
+        v.Text("──────────────────────────────────"),
+        v.Text(""),
+        v.Table(asyncDataSource)
+            .WithRowKey(p => p.Name)
+            .WithHeader(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(8)).Align(Alignment.Right)
+            ])
+            .WithRow((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .WithFocus(asyncFocusedKey)
+            .OnFocusChanged(key => asyncFocusedKey = key)
+            .FillHeight(),
+        v.Text(""),
+        v.Text($"Total items: {asyncDataSource.TotalCount:N0} (loaded async with 50ms delay)")
+    ]);
+}
+
 // ============================================================================
 // Main app with splitter layout
 // ============================================================================
@@ -306,5 +345,55 @@ class Product(string name, string category, decimal price, int stock)
     public decimal Price { get; set; } = price;
     public int Stock { get; set; } = stock;
     public bool IsSelected { get; set; }
+}
+
+// ============================================================================
+// Simulated Async Data Source
+// ============================================================================
+
+/// <summary>
+/// Simulates an async API data source with artificial delay.
+/// </summary>
+class SimulatedAsyncDataSource : ITableDataSource<Product>
+{
+    private readonly List<Product> _allData;
+    private readonly string[] _categories = ["Electronics", "Furniture", "Accessories"];
+    
+    public int TotalCount => _allData.Count;
+    
+    public SimulatedAsyncDataSource(int itemCount)
+    {
+        _allData = Enumerable.Range(1, itemCount)
+            .Select(i => new Product(
+                $"API Item {i:D5}", 
+                _categories[i % 3], 
+                10.00m + (i % 100), 
+                i * 5))
+            .ToList();
+    }
+    
+    public event NotifyCollectionChangedEventHandler? CollectionChanged;
+    
+    public async ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
+    {
+        // Simulate API latency
+        await Task.Delay(50, cancellationToken);
+        return _allData.Count;
+    }
+    
+    public async ValueTask<IReadOnlyList<Product>> GetItemsAsync(
+        int startIndex, 
+        int count, 
+        CancellationToken cancellationToken = default)
+    {
+        // Simulate API latency
+        await Task.Delay(50, cancellationToken);
+        
+        if (startIndex >= _allData.Count)
+            return Array.Empty<Product>();
+        
+        var actualCount = Math.Min(count, _allData.Count - startIndex);
+        return _allData.Skip(startIndex).Take(actualCount).ToList();
+    }
 }
 

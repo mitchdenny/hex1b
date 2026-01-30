@@ -63,6 +63,37 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
     }
     private IReadOnlyList<TRow>? _data;
+    
+    /// <summary>
+    /// Async data source for virtualized tables. When set, Data property is ignored.
+    /// </summary>
+    public Data.ITableDataSource<TRow>? DataSource
+    {
+        get => _dataSource;
+        set
+        {
+            if (ReferenceEquals(_dataSource, value)) return;
+            
+            // Unsubscribe from old data source
+            UnsubscribeFromDataSource();
+            
+            _dataSource = value;
+            
+            // Subscribe to new data source
+            SubscribeToDataSource();
+            
+            // Clear cached data when data source changes
+            _cachedItems = null;
+            _cachedItemCount = null;
+        }
+    }
+    private Data.ITableDataSource<TRow>? _dataSource;
+    private INotifyCollectionChanged? _subscribedDataSource;
+    
+    // Cached data from async data source
+    private IReadOnlyList<TRow>? _cachedItems;
+    private int? _cachedItemCount;
+    private (int Start, int End)? _cachedRange;
 
     /// <summary>
     /// Builder for header cells.
@@ -2010,9 +2041,97 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// </summary>
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        // Clear cached data on collection change
+        _cachedItems = null;
+        _cachedItemCount = null;
+        _cachedRange = null;
+        
         // Mark dirty and trigger app invalidation to re-render
         MarkDirty();
         InvalidateCallback?.Invoke();
+    }
+
+    #endregion
+    
+    #region ITableDataSource Support
+    
+    /// <summary>
+    /// Subscribes to CollectionChanged events from the data source.
+    /// </summary>
+    private void SubscribeToDataSource()
+    {
+        if (_dataSource is INotifyCollectionChanged notifyCollection)
+        {
+            _subscribedDataSource = notifyCollection;
+            notifyCollection.CollectionChanged += OnDataSourceCollectionChanged;
+        }
+    }
+    
+    /// <summary>
+    /// Unsubscribes from data source events.
+    /// </summary>
+    private void UnsubscribeFromDataSource()
+    {
+        if (_subscribedDataSource is not null)
+        {
+            _subscribedDataSource.CollectionChanged -= OnDataSourceCollectionChanged;
+            _subscribedDataSource = null;
+        }
+    }
+    
+    /// <summary>
+    /// Handles CollectionChanged events from the data source.
+    /// </summary>
+    private void OnDataSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // Clear cached data
+        _cachedItems = null;
+        _cachedItemCount = null;
+        _cachedRange = null;
+        
+        // Mark dirty and trigger app invalidation to re-render
+        MarkDirty();
+        InvalidateCallback?.Invoke();
+    }
+    
+    /// <summary>
+    /// Gets the effective data to use, either from Data property or cached from DataSource.
+    /// </summary>
+    public IReadOnlyList<TRow>? GetEffectiveData() => _dataSource is not null ? _cachedItems : _data;
+    
+    /// <summary>
+    /// Gets the total item count, either from Data or cached from DataSource.
+    /// </summary>
+    public int GetEffectiveItemCount() => _dataSource is not null ? (_cachedItemCount ?? 0) : (_data?.Count ?? 0);
+    
+    /// <summary>
+    /// Loads data from the async data source for the visible range.
+    /// Called during reconciliation.
+    /// </summary>
+    public async ValueTask LoadDataAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+    {
+        if (_dataSource is null) return;
+        
+        // Load item count if not cached
+        if (!_cachedItemCount.HasValue)
+        {
+            _cachedItemCount = await _dataSource.GetItemCountAsync(cancellationToken);
+        }
+        
+        // Check if we already have this range cached
+        if (_cachedRange.HasValue && _cachedRange.Value.Start <= startIndex && 
+            _cachedRange.Value.End >= startIndex + count && _cachedItems is not null)
+        {
+            return; // Already have the data
+        }
+        
+        // Load the requested range
+        _cachedItems = await _dataSource.GetItemsAsync(startIndex, count, cancellationToken);
+        _cachedRange = (startIndex, startIndex + count);
+        
+        // Set Data to cached items so rendering code can use it
+        // Note: This bypasses the setter to avoid re-subscribing
+        _data = _cachedItems;
     }
 
     /// <summary>
@@ -2021,6 +2140,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     public void Dispose()
     {
         UnsubscribeFromCollectionChanged();
+        UnsubscribeFromDataSource();
         GC.SuppressFinalize(this);
     }
 

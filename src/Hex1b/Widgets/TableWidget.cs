@@ -1,3 +1,4 @@
+using Hex1b.Data;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -13,6 +14,11 @@ public record TableWidget<TRow> : Hex1bWidget
     /// When empty, empty state is shown.
     /// </summary>
     public IReadOnlyList<TRow>? Data { get; init; }
+    
+    /// <summary>
+    /// Async data source for virtualized tables. When set, Data is ignored.
+    /// </summary>
+    public ITableDataSource<TRow>? DataSource { get; init; }
 
     /// <summary>
     /// Builder function for header cells. Defines column structure.
@@ -96,7 +102,17 @@ public record TableWidget<TRow> : Hex1bWidget
         // Check if we need to mark dirty
         bool needsDirty = false;
         
-        if (!ReferenceEquals(node.Data, Data))
+        // Handle DataSource (takes priority over Data)
+        if (DataSource is not null)
+        {
+            if (!ReferenceEquals(node.DataSource, DataSource))
+            {
+                node.DataSource = DataSource;
+                needsDirty = true;
+            }
+            node.Data = null; // Clear Data when using DataSource
+        }
+        else if (!ReferenceEquals(node.Data, Data))
         {
             // Check content equality for collections
             if (node.Data is null || Data is null || !node.Data.SequenceEqual(Data))
@@ -104,6 +120,7 @@ public record TableWidget<TRow> : Hex1bWidget
                 needsDirty = true;
             }
             node.Data = Data;
+            node.DataSource = null; // Clear DataSource when using Data
         }
 
         if (node.HeaderBuilder != HeaderBuilder)
@@ -208,29 +225,58 @@ public record TableWidget<TRow> : Hex1bWidget
             node.HeaderRowNode = null;
         }
         
+        // Get effective data (either from Data property or loaded from DataSource)
+        IReadOnlyList<TRow>? effectiveData = null;
+        int totalCount = 0;
+        
+        if (DataSource is not null)
+        {
+            // First load item count, then load visible range
+            await node.LoadDataAsync(0, 50, context.CancellationToken); // Initial load
+            totalCount = node.GetEffectiveItemCount();
+            
+            if (totalCount > 0)
+            {
+                // Now load the actual visible range
+                var (startRow, endRow) = node.GetVisibleRowRange(totalCount);
+                int rangeCount = Math.Max(50, endRow - startRow);
+                await node.LoadDataAsync(startRow, rangeCount, context.CancellationToken);
+            }
+            
+            effectiveData = node.GetEffectiveData();
+        }
+        else if (Data is not null)
+        {
+            effectiveData = Data;
+            totalCount = Data.Count;
+        }
+        
         // Reconcile data rows (with lazy virtualization)
-        if (Data != null && Data.Count > 0 && RowBuilder != null)
+        if (effectiveData != null && effectiveData.Count > 0 && RowBuilder != null)
         {
             var rowContext = new TableRowContext();
             node.DataRowNodes ??= [];
             
-            // Resize to match data count (slots can be null for non-materialized rows)
-            while (node.DataRowNodes.Count > Data.Count)
+            // Resize to match total count (slots can be null for non-materialized rows)
+            while (node.DataRowNodes.Count > totalCount)
             {
                 node.DataRowNodes.RemoveAt(node.DataRowNodes.Count - 1);
             }
-            while (node.DataRowNodes.Count < Data.Count)
+            while (node.DataRowNodes.Count < totalCount)
             {
                 node.DataRowNodes.Add(null!);
             }
             
             // Get the range of rows to materialize (visible + buffer)
-            var (startRow, endRow) = node.GetVisibleRowRange(Data.Count);
+            var (startRow, endRow) = node.GetVisibleRowRange(totalCount);
             
             // For small datasets or first render (viewport not yet calculated), build all rows
-            bool buildAllRows = Data.Count <= 50 || node.ViewportRowCount == 0;
+            bool buildAllRows = totalCount <= 50 || node.ViewportRowCount == 0;
             
-            for (int i = 0; i < Data.Count; i++)
+            // When using DataSource, only build rows we have data for
+            int dataOffset = DataSource is not null ? startRow : 0;
+            
+            for (int i = 0; i < totalCount; i++)
             {
                 // Skip rows outside the visible range (unless building all)
                 if (!buildAllRows && (i < startRow || i >= endRow))
@@ -239,7 +285,15 @@ public record TableWidget<TRow> : Hex1bWidget
                     continue;
                 }
                 
-                var rowData = Data[i];
+                // Get the data item (adjust index for DataSource which loads a range)
+                int dataIndex = DataSource is not null ? (i - dataOffset) : i;
+                if (dataIndex < 0 || dataIndex >= effectiveData.Count)
+                {
+                    // Data not loaded for this row yet
+                    continue;
+                }
+                
+                var rowData = effectiveData[dataIndex];
                 var rowKey = RowKeySelector?.Invoke(rowData) ?? i;
                 var isFocused = Equals(rowKey, FocusedKey ?? node.GetInternalFocusedKey());
                 var isSelected = IsSelectedSelector?.Invoke(rowData) ?? false;
@@ -251,7 +305,7 @@ public record TableWidget<TRow> : Hex1bWidget
                     IsSelected = isSelected,
                     RowKey = rowKey,
                     IsFirst = i == 0,
-                    IsLast = i == Data.Count - 1
+                    IsLast = i == totalCount - 1
                 };
                 var rowCells = RowBuilder(rowContext, rowData, rowState);
                 
