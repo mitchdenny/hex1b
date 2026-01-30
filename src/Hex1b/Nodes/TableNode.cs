@@ -1977,9 +1977,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var outerColor = EffectiveBorderColor;
         var innerColor = _borderColor;
         
-        // For outer borders (top, bottom, header/footer separators), use outer color for horizontal lines
-        // For inner borders (row separators), use inner color for horizontal lines
+        // For outer borders (top, bottom, header/footer separators), use outer color for everything
+        // For inner borders (row separators), use inner color for horizontal lines and intersections
         var horizontalColor = isOuterBorder ? outerColor : innerColor;
+        var intersectionColor = isOuterBorder ? outerColor : innerColor;
         
         // Left edge (always outer)
         sb.Append(outerColor.ToForegroundAnsi());
@@ -1991,8 +1992,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append(horizontalColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, SelectionColumnWidth));
             // Use specific character for selection column separator if provided, otherwise use middle
-            // Column separators are inner
-            sb.Append(innerColor.ToForegroundAnsi());
+            sb.Append(intersectionColor.ToForegroundAnsi());
             sb.Append(selectionColumnMiddle ?? middle);
         }
         else
@@ -2010,8 +2010,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append(new string(_horizontal, _columnWidths[col] + paddingPerColumn));
             if (col < _columnCount - 1)
             {
-                // Column separators are inner
-                sb.Append(innerColor.ToForegroundAnsi());
+                // Column intersections use intersection color
+                sb.Append(intersectionColor.ToForegroundAnsi());
                 sb.Append(middle);
             }
         }
