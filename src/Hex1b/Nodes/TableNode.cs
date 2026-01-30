@@ -1761,9 +1761,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var borderColor = theme.Get(TableTheme.BorderColor);
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         
-        // Use border characters: thin (│) for track, thick (┃) for thumb
+        // Use border characters: 
+        // - For data rows: thin (│) for track, thick (┃) for thumb
+        // - For separator rows in Full mode: tee (┤) for track, thick (┃) for thumb
         const char trackChar = '│';
         const char thumbChar = '┃';
+        const char trackTeeChar = '┤';
         
         // Scrollbar is in the rightmost column, aligned with the content viewport
         var scrollbarX = Bounds.X + Bounds.Width - ScrollbarWidth;
@@ -1779,21 +1782,38 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             ? (int)Math.Round((double)_scrollOffset / MaxScrollOffset * scrollRange) 
             : 0;
         
+        // Calculate row height in Full mode (data row + separator = 2 lines per logical row)
+        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
+        
         // Render scrollbar
         for (int row = 0; row < scrollbarHeight; row++)
         {
             context.SetCursorPosition(scrollbarX, scrollbarY + row);
             
-            if (row >= thumbPosition && row < thumbPosition + thumbSize)
+            // In Full mode, odd rows (1, 3, 5...) are separator lines
+            bool isSeparatorRow = RenderMode == TableRenderMode.Full && (row % rowHeight) == 1;
+            
+            bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
+            
+            char charToRender;
+            if (isThumb)
             {
-                // Thumb - use thick line with focused color
-                context.Write($"{focusedBorderColor.ToForegroundAnsi()}{thumbChar}\x1b[0m");
+                // Thumb always uses thick vertical bar for visual consistency
+                charToRender = thumbChar;
+            }
+            else if (isSeparatorRow)
+            {
+                // Track on separator row - use tee to connect with horizontal line
+                charToRender = trackTeeChar;
             }
             else
             {
-                // Track - use thin line with border color
-                context.Write($"{borderColor.ToForegroundAnsi()}{trackChar}\x1b[0m");
+                // Track on data row - use vertical bar
+                charToRender = trackChar;
             }
+            
+            var color = isThumb ? focusedBorderColor : borderColor;
+            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
         }
     }
 

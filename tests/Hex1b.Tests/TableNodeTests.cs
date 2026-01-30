@@ -1647,4 +1647,363 @@ public class TableNodeTests
     }
 
     #endregion
+    
+    #region Table Focus Indicator Tests
+
+    [Fact(Skip = "Feature not yet implemented - table-level focus indicator")]
+    public async Task Table_WhenFocused_ShouldShowTableLevelFocusIndicator()
+    {
+        // Arrange - table with focusable rows
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 15)
+            .Build();
+            
+        var data = new[] { "Item 1", "Item 2", "Item 3" };
+        object? focusedKey = "Item 1";
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(data)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Table with focus ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert - When table has focus, there should be some visual indicator
+        // Currently we show focus on individual rows with ┃, but the table itself
+        // should have a different border style or indicator when it contains focus
+        // This test documents the expected behavior - currently FAILING
+        
+        // Check for table-level focus indicator (e.g., double-line border or highlight)
+        // For now, we check if the outer table border uses a focus style
+        // Expected: When table is focused, outer border could use double lines ╔╗╚╝ or thick lines
+        bool hasTableFocusIndicator = 
+            screenText.Contains("╔") ||  // Double line top-left corner
+            screenText.Contains("┏") ||  // Heavy line top-left corner
+            screenText.Contains("▌") ||  // Left border indicator
+            screenText.Contains("┃┃");   // Some other focus indicator
+            
+        // Note: This test is expected to FAIL until we implement table-level focus indicator
+        Assert.True(hasTableFocusIndicator, 
+            $"Expected table-level focus indicator when table is focused.\nScreen:\n{screenText}");
+    }
+
+    #endregion
+    
+    #region Table Border Rendering Tests
+
+    [Fact]
+    public async Task Table_FullMode_ShouldHaveRightTeeOnRowSeparators()
+    {
+        // Arrange - table in Full mode should have ┤ at right edge of row separators
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 15)
+            .Build();
+            
+        var data = new[] { "Item 1", "Item 2", "Item 3" };
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(data)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .Full(),  // Full mode with row separators
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Table in Full mode ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert - Full mode should have row separators with ┤ on right edge
+        // Table structure should be:
+        // ┌───────┐
+        // │Name   │
+        // ├───────┤  <- header separator with ┤ on right
+        // │Item 1 │
+        // ├───────┤  <- row separator with ┤ on right
+        // │Item 2 │
+        // ├───────┤  <- row separator with ┤ on right  
+        // │Item 3 │
+        // └───────┘
+        
+        bool hasRightTee = screenText.Contains("┤");
+        
+        Assert.True(hasRightTee, 
+            $"Expected right tee (┤) characters at right edge of row separators in Full mode.\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task LargeTable_Virtualized_ShouldHaveCorrectBorders()
+    {
+        // Arrange - large virtualized table should still have correct borders
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 15)
+            .Build();
+            
+        // Create a list larger than 50 items to trigger virtualization
+        var data = Enumerable.Range(1, 100).Select(i => $"Item {i:D3}").ToList();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Large virtualized table ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert - Table should have:
+        // 1. Top border with ┌ and ┐
+        // 2. Bottom border with └ and ┘
+        // 3. Header separator with ├ and ┤
+        // 4. Vertical borders │ on both sides
+        
+        bool hasTopLeft = screenText.Contains("┌");
+        bool hasTopRight = screenText.Contains("┐");
+        bool hasBottomLeft = screenText.Contains("└");
+        bool hasBottomRight = screenText.Contains("┘");
+        bool hasLeftTee = screenText.Contains("├");
+        bool hasRightTee = screenText.Contains("┤");
+        
+        var errors = new List<string>();
+        if (!hasTopLeft) errors.Add("Missing top-left corner (┌)");
+        if (!hasTopRight) errors.Add("Missing top-right corner (┐)");
+        if (!hasBottomLeft) errors.Add("Missing bottom-left corner (└)");
+        if (!hasBottomRight) errors.Add("Missing bottom-right corner (┘)");
+        if (!hasLeftTee) errors.Add("Missing left tee (├) on header separator");
+        if (!hasRightTee) errors.Add("Missing right tee (┤) on header separator");
+        
+        Assert.True(errors.Count == 0, 
+            $"Border issues found:\n{string.Join("\n", errors)}\n\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task LargeTable_FullMode_RowSeparatorsShouldHaveRightTee()
+    {
+        // Arrange - large virtualized table in Full mode with row separators
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+            
+        // Create a list larger than 50 items to trigger virtualization
+        var data = Enumerable.Range(1, 100).Select(i => $"Item {i:D3}").ToList();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .Full()  // Full mode has row separators
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Large table in Full mode ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Count the row separator lines (├───────┤ pattern)
+        // In Full mode, each data row should have a separator below it (except the last)
+        // The separator should have ├ on left and ┤ on right
+        var lines = screenText.Split('\n');
+        int leftTeeCount = 0;
+        int rightTeeCount = 0;
+        int completeSeperatorLines = 0;
+        
+        foreach (var line in lines)
+        {
+            bool hasLeftTee = line.Contains("├") && line.Contains("─");
+            bool hasRightTee = line.Contains("┤") && line.Contains("─");
+            
+            if (hasLeftTee)
+                leftTeeCount++;
+            if (hasRightTee)
+                rightTeeCount++;
+            if (hasLeftTee && hasRightTee)
+                completeSeperatorLines++;
+        }
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"Left tee (├) count: {leftTeeCount}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Right tee (┤) count: {rightTeeCount}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Complete separator lines (both ├ and ┤): {completeSeperatorLines}");
+        
+        // Each separator line should have both left and right tees
+        Assert.Equal(leftTeeCount, completeSeperatorLines);
+        Assert.True(completeSeperatorLines > 1, 
+            $"Expected multiple complete row separators in Full mode, found {completeSeperatorLines}.\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task LargeTable_FullMode_MultiColumn_RowSeparatorsShouldHaveRightTee()
+    {
+        // Arrange - large virtualized table in Full mode with multiple columns
+        // This reproduces the bug where row separators end with │ instead of ┤
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(100, 20)  // Wide enough for multi-column
+            .Build();
+            
+        // Create a list larger than 50 items to trigger virtualization
+        var data = Enumerable.Range(1, 100)
+            .Select(i => (Name: $"Item {i:D3}", Category: "Cat", Price: 10.00m + i))
+            .ToList();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<(string Name, string Category, decimal Price)>)data)
+                .WithHeader(h => [
+                    h.Cell("Name").Width(SizeHint.Fill),
+                    h.Cell("Category").Width(SizeHint.Content),
+                    h.Cell("Price").Width(SizeHint.Fixed(10))
+                ])
+                .WithRow((r, item, _) => [
+                    r.Cell(item.Name),
+                    r.Cell(item.Category),
+                    r.Cell($"${item.Price:F2}")
+                ])
+                .Full()  // Full mode has row separators
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Large multi-column table in Full mode ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Check each separator line ends with ┤ (not │)
+        var lines = screenText.Split('\n');
+        var separatorLines = lines.Where(l => l.Contains("├") && l.Contains("─") && l.Contains("┼")).ToList();
+        
+        TestContext.Current.TestOutputHelper?.WriteLine($"\nFound {separatorLines.Count} separator lines:");
+        
+        var linesWithWrongEnding = new List<string>();
+        foreach (var line in separatorLines)
+        {
+            var trimmed = line.TrimEnd();
+            TestContext.Current.TestOutputHelper?.WriteLine($"  Ends with: '{trimmed[^1]}' - {trimmed[^20..]}");
+            
+            // Separator lines should end with ┤ (right tee), not │ (vertical bar)
+            if (trimmed.EndsWith("│") && !trimmed.EndsWith("┤"))
+            {
+                linesWithWrongEnding.Add(line);
+            }
+        }
+        
+        Assert.True(linesWithWrongEnding.Count == 0, 
+            $"Found {linesWithWrongEnding.Count} separator lines ending with │ instead of ┤.\n" +
+            $"First bad line: {linesWithWrongEnding.FirstOrDefault()}\n\nScreen:\n{screenText}");
+    }
+
+    #endregion
 }
