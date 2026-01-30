@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -10,7 +11,7 @@ namespace Hex1b.Nodes;
 /// Implements ILayoutProvider to clip scrollable content area.
 /// </summary>
 /// <typeparam name="TRow">The type of data for each row.</typeparam>
-public class TableNode<TRow> : Hex1bNode, ILayoutProvider
+public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 {
     // Border characters (single line box drawing)
     private const char TopLeft = '┌';
@@ -28,6 +29,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     // Scrollbar constants
     private const int ScrollbarWidth = 1;
 
+    // INotifyCollectionChanged subscription
+    private INotifyCollectionChanged? _subscribedCollection;
+
     /// <summary>
     /// Pads a string to a specified display width using spaces.
     /// </summary>
@@ -42,7 +46,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The data source for table rows.
     /// </summary>
-    public IReadOnlyList<TRow>? Data { get; set; }
+    public IReadOnlyList<TRow>? Data
+    {
+        get => _data;
+        set
+        {
+            if (ReferenceEquals(_data, value)) return;
+            
+            // Unsubscribe from old collection
+            UnsubscribeFromCollectionChanged();
+            
+            _data = value;
+            
+            // Subscribe to new collection if it supports INotifyCollectionChanged
+            SubscribeToCollectionChanged();
+        }
+    }
+    private IReadOnlyList<TRow>? _data;
 
     /// <summary>
     /// Builder for header cells.
@@ -108,6 +128,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
     /// Callback invoked when deselect all is triggered.
     /// </summary>
     public Action? DeselectAllCallback { get; set; }
+
+    /// <summary>
+    /// Callback to invalidate the app and trigger a re-render.
+    /// Used when the data source changes via INotifyCollectionChanged.
+    /// </summary>
+    internal Action? InvalidateCallback { get; set; }
 
     /// <summary>
     /// The render mode for the table (Compact or Full).
@@ -1901,4 +1927,51 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
+
+    #region INotifyCollectionChanged Support
+
+    /// <summary>
+    /// Subscribes to CollectionChanged events if the data source supports it.
+    /// </summary>
+    private void SubscribeToCollectionChanged()
+    {
+        if (_data is INotifyCollectionChanged notifyCollection)
+        {
+            _subscribedCollection = notifyCollection;
+            notifyCollection.CollectionChanged += OnCollectionChanged;
+        }
+    }
+
+    /// <summary>
+    /// Unsubscribes from CollectionChanged events.
+    /// </summary>
+    private void UnsubscribeFromCollectionChanged()
+    {
+        if (_subscribedCollection is not null)
+        {
+            _subscribedCollection.CollectionChanged -= OnCollectionChanged;
+            _subscribedCollection = null;
+        }
+    }
+
+    /// <summary>
+    /// Handles CollectionChanged events from the data source.
+    /// </summary>
+    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // Mark dirty and trigger app invalidation to re-render
+        MarkDirty();
+        InvalidateCallback?.Invoke();
+    }
+
+    /// <summary>
+    /// Disposes resources and unsubscribes from events.
+    /// </summary>
+    public void Dispose()
+    {
+        UnsubscribeFromCollectionChanged();
+        GC.SuppressFinalize(this);
+    }
+
+    #endregion
 }

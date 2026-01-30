@@ -1,14 +1,30 @@
+using System.Collections.ObjectModel;
 using Hex1b;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
-// Max stock level for progress bar scaling
-const int MaxStock = 500;
+// ============================================================================
+// TableWidget Demo - Scenario Picker
+// ============================================================================
 
-// Available categories for the picker
+// Available scenarios
+var scenarios = new[]
+{
+    "Products (Static)",
+    "Observable Collection",
+    // Future: "Large List (10k)", "Async API"
+};
+
+int selectedScenario = 0;
+
+// ============================================================================
+// Scenario 1: Products (Static) - Current demo with static list
+// ============================================================================
+
+const int MaxStock = 500;
 var categories = new[] { "Electronics", "Furniture", "Accessories" };
 
-var products = new List<Product>
+var staticProducts = new List<Product>
 {
     new("Laptop", "Electronics", 999.99m, 15),
     new("Mechanical Keyboard", "Electronics", 149.99m, 50),
@@ -20,98 +36,149 @@ var products = new List<Product>
     new("Webcam HD", "Electronics", 89.99m, 40),
     new("Desk Lamp", "Furniture", 45.99m, 60),
     new("Cable Management Kit", "Accessories", 24.99m, 200),
-    new("Ergonomic Mouse Pad", "Accessories", 29.99m, 150),
-    new("Blue Light Glasses", "Accessories", 34.99m, 80),
-    new("Laptop Stand", "Furniture", 79.99m, 45),
-    new("Wireless Charger", "Electronics", 39.99m, 120),
-    new("Noise Cancelling Headphones", "Electronics", 249.99m, 30),
-    new("Mechanical Numpad", "Electronics", 59.99m, 35),
-    new("Monitor Light Bar", "Electronics", 69.99m, 55),
-    new("Wrist Rest", "Accessories", 19.99m, 200),
-    new("Cable Clips Pack", "Accessories", 9.99m, 500),
-    new("Portable SSD 1TB", "Electronics", 119.99m, 65),
 };
 
-object? focusedKey = products[0].Name;  // Key-based focus using product name
-bool isEmpty = false;
+object? staticFocusedKey = staticProducts[0].Name;
 
-// Build the product table with the specified render mode
-TableWidget<Product> BuildProductTable<TParent>(
-    WidgetContext<TParent> ctx, 
-    IReadOnlyList<Product>? data, 
-    TableRenderMode renderMode) where TParent : Hex1bWidget
+// ============================================================================
+// Scenario 2: Observable Collection - Auto-refresh on changes
+// ============================================================================
+
+var observableProducts = new ObservableCollection<Product>
 {
-    var table = ctx.Table(data)
-        .WithRowKey(p => p.Name)  // Use product name as key
-        .WithHeader(h => [
-            h.Cell("Product").Width(SizeHint.Fill),
-            h.Cell("Category").Width(SizeHint.Content),
-            h.Cell("Price").Width(SizeHint.Fixed(12)).Align(Alignment.Right),
-            h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
-            h.Cell("Level").Width(SizeHint.Fixed(12))
-        ])
-        .WithRow((r, product, state) => [
-            r.Cell(product.Name),
-            r.Cell(c => c.Picker(categories, Array.IndexOf(categories, product.Category))
-                .OnSelectionChanged(e => product.Category = e.SelectedText ?? product.Category)),
-            r.Cell($"${product.Price:F2}"),
-            r.Cell(product.Stock.ToString()),
-            r.Cell(c => c.Progress(product.Stock, 0, MaxStock))
-        ])
-        .WithFooter(f => [
-            f.Cell("Total Products"),
-            f.Cell(products.Count.ToString()),
-            f.Cell($"${products.Sum(p => p.Price):F2}"),
-            f.Cell(products.Sum(p => p.Stock).ToString()),
-            f.Cell("")
-        ])
-        .WithFocus(focusedKey)
-        .OnFocusChanged(key => focusedKey = key)
-        .WithSelectionColumn(
-            isSelected: p => p.IsSelected,
-            onChanged: (p, selected) => p.IsSelected = selected
-        )
-        .OnSelectAll(() => { foreach (var p in products) p.IsSelected = true; })
-        .OnDeselectAll(() => { foreach (var p in products) p.IsSelected = false; });
-    
-    // Apply render mode
-    return renderMode == TableRenderMode.Full ? table.Full() : table.Compact();
+    new("Widget A", "Electronics", 10.00m, 100),
+    new("Widget B", "Furniture", 20.00m, 50),
+    new("Widget C", "Accessories", 5.00m, 200),
+};
+
+object? observableFocusedKey = observableProducts[0].Name;
+int nextProductId = 4;
+
+// ============================================================================
+// Build scenario content
+// ============================================================================
+
+Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return selectedScenario switch
+    {
+        0 => BuildStaticScenario(ctx),
+        1 => BuildObservableScenario(ctx),
+        _ => ctx.Text("Unknown scenario")
+    };
 }
 
-// Create the app
-var app = new Hex1bApp(ctx =>
+Hex1bWidget BuildStaticScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
 {
-    var displayData = isEmpty ? [] : products;
-    
     return ctx.VStack(v => [
-        v.Text("╔════════════════════════════════════════════════════════════╗"),
-        v.Text("║  TableWidget Demo - Responsive Compact/Full Mode           ║"),
-        v.Text("╚════════════════════════════════════════════════════════════╝"),
+        v.Text("Static Product List"),
+        v.Text("───────────────────"),
         v.Text(""),
-        v.Text("Resize terminal: >= 100 cols = Full mode, < 100 cols = Compact mode"),
+        v.Table((IReadOnlyList<Product>)staticProducts)
+            .WithRowKey(p => p.Name)
+            .WithHeader(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+            ])
+            .WithRow((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .WithFocus(staticFocusedKey)
+            .OnFocusChanged(key => staticFocusedKey = key)
+            .WithSelectionColumn(
+                isSelected: p => p.IsSelected,
+                onChanged: (p, selected) => p.IsSelected = selected
+            )
+            .OnSelectAll(() => { foreach (var p in staticProducts) p.IsSelected = true; })
+            .OnDeselectAll(() => { foreach (var p in staticProducts) p.IsSelected = false; })
+            .FillHeight(),
         v.Text(""),
-        
-        // Responsive table: Full mode when wide, Compact mode when narrow
-        v.Responsive(r => [
-            r.WhenMinWidth(100, c => BuildProductTable(c, displayData, TableRenderMode.Full).FillHeight()),
-            r.Otherwise(c => BuildProductTable(c, displayData, TableRenderMode.Compact).FillHeight())
-        ]).FillHeight(),
-        
+        v.Text($"Items: {staticProducts.Count}  |  Selected: {staticProducts.Count(p => p.IsSelected)}")
+    ]);
+}
+
+Hex1bWidget BuildObservableScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("Observable Collection (Auto-refresh)"),
+        v.Text("─────────────────────────────────────"),
         v.Text(""),
-        v.Text($"Focused Row: {focusedKey ?? "None"}  |  Selected: {products.Count(p => p.IsSelected)} items"),
+        v.Table((IReadOnlyList<Product>)observableProducts)
+            .WithRowKey(p => p.Name)
+            .WithHeader(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+            ])
+            .WithRow((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .WithFocus(observableFocusedKey)
+            .OnFocusChanged(key => observableFocusedKey = key)
+            .FillHeight(),
+        v.Text(""),
+        v.Text($"Items: {observableProducts.Count}"),
         v.Text(""),
         v.HStack(h => [
-            h.Button("[E] Toggle Empty").OnClick(_ => { isEmpty = !isEmpty; })
-        ]),
-        v.Text(""),
-        v.Text("Press Ctrl+C to quit")
+            h.Button("[A] Add Item").OnClick(_ => {
+                observableProducts.Add(new Product($"Widget {nextProductId++}", "Electronics", 15.00m, 75));
+            }),
+            h.Text(" "),
+            h.Button("[R] Remove Last").OnClick(_ => {
+                if (observableProducts.Count > 0)
+                    observableProducts.RemoveAt(observableProducts.Count - 1);
+            }),
+            h.Text(" "),
+            h.Button("[C] Clear All").OnClick(_ => {
+                observableProducts.Clear();
+            })
+        ])
     ]);
-}, new Hex1b.Hex1bAppOptions { EnableMouse = true });
+}
 
-// Run the app
+// ============================================================================
+// Main app with splitter layout
+// ============================================================================
+
+var app = new Hex1bApp(ctx =>
+{
+    return new SplitterWidget(
+        // Left pane: Scenario picker
+        ctx.VStack(v => [
+            v.Text("┌─────────────────┐"),
+            v.Text("│    Scenarios    │"),
+            v.Text("└─────────────────┘"),
+            v.Text(""),
+            v.List(scenarios)
+                .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
+                .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
+                .FillHeight(),
+            v.Text(""),
+            v.Text("Press Ctrl+C to quit")
+        ]),
+        // Right pane: Active scenario
+        ctx.VStack(v => [
+            BuildScenarioContent(v).FillHeight()
+        ]),
+        firstSize: 22
+    );
+}, new Hex1bAppOptions { EnableMouse = true });
+
 await app.RunAsync();
 
-// Sample data model
+// ============================================================================
+// Data model
+// ============================================================================
+
 class Product(string name, string category, decimal price, int stock)
 {
     public string Name { get; set; } = name;
@@ -120,3 +187,4 @@ class Product(string name, string category, decimal price, int stock)
     public int Stock { get; set; } = stock;
     public bool IsSelected { get; set; }
 }
+

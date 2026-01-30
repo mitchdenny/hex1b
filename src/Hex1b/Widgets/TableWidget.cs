@@ -153,6 +153,9 @@ public record TableWidget<TRow> : Hex1bWidget
         node.SelectionChangedCallback = SelectionChangedCallback;
         node.SelectAllCallback = SelectAllCallback;
         node.DeselectAllCallback = DeselectAllCallback;
+        
+        // Pass invalidate callback for INotifyCollectionChanged support
+        node.InvalidateCallback = context.InvalidateCallback;
 
         if (node.RenderMode != RenderMode)
         {
