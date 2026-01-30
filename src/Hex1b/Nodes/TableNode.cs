@@ -33,6 +33,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private char _scrollbarTrack;
     private char _scrollbarThumb;
     
+    // Cached colors
+    private Hex1bColor _borderColor;
+    private Hex1bColor _focusedBorderColor;
+    private bool _showFocusIndicator;
+    private Hex1bColor _tableFocusedBorderColor;
+    
     // INotifyCollectionChanged subscription
     private INotifyCollectionChanged? _subscribedCollection;
 
@@ -1667,7 +1673,19 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         _cross = theme.Get(TableTheme.Cross);
         _scrollbarTrack = theme.Get(TableTheme.ScrollbarTrack);
         _scrollbarThumb = theme.Get(TableTheme.ScrollbarThumb);
+        
+        // Colors
+        _borderColor = theme.Get(TableTheme.BorderColor);
+        _focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
+        _showFocusIndicator = theme.Get(TableTheme.ShowFocusIndicator);
+        _tableFocusedBorderColor = theme.Get(TableTheme.TableFocusedBorderColor);
     }
+    
+    /// <summary>
+    /// Gets the effective border color based on table focus state.
+    /// </summary>
+    private Hex1bColor EffectiveBorderColor => 
+        IsFocused && _showFocusIndicator ? _tableFocusedBorderColor : _borderColor;
 
     public override void Render(Hex1bRenderContext context)
     {
@@ -1850,18 +1868,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void RenderScrollbar(Hex1bRenderContext context)
     {
-        var theme = context.Theme;
-        var borderColor = theme.Get(TableTheme.BorderColor);
-        var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
-        
-        // Get border characters from theme
-        var horizontal = theme.Get(TableTheme.Horizontal);
-        var vertical = theme.Get(TableTheme.Vertical);
-        var topRight = theme.Get(TableTheme.TopRight);
-        var bottomRight = theme.Get(TableTheme.BottomRight);
-        var teeLeft = theme.Get(TableTheme.TeeLeft);
-        var scrollbarTrack = theme.Get(TableTheme.ScrollbarTrack);
-        var scrollbarThumb = theme.Get(TableTheme.ScrollbarThumb);
+        // Use cached theme values - use effective border color based on focus state
+        var borderColor = EffectiveBorderColor;
+        var focusedBorderColor = _focusedBorderColor;
         
         // Scrollbar column starts after the table's right border
         var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
@@ -1895,7 +1904,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Render top border of scrollbar column
         int y = 0;
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{topRight}\x1b[0m");
+        context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
         y++;
         
         // Render header row(s) - empty scrollbar area with track
@@ -1903,12 +1912,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             // Header row - empty cell + border (no track in header area)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()} {vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
             y++;
             
             // Header separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{teeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
         }
         
@@ -1919,11 +1928,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
             
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
-            char trackChar = isThumb ? scrollbarThumb : scrollbarTrack;
+            char trackChar = isThumb ? _scrollbarThumb : _scrollbarTrack;
             var trackColor = isThumb ? focusedBorderColor : borderColor;
             
             // Always use vertical border - continuous clean track
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{vertical}\x1b[0m");
+            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
@@ -1932,26 +1941,26 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             // Footer separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{teeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
             
             // Footer row - track + border
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{scrollbarTrack}{vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{_scrollbarTrack}{_vertical}\x1b[0m");
             y++;
         }
         
         // Render bottom border
         context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{borderColor.ToForegroundAnsi()}{horizontal}{bottomRight}\x1b[0m");
+        context.Write($"{borderColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
     }
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null)
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color from theme
-        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        // Apply border color based on focus state
+        var borderColor = EffectiveBorderColor;
         sb.Append(borderColor.ToForegroundAnsi());
         
         sb.Append(left);
@@ -2172,8 +2181,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color from theme
-        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        // Apply border color based on focus state
+        var borderColor = EffectiveBorderColor;
         sb.Append(borderColor.ToForegroundAnsi());
         
         sb.Append(left);
@@ -2201,8 +2210,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color from theme
-        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        // Apply border color based on focus state
+        var borderColor = EffectiveBorderColor;
         sb.Append(borderColor.ToForegroundAnsi());
         
         sb.Append(_vertical);
@@ -2254,8 +2263,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         var sb = new System.Text.StringBuilder();
         
-        // Apply border color from theme
-        var borderColor = context.Theme.Get(TableTheme.BorderColor);
+        // Apply border color based on focus state
+        var borderColor = EffectiveBorderColor;
         sb.Append(borderColor.ToForegroundAnsi());
         
         sb.Append(_vertical);
