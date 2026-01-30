@@ -836,6 +836,73 @@ All integration tests must generate evidence files via `TestCaptureHelper`:
 
 These files are attached to test results and can be viewed in CI artifacts for debugging and documentation purposes.
 
+## Visual Regression Testing
+
+For complex widgets like TableWidget, consider adding visual regression tests that capture baselines and compare rendered output.
+
+### Baseline Test Infrastructure
+
+Visual regression tests use the full `Hex1bTerminal` stack to render widgets and capture output for comparison:
+
+```csharp
+public static async Task<(string Ansi, string Text)> RenderTableAsync(
+    TableVisualTestCase testCase, 
+    CancellationToken cancellationToken = default)
+{
+    using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithHeadless()
+        .WithDimensions(testCase.Width, testCase.Height)
+        .WithHex1bApp((app, options) => ctx => BuildWidget(ctx, testCase))
+        .Build();
+    
+    var runTask = terminal.RunAsync(cancellationToken);
+    
+    // Wait for render, capture snapshot, then exit
+    await new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Expected text"), TimeSpan.FromSeconds(2))
+        .Wait(TimeSpan.FromMilliseconds(50))
+        .Build()
+        .ApplyAsync(terminal, cancellationToken);
+    
+    using var snapshot = terminal.CreateSnapshot();
+    var text = snapshot.GetScreenText();
+    
+    // Exit and cleanup
+    await new Hex1bTerminalInputSequenceBuilder()
+        .Ctrl().Key(Hex1bKey.C)
+        .Build()
+        .ApplyAsync(terminal, cancellationToken);
+    
+    await runTask;
+    return (ansi, text);
+}
+```
+
+### Baseline Storage
+
+Baselines are stored in `tests/Hex1b.Tests/Baselines/{Widget}/` with:
+- `.ansi` files containing ANSI escape sequences (for color verification)
+- `.txt` files containing plain text (for structure verification)
+
+### Updating Baselines
+
+When widget rendering changes intentionally:
+
+```bash
+UPDATE_BASELINES=1 dotnet test --filter "{Widget}VisualRegressionTests"
+```
+
+### Test Matrix Example
+
+For TableWidget, the visual regression test matrix covers:
+- **Data sizes**: 0, 1, 5, 50, 1000 rows
+- **Render modes**: Compact, Full
+- **Terminal sizes**: 80×24, 160×48
+- **Selection states**: None, some, all selected
+- **Focus states**: Row focus, table focus indicator
+
+See `tests/Hex1b.Tests/TableVisualRegressionTests.cs` for the complete implementation.
+
 ## Checklist
 
 Before considering a widget complete:
