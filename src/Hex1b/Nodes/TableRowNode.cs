@@ -49,6 +49,11 @@ internal sealed class TableRowNode : Hex1bNode
     /// Whether the parent table is focused (for outer border styling).
     /// </summary>
     public bool TableIsFocused { get; set; }
+    
+    /// <summary>
+    /// Whether this is a header or footer row (all vertical bars use outer border color).
+    /// </summary>
+    public bool IsOuterRow { get; set; }
 
     public override Size Measure(Constraints constraints)
     {
@@ -273,8 +278,9 @@ internal sealed class TableRowNode : Hex1bNode
                 context.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                 
                 // Determine if this is an outer edge (first or last vertical bar)
-                bool isOuterEdge = verticalBarIndices.Count > 0 && 
-                    (i == verticalBarIndices[0] || i == verticalBarIndices[^1]);
+                // For header/footer rows (IsOuterRow), all vertical bars use outer color
+                bool isOuterEdge = IsOuterRow || (verticalBarIndices.Count > 0 && 
+                    (i == verticalBarIndices[0] || i == verticalBarIndices[^1]));
                 
                 if (IsHighlighted)
                 {

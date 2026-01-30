@@ -1714,6 +1714,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             // Set table focus state for outer border styling
             _headerRowNode.TableIsFocused = IsFocused;
+            _headerRowNode.IsOuterRow = true;
             
             // Render the header row node (it handles its own children)
             context.RenderChild(_headerRowNode);
@@ -1849,6 +1850,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             
             // Set table focus state for outer border styling
             _footerRowNode.TableIsFocused = IsFocused;
+            _footerRowNode.IsOuterRow = true;
             
             context.RenderChild(_footerRowNode);
             y++;
