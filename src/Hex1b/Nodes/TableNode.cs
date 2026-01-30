@@ -376,7 +376,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Update focus to clicked row
         var key = RowKeySelector?.Invoke(Data[clickedRowIndex]) ?? clickedRowIndex;
-        FocusedKey = key;
+        if (!Equals(FocusedKey, key))
+        {
+            FocusedKey = key;
+            MarkDirty(); // Trigger visual update for focus change
+        }
         if (FocusChangedHandler != null)
         {
             await FocusChangedHandler(key);
