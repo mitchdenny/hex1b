@@ -2404,6 +2404,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 
                 // Set initial focus if no focus is set and we have data
                 SetInitialFocusIfNeeded();
+                
+                // Trigger re-render now that data is loaded
+                MarkDirty();
+                InvalidateCallback?.Invoke();
             }
         }
         catch (OperationCanceledException)
