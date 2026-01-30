@@ -268,6 +268,9 @@ internal sealed class TableRowNode : Hex1bNode
         }
         
         // Render children, applying border colors and replacing vertical bars with thicker ones if highlighted
+        var selectionColumnVertical = theme.Get(TableTheme.SelectionColumnVertical);
+        var selectionColumnBorderColor = theme.Get(TableTheme.SelectionColumnBorderColor);
+        
         for (int i = 0; i < Children.Count; i++)
         {
             var child = Children[i];
@@ -282,11 +285,21 @@ internal sealed class TableRowNode : Hex1bNode
                 bool isOuterEdge = IsOuterRow || (verticalBarIndices.Count > 0 && 
                     (i == verticalBarIndices[0] || i == verticalBarIndices[^1]));
                 
+                // Check if this is the selection column separator (second vertical bar when HasSelectionColumn)
+                bool isSelectionColumnSeparator = HasSelectionColumn && verticalBarIndices.Count >= 2 && 
+                    i == verticalBarIndices[1];
+                
                 if (IsHighlighted)
                 {
                     // Render a thicker border with focused color
                     context.Write(focusedBorderColor.ToForegroundAnsi());
                     context.Write("┃"); // Heavy vertical line as focus indicator
+                }
+                else if (isSelectionColumnSeparator)
+                {
+                    // Selection column separator uses its own theme
+                    context.Write(selectionColumnBorderColor.ToForegroundAnsi());
+                    context.Write(selectionColumnVertical.ToString());
                 }
                 else if (isOuterEdge)
                 {

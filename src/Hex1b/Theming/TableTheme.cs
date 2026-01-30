@@ -157,6 +157,18 @@ public static class TableTheme
     public static readonly Hex1bThemeElement<int> SelectionColumnWidth = 
         new($"{nameof(TableTheme)}.{nameof(SelectionColumnWidth)}", () => 3);
     
+    /// <summary>
+    /// Vertical border character for the selection column separator.
+    /// </summary>
+    public static readonly Hex1bThemeElement<char> SelectionColumnVertical = 
+        new($"{nameof(TableTheme)}.{nameof(SelectionColumnVertical)}", () => '│');
+    
+    /// <summary>
+    /// Color for the selection column vertical border.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> SelectionColumnBorderColor = 
+        new($"{nameof(TableTheme)}.{nameof(SelectionColumnBorderColor)}", () => Hex1bColor.Default);
+    
     #endregion
     
     #region Row Styling
