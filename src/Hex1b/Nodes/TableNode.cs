@@ -31,7 +31,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     // Layout: [table right border becomes scrollbar left border] track rightBorder = 2 chars extra
     private const int ScrollbarColumnWidth = 2;
     private const char ScrollbarTrack = '│';      // Thin vertical for track
-    private const char ScrollbarThumb = '█';      // Block character for thumb
+    private const char ScrollbarThumb = '▉';      // 7/8 block character for thumb (U+2589)
 
     // INotifyCollectionChanged subscription
     private INotifyCollectionChanged? _subscribedCollection;
@@ -1653,7 +1653,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // When scrollbar is present, use connecting characters for the right edge
         char topRightCorner = IsScrollable ? TeeDown : TopRight;
-        char rightTee = IsScrollable ? Cross : TeeLeft;
+        char rightTee = TeeLeft; // Always TeeLeft - scrollbar track is separate column
         char bottomRightCorner = IsScrollable ? TeeUp : BottomRight;
 
         // Top border
@@ -1670,7 +1670,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             // Use different separator when transitioning to empty state vs data/loading rows
             if (hasColumnStructure)
             {
-                RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
+                // Header separator uses Cross when scrollable to connect to scrollbar track
+                char headerRightTee = IsScrollable ? Cross : TeeLeft;
+                RenderHorizontalBorder(context, y, TeeRight, Cross, headerRightTee);
             }
             else
             {
@@ -1831,9 +1833,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Render header row(s) - empty scrollbar area with track
         if (_headerRowNode is not null)
         {
-            // Header row - track + border
+            // Header row - empty cell + border (no track in header area)
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{Vertical}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()} {Vertical}\x1b[0m");
             y++;
             
             // Header separator - connects to table's horizontal line
