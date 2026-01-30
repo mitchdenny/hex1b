@@ -39,6 +39,14 @@ Browse the API by namespace:
 | [Hex1b.Theming](Hex1b.Theming.md) | Theme system for customizing colors and characters |
 | [Hex1b.Tokens](Hex1b.Tokens.md) | Design tokens for consistent theming |
 
+### Advanced
+
+| Namespace | Description |
+|-----------|-------------|
+| [Hex1b.Animation](Hex1b.Animation.md) | Animation timer and utilities |
+| [Hex1b.Automation](Hex1b.Automation.md) | Terminal automation, input sequences, and snapshot testing |
+| [Hex1b.Surfaces](Hex1b.Surfaces.md) | Low-level surface rendering and cell manipulation |
+
 ---
 
 ## Quick Links
