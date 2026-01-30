@@ -1721,10 +1721,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 var rowNode = _dataRowNodes[i];
                 
                 // Check if this row is outside the cached range (needs loading placeholder)
+                // Only applies to async data sources
                 bool isOutsideCachedRange = _dataSource is not null && (i < cachedStart || i >= cachedEnd);
                 
-                // Render loading placeholder for rows outside cached range or null nodes
-                if (rowNode is null || isOutsideCachedRange)
+                // Render loading placeholder for async data sources when data is not yet loaded
+                if (_dataSource is not null && (rowNode is null || isOutsideCachedRange))
                 {
                     RenderLoadingRow(context, y, totalWidth);
                     y++;
@@ -1734,6 +1735,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                         RenderHorizontalBorder(context, y, TeeRight, Cross, rightTee);
                         y++;
                     }
+                    continue;
+                }
+                
+                // Skip null nodes for non-async sources (shouldn't happen for visible rows)
+                if (rowNode is null)
+                {
+                    y++;
+                    rowsRendered++;
+                    if (RenderMode == TableRenderMode.Full && i < endRow - 1 && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1))
+                        y++;
                     continue;
                 }
                 
