@@ -154,7 +154,12 @@ public sealed class FocusRing
     public bool Focus(Hex1bNode node)
     {
         var index = _focusables.IndexOf(node);
-        if (index < 0) return false;
+        LastFocusDebug = $"Focus({node.GetType().Name}): index={index}, focusables={_focusables.Count}";
+        if (index < 0)
+        {
+            LastFocusDebug += " => NOT FOUND";
+            return false;
+        }
         
         var currentIndex = FocusedIndex;
         if (currentIndex >= 0)
@@ -165,8 +170,14 @@ public sealed class FocusRing
         node.IsFocused = true;
         SyncAncestorFocusState(node);
         
+        LastFocusDebug += $" => focused (was {currentIndex})";
         return true;
     }
+    
+    /// <summary>
+    /// Debug info from the last Focus call.
+    /// </summary>
+    public string? LastFocusDebug { get; set; }
     
     /// <summary>
     /// Focuses the first node in the ring that matches the predicate.
@@ -216,6 +227,8 @@ public sealed class FocusRing
     /// <returns>The focusable node at the position, or null if none.</returns>
     public Hex1bNode? HitTest(int x, int y)
     {
+        LastHitTestDebug = $"HitTest({x},{y}) checking {_focusables.Count} focusables: ";
+        
         // Search in reverse order (last rendered = topmost)
         for (int i = _focusables.Count - 1; i >= 0; i--)
         {
@@ -224,13 +237,22 @@ public sealed class FocusRing
             // (e.g., SplitterNode returns only the divider area)
             var bounds = node.HitTestBounds;
             
+            LastHitTestDebug += $"[{i}:{node.GetType().Name} bounds={bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}] ";
+            
             if (x >= bounds.X && x < bounds.Right && 
                 y >= bounds.Y && y < bounds.Bottom)
             {
+                LastHitTestDebug += $"=> HIT {node.GetType().Name}";
                 return node;
             }
         }
         
+        LastHitTestDebug += "=> null";
         return null;
     }
+    
+    /// <summary>
+    /// Debug info from the last HitTest call.
+    /// </summary>
+    public string? LastHitTestDebug { get; private set; }
 }

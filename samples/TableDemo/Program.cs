@@ -353,30 +353,32 @@ using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
     {
-        return new SplitterWidget(
-            // Left pane: Scenario picker
-            ctx.VStack(v => [
-                v.Text("┌─────────────────┐"),
-                v.Text("│    Scenarios    │"),
-                v.Text("└─────────────────┘"),
-                v.Text(""),
-                v.List(scenarios)
-                    .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
-                    .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
-                    .FillHeight(),
-                v.Text(""),
-                v.Button("📷 Screenshot")
-                    .OnClick(async _ => await TakeScreenshot()),
-                v.Text(lastScreenshotPath != null ? $"Saved: {Path.GetFileName(lastScreenshotPath)}" : ""),
-                v.Text(""),
-                v.Text("Press Ctrl+C to quit")
-            ]),
-            // Right pane: Active scenario
-            ctx.VStack(v => [
-                BuildScenarioContent(v).FillHeight()
-            ]),
-            firstSize: 22
-        );
+        return ctx.VStack(v => [
+            new SplitterWidget(
+                // Left pane: Scenario picker
+                v.VStack(v2 => [
+                    v2.Text("┌─────────────────┐"),
+                    v2.Text("│    Scenarios    │"),
+                    v2.Text("└─────────────────┘"),
+                    v2.Text(""),
+                    v2.List(scenarios)
+                        .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
+                        .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
+                        .FillHeight(),
+                    v2.Text(""),
+                    v2.Button("📷 Screenshot")
+                        .OnClick(async _ => await TakeScreenshot()),
+                    v2.Text(lastScreenshotPath != null ? $"Saved: {Path.GetFileName(lastScreenshotPath)}" : ""),
+                    v2.Text(""),
+                    v2.Text("Press Ctrl+C to quit")
+                ]),
+                // Right pane: Active scenario
+                v.VStack(v2 => [
+                    BuildScenarioContent(v2).FillHeight()
+                ]),
+                firstSize: 22
+            ).FillHeight()
+        ]);
     })
     .Build();
 
