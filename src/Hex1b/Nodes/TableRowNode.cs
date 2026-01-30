@@ -252,10 +252,14 @@ internal sealed class TableRowNode : Hex1bNode
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         var tableFocusedBorderColor = theme.Get(TableTheme.TableFocusedBorderColor);
         
-        // Outer border color depends on table focus state
-        var outerBorderColor = TableIsFocused && theme.Get(TableTheme.ShowFocusIndicator) 
+        // Effective border color: mid grey when table focused, dark grey when not
+        var effectiveBorderColor = TableIsFocused && theme.Get(TableTheme.ShowFocusIndicator) 
             ? tableFocusedBorderColor 
             : borderColor;
+        
+        // Both outer and inner elements use effectiveBorderColor
+        var outerBorderColor = effectiveBorderColor;
+        var innerBorderColor = effectiveBorderColor;
         
         // Find the indices of vertical bar children to identify first/last (outer edges)
         var verticalBarIndices = new List<int>();
@@ -309,8 +313,8 @@ internal sealed class TableRowNode : Hex1bNode
                 }
                 else
                 {
-                    // Inner borders use mid grey (tableFocusedBorderColor)
-                    context.Write(tableFocusedBorderColor.ToForegroundAnsi());
+                    // Inner borders use effective color (same as outer)
+                    context.Write(innerBorderColor.ToForegroundAnsi());
                     context.Write("│");
                 }
                 
