@@ -1705,8 +1705,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         char rightTee = _teeLeft; // Always TeeLeft - scrollbar track is separate column
         char bottomRightCorner = IsScrollable ? _teeUp : _bottomRight;
 
-        // Top border
-        RenderHorizontalBorder(context, y, _topLeft, _teeDown, topRightCorner);
+        // Top border (outer)
+        RenderHorizontalBorder(context, y, _topLeft, _teeDown, topRightCorner, isOuterBorder: true);
         y++;
 
         // Header
@@ -1719,20 +1719,20 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             context.RenderChild(_headerRowNode);
             y++;
             
-            // Header separator - uses outer color for left/right edges
+            // Header separator (outer) - uses outer color for horizontal lines
             // Use different separator when transitioning to empty state vs data/loading rows
             if (hasColumnStructure)
             {
                 // Header separator uses Cross when scrollable to connect to scrollbar track
                 char headerRightTee = IsScrollable ? _cross : _teeLeft;
-                RenderHorizontalBorder(context, y, _teeRight, _cross, headerRightTee);
+                RenderHorizontalBorder(context, y, _teeRight, _cross, headerRightTee, isOuterBorder: true);
             }
             else
             {
                 // No column breaks in separator when empty - columns "close off"
                 // But selection column still needs a cross since it's still visible
                 char emptyRightTee = IsScrollable ? _cross : _teeLeft;
-                RenderHorizontalBorder(context, y, _teeRight, _teeUp, emptyRightTee, selectionColumnMiddle: _cross);
+                RenderHorizontalBorder(context, y, _teeRight, _teeUp, emptyRightTee, selectionColumnMiddle: _cross, isOuterBorder: true);
             }
             y++;
         }
@@ -1833,16 +1833,17 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Footer
         if (_footerRowNode is not null)
         {
+            // Footer separator (outer)
             if (hasColumnStructure)
             {
-                RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee);
+                RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee, isOuterBorder: true);
             }
             else
             {
                 // Transition from empty to footer - columns "open up" again
                 // Selection column still needs a cross since it's still visible
                 char emptyRightTee = IsScrollable ? _cross : _teeLeft;
-                RenderHorizontalBorder(context, y, _teeRight, _teeDown, emptyRightTee, selectionColumnMiddle: _cross);
+                RenderHorizontalBorder(context, y, _teeRight, _teeDown, emptyRightTee, selectionColumnMiddle: _cross, isOuterBorder: true);
             }
             y++;
             
@@ -1853,14 +1854,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             y++;
         }
 
-        // Bottom border
+        // Bottom border (outer)
         if (y < Bounds.Height)
         {
             // Use TeeUp for column positions when we have data/loading/footer, just horizontal when empty with no footer
             bool showColumnTees = hasColumnStructure || _footerRowNode is not null;
             if (showColumnTees)
             {
-                RenderHorizontalBorder(context, y, _bottomLeft, _teeUp, bottomRightCorner);
+                RenderHorizontalBorder(context, y, _bottomLeft, _teeUp, bottomRightCorner, isOuterBorder: true);
             }
             else
             {
@@ -1974,22 +1975,28 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var outerColor = EffectiveBorderColor;
         var innerColor = _borderColor;
         
-        // Left edge (outer)
+        // For outer borders (top, bottom, header/footer separators), use outer color for horizontal lines
+        // For inner borders (row separators), use inner color for horizontal lines
+        var horizontalColor = isOuterBorder ? outerColor : innerColor;
+        
+        // Left edge (always outer)
         sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(left);
 
-        // Selection column border (if enabled) - inner
+        // Selection column border (if enabled)
         if (ShowSelectionColumn)
         {
-            sb.Append(innerColor.ToForegroundAnsi());
+            sb.Append(horizontalColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, SelectionColumnWidth));
             // Use specific character for selection column separator if provided, otherwise use middle
+            // Column separators are inner
+            sb.Append(innerColor.ToForegroundAnsi());
             sb.Append(selectionColumnMiddle ?? middle);
         }
         else
         {
-            // Switch to inner color for horizontal content
-            sb.Append(innerColor.ToForegroundAnsi());
+            // Switch to horizontal color for content
+            sb.Append(horizontalColor.ToForegroundAnsi());
         }
 
         // In Full mode, each column has 1 char padding on left and right
@@ -1997,14 +2004,17 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
         for (int col = 0; col < _columnCount; col++)
         {
+            sb.Append(horizontalColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, _columnWidths[col] + paddingPerColumn));
             if (col < _columnCount - 1)
             {
+                // Column separators are inner
+                sb.Append(innerColor.ToForegroundAnsi());
                 sb.Append(middle);
             }
         }
 
-        // Right edge (outer)
+        // Right edge (always outer)
         sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
