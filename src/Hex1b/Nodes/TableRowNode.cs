@@ -257,10 +257,6 @@ internal sealed class TableRowNode : Hex1bNode
             ? tableFocusedBorderColor 
             : borderColor;
         
-        // Both outer and inner elements use effectiveBorderColor
-        var outerBorderColor = effectiveBorderColor;
-        var innerBorderColor = effectiveBorderColor;
-        
         // Find the indices of vertical bar children to identify first/last (outer edges)
         var verticalBarIndices = new List<int>();
         for (int i = 0; i < Children.Count; i++)
@@ -283,11 +279,6 @@ internal sealed class TableRowNode : Hex1bNode
             {
                 context.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                 
-                // Determine if this is an outer edge (first or last vertical bar)
-                // For header/footer rows (IsOuterRow), all vertical bars use outer color
-                bool isOuterEdge = IsOuterRow || (verticalBarIndices.Count > 0 && 
-                    (i == verticalBarIndices[0] || i == verticalBarIndices[^1]));
-                
                 // Check if this is the selection column separator (second vertical bar when HasSelectionColumn)
                 bool isSelectionColumnSeparator = HasSelectionColumn && verticalBarIndices.Count >= 2 && 
                     i == verticalBarIndices[1];
@@ -298,23 +289,11 @@ internal sealed class TableRowNode : Hex1bNode
                     context.Write(focusedBorderColor.ToForegroundAnsi());
                     context.Write("┃"); // Heavy vertical line as focus indicator
                 }
-                else if (isSelectionColumnSeparator)
-                {
-                    // Selection column separator uses effective border color (dark when unfocused, mid when focused)
-                    context.Write(effectiveBorderColor.ToForegroundAnsi());
-                    context.Write(selectionColumnVertical.ToString());
-                }
-                else if (isOuterEdge)
-                {
-                    // Outer edge uses table focus color
-                    context.Write(outerBorderColor.ToForegroundAnsi());
-                    context.Write("│");
-                }
                 else
                 {
-                    // Inner borders use effective color (same as outer)
-                    context.Write(innerBorderColor.ToForegroundAnsi());
-                    context.Write("│");
+                    // All borders (outer, inner, selection separator) use effective color
+                    context.Write(effectiveBorderColor.ToForegroundAnsi());
+                    context.Write(isSelectionColumnSeparator ? selectionColumnVertical.ToString() : "│");
                 }
                 
                 context.Write("\x1b[0m"); // Reset

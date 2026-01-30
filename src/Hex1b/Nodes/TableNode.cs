@@ -1972,36 +1972,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null, bool isOuterBorder = false)
     {
+        // All border elements use EffectiveBorderColor (dark grey when unfocused, mid grey when focused)
+        // The isOuterBorder parameter is kept for future flexibility but currently all borders use the same color
+        _ = isOuterBorder; // Suppress unused parameter warning
+        var borderColor = EffectiveBorderColor;
+        
         var sb = new System.Text.StringBuilder();
         
-        // Both outer and inner elements use EffectiveBorderColor:
-        // - Dark grey when unfocused
-        // - Mid grey when focused
-        var outerColor = EffectiveBorderColor;
-        var innerColor = EffectiveBorderColor;
-        
-        // For outer borders (top, bottom, header/footer separators), use outer color for everything
-        // For inner borders (row separators), use inner color for horizontal lines and intersections
-        var horizontalColor = isOuterBorder ? outerColor : innerColor;
-        var intersectionColor = isOuterBorder ? outerColor : innerColor;
-        
-        // Left edge (always outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        // Left edge
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(left);
 
         // Selection column border (if enabled)
         if (ShowSelectionColumn)
         {
-            sb.Append(horizontalColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, SelectionColumnWidth));
             // Use specific character for selection column separator if provided, otherwise use middle
-            sb.Append(intersectionColor.ToForegroundAnsi());
             sb.Append(selectionColumnMiddle ?? middle);
-        }
-        else
-        {
-            // Switch to horizontal color for content
-            sb.Append(horizontalColor.ToForegroundAnsi());
         }
 
         // In Full mode, each column has 1 char padding on left and right
@@ -2009,18 +1996,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
         for (int col = 0; col < _columnCount; col++)
         {
-            sb.Append(horizontalColor.ToForegroundAnsi());
             sb.Append(new string(_horizontal, _columnWidths[col] + paddingPerColumn));
             if (col < _columnCount - 1)
             {
-                // Column intersections use intersection color
-                sb.Append(intersectionColor.ToForegroundAnsi());
                 sb.Append(middle);
             }
         }
 
-        // Right edge (always outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        // Right edge
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2215,18 +2198,12 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void RenderSolidHorizontalBorder(Hex1bRenderContext context, int y, char left, char right)
     {
+        // All border elements use EffectiveBorderColor (dark grey when unfocused, mid grey when focused)
+        var borderColor = EffectiveBorderColor;
+        
         var sb = new System.Text.StringBuilder();
-        
-        // Both outer and inner use EffectiveBorderColor (dark grey unfocused, mid grey focused)
-        var outerColor = EffectiveBorderColor;
-        var innerColor = EffectiveBorderColor;
-        
-        // Left edge (outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(left);
-
-        // Switch to inner color for content
-        sb.Append(innerColor.ToForegroundAnsi());
 
         // Selection column (if enabled)
         if (ShowSelectionColumn)
@@ -2242,8 +2219,6 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
         sb.Append(new string(_horizontal, contentWidth));
 
-        // Right edge (outer)
-        sb.Append(outerColor.ToForegroundAnsi());
         sb.Append(right);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2251,14 +2226,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void RenderEmptyRow(Hex1bRenderContext context, int y, int totalWidth)
     {
+        // All border elements use EffectiveBorderColor (dark grey when unfocused, mid grey when focused)
+        var borderColor = EffectiveBorderColor;
+        
         var sb = new System.Text.StringBuilder();
-        
-        // Both outer and inner use EffectiveBorderColor (dark grey unfocused, mid grey focused)
-        var outerColor = EffectiveBorderColor;
-        var innerColor = EffectiveBorderColor;
-        
-        // Left edge (outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty (no checkbox for empty state)
@@ -2266,7 +2238,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
-            sb.Append(innerColor.ToForegroundAnsi());
+            sb.Append(borderColor.ToForegroundAnsi());
             sb.Append(_vertical);
         }
 
@@ -2295,8 +2267,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 : emptyMessage[..contentWidth]);
         }
 
-        // Right edge (outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        // Right edge
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
@@ -2307,14 +2279,11 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// </summary>
     private void RenderLoadingRow(Hex1bRenderContext context, int y, int totalWidth)
     {
+        // All border elements use EffectiveBorderColor (dark grey when unfocused, mid grey when focused)
+        var borderColor = EffectiveBorderColor;
+        
         var sb = new System.Text.StringBuilder();
-        
-        // Both outer and inner use EffectiveBorderColor (dark grey unfocused, mid grey focused)
-        var outerColor = EffectiveBorderColor;
-        var innerColor = EffectiveBorderColor;
-        
-        // Left edge (outer)
-        sb.Append(outerColor.ToForegroundAnsi());
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(_vertical);
 
         // Selection column (if enabled) - show empty placeholder
@@ -2322,7 +2291,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             sb.Append("\x1b[0m"); // Reset for content
             sb.Append(new string(' ', SelectionColumnWidth));
-            sb.Append(innerColor.ToForegroundAnsi());
+            sb.Append(borderColor.ToForegroundAnsi());
             sb.Append(_vertical);
         }
 
@@ -2351,9 +2320,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 : loadingMessage[..contentWidth]);
         }
 
-        // Right edge (outer)
+        // Right edge
         sb.Append("\x1b[0m"); // Reset
-        sb.Append(outerColor.ToForegroundAnsi());
+        sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
