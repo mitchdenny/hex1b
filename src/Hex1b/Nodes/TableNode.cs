@@ -1796,8 +1796,22 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Scrollbar column starts after the table's right border
         var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
         
-        // Calculate the full scrollbar track height (all screen rows in content area)
-        var scrollbarHeight = _contentViewport.Height;
+        // Calculate the actual content height in screen rows
+        // In Full mode, we have data rows + separators between them
+        // In other modes, just data rows
+        int visibleDataRows = Math.Min(_viewportRowCount, _contentRowCount);
+        int scrollbarHeight;
+        if (RenderMode == TableRenderMode.Full)
+        {
+            // data rows + separators between them = visibleDataRows + (visibleDataRows - 1) = 2*visibleDataRows - 1
+            // But if no data, just 1 row for empty state
+            scrollbarHeight = visibleDataRows > 0 ? (2 * visibleDataRows - 1) : 1;
+        }
+        else
+        {
+            scrollbarHeight = Math.Max(1, visibleDataRows);
+        }
+        
         if (scrollbarHeight <= 0) return;
         
         // Calculate thumb size and position based on screen rows
@@ -1822,9 +1836,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{Vertical}\x1b[0m");
             y++;
             
-            // Header separator - track continues through (no horizontal break)
+            // Header separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
             y++;
         }
         
@@ -1838,21 +1852,17 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             char trackChar = isThumb ? ScrollbarThumb : ScrollbarTrack;
             var trackColor = isThumb ? focusedBorderColor : borderColor;
             
-            // Determine right border character
-            // In Full mode, odd rows are separator lines - use TeeLeft to connect
-            bool isSeparatorRow = RenderMode == TableRenderMode.Full && (row % 2) == 1;
-            char rightBorder = isSeparatorRow ? TeeLeft : Vertical;
-            
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{rightBorder}\x1b[0m");
+            // Always use vertical border - continuous clean track
+            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{borderColor.ToForegroundAnsi()}{Vertical}\x1b[0m");
             y++;
         }
         
         // Render footer row(s) if present
         if (_footerRowNode is not null)
         {
-            // Footer separator - track continues
+            // Footer separator - connects to table's horizontal line
             context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{borderColor.ToForegroundAnsi()}{ScrollbarTrack}{TeeLeft}\x1b[0m");
+            context.Write($"{borderColor.ToForegroundAnsi()}{Horizontal}{TeeLeft}\x1b[0m");
             y++;
             
             // Footer row - track + border
