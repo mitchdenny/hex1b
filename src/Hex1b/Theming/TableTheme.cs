@@ -195,7 +195,7 @@ public static class TableTheme
     /// Background color for focused row.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedRowBackground = 
-        new($"{nameof(TableTheme)}.{nameof(FocusedRowBackground)}", () => Hex1bColor.FromRgb(40, 40, 60));
+        new($"{nameof(TableTheme)}.{nameof(FocusedRowBackground)}", () => Hex1bColor.FromRgb(50, 50, 50));
     
     /// <summary>
     /// Foreground color for focused row.
