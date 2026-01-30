@@ -266,10 +266,12 @@ public static class TableTheme
         new($"{nameof(TableTheme)}.{nameof(ShowFocusIndicator)}", () => true);
     
     /// <summary>
-    /// Border color when table is focused.
+    /// Border color for outer table borders when table is focused (mid-tone).
+    /// This creates a 3-tone system: dark grey (unfocused), grey (table focused), 
+    /// and default foreground (row focused indicator).
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> TableFocusedBorderColor = 
-        new($"{nameof(TableTheme)}.{nameof(TableFocusedBorderColor)}", () => Hex1bColor.Default);
+        new($"{nameof(TableTheme)}.{nameof(TableFocusedBorderColor)}", () => Hex1bColor.Gray);
     
     #endregion
 }
