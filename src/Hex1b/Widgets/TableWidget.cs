@@ -109,8 +109,9 @@ public record TableWidget<TRow> : Hex1bWidget
             {
                 node.DataSource = DataSource;
                 needsDirty = true;
+                // Only clear Data when DataSource changes (not on every reconcile)
+                // The cached data will be set via LoadDataAsync
             }
-            node.Data = null; // Clear Data when using DataSource
         }
         else if (!ReferenceEquals(node.Data, Data))
         {
@@ -231,19 +232,28 @@ public record TableWidget<TRow> : Hex1bWidget
         
         if (DataSource is not null)
         {
-            // First load item count, then load visible range
-            await node.LoadDataAsync(0, 50, context.CancellationToken); // Initial load
+            // Check if we already have cached data (synchronous path)
+            effectiveData = node.GetEffectiveData();
             totalCount = node.GetEffectiveItemCount();
             
-            if (totalCount > 0)
+            // Only load asynchronously if we don't have data yet
+            if (effectiveData is null || effectiveData.Count == 0)
             {
-                // Now load the actual visible range
+                // First load - get count and initial data
+                await node.LoadDataAsync(0, 50, context.CancellationToken);
+                effectiveData = node.GetEffectiveData();
+                totalCount = node.GetEffectiveItemCount();
+            }
+            else if (totalCount > 0)
+            {
+                // We have data, but check if we need to load a different range
                 var (startRow, endRow) = node.GetVisibleRowRange(totalCount);
                 int rangeCount = Math.Max(50, endRow - startRow);
+                
+                // LoadDataAsync will return early if range is already cached
                 await node.LoadDataAsync(startRow, rangeCount, context.CancellationToken);
+                effectiveData = node.GetEffectiveData();
             }
-            
-            effectiveData = node.GetEffectiveData();
         }
         else if (Data is not null)
         {
