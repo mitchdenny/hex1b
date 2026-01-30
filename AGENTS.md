@@ -2,6 +2,23 @@
 
 This document provides context and conventions for AI coding agents (GitHub Copilot, Claude, Cursor, etc.) working with the Hex1b codebase.
 
+## 🛠️ Available Skills
+
+This repository includes specialized skills in `.github/skills/` that provide detailed guidance for specific tasks. **Invoke these skills when working on related tasks** - they contain step-by-step procedures, templates, and best practices.
+
+| Skill | When to Use |
+|-------|-------------|
+| **widget-creator** | Creating new widgets (widget records, nodes, theming, tests) |
+| **writing-unit-tests** | Writing unit tests for widgets, nodes, or terminal functionality |
+| **test-fixer** | Diagnosing flaky tests, especially timing-related failures in CI |
+| **api-reviewer** | Reviewing API design, accessibility modifiers, and naming conventions |
+| **doc-writer** | Writing XML API documentation or end-user guides |
+| **doc-tester** | Validating documentation accuracy against library behavior |
+| **surface-benchmarker** | Running performance benchmarks after modifying `src/Hex1b/Surfaces/` |
+| **aspire** | Working with .NET Aspire (running samples, debugging, MCP tools) |
+
+Skills are invoked automatically by AI agents based on the task context. They contain comprehensive procedures that complement the high-level guidance in this file.
+
 ## 📋 Project Overview
 
 **Hex1b** is a .NET library for building terminal user interfaces (TUI) with a React-inspired declarative API. The library ships to NuGet as `Hex1b`.
@@ -95,27 +112,25 @@ public class ButtonNode : Hex1bNode
 
 ### Adding New Widgets
 
-When adding a new widget type, you must:
+> **📘 Use the `widget-creator` skill** for comprehensive step-by-step guidance including templates, theming, and test patterns.
 
+Quick checklist:
 1. Create `XxxWidget` record in `src/Hex1b/Widgets/`
 2. Create `XxxNode` class in `src/Hex1b/Nodes/`
-3. Add reconciliation case in `Hex1bApp.Reconcile()` switch expression
-4. Add `ReconcileXxx()` method in `Hex1bApp.cs`
+3. Add extension methods in `src/Hex1b/XxxExtensions.cs`
+4. Add theme elements in `src/Hex1b/Theming/XxxTheme.cs`
 5. Write tests in `tests/Hex1b.Tests/XxxNodeTests.cs`
 
 ### Test Conventions
+
+> **📘 Use the `test-fixer` skill** when tests pass locally but fail in CI, or exhibit timing-sensitive behavior.
+
+Follow the `MethodName_Scenario_ExpectedBehavior` naming pattern:
 ```csharp
 [Fact]
-public void MethodName_Scenario_ExpectedBehavior()
+public void Measure_WithConstraints_ReturnsExpectedSize()
 {
-    // Arrange
-    var node = new ButtonNode { Label = "Test" };
-    
-    // Act
-    var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
-    
-    // Assert
-    Assert.Equal(InputResult.Handled, result);
+    // Arrange, Act, Assert
 }
 ```
 
@@ -138,70 +153,22 @@ dotnet run --project samples/Cancellation
 
 ## 🚀 .NET Aspire
 
-Aspire is the orchestrator for the entire application, handling dependency configuration, building, and running. Resources are defined in `apphost.cs`.
+> **📘 Use the `aspire` skill** for detailed Aspire workflows, MCP tools, debugging, and integration guidance.
 
-### Running with Aspire
+Aspire orchestrates sample applications. Resources are defined in `apphost.cs`.
+
+### Quick Commands
 ```bash
-aspire run
+aspire run              # Run the app host
+aspire run --detach     # Run in background (for agent environments)
+aspire stop             # Stop running instances
+aspire update           # Update Aspire packages
 ```
 
-If there is already an instance running, it will prompt to stop the existing instance. You only need to restart if `apphost.cs` changes, but restarting can reset everything to a known state.
-
-### General Aspire Workflow
-1. **Before making changes**: Run `aspire run` and inspect resource state to build from a known state
-2. **Make changes incrementally**: Validate with `aspire run` after each change
-3. **Use MCP tools**: Check resource status and debug issues using Aspire MCP tools
-
-### Aspire MCP Tools
-
-| Tool | Purpose |
-|------|---------|
-| `list_resources` | Check status of resources in the app model |
-| `execute_resource_command` | Restart resources or perform other actions |
-| `list_integrations` | Get available integrations with versions |
-| `get_integration_docs` | Fetch documentation for specific integrations |
-| `list_structured_logs` | Get structured log details for debugging |
-| `list_console_logs` | Get console log output for debugging |
-| `list_traces` | Get distributed trace information |
-| `list_trace_structured_logs` | Get logs related to a specific trace |
-| `select_apphost` | Switch between multiple app hosts |
-| `list_apphosts` | View active app hosts |
-
-### Adding Integrations
-**IMPORTANT**: When adding a resource to the app model:
-1. Use `list_integrations` to get current versions of available integrations
-2. Match the integration version to the Aspire.AppHost.Sdk version (some may have preview suffix)
-3. Use `get_integration_docs` to fetch the latest documentation
-4. Follow documentation links for additional guidance
-
-### Debugging with Aspire
-Aspire captures rich logs and telemetry. Use diagnostic tools **before** making changes:
-1. `list_structured_logs` - Detailed structured logs
-2. `list_console_logs` - Console output
-3. `list_traces` - Distributed traces
-4. `list_trace_structured_logs` - Logs related to a specific trace
-
-### Updating Aspire
-```bash
-aspire update
-```
-This updates the apphost and some Aspire packages. You may need to manually update other packages. Consider using `dotnet-outdated` with user consent:
-```bash
-dotnet tool install --global dotnet-outdated-tool
-```
-
-### Aspire Constraints
-- ⚠️ **Persistent containers**: Avoid early in development to prevent state management issues
-- ⚠️ **Aspire workload is OBSOLETE**: Never install or use the Aspire workload
-- ✅ Changes to `apphost.cs` require application restart
-
-### Playwright Integration
-The Playwright MCP server is configured for functional testing. Use `list_resources` to get endpoints for navigation with Playwright.
-
-### Official Aspire Documentation
-1. https://aspire.dev
-2. https://learn.microsoft.com/dotnet/aspire
-3. https://nuget.org (for integration package details)
+### Key Points
+- Changes to `apphost.cs` require restart
+- Use Aspire MCP tools (`list_resources`, `list_structured_logs`, etc.) for debugging
+- Avoid persistent containers early in development
 
 ## ⚠️ Important Constraints
 
@@ -246,18 +213,22 @@ The Playwright MCP server is configured for functional testing. Use `list_resour
 | `src/Hex1b/Widgets/Hex1bWidget.cs` | Base class for all widgets |
 | `src/Hex1b/Layout/Constraints.cs` | Layout constraint system |
 
-## 🧪 Testing Strategies
+## 🧪 Testing
+
+### Running Tests
+```bash
+dotnet test
+```
 
 ### Unit Testing Nodes
 - Create node directly, set properties, verify behavior
 - Use `Hex1bKeyEvent` to simulate input
 - Check measured size after `Measure()`
-- Verify rendering output if needed
 
 ### Integration Testing
-- Use `Hex1bApp` with mock `IHex1bTerminal`
+- Use `Hex1bApp` with `Hex1bAppWorkloadAdapter`
 - Test full widget → node → render cycle
-- See `Hex1bAppIntegrationTests.cs` for examples
+- See `tests/Hex1b.Tests/` for examples
 
 ## 💬 Asking for Help
 
