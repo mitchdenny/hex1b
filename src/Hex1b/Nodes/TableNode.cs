@@ -500,12 +500,20 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (FocusedKey == null || Data == null || Data.Count == 0)
             return -1;
 
+        // For async data sources, we need to add the data offset to get absolute index
+        int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+
         for (int i = 0; i < Data.Count; i++)
         {
-            var key = GetRowKey(Data[i], i);
+            var key = GetRowKey(Data[i], dataOffset + i);
             if (Equals(key, FocusedKey))
-                return i;
+                return dataOffset + i; // Return absolute index
         }
+        
+        // If focus key is an integer (index-based key from async navigation), return it directly
+        if (FocusedKey is int focusedIndex)
+            return focusedIndex;
+            
         return -1;
     }
 
@@ -514,26 +522,65 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// </summary>
     private async Task SetFocusedRowIndexAsync(int index)
     {
-        if (Data == null || Data.Count == 0)
+        int totalCount = GetEffectiveItemCount();
+        if (totalCount == 0)
             return;
 
-        // Clamp index to valid range
-        index = Math.Clamp(index, 0, Data.Count - 1);
+        // Clamp index to valid range (use total count, not just cached data)
+        index = Math.Clamp(index, 0, totalCount - 1);
         
-        var row = Data[index];
-        var newKey = GetRowKey(row, index);
-        
-        if (!Equals(newKey, FocusedKey))
+        // When using DataSource, the row might not be in memory yet
+        // We set the focus by index-based key; actual row will be loaded during reconciliation
+        if (_dataSource is not null)
         {
-            FocusedKey = newKey;
+            // Use index-based key when row isn't loaded
+            var cachedStart = _cachedRange?.Start ?? 0;
+            var cachedEnd = _cachedRange?.End ?? 0;
             
-            // Notify handler if present
-            if (FocusChangedHandler != null)
+            if (index >= cachedStart && index < cachedEnd && _cachedItems is not null)
             {
-                await FocusChangedHandler(newKey);
+                // Row is in cache
+                var row = _cachedItems[index - cachedStart];
+                var newKey = GetRowKey(row, index);
+                if (!Equals(newKey, FocusedKey))
+                {
+                    FocusedKey = newKey;
+                    if (FocusChangedHandler != null)
+                        await FocusChangedHandler(newKey);
+                    MarkDirty();
+                }
             }
+            else
+            {
+                // Row not in cache - set focus by index, will resolve after data load
+                // Use index as the key temporarily
+                object newKey = index;
+                if (!Equals(newKey, FocusedKey))
+                {
+                    FocusedKey = newKey;
+                    if (FocusChangedHandler != null)
+                        await FocusChangedHandler(newKey);
+                    MarkDirty();
+                }
+            }
+        }
+        else if (_data is not null && index < _data.Count)
+        {
+            var row = _data[index];
+            var newKey = GetRowKey(row, index);
             
-            MarkDirty();
+            if (!Equals(newKey, FocusedKey))
+            {
+                FocusedKey = newKey;
+                
+                // Notify handler if present
+                if (FocusChangedHandler != null)
+                {
+                    await FocusChangedHandler(newKey);
+                }
+                
+                MarkDirty();
+            }
         }
 
         // Ensure the focused row is visible (auto-scroll if needed)
@@ -577,7 +624,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private void MoveFocusDown(InputBindingActionContext ctx)
     {
         var currentIndex = GetFocusedRowIndex();
-        var maxIndex = (Data?.Count ?? 0) - 1;
+        var maxIndex = GetEffectiveItemCount() - 1;
         
         if (currentIndex < 0)
         {
@@ -592,7 +639,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void MoveFocusToFirst(InputBindingActionContext ctx)
     {
-        if (Data != null && Data.Count > 0)
+        int totalCount = GetEffectiveItemCount();
+        if (totalCount > 0)
         {
             _ = SetFocusedRowIndexAsync(0);
         }
@@ -600,9 +648,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     private void MoveFocusToLast(InputBindingActionContext ctx)
     {
-        if (Data != null && Data.Count > 0)
+        int totalCount = GetEffectiveItemCount();
+        if (totalCount > 0)
         {
-            _ = SetFocusedRowIndexAsync(Data.Count - 1);
+            _ = SetFocusedRowIndexAsync(totalCount - 1);
         }
     }
 
@@ -889,10 +938,22 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
 
     /// <summary>
     /// Checks if a row key is focused.
+    /// Also handles index-based focus keys used during async navigation.
     /// </summary>
-    private bool IsRowFocused(object key)
+    private bool IsRowFocused(object key, int absoluteIndex)
     {
-        return FocusedKey is not null && Equals(FocusedKey, key);
+        if (FocusedKey is null)
+            return false;
+        
+        // Direct key match
+        if (Equals(FocusedKey, key))
+            return true;
+        
+        // If FocusedKey is an integer index (from async navigation), compare by index
+        if (FocusedKey is int focusedIndex && focusedIndex == absoluteIndex)
+            return true;
+        
+        return false;
     }
 
     /// <summary>
@@ -904,13 +965,20 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     }
     
     /// <summary>
-    /// Checks if a row at the given index is currently selected (for rendering).
+    /// Checks if a row at the given absolute index is currently selected (for rendering).
     /// </summary>
-    private bool IsRowSelectedForRender(int rowIndex)
+    private bool IsRowSelectedForRender(int absoluteRowIndex)
     {
-        if (Data == null || rowIndex < 0 || rowIndex >= Data.Count)
+        if (Data == null)
             return false;
-        return IsSelectedSelector?.Invoke(Data[rowIndex]) ?? false;
+        
+        // For async data sources, convert absolute index to relative index
+        int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+        int relativeIndex = absoluteRowIndex - dataOffset;
+        
+        if (relativeIndex < 0 || relativeIndex >= Data.Count)
+            return false;
+        return IsSelectedSelector?.Invoke(Data[relativeIndex]) ?? false;
     }
 
     /// <summary>
@@ -937,19 +1005,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (Data is not null && RowBuilder is not null)
         {
             int rowCount = Data.Count;
+            // For async data sources, we need the offset to calculate absolute indices
+            int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+            
             for (int i = 0; i < rowCount; i++)
             {
                 var row = Data[i];
-                var rowKey = GetRowKey(row, i);
+                int absoluteIndex = dataOffset + i;
+                var rowKey = GetRowKey(row, absoluteIndex);
                 
                 var state = new TableRowState
                 {
-                    RowIndex = i,
+                    RowIndex = absoluteIndex,
                     RowKey = rowKey,
-                    IsFocused = IsRowFocused(rowKey),
+                    IsFocused = IsRowFocused(rowKey, absoluteIndex),
                     IsSelected = IsRowSelected(row),
-                    IsFirst = i == 0,
-                    IsLast = i == rowCount - 1
+                    IsFirst = absoluteIndex == 0,
+                    IsLast = absoluteIndex == GetEffectiveItemCount() - 1
                 };
                 
                 var cells = RowBuilder(rowContext, row, state);
@@ -957,7 +1029,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 {
                     throw new InvalidOperationException(
                         $"Table column count mismatch: header has {_columnCount} columns, " +
-                        $"but row {i} has {cells.Count} columns.");
+                        $"but row {absoluteIndex} has {cells.Count} columns.");
                 }
                 _rowCells.Add(cells);
                 _rowStates.Add(state);
@@ -1328,14 +1400,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         BuildCellData();
 
         // Determine total content row count
+        // When using DataSource, use cached item count; otherwise use Data.Count
         // Both null data and empty data show the empty state
-        if (Data is null || Data.Count == 0)
+        int totalItemCount = GetEffectiveItemCount();
+        if (totalItemCount == 0)
         {
             _contentRowCount = 1; // Empty state (message row)
         }
         else
         {
-            _contentRowCount = _rowCells?.Count ?? 0;
+            _contentRowCount = totalItemCount;
         }
         
         // Calculate fixed heights (header, footer, borders)
@@ -1590,6 +1664,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             // Render only visible data rows (using scroll offset)
             int endRow = Math.Min(_scrollOffset + _viewportRowCount, _dataRowNodes.Count);
             int rowsRendered = 0;
+            
+            // For async data sources, we need to adjust indices since _rowStates uses relative indices
+            int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+            
             for (int i = _scrollOffset; i < endRow && y < Bounds.Height - (_footerRowNode is not null ? 3 : 1); i++)
             {
                 var rowNode = _dataRowNodes[i];
@@ -1605,13 +1683,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                     continue;
                 }
                 
-                var state = _rowStates[i];
-                // Use runtime selection check instead of cached state
-                bool isSelected = IsRowSelectedForRender(i);
-                
-                // Update row node highlight/selection state for rendering
-                rowNode.IsHighlighted = state.IsFocused;
-                rowNode.IsSelected = isSelected;
+                // Convert absolute row index to relative index for state lookup
+                int relativeIndex = i - dataOffset;
+                if (relativeIndex < 0 || relativeIndex >= _rowStates.Count)
+                {
+                    // State not available for this row, but check for index-based focus
+                    bool isFocused = FocusedKey is int focusedIndex && focusedIndex == i;
+                    rowNode.IsHighlighted = isFocused;
+                    rowNode.IsSelected = false;
+                }
+                else
+                {
+                    var state = _rowStates[relativeIndex];
+                    bool isSelected = IsRowSelectedForRender(i);
+                    
+                    rowNode.IsHighlighted = state.IsFocused;
+                    rowNode.IsSelected = isSelected;
+                }
                 
                 context.RenderChild(rowNode);
                 y++;
@@ -2132,6 +2220,70 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Set Data to cached items so rendering code can use it
         // Note: This bypasses the setter to avoid re-subscribing
         _data = _cachedItems;
+        
+        // Resolve integer-based focus key to actual row key if the focused row is now loaded
+        ResolveFocusKeyIfNeeded();
+        
+        // Set initial focus if no focus is set and we have data
+        SetInitialFocusIfNeeded();
+    }
+    
+    /// <summary>
+    /// Sets initial focus to the first row if no focus is currently set.
+    /// Called after data is first loaded for async data sources.
+    /// </summary>
+    private void SetInitialFocusIfNeeded()
+    {
+        if (FocusedKey is not null)
+            return;
+            
+        if (_cachedItems is null || _cachedItems.Count == 0)
+            return;
+            
+        // Set focus to first row
+        var firstRow = _cachedItems[0];
+        int absoluteIndex = _cachedRange?.Start ?? 0;
+        var key = GetRowKey(firstRow, absoluteIndex);
+        FocusedKey = key;
+        
+        // Notify handler
+        if (FocusChangedHandler != null)
+        {
+            _ = FocusChangedHandler(key);
+        }
+    }
+    
+    /// <summary>
+    /// If FocusedKey is an integer index and that row is now in the cache, 
+    /// update FocusedKey to the actual row key for consistent focus tracking.
+    /// Also notifies the focus changed handler if the key was resolved.
+    /// </summary>
+    private void ResolveFocusKeyIfNeeded()
+    {
+        if (FocusedKey is not int focusedIndex)
+            return;
+            
+        if (_cachedItems is null || !_cachedRange.HasValue)
+            return;
+            
+        var (start, end) = _cachedRange.Value;
+        if (focusedIndex >= start && focusedIndex < end)
+        {
+            int relativeIndex = focusedIndex - start;
+            if (relativeIndex >= 0 && relativeIndex < _cachedItems.Count)
+            {
+                var row = _cachedItems[relativeIndex];
+                var actualKey = GetRowKey(row, focusedIndex);
+                FocusedKey = actualKey;
+                
+                // Notify handler with the resolved key
+                // Note: Fire-and-forget since we're in a sync context
+                if (FocusChangedHandler != null)
+                {
+                    _ = FocusChangedHandler(actualKey);
+                }
+            }
+        }
     }
 
     /// <summary>

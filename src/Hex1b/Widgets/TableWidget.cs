@@ -280,16 +280,42 @@ public record TableWidget<TRow> : Hex1bWidget
             // Get the range of rows to materialize (visible + buffer)
             var (startRow, endRow) = node.GetVisibleRowRange(totalCount);
             
-            // For small datasets or first render (viewport not yet calculated), build all rows
-            bool buildAllRows = totalCount <= 50 || node.ViewportRowCount == 0;
+            // Calculate max rows that could possibly fit based on available space
+            // This prevents building 10k rows on first render when ViewportRowCount is 0
+            int maxRowsToBuild;
+            if (node.ViewportRowCount > 0)
+            {
+                // Use actual viewport if already calculated
+                maxRowsToBuild = node.ViewportRowCount + 10; // +10 buffer
+            }
+            else
+            {
+                // First render: estimate from previous bounds or use sensible default
+                // Terminal windows are typically 24-80 rows, so 50 is a safe upper bound
+                int estimatedHeight = node.Bounds.Height > 0 ? node.Bounds.Height : 50;
+                int headerLines = 3;  // top border + header + separator
+                int footerLines = FooterBuilder != null ? 2 : 1;  // footer + bottom border, or just bottom border
+                int rowHeight = node.RenderMode == TableRenderMode.Full ? 2 : 1;  // Full mode has separators
+                int availableForRows = estimatedHeight - headerLines - footerLines;
+                int maxVisibleRows = Math.Max(1, availableForRows / rowHeight);
+                maxRowsToBuild = maxVisibleRows + 5;  // +5 buffer for scroll
+            }
+            
+            // For small datasets, build all rows (simpler and avoids edge cases)
+            bool buildAllRows = totalCount <= 50;
+            
+            // Calculate effective range to build
+            // On first render (endRow == 0), start from 0 and build up to maxRowsToBuild
+            int effectiveStartRow = buildAllRows ? 0 : (endRow > 0 ? startRow : 0);
+            int effectiveEndRow = buildAllRows ? totalCount : (endRow > 0 ? Math.Min(endRow, effectiveStartRow + maxRowsToBuild) : Math.Min(totalCount, maxRowsToBuild));
             
             // When using DataSource, only build rows we have data for
             int dataOffset = DataSource is not null ? startRow : 0;
             
             for (int i = 0; i < totalCount; i++)
             {
-                // Skip rows outside the visible range (unless building all)
-                if (!buildAllRows && (i < startRow || i >= endRow))
+                // Skip rows outside the effective range
+                if (i < effectiveStartRow || i >= effectiveEndRow)
                 {
                     // Keep existing node if present, otherwise leave as null
                     continue;

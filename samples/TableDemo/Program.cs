@@ -16,7 +16,10 @@ var scenarios = new[]
     "Observable Collection",
     "Observable + Selection",
     "Large List (10k)",
-    "Async Data Source",
+    "Async (5k, 50ms)",
+    "Async (1k, 0ms)",
+    "Async (10k, 0ms)",
+    "Async (100k, 0ms)",
 };
 
 int selectedScenario = 0;
@@ -83,11 +86,18 @@ var largeList = Enumerable.Range(1, 10000)
 object? largeFocusedKey = largeList[0].Name;
 
 // ============================================================================
-// Scenario 5: Async Data Source - Simulated async API with delay
+// Scenario 5+: Async Data Sources - Various configurations
 // ============================================================================
 
-var asyncDataSource = new SimulatedAsyncDataSource(5000); // 5000 items with simulated delay
-object? asyncFocusedKey = null;
+var asyncDataSource5k50ms = new SimulatedAsyncDataSource(5000, 50); // 5000 items, 50ms delay
+var asyncDataSource1k0ms = new SimulatedAsyncDataSource(1000, 0);   // 1000 items, no delay
+var asyncDataSource10k0ms = new SimulatedAsyncDataSource(10000, 0); // 10000 items, no delay
+var asyncDataSource100k0ms = new SimulatedAsyncDataSource(100000, 0); // 100000 items, no delay
+
+object? asyncFocusedKey5k50ms = null;
+object? asyncFocusedKey1k0ms = null;
+object? asyncFocusedKey10k0ms = null;
+object? asyncFocusedKey100k0ms = null;
 
 // ============================================================================
 // Build scenario content
@@ -101,7 +111,10 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
         1 => BuildObservableScenario(ctx),
         2 => BuildSelectableObservableScenario(ctx),
         3 => BuildLargeListScenario(ctx),
-        4 => BuildAsyncScenario(ctx),
+        4 => BuildAsyncScenario(ctx, asyncDataSource5k50ms, () => asyncFocusedKey5k50ms, key => asyncFocusedKey5k50ms = key, "5k items, 50ms delay"),
+        5 => BuildAsyncScenario(ctx, asyncDataSource1k0ms, () => asyncFocusedKey1k0ms, key => asyncFocusedKey1k0ms = key, "1k items, no delay"),
+        6 => BuildAsyncScenario(ctx, asyncDataSource10k0ms, () => asyncFocusedKey10k0ms, key => asyncFocusedKey10k0ms = key, "10k items, no delay"),
+        7 => BuildAsyncScenario(ctx, asyncDataSource100k0ms, () => asyncFocusedKey100k0ms, key => asyncFocusedKey100k0ms = key, "100k items, no delay"),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -276,13 +289,18 @@ TableWidget<Product> BuildLargeTable<TParent>(WidgetContext<TParent> ctx) where 
         .FillHeight();
 }
 
-Hex1bWidget BuildAsyncScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+Hex1bWidget BuildAsyncScenario<TParent>(
+    WidgetContext<TParent> ctx, 
+    SimulatedAsyncDataSource dataSource,
+    Func<object?> getFocusedKey,
+    Action<object?> setFocusedKey,
+    string description) where TParent : Hex1bWidget
 {
     return ctx.VStack(v => [
-        v.Text("Async Data Source (Simulated API)"),
-        v.Text("──────────────────────────────────"),
+        v.Text($"Async Data Source ({description})"),
+        v.Text("──────────────────────────────────────────"),
         v.Text(""),
-        v.Table(asyncDataSource)
+        v.Table(dataSource)
             .WithRowKey(p => p.Name)
             .WithHeader(h => [
                 h.Cell("Product").Width(SizeHint.Fill),
@@ -296,11 +314,11 @@ Hex1bWidget BuildAsyncScenario<TParent>(WidgetContext<TParent> ctx) where TParen
                 r.Cell($"${product.Price:F2}"),
                 r.Cell(product.Stock.ToString())
             ])
-            .WithFocus(asyncFocusedKey)
-            .OnFocusChanged(key => asyncFocusedKey = key)
+            .WithFocus(getFocusedKey())
+            .OnFocusChanged(key => setFocusedKey(key))
             .FillHeight(),
         v.Text(""),
-        v.Text($"Total items: {asyncDataSource.TotalCount:N0} (loaded async with 50ms delay)")
+        v.Text($"Total items: {dataSource.TotalCount:N0} | Delay: {dataSource.DelayMs}ms")
     ]);
 }
 
@@ -352,17 +370,20 @@ class Product(string name, string category, decimal price, int stock)
 // ============================================================================
 
 /// <summary>
-/// Simulates an async API data source with artificial delay.
+/// Simulates an async API data source with configurable delay.
 /// </summary>
 class SimulatedAsyncDataSource : ITableDataSource<Product>
 {
     private readonly List<Product> _allData;
+    private readonly int _delayMs;
     private readonly string[] _categories = ["Electronics", "Furniture", "Accessories"];
     
     public int TotalCount => _allData.Count;
+    public int DelayMs => _delayMs;
     
-    public SimulatedAsyncDataSource(int itemCount)
+    public SimulatedAsyncDataSource(int itemCount, int delayMs = 50)
     {
+        _delayMs = delayMs;
         _allData = Enumerable.Range(1, itemCount)
             .Select(i => new Product(
                 $"API Item {i:D5}", 
@@ -376,8 +397,8 @@ class SimulatedAsyncDataSource : ITableDataSource<Product>
     
     public async ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
     {
-        // Simulate API latency
-        await Task.Delay(50, cancellationToken);
+        if (_delayMs > 0)
+            await Task.Delay(_delayMs, cancellationToken);
         return _allData.Count;
     }
     
@@ -386,8 +407,8 @@ class SimulatedAsyncDataSource : ITableDataSource<Product>
         int count, 
         CancellationToken cancellationToken = default)
     {
-        // Simulate API latency
-        await Task.Delay(50, cancellationToken);
+        if (_delayMs > 0)
+            await Task.Delay(_delayMs, cancellationToken);
         
         if (startIndex >= _allData.Count)
             return Array.Empty<Product>();

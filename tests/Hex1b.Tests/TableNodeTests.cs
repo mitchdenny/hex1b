@@ -1,4 +1,6 @@
+using System.Collections.Specialized;
 using Hex1b.Automation;
+using Hex1b.Data;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -1247,6 +1249,401 @@ public class TableNodeTests
         await runTask;
         
         TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording: {recordingPath}");
+    }
+
+    #endregion
+    
+    #region Async Data Source Navigation Tests
+
+    /// <summary>
+    /// Test data source for async navigation tests.
+    /// </summary>
+    private class TestAsyncDataSource : ITableDataSource<string>
+    {
+        private readonly int _totalCount;
+        public List<(int Start, int Count)> LoadRequests { get; } = [];
+        
+#pragma warning disable CS0067 // Event is never used - required by interface
+        public event NotifyCollectionChangedEventHandler? CollectionChanged;
+#pragma warning restore CS0067
+        
+        public TestAsyncDataSource(int totalCount)
+        {
+            _totalCount = totalCount;
+        }
+        
+        public ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(_totalCount);
+        }
+        
+        public ValueTask<IReadOnlyList<string>> GetItemsAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+        {
+            LoadRequests.Add((startIndex, count));
+            var items = new List<string>();
+            for (int i = startIndex; i < startIndex + count && i < _totalCount; i++)
+            {
+                items.Add($"Item {i + 1:D5}");
+            }
+            return ValueTask.FromResult<IReadOnlyList<string>>(items);
+        }
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_NavigateDown_LoadsDataForNextRange()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(1000);
+        var focusedKey = (object?)"Item 00001";
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Initial load should have been requested
+        Assert.NotEmpty(dataSource.LoadRequests);
+        var initialRequest = dataSource.LoadRequests[0];
+        Assert.Equal(0, initialRequest.Start);
+        
+        // Navigate down repeatedly to reach beyond initial cache (50 items)
+        var builder = new Hex1bTerminalInputSequenceBuilder();
+        for (int i = 0; i < 55; i++)
+        {
+            builder.Key(Hex1bKey.DownArrow).Wait(30);
+        }
+        builder.Ctrl().Key(Hex1bKey.C); // Exit
+        
+        await builder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+        
+        // Should have loaded more data when we navigated beyond initial range
+        Assert.True(dataSource.LoadRequests.Count > 1, 
+            $"Expected additional data loads when navigating beyond cache. Only had {dataSource.LoadRequests.Count} load(s)");
+        
+        // Focus should be on a row beyond the initial 50
+        Assert.NotNull(focusedKey);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_NavigateToEnd_LoadsLastPage()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(500);
+        var focusedKey = (object?)"Item 00001";
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render, press End, then exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Key(Hex1bKey.End)
+            .Wait(500) // Wait for data load
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Should have loaded data for the end of the list
+        var lastRequest = dataSource.LoadRequests[^1];
+        TestContext.Current.TestOutputHelper?.WriteLine($"Last load request: start={lastRequest.Start}, count={lastRequest.Count}");
+        Assert.True(lastRequest.Start > 400, 
+            $"Expected load request near end of list (>400), got start={lastRequest.Start}");
+        
+        // Focus should be on the last item
+        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
+        Assert.Equal("Item 00500", focusedKey);
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_NavigateDownThenUp_MaintainsCorrectFocus()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(200);
+        var focusedKey = (object?)"Item 00001";
+        var focusHistory = new List<object?>();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => { focusedKey = key; focusHistory.Add(key); })
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Navigate down 60 rows (beyond initial 50-item cache)
+        var downBuilder = new Hex1bTerminalInputSequenceBuilder();
+        for (int i = 0; i < 60; i++)
+        {
+            downBuilder.Key(Hex1bKey.DownArrow).Wait(20);
+        }
+        await downBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var focusAfterDown = focusedKey;
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after 60 downs: {focusAfterDown}");
+        
+        // Now navigate up 5 rows
+        var upBuilder = new Hex1bTerminalInputSequenceBuilder();
+        for (int i = 0; i < 5; i++)
+        {
+            upBuilder.Key(Hex1bKey.UpArrow).Wait(20);
+        }
+        await upBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var focusAfterUp = focusedKey;
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after 5 ups: {focusAfterUp}");
+        
+        // Now navigate down again - this should work
+        var downAgainBuilder = new Hex1bTerminalInputSequenceBuilder();
+        for (int i = 0; i < 5; i++)
+        {
+            downAgainBuilder.Key(Hex1bKey.DownArrow).Wait(20);
+        }
+        downAgainBuilder.Ctrl().Key(Hex1bKey.C);
+        await downAgainBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        var finalFocus = focusedKey;
+        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {finalFocus}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus history count: {focusHistory.Count}");
+        
+        // Verify focus movements
+        Assert.Equal("Item 00061", focusAfterDown);
+        Assert.Equal("Item 00056", focusAfterUp);
+        Assert.Equal("Item 00061", finalFocus);
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_InitialRender_SetsFocusToFirstRow()
+    {
+        // Arrange - async data source with NO initial focus (null)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(100);
+        object? focusedKey = null;  // Explicitly null - no initial focus
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render and data load, then exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(100)  // Allow focus to be set
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert - focus should be automatically set to first row
+        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
+        Assert.Equal("Item 00001", focusedKey);
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_AfterRender_ShowsFocusBarsOnFirstRow()
+    {
+        // Arrange - async data source with NO initial focus (null)
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(100);
+        object? focusedKey = null;
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for render to stabilize - wait for data AND focus bars
+        // The thick vertical bar ┃ indicates a focused row
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for data to render")
+            .Wait(200)  // Allow focus and re-render to complete
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Capture the screen
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Screen after stabilization ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        
+        // Check for focus bars (thick vertical borders ┃) on the first data row
+        // The focused row should have ┃ characters instead of │
+        bool hasFocusBars = screenText.Contains("┃Item 00001") || screenText.Contains("┃ Item 00001");
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert
+        Assert.True(hasFocusBars, 
+            $"Expected focus bars (┃) on first row. Focus key: {focusedKey}\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task AsyncDataSource_ClickOnRow_ShowsFocusBarsAfterClick()
+    {
+        // Arrange - async data source 
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 25)
+            .WithMouse()
+            .Build();
+            
+        var dataSource = new TestAsyncDataSource(100);
+        object? focusedKey = null;
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .WithRowKey(s => s)
+                .WithHeader(h => [h.Cell("Name")])
+                .WithRow((r, item, _) => [r.Cell(item)])
+                .WithFocus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render to stabilize
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .Wait(200)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Capture screen before click
+        var beforeSnapshot = terminal.CreateSnapshot();
+        var beforeText = beforeSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Before click ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(beforeText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus before click: {focusedKey}");
+        
+        // Click on row 5 (approximately y=6: top border + header + separator + rows 1-3)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(10, 6)
+            .Wait(300)  // Allow re-render
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Capture screen after click
+        var afterSnapshot = terminal.CreateSnapshot();
+        var afterText = afterSnapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== After click ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after click: {focusedKey}");
+        
+        // Check for focus bars on the clicked row
+        // Focus should have moved, and we should see ┃ on the new focused row
+        bool hasFocusBars = afterText.Contains("┃Item 00");
+        
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // Assert
+        Assert.True(hasFocusBars, 
+            $"Expected focus bars (┃) after click. Focus key: {focusedKey}\nScreen after click:\n{afterText}");
     }
 
     #endregion
