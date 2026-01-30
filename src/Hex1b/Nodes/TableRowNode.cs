@@ -44,6 +44,11 @@ internal sealed class TableRowNode : Hex1bNode
     /// Whether this row uses Full render mode (has padding around cells).
     /// </summary>
     public bool HasCellPadding { get; set; }
+    
+    /// <summary>
+    /// Whether the parent table is focused (for outer border styling).
+    /// </summary>
+    public bool TableIsFocused { get; set; }
 
     public override Size Measure(Constraints constraints)
     {
@@ -240,14 +245,36 @@ internal sealed class TableRowNode : Hex1bNode
         var theme = context.Theme;
         var borderColor = theme.Get(TableTheme.BorderColor);
         var focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
+        var tableFocusedBorderColor = theme.Get(TableTheme.TableFocusedBorderColor);
+        
+        // Outer border color depends on table focus state
+        var outerBorderColor = TableIsFocused && theme.Get(TableTheme.ShowFocusIndicator) 
+            ? tableFocusedBorderColor 
+            : borderColor;
+        
+        // Find the indices of vertical bar children to identify first/last (outer edges)
+        var verticalBarIndices = new List<int>();
+        for (int i = 0; i < Children.Count; i++)
+        {
+            if (Children[i] is TextBlockNode textNode && textNode.Text == "│")
+            {
+                verticalBarIndices.Add(i);
+            }
+        }
         
         // Render children, applying border colors and replacing vertical bars with thicker ones if highlighted
-        foreach (var child in Children)
+        for (int i = 0; i < Children.Count; i++)
         {
+            var child = Children[i];
+            
             // Check if this is a vertical border
             if (child is TextBlockNode textNode && textNode.Text == "│")
             {
                 context.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                
+                // Determine if this is an outer edge (first or last vertical bar)
+                bool isOuterEdge = verticalBarIndices.Count > 0 && 
+                    (i == verticalBarIndices[0] || i == verticalBarIndices[^1]);
                 
                 if (IsHighlighted)
                 {
@@ -255,9 +282,15 @@ internal sealed class TableRowNode : Hex1bNode
                     context.Write(focusedBorderColor.ToForegroundAnsi());
                     context.Write("┃"); // Heavy vertical line as focus indicator
                 }
+                else if (isOuterEdge)
+                {
+                    // Outer edge uses table focus color
+                    context.Write(outerBorderColor.ToForegroundAnsi());
+                    context.Write("│");
+                }
                 else
                 {
-                    // Render normal border with border color
+                    // Inner borders use regular border color
                     context.Write(borderColor.ToForegroundAnsi());
                     context.Write("│");
                 }

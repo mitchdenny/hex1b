@@ -1712,10 +1712,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Header
         if (_headerRowNode is not null)
         {
+            // Set table focus state for outer border styling
+            _headerRowNode.TableIsFocused = IsFocused;
+            
             // Render the header row node (it handles its own children)
             context.RenderChild(_headerRowNode);
             y++;
             
+            // Header separator - uses outer color for left/right edges
             // Use different separator when transitioning to empty state vs data/loading rows
             if (hasColumnStructure)
             {
@@ -1810,6 +1814,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                     rowNode.IsSelected = isSelected;
                 }
                 
+                // Set table focus state for outer border styling
+                rowNode.TableIsFocused = IsFocused;
+                
                 context.RenderChild(rowNode);
                 y++;
                 rowsRendered++;
@@ -1838,6 +1845,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 RenderHorizontalBorder(context, y, _teeRight, _teeDown, emptyRightTee, selectionColumnMiddle: _cross);
             }
             y++;
+            
+            // Set table focus state for outer border styling
+            _footerRowNode.TableIsFocused = IsFocused;
+            
             context.RenderChild(_footerRowNode);
             y++;
         }
