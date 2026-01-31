@@ -1,10 +1,11 @@
 namespace Hex1b.Automation;
 
 /// <summary>
-/// A step that waits until a condition is met on the terminal.
+/// A step that waits while a condition is true on the terminal.
+/// Completes when the condition becomes false.
 /// Supports both sync and async predicates (sync predicates are wrapped as async).
 /// </summary>
-public sealed record WaitUntilStep(
+public sealed record WaitWhileStep(
     Func<Hex1bTerminalSnapshot, Task<bool>> Predicate,
     TimeSpan Timeout,
     string? Description = null) : TestStep
@@ -24,7 +25,7 @@ public sealed record WaitUntilStep(
             // CreateSnapshot auto-flushes pending output
             var snapshot = terminal.CreateSnapshot();
 
-            if (await Predicate(snapshot).ConfigureAwait(false))
+            if (!await Predicate(snapshot).ConfigureAwait(false))
                 return;
 
             await DelayAsync(timeProvider, options.PollInterval, ct);
@@ -32,9 +33,9 @@ public sealed record WaitUntilStep(
 
         // Timeout - capture final state for diagnostics
         var finalSnapshot = terminal.CreateSnapshot();
-        var description = Description ?? "condition";
+        var description = Description ?? "condition to become false";
         throw new TimeoutException(
-            $"WaitUntil timed out after {Timeout} waiting for {description}.\n" +
+            $"WaitWhile timed out after {Timeout} waiting for {description}.\n" +
             $"Terminal state:\n{finalSnapshot.GetDisplayText()}");
     }
 }
