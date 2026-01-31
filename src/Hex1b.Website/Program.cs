@@ -65,6 +65,10 @@ builder.Services.AddSingleton<IGalleryExample, HyperlinkClickExample>();
 builder.Services.AddSingleton<IGalleryExample, ProgressBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ProgressIndeterminateExample>();
 
+// Register Slider widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, SliderBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, SliderAudioMixerExample>();
+
 // Register Spinner widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, SpinnerBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SpinnerStylesExample>();

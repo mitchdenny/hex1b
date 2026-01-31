@@ -260,7 +260,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                     ? (double)MaxOffset / (trackHeight - thumbSize)
                     : 0;
                 
-                return new DragHandler(
+                return DragHandler.Simple(
                     onMove: (deltaX, deltaY) =>
                     {
                         if (contentPerPixel > 0)
@@ -330,7 +330,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                     ? (double)MaxOffset / (trackWidth - thumbSize)
                     : 0;
                 
-                return new DragHandler(
+                return DragHandler.Simple(
                     onMove: (deltaX, deltaY) =>
                     {
                         if (contentPerPixel > 0)

@@ -85,6 +85,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
     
     // Drag state - when active, all mouse events route to the drag handler
     private DragHandler? _activeDragHandler;
+    private Hex1bNode? _activeDragNode;
     private int _dragStartX;
     private int _dragStartY;
     
@@ -508,19 +509,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 UpdateHoverState(mouseEvent.X, mouseEvent.Y);
                 
                 // If a drag is active, route all events to the drag handler
-                if (_activeDragHandler != null)
+                if (_activeDragHandler != null && _activeDragNode != null)
                 {
+                    // Create context for drag events
+                    var dragContext = new InputBindingActionContext(
+                        _focusRing, RequestStop, cancellationToken, 
+                        mouseEvent.X, mouseEvent.Y, CopyToClipboard);
+                    
                     // Handle both Move (no button) and Drag (button held) actions
                     if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
                     {
                         var deltaX = mouseEvent.X - _dragStartX;
                         var deltaY = mouseEvent.Y - _dragStartY;
-                        _activeDragHandler.OnMove?.Invoke(deltaX, deltaY);
+                        _activeDragHandler.OnMove?.Invoke(dragContext, deltaX, deltaY);
                     }
                     else if (mouseEvent.Action == MouseAction.Up)
                     {
-                        _activeDragHandler.OnEnd?.Invoke();
+                        _activeDragHandler.OnEnd?.Invoke(dragContext);
                         _activeDragHandler = null;
+                        _activeDragNode = null;
                     }
                     // While dragging, skip normal event handling
                     break;
@@ -954,6 +961,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable
                 }
                 
                 _activeDragHandler = handler;
+                _activeDragNode = hitNode;
                 _dragStartX = mouseEvent.X;
                 _dragStartY = mouseEvent.Y;
                 return;

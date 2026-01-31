@@ -152,7 +152,7 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         bindings.Drag(MouseButton.Left).Action((startX, startY) =>
         {
             var startSize = FirstSize;
-            return new DragHandler(
+            return DragHandler.Simple(
                 onMove: (deltaX, deltaY) =>
                 {
                     var delta = Orientation == SplitterOrientation.Horizontal ? deltaX : deltaY;

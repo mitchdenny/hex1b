@@ -1,6 +1,6 @@
-﻿#:sdk Aspire.AppHost.Sdk@13.1.0
-#:package Aspire.Hosting.JavaScript@13.1.0
-#:package Aspire.Hosting.Azure.AppContainers@13.1.0
+﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.26080.7
+#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.26080.7
+#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.26080.7
 
 using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.Logging;

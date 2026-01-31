@@ -901,7 +901,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                 
                 if (contentPerPixel > 0)
                 {
-                    return new DragHandler(
+                    return DragHandler.Simple(
                         onMove: (deltaX, deltaY) =>
                         {
                             var newOffset = (int)Math.Round(startOffset + deltaY * contentPerPixel);
@@ -942,7 +942,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var targetOffset = (int)Math.Round(proportion * MaxScrollOffset);
         SetScrollOffset(targetOffset);
         
-        return new DragHandler(
+        return DragHandler.Simple(
             onMove: (deltaX, deltaY) =>
             {
                 // Allow dragging to scroll proportionally

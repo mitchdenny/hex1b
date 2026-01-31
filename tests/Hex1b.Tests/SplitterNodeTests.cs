@@ -1904,7 +1904,7 @@ public class SplitterNodeTests
         var handler = dragBinding.StartDrag(0, 0);
         
         // Move 10 pixels to the right
-        handler.OnMove?.Invoke(10, 0);
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), 10, 0);
 
         Assert.Equal(30, node.FirstSize); // 20 + 10
     }
@@ -1927,7 +1927,7 @@ public class SplitterNodeTests
         var handler = builder.DragBindings[0].StartDrag(0, 0);
         
         // Try to move 15 pixels to the left (beyond min)
-        handler.OnMove?.Invoke(-15, 0);
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), -15, 0);
 
         Assert.Equal(10, node.FirstSize); // Clamped to MinFirstSize
     }
@@ -1950,7 +1950,7 @@ public class SplitterNodeTests
         var handler = builder.DragBindings[0].StartDrag(0, 0);
         
         // Try to move far to the right (beyond max)
-        handler.OnMove?.Invoke(50, 0);
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), 50, 0);
 
         Assert.Equal(52, node.FirstSize); // Clamped to max
     }
@@ -1973,7 +1973,7 @@ public class SplitterNodeTests
         var handler = builder.DragBindings[0].StartDrag(0, 0);
         
         // Move 5 pixels down
-        handler.OnMove?.Invoke(0, 5);
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), 0, 5);
 
         Assert.Equal(15, node.FirstSize); // 10 + 5
     }
@@ -1996,8 +1996,8 @@ public class SplitterNodeTests
         var handler = builder.DragBindings[0].StartDrag(0, 0);
         
         // Multiple moves should be relative to start, not cumulative
-        handler.OnMove?.Invoke(5, 0);  // 20 + 5 = 25
-        handler.OnMove?.Invoke(10, 0); // 20 + 10 = 30 (not 25 + 10 = 35)
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), 5, 0);  // 20 + 5 = 25
+        handler.OnMove?.Invoke(new InputBindingActionContext(new FocusRing()), 10, 0); // 20 + 10 = 30 (not 25 + 10 = 35)
 
         Assert.Equal(30, node.FirstSize);
     }

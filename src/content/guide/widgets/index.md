@@ -22,6 +22,7 @@ Widgets that respond to user input.
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
 - **[Table](/guide/widgets/table)** — Data tables with sorting, selection, and virtualization
 - **[Picker](/guide/widgets/picker)** — Dropdown selection menus
+- **[Slider](/guide/widgets/slider)** — Numeric value selection with keyboard and mouse
 - **[ToggleSwitch](/guide/widgets/toggle-switch)** — On/off toggle controls
 - **[Navigator](/guide/widgets/navigator)** — Stack-based page navigation
 
