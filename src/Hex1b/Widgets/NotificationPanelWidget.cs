@@ -36,7 +36,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <summary>
     /// Horizontal offset from the right edge for floating notifications.
     /// </summary>
-    public int OffsetX { get; init; } = 1;
+    public int OffsetX { get; init; } = 2;
 
     /// <summary>
     /// Vertical offset from the top edge for floating notifications.

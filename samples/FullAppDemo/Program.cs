@@ -256,7 +256,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("Ctrl+C: Exit")
             ])
         ])
-    ])).WithOffset(1, 2))  // Close ZStack and NotificationPanel with offset
+    ])).WithOffset(2, 2))  // Close ZStack and NotificationPanel with offset
     .WithMouse()
     .Build();
 
