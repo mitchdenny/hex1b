@@ -378,6 +378,40 @@ public sealed class PopupStack
             focusRestoreNode.IsFocused = true;
         }
     }
+    
+    /// <summary>
+    /// Removes any popup entries whose anchor nodes are stale (have zero bounds).
+    /// This happens when an anchor node is replaced during reconciliation but the popup
+    /// still holds a reference to the old node.
+    /// Call this after layout (Arrange) to clean up stale popups.
+    /// </summary>
+    /// <returns>True if any stale popups were removed.</returns>
+    public bool RemoveStaleAnchoredPopups()
+    {
+        if (_entries.Count == 0) return false;
+        
+        var removed = false;
+        
+        // Iterate backwards to safely remove entries
+        for (int i = _entries.Count - 1; i >= 0; i--)
+        {
+            var entry = _entries[i];
+            
+            // Check if this is an anchored popup with a stale anchor
+            if (entry.ContentNode is AnchoredNode anchoredNode && anchoredNode.IsAnchorStale)
+            {
+                // Remove this stale popup entry
+                _entries.RemoveAt(i);
+                
+                // Invoke dismiss callback to clean up owner state
+                entry.OnDismiss?.Invoke();
+                
+                removed = true;
+            }
+        }
+        
+        return removed;
+    }
 
     /// <summary>
     /// Builds the ZStack widgets for all popups in the stack.

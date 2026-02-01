@@ -154,6 +154,11 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
             // Future: support alignment/positioning within the ZStack
             child.Arrange(bounds);
         }
+        
+        // After layout, clean up any popups with stale anchor references.
+        // This happens when an anchor node is replaced during reconciliation but
+        // the popup still holds a reference to the old node (which has zero bounds).
+        Popups.RemoveStaleAnchoredPopups();
     }
 
     public override void Render(Hex1bRenderContext context)
