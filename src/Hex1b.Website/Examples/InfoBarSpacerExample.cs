@@ -31,7 +31,7 @@ public class InfoBarSpacerExample(ILogger<InfoBarSpacerExample> logger) : Hex1bE
             return ctx.VStack(v => [
                 v.Border(b => [
                     b.Text("Content with a flexible status bar")
-                ], title: "Spacer Demo"),
+                ], title: "Spacer Demo").FillHeight(),
                 v.InfoBar(s => [
                     s.Section("Mode: INSERT"),
                     s.Spacer(),

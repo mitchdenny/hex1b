@@ -33,7 +33,7 @@ public class InfoBarBasicExample(ILogger<InfoBarBasicExample> logger) : Hex1bExa
                     b.Text("Main content area"),
                     b.Text(""),
                     b.Text("The status bar sits at the bottom of the window")
-                ], title: "Application"),
+                ], title: "Application").FillHeight(),
                 v.InfoBar(s => [
                     s.Section("NORMAL"),
                     s.Section("main.cs"),

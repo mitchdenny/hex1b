@@ -18,7 +18,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             b.Text("Main content area"),
             b.Text(""),
             b.Text("The status bar sits at the bottom of the window")
-        ], title: "Application"),
+        ], title: "Application").FillHeight(),
         v.InfoBar(s => [
             s.Section("NORMAL"),
             s.Section("main.cs"),
@@ -35,7 +35,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Border(b => [
             b.Text("Content with a flexible status bar")
-        ], title: "Spacer Demo"),
+        ], title: "Spacer Demo").FillHeight(),
         v.InfoBar(s => [
             s.Section("Mode: INSERT"),
             s.Spacer(),
@@ -55,7 +55,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Border(b => [
             b.Text("Background operation in progress...")
-        ], title: "Activity Indicator"),
+        ], title: "Activity Indicator").FillHeight(),
         v.InfoBar(s => [
             s.Section(x => x.HStack(h => [
                 h.Spinner(SpinnerStyle.Dots),
