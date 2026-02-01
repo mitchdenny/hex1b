@@ -142,6 +142,38 @@ public class UnicodeBorderAlignmentTests
         "א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט", "י"
     ];
     
+    // Known problematic characters - regression tests for specific bugs
+    // These are characters that have been observed to cause alignment issues
+    private static readonly string[] KnownProblematicChars = [
+        // Characters from test failures
+        "✅",    // U+2705 - White Heavy Check Mark (Dingbats)
+        "❌",    // U+274C - Cross Mark (Dingbats)
+        "⭐",    // U+2B50 - White Medium Star (Misc Symbols and Arrows)
+        "⚡",    // U+26A1 - High Voltage (Misc Symbols)
+        "🖥️",   // U+1F5A5 + U+FE0F - Desktop Computer with VS16
+        
+        // Colored circles/shapes (commonly used in UIs)
+        "🔴",    // U+1F534 - Red Circle
+        "🟠",    // U+1F7E0 - Orange Circle
+        "🟡",    // U+1F7E1 - Yellow Circle
+        "🟢",    // U+1F7E2 - Green Circle
+        "🔵",    // U+1F535 - Blue Circle
+        "⚫",    // U+26AB - Black Circle (Misc Symbols)
+        "⚪",    // U+26AA - White Circle (Misc Symbols)
+        
+        // Common status indicators
+        "⚠️",   // U+26A0 + U+FE0F - Warning with VS16
+        "ℹ️",   // U+2139 + U+FE0F - Info with VS16
+        "❓",    // U+2753 - Question Mark Ornament
+        "❗",    // U+2757 - Exclamation Mark
+        
+        // Arrows that may have issues
+        "➡️",   // U+27A1 + U+FE0F - Right Arrow with VS16
+        "⬆️",   // U+2B06 + U+FE0F - Up Arrow with VS16
+        "⬇️",   // U+2B07 + U+FE0F - Down Arrow with VS16
+        "⬅️",   // U+2B05 + U+FE0F - Left Arrow with VS16
+    ];
+    
     #endregion
     
     #region Border Alignment Test Helpers
@@ -394,6 +426,14 @@ public class UnicodeBorderAlignmentTests
     public async Task BorderAlignment_AsciiCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(AsciiChars, "ASCII", TestContext.Current.CancellationToken);
+    }
+    
+    [Fact]
+    public async Task BorderAlignment_KnownProblematicChars_AlignCorrectly()
+    {
+        // This is the most important test - these are characters that have been
+        // observed to cause real-world alignment issues in the FullAppDemo
+        await AssertBorderAlignmentBatchAsync(KnownProblematicChars, "Known Problematic", TestContext.Current.CancellationToken);
     }
     
     [Fact]

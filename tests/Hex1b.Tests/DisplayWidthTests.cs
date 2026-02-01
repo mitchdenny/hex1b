@@ -167,6 +167,48 @@ public class DisplayWidthTests
 
     #endregion
 
+    #region Known Problematic Characters
+    
+    /// <summary>
+    /// These characters have been observed to cause alignment issues in FullAppDemo.
+    /// Each should return width 2 (emoji presentation).
+    /// </summary>
+    [Theory]
+    [InlineData("✅", 2)] // U+2705 White Heavy Check Mark
+    [InlineData("❌", 2)] // U+274C Cross Mark
+    [InlineData("⭐", 2)] // U+2B50 White Medium Star
+    [InlineData("⚡", 2)] // U+26A1 High Voltage
+    [InlineData("🔴", 2)] // U+1F534 Red Circle
+    [InlineData("🟠", 2)] // U+1F7E0 Orange Circle
+    [InlineData("🟡", 2)] // U+1F7E1 Yellow Circle
+    [InlineData("🟢", 2)] // U+1F7E2 Green Circle
+    [InlineData("🔵", 2)] // U+1F535 Blue Circle
+    [InlineData("⚫", 2)] // U+26AB Black Circle
+    [InlineData("⚪", 2)] // U+26AA White Circle
+    [InlineData("⚠️", 2)] // U+26A0+FE0F Warning with VS16
+    [InlineData("ℹ️", 2)] // U+2139+FE0F Info with VS16
+    [InlineData("❓", 2)] // U+2753 Question Mark Ornament
+    [InlineData("❗", 2)] // U+2757 Exclamation Mark
+    public void GetGraphemeWidth_ProblematicEmoji_ReturnsTwo(string grapheme, int expectedWidth)
+    {
+        var actualWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+        Assert.Equal(expectedWidth, actualWidth);
+    }
+    
+    [Theory]
+    [InlineData("🖥️", 2)] // U+1F5A5+FE0F Desktop Computer with VS16
+    [InlineData("➡️", 2)] // U+27A1+FE0F Right Arrow with VS16
+    [InlineData("⬆️", 2)] // U+2B06+FE0F Up Arrow with VS16
+    [InlineData("⬇️", 2)] // U+2B07+FE0F Down Arrow with VS16
+    [InlineData("⬅️", 2)] // U+2B05+FE0F Left Arrow with VS16
+    public void GetGraphemeWidth_VariationSelectorEmoji_ReturnsTwo(string grapheme, int expectedWidth)
+    {
+        var actualWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+        Assert.Equal(expectedWidth, actualWidth);
+    }
+
+    #endregion
+
     #region Slice By Display Width
 
     [Fact]
