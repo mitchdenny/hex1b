@@ -123,13 +123,43 @@ public sealed record NotificationPanelWidget : Hex1bWidget
             node.CardNodes.RemoveAt(node.CardNodes.Count - 1);
         }
 
-        // Reconcile each visible notification card using ReconcileChildAsync to set parent chain
+        // Reconcile each visible floating notification card
         for (int i = 0; i < visibleCount; i++)
         {
             var notification = floating[i];
             var cardWidget = new NotificationCardWidget(notification, node.Notifications);
             var existingCard = node.CardNodes[i];
             node.CardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
+        }
+
+        // Reconcile drawer cards for all notifications (when drawer is expanded)
+        if (node.IsDrawerExpanded)
+        {
+            var all = node.Notifications.All;
+            
+            // Ensure drawer card node list matches count
+            while (node.DrawerCardNodes.Count < all.Count)
+            {
+                node.DrawerCardNodes.Add(null!);
+            }
+            while (node.DrawerCardNodes.Count > all.Count)
+            {
+                node.DrawerCardNodes.RemoveAt(node.DrawerCardNodes.Count - 1);
+            }
+
+            // Reconcile each drawer notification card
+            for (int i = 0; i < all.Count; i++)
+            {
+                var notification = all[i];
+                var cardWidget = new NotificationCardWidget(notification, node.Notifications);
+                var existingCard = node.DrawerCardNodes[i];
+                node.DrawerCardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
+            }
+        }
+        else
+        {
+            // Clear drawer cards when not expanded
+            node.DrawerCardNodes.Clear();
         }
 
         return node;

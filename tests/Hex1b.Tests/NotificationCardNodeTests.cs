@@ -223,4 +223,57 @@ public class NotificationCardNodeTests
             Assert.DoesNotContain("popup host", caughtException.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    [Fact]
+    public async Task NotificationPanel_AltN_TogglesDrawer()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        var notificationPosted = false;
+
+        using var app = new Hex1bApp(
+            ctx =>
+            {
+                return ctx.NotificationPanel(
+                    ctx.VStack(v => [
+                        v.Button("Post").OnClick(e =>
+                        {
+                            notificationPosted = true;
+                            e.Context.Notifications.Post(
+                                new Notification("Test Notification", "This is a test")
+                                    .WithTimeout(TimeSpan.FromSeconds(30)));
+                        })
+                    ])
+                );
+            },
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "post button")
+            // Post a notification
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Test Notification"), TimeSpan.FromSeconds(2), "notification")
+            // Press Alt+N to open drawer
+            .Alt().Key(Hex1bKey.N)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("drawer_open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(notificationPosted, "Notification should have been posted");
+        // Drawer should show "Notifications (1)" header
+        Assert.True(snapshot.ContainsText("Notifications (1)"), "Drawer should show notification count");
+    }
 }
