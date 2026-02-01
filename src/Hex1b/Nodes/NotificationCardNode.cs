@@ -61,15 +61,25 @@ public sealed class NotificationCardNode : Hex1bNode
         }
     }
 
+    private bool _isHovered;
+    public override bool IsHovered
+    {
+        get => _isHovered;
+        set
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
+
     public override bool IsFocusable => true;
 
     // Card dimensions
     private const int CardWidth = 40;
     private const int MinCardHeight = 2;
-
-    /// <summary>
-    /// Lower one-eighth block character for progress bar (thinner appearance).
-    /// </summary>
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -84,6 +94,47 @@ public sealed class NotificationCardNode : Hex1bNode
         {
             bindings.Key(Hex1bKey.Enter).Action(TriggerPrimaryAction, "Activate");
         }
+
+        // Mouse click handling
+        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Click");
+    }
+
+    private async Task HandleMouseClick(InputBindingActionContext ctx)
+    {
+        if (ctx.MouseX < 0 || ctx.MouseY < 0) return;
+
+        var relativeX = ctx.MouseX - Bounds.X;
+        var relativeY = ctx.MouseY - Bounds.Y;
+
+        // Check if click is on the dismiss button [×] (top-right)
+        var dismissBtnWidth = 3; // "[×]"
+        var dismissBtnX = Bounds.Width - dismissBtnWidth;
+        if (relativeY == 0 && relativeX >= dismissBtnX)
+        {
+            await DismissNotification(ctx);
+            return;
+        }
+
+        // Check if click is on the action row
+        var actionRowY = CalculateActionRowY();
+        if (actionRowY >= 0 && relativeY == actionRowY && PrimaryAction != null)
+        {
+            await TriggerPrimaryAction(ctx);
+            return;
+        }
+    }
+
+    private int CalculateActionRowY()
+    {
+        if (PrimaryAction == null && SecondaryActions.Count == 0) return -1;
+
+        var rowY = 1; // After title
+        if (!string.IsNullOrEmpty(Body))
+        {
+            var bodyLines = WrapText(Body, CardWidth - 2);
+            rowY += bodyLines.Count;
+        }
+        return rowY;
     }
 
     private async Task DismissNotification(InputBindingActionContext ctx)
@@ -158,6 +209,12 @@ public sealed class NotificationCardNode : Hex1bNode
         var width = Bounds.Width;
         var height = Bounds.Height;
 
+        // Get mouse position relative to this card for hover highlighting
+        var mouseX = context.MouseX;
+        var mouseY = context.MouseY;
+        var relativeMouseX = mouseX - x;
+        var relativeMouseY = mouseY - y;
+
         var currentY = y;
 
         // Draw title row with dismiss button
@@ -168,8 +225,15 @@ public sealed class NotificationCardNode : Hex1bNode
             : Title;
         var titlePadding = width - 1 - displayTitle.Length - dismissBtn.Length;
 
+        // Check if mouse is hovering over dismiss button
+        var dismissBtnX = width - dismissBtn.Length;
+        var isDismissHovered = IsHovered && relativeMouseY == 0 && relativeMouseX >= dismissBtnX;
+        var dismissFgCode = isDismissHovered 
+            ? titleColor.ToForegroundAnsi() // Brighten on hover
+            : dismissFgAnsi;
+
         context.SetCursorPosition(x, currentY);
-        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissFgAnsi}{dismissBtn}{resetCodes}");
+        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissFgCode}{dismissBtn}{resetCodes}");
         currentY++;
 
         // Draw body if present
@@ -188,13 +252,22 @@ public sealed class NotificationCardNode : Hex1bNode
         }
 
         // Draw action row if there are actions
+        var actionRowY = currentY - y;
         if (PrimaryAction != null || SecondaryActions.Count > 0)
         {
             if (currentY < y + height - (Notification?.Timeout != null ? 1 : 0))
             {
+                var isActionHovered = IsHovered && relativeMouseY == actionRowY;
                 var actionText = BuildActionText(width - 2);
+                
+                // Highlight the action button when hovered
+                var actionBg = isActionHovered 
+                    ? theme.Get(NotificationCardTheme.FocusedBackgroundColor)
+                    : bg;
+                var actionBgAnsi = actionBg.ToBackgroundAnsi();
+                
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{actionFgAnsi}{bgAnsi} {actionText} {resetCodes}");
+                context.Write($"{actionFgAnsi}{actionBgAnsi} {actionText} {resetCodes}");
                 currentY++;
             }
         }
