@@ -384,7 +384,6 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
         return ctx.Table(taskList)
             .RowKey(t => t.title)
             .Header(h => [
-                h.Cell("Status").Width(SizeHint.Fixed(8)),
                 h.Cell("Task").Width(SizeHint.Fill),
                 h.Cell("Priority").Width(SizeHint.Fixed(12))
             ])
@@ -396,7 +395,6 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
                     _ => "🟢"
                 };
                 return [
-                    r.Cell($"  {task.status}"),
                     r.Cell(task.title),
                     r.Cell($"{priorityIcon} {task.priority}")
                 ];
