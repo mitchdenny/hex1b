@@ -70,8 +70,16 @@ public sealed class ButtonNode : Hex1bNode
         // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
         var width = Label.Length + 4;
         var height = 1;
-        return constraints.Constrain(new Size(width, height));
+        _measuredSize = constraints.Constrain(new Size(width, height));
+        return _measuredSize;
     }
+    
+    private Size _measuredSize;
+    
+    /// <summary>
+    /// Hit test bounds are limited to the actual button content, not the full arranged bounds.
+    /// </summary>
+    public override Rect HitTestBounds => new Rect(Bounds.X, Bounds.Y, _measuredSize.Width, _measuredSize.Height);
 
     public override void Render(Hex1bRenderContext context)
     {

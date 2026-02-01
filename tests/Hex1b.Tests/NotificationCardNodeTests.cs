@@ -555,4 +555,72 @@ public class NotificationCardNodeTests
         // by checking that the drawer renders correctly without the progress bar row
         // (which would cause layout issues if not handled properly)
     }
+
+    [Fact]
+    public async Task NotificationDrawer_ClickOnCardButton_DismissesNotification()
+    {
+        // Verifies that clicking on the dismiss button inside a drawer card works
+        // (regression test: backdrop must not intercept clicks meant for cards)
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .WithMouse()
+            .Build();
+        
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Button("Menu"),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        outer.Button("Post").OnClick(e =>
+                        {
+                            e.Context.Notifications.Post(
+                                new Notification("Dismiss Test", "Click the X to dismiss")
+                                    .WithTimeout(TimeSpan.FromSeconds(60)));
+                        })
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "ready")
+            // Post a notification
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Dismiss Test"), TimeSpan.FromSeconds(2), "notification posted")
+            // Open the drawer
+            .Alt().Key(Hex1bKey.N)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(2), "drawer opened")
+            .Capture("before_dismiss")
+            // Click on the dismiss button [ × ] 
+            // Drawer starts at col 38, card at 39, card width 40, button 5 chars
+            // Button X = 39 + 40 - 5 = 74, so button spans cols 74-78
+            .ClickAt(76, 3)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after_dismiss")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+        
+        var hitTestDebug = app.LastHitTestDebug ?? "no debug info";
+
+        // Notification should be dismissed - header should show 0 or drawer should close
+        Assert.False(snapshot.ContainsText("Dismiss Test"),
+            $"Notification should have been dismissed.\nHitTest: {hitTestDebug}\nScreen:\n{snapshot.GetText()}");
+    }
 }
