@@ -104,3 +104,51 @@ public class NotificationCardNodeTests
         Assert.Null(node.ActionButton); // No action button without primary action
     }
 }
+
+    [Fact]
+    public async Task NotificationCard_RendersActionButtonLabel()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx =>
+            {
+                return ctx.NotificationPanel(
+                    ctx.VStack(v => [
+                        v.Button("Post Notification").OnClick(e =>
+                        {
+                            e.Context.Notifications.Post(
+                                new Notification("Test Alert", "Something happened")
+                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .PrimaryAction("View Details", async c => c.Dismiss()));
+                        })
+                    ])
+                );
+            },
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(2), "button")
+            // Press enter to click the button
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .WaitUntil(s => s.ContainsText("Test Alert") && s.ContainsText("View Details"), TimeSpan.FromSeconds(2), "notification with action")
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Verify notification content and action button are visible
+        Assert.True(snapshot.ContainsText("Test Alert"), "Should show notification title");
+        Assert.True(snapshot.ContainsText("View Details"), "Should show action button label");
+    }

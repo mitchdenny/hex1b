@@ -69,7 +69,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
                         lastAction = "Created new task";
                         statusMessage = "Task created";
-                        // Post a notification
+                        // Post a notification with secondary actions
                         e.Context.Notifications.Post(
                             new Notification("📋 Task Created", $"New Task {tasks.Count}")
                                 .WithTimeout(TimeSpan.FromSeconds(30))
@@ -78,19 +78,35 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     currentView = "Tasks";
                                     lastAction = "Viewing tasks";
                                     ctx.Dismiss();
+                                })
+                                .SecondaryAction("Edit", async ctx => {
+                                    lastAction = "Editing new task";
+                                    ctx.Dismiss();
+                                })
+                                .SecondaryAction("Set Priority", async ctx => {
+                                    lastAction = "Setting priority";
+                                    ctx.Dismiss();
                                 }));
                     }),
                     m.Separator(),
                     m.MenuItem("Save").OnActivated(e => {
                         lastAction = "Saved";
                         statusMessage = "All changes saved";
-                        // Post a notification
+                        // Post a notification with secondary actions
                         e.Context.Notifications.Post(
                             new Notification("✓ Saved", "All changes saved successfully")
                                 .WithTimeout(TimeSpan.FromSeconds(30))
                                 .PrimaryAction("Undo", async ctx => {
                                     lastAction = "Undo save";
                                     statusMessage = "Save undone";
+                                    ctx.Dismiss();
+                                })
+                                .SecondaryAction("View Changes", async ctx => {
+                                    lastAction = "Viewing changes";
+                                    ctx.Dismiss();
+                                })
+                                .SecondaryAction("Save Copy", async ctx => {
+                                    lastAction = "Saving copy";
                                     ctx.Dismiss();
                                 }));
                     }),
