@@ -109,33 +109,28 @@ public sealed class NotificationIconNode : Hex1bNode
 
         var theme = context.Theme;
         
-        // Use global theme colors - this allows the icon to inherit from parent
-        // theme panels (like InfoBar which inverts colors)
+        // Get the global foreground/background which includes any theme panel overrides
+        var globalFg = theme.GetGlobalForeground();
+        var globalBg = theme.GetGlobalBackground();
+        
         Hex1bColor fg, bg;
         if (_isFocused || isPanelVisible)
         {
             // Swap colors when focused or panel is open to indicate active state
-            fg = theme.Get(GlobalTheme.BackgroundColor);
-            bg = theme.Get(GlobalTheme.ForegroundColor);
-            
-            // Handle defaults
-            if (fg.IsDefault) fg = Hex1bColor.White;
-            if (bg.IsDefault) bg = Hex1bColor.Black;
+            fg = globalBg.IsDefault ? Hex1bColor.White : globalBg;
+            bg = globalFg.IsDefault ? Hex1bColor.Black : globalFg;
         }
         else if (_isHovered)
         {
             // Slight emphasis on hover - use same as focused
-            fg = theme.Get(GlobalTheme.BackgroundColor);
-            bg = theme.Get(GlobalTheme.ForegroundColor);
-            
-            if (fg.IsDefault) fg = Hex1bColor.White;
-            if (bg.IsDefault) bg = Hex1bColor.Black;
+            fg = globalBg.IsDefault ? Hex1bColor.White : globalBg;
+            bg = globalFg.IsDefault ? Hex1bColor.Black : globalFg;
         }
         else
         {
             // Normal state - use inherited theme colors
-            fg = theme.Get(GlobalTheme.ForegroundColor);
-            bg = theme.Get(GlobalTheme.BackgroundColor);
+            fg = globalFg;
+            bg = globalBg;
         }
 
         var fgAnsi = fg.ToForegroundAnsi();
