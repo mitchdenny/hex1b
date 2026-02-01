@@ -19,6 +19,11 @@ namespace Hex1b.Widgets;
 public sealed record NotificationPanelWidget : Hex1bWidget
 {
     /// <summary>
+    /// Animation interval for progress bar updates (50ms = 20fps).
+    /// </summary>
+    private static readonly TimeSpan AnimationInterval = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
     /// The content to display in the main area (notifications overlay on top of this).
     /// </summary>
     internal Hex1bWidget? Content { get; init; }
@@ -37,6 +42,11 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// Vertical offset from the top edge for floating notifications.
     /// </summary>
     public int OffsetY { get; init; } = 1;
+
+    /// <summary>
+    /// Whether to enable animation for progress bars.
+    /// </summary>
+    public bool EnableAnimation { get; init; } = true;
 
     /// <summary>
     /// Sets the content that notifications will overlay.
@@ -59,6 +69,28 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <param name="y">Vertical offset from top edge.</param>
     public NotificationPanelWidget WithOffset(int x, int y)
         => this with { OffsetX = x, OffsetY = y };
+
+    /// <summary>
+    /// Enables or disables animation for timeout progress bars.
+    /// </summary>
+    /// <param name="enable">True to enable animation (default), false to disable.</param>
+    public NotificationPanelWidget WithAnimation(bool enable = true)
+        => this with { EnableAnimation = enable };
+
+    /// <summary>
+    /// Returns animation interval to keep progress bars updating.
+    /// </summary>
+    internal override TimeSpan? GetEffectiveRedrawDelay()
+    {
+        // If explicitly set via RedrawDelay, use that
+        if (RedrawDelay.HasValue)
+        {
+            return RedrawDelay;
+        }
+
+        // Enable animation for progress bars on notification cards
+        return EnableAnimation ? AnimationInterval : null;
+    }
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
