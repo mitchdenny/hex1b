@@ -109,23 +109,28 @@ public sealed class NotificationIconNode : Hex1bNode
 
         var theme = context.Theme;
         
-        // Use button theme colors for consistency
+        // Use MenuBar theme colors for unified appearance with menu bar
         Hex1bColor fg, bg;
-        if (_isFocused || _isHovered)
+        if (_isFocused)
         {
-            fg = theme.Get(ButtonTheme.FocusedForegroundColor);
-            bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+            fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
+            bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
+        }
+        else if (_isHovered)
+        {
+            fg = theme.Get(MenuBarTheme.HoveredForegroundColor);
+            bg = theme.Get(MenuBarTheme.HoveredBackgroundColor);
         }
         else if (isPanelVisible)
         {
-            // Indicate panel is open with inverted colors
-            fg = theme.Get(ButtonTheme.BackgroundColor);
-            bg = theme.Get(ButtonTheme.ForegroundColor);
+            // Indicate panel is open with focused colors
+            fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
+            bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
         }
         else
         {
-            fg = theme.Get(ButtonTheme.ForegroundColor);
-            bg = theme.Get(ButtonTheme.BackgroundColor);
+            fg = theme.Get(MenuBarTheme.ForegroundColor);
+            bg = theme.Get(MenuBarTheme.BackgroundColor);
         }
 
         var fgAnsi = fg.ToForegroundAnsi();

@@ -61,10 +61,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ctx.ZStack(z => [
             z.VStack(outer => [
                 // ─────────────────────────────────────────────────────────────────
-                // TOP BAR (Menu + Notification Bell)
+                // TOP BAR (Menu + Notification Bell) - uses InfoBar for unified background
                 // ─────────────────────────────────────────────────────────────────
-                outer.HStack(topBar => [
-                    topBar.MenuBar(m => [
+                outer.InfoBar(bar => [
+                    bar.Section(s => s.MenuBar(m => [
                         m.Menu("File", m => [
                     m.MenuItem("New Task").OnActivated(e => {
                         tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
@@ -168,11 +168,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         lastAction = "FullAppDemo v1.0 - Hex1b Demo Application";
                     })
                 ])
-            ]),
+            ])),
                     // Spacer to push notification icon to the right
-                    topBar.Text("").FillWidth(),
+                    bar.Spacer(),
                     // Notification bell icon (finds NotificationPanel in parent chain)
-                    topBar.NotificationIcon(),
+                    bar.Section(s => s.NotificationIcon()),
                 ]),
 
             // ─────────────────────────────────────────────────────────────────
