@@ -68,9 +68,9 @@ public sealed class NotificationCardNode : Hex1bNode
     private const int MinCardHeight = 2;
 
     /// <summary>
-    /// Lower half block character for progress bar.
+    /// Lower one-eighth block character for progress bar (thinner appearance).
     /// </summary>
-    private const char ProgressBlock = '▄';
+    private const char ProgressBlock = '▁'; // U+2581
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -138,16 +138,20 @@ public sealed class NotificationCardNode : Hex1bNode
     {
         var theme = context.Theme;
         
-        // Get colors from theme (defaults are inverted: black on white)
-        var fg = IsFocused 
-            ? theme.Get(NotificationCardTheme.FocusedForegroundColor)
-            : theme.Get(NotificationCardTheme.ForegroundColor);
+        // Get colors from theme
         var bg = IsFocused 
             ? theme.Get(NotificationCardTheme.FocusedBackgroundColor)
             : theme.Get(NotificationCardTheme.BackgroundColor);
+        var titleColor = theme.Get(NotificationCardTheme.TitleColor);
+        var bodyColor = theme.Get(NotificationCardTheme.BodyColor);
+        var actionColor = theme.Get(NotificationCardTheme.ActionColor);
+        var dismissColor = theme.Get(NotificationCardTheme.DismissButtonColor);
 
-        var fgAnsi = fg.ToForegroundAnsi();
         var bgAnsi = bg.ToBackgroundAnsi();
+        var titleFgAnsi = titleColor.ToForegroundAnsi();
+        var bodyFgAnsi = bodyColor.ToForegroundAnsi();
+        var actionFgAnsi = actionColor.ToForegroundAnsi();
+        var dismissFgAnsi = dismissColor.ToForegroundAnsi();
         var resetCodes = theme.GetResetToGlobalCodes();
 
         var x = Bounds.X;
@@ -166,7 +170,7 @@ public sealed class NotificationCardNode : Hex1bNode
         var titlePadding = width - 1 - displayTitle.Length - dismissBtn.Length;
 
         context.SetCursorPosition(x, currentY);
-        context.Write($"{fgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissBtn}{resetCodes}");
+        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissFgAnsi}{dismissBtn}{resetCodes}");
         currentY++;
 
         // Draw body if present
@@ -179,7 +183,7 @@ public sealed class NotificationCardNode : Hex1bNode
 
                 var paddedLine = line.PadRight(width - 2);
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{fgAnsi}{bgAnsi} {paddedLine} {resetCodes}");
+                context.Write($"{bodyFgAnsi}{bgAnsi} {paddedLine} {resetCodes}");
                 currentY++;
             }
         }
@@ -191,7 +195,7 @@ public sealed class NotificationCardNode : Hex1bNode
             {
                 var actionText = BuildActionText(width - 2);
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{fgAnsi}{bgAnsi} {actionText} {resetCodes}");
+                context.Write($"{actionFgAnsi}{bgAnsi} {actionText} {resetCodes}");
                 currentY++;
             }
         }
@@ -201,7 +205,7 @@ public sealed class NotificationCardNode : Hex1bNode
         while (currentY < y + height - progressBarRow)
         {
             context.SetCursorPosition(x, currentY);
-            context.Write($"{fgAnsi}{bgAnsi}{new string(' ', width)}{resetCodes}");
+            context.Write($"{bgAnsi}{new string(' ', width)}{resetCodes}");
             currentY++;
         }
 
@@ -212,12 +216,12 @@ public sealed class NotificationCardNode : Hex1bNode
             var filledWidth = (int)(width * progress);
             var emptyWidth = width - filledWidth;
 
-            // Use half-height block for progress bar
+            // Use thin block for progress bar
             var filledBar = new string(ProgressBlock, filledWidth);
             var emptyBar = new string(' ', emptyWidth);
 
             context.SetCursorPosition(x, currentY);
-            // Progress bar uses theme color for filled portion
+            // Progress bar uses bright theme color for filled portion
             var progressColor = theme.Get(NotificationCardTheme.ProgressBarColor);
             var progressFgAnsi = progressColor.ToForegroundAnsi();
             context.Write($"{progressFgAnsi}{bgAnsi}{filledBar}{emptyBar}{resetCodes}");

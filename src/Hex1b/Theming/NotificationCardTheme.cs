@@ -4,46 +4,50 @@ namespace Hex1b.Theming;
 /// Theme elements for NotificationCard widgets.
 /// </summary>
 /// <remarks>
-/// By default, notification cards use inverted colors (foreground becomes background and vice versa)
-/// to make them stand out from the underlying content.
+/// Default colors use a dark gray background with bright title and muted body text.
 /// </remarks>
 public static class NotificationCardTheme
 {
     /// <summary>
-    /// Foreground color for notification card text.
-    /// Default is Black (inverted from typical white-on-black terminal).
-    /// </summary>
-    public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(ForegroundColor)}", () => Hex1bColor.Black);
-    
-    /// <summary>
     /// Background color for notification cards.
-    /// Default is White (inverted from typical white-on-black terminal).
+    /// Default is dark gray.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.White);
+        new($"{nameof(NotificationCardTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.FromRgb(45, 45, 45));
     
     /// <summary>
-    /// Foreground color when the notification card is focused.
+    /// Foreground color for the notification title (bright).
     /// </summary>
-    public static readonly Hex1bThemeElement<Hex1bColor> FocusedForegroundColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(FocusedForegroundColor)}", () => Hex1bColor.White);
+    public static readonly Hex1bThemeElement<Hex1bColor> TitleColor = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(TitleColor)}", () => Hex1bColor.White);
+    
+    /// <summary>
+    /// Foreground color for the notification body text (muted).
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> BodyColor = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(BodyColor)}", () => Hex1bColor.FromRgb(160, 160, 160));
+    
+    /// <summary>
+    /// Foreground color for action buttons.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> ActionColor = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(ActionColor)}", () => Hex1bColor.White);
     
     /// <summary>
     /// Background color when the notification card is focused.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.Blue);
+        new($"{nameof(NotificationCardTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.FromRgb(60, 60, 80));
     
     /// <summary>
-    /// Color for the progress bar (timeout indicator).
+    /// Color for the progress bar (timeout indicator). Bright color.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> ProgressBarColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(ProgressBarColor)}", () => Hex1bColor.Gray);
+        new($"{nameof(NotificationCardTheme)}.{nameof(ProgressBarColor)}", () => Hex1bColor.White);
     
     /// <summary>
     /// Color for the dismiss button text.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> DismissButtonColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(DismissButtonColor)}", () => Hex1bColor.DarkGray);
+        new($"{nameof(NotificationCardTheme)}.{nameof(DismissButtonColor)}", () => Hex1bColor.FromRgb(120, 120, 120));
 }
