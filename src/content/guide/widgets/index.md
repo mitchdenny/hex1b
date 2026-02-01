@@ -30,6 +30,7 @@ Widgets that respond to user input.
 
 Widgets for presenting information.
 
+- **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting
 - **[Progress](/guide/widgets/progress)** — Progress bars for known completion amounts
 - **[Spinner](/guide/widgets/spinner)** — Animated activity indicators

@@ -61,6 +61,11 @@ builder.Services.AddSingleton<IGalleryExample, HyperlinkBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, HyperlinkOverflowExample>();
 builder.Services.AddSingleton<IGalleryExample, HyperlinkClickExample>();
 
+// Register InfoBar widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, InfoBarBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, InfoBarSpacerExample>();
+builder.Services.AddSingleton<IGalleryExample, InfoBarSpinnerExample>();
+
 // Register Progress widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, ProgressBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ProgressIndeterminateExample>();
