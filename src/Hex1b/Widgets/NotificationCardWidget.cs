@@ -29,6 +29,12 @@ public sealed record NotificationCardWidget : Hex1bWidget
     internal NotificationStack Stack { get; init; }
 
     /// <summary>
+    /// Whether to show the timeout progress bar. Default is true.
+    /// Set to false for drawer cards where the countdown isn't relevant.
+    /// </summary>
+    public bool ShowProgressBar { get; init; } = true;
+
+    /// <summary>
     /// Creates a notification card for the specified notification.
     /// </summary>
     /// <param name="notification">The notification to display.</param>
@@ -55,6 +61,7 @@ public sealed record NotificationCardWidget : Hex1bWidget
         node.Stack = Stack;
         node.PrimaryAction = Notification.PrimaryActionValue;
         node.SecondaryActions = Notification.SecondaryActions;
+        node.ShowProgressBar = ShowProgressBar;
 
         // Reconcile dismiss button
         var dismissWidget = new ButtonWidget("×")

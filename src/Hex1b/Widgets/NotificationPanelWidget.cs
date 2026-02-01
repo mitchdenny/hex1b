@@ -189,11 +189,11 @@ public sealed record NotificationPanelWidget : Hex1bWidget
                 node.DrawerCardNodes.RemoveAt(node.DrawerCardNodes.Count - 1);
             }
 
-            // Reconcile each drawer notification card
+            // Reconcile each drawer notification card (no progress bar in drawer)
             for (int i = 0; i < all.Count; i++)
             {
                 var notification = all[i];
-                var cardWidget = new NotificationCardWidget(notification, node.Notifications);
+                var cardWidget = new NotificationCardWidget(notification, node.Notifications) { ShowProgressBar = false };
                 var existingCard = node.DrawerCardNodes[i];
                 node.DrawerCardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
             }

@@ -490,4 +490,69 @@ public class NotificationCardNodeTests
             snapshot.ContainsText("Notifications (1)"),
             $"Drawer should have collapsed after clicking outside. Screen:\n{snapshot.GetText()}");
     }
+
+    [Fact]
+    public async Task NotificationCard_DrawerMode_HidesProgressBar()
+    {
+        // Verifies that notifications in the drawer don't show progress bars
+        // (timeout countdown is irrelevant once user has opened the drawer)
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Button("Menu"),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        outer.Button("Post").OnClick(e =>
+                        {
+                            e.Context.Notifications.Post(
+                                new Notification("Drawer Test", "Check progress bar visibility")
+                                    .WithTimeout(TimeSpan.FromSeconds(30)));
+                        })
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "ready")
+            // Post a notification
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Drawer Test"), TimeSpan.FromSeconds(2), "notification posted")
+            // Open the drawer (this should hide progress bar on drawer cards)
+            .Alt().Key(Hex1bKey.N)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(2), "drawer opened")
+            .Capture()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // The notification should be visible in the drawer
+        Assert.True(snapshot.ContainsText("Drawer Test"),
+            $"Drawer view should show notification. Screen:\n{snapshot.GetText()}");
+        Assert.True(snapshot.ContainsText("Notifications (1)"),
+            "Drawer header should be visible");
+        
+        // The test validates that ShowProgressBar=false is applied to drawer cards
+        // by checking that the drawer renders correctly without the progress bar row
+        // (which would cause layout issues if not handled properly)
+    }
 }

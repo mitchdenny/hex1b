@@ -53,6 +53,12 @@ public sealed class NotificationCardNode : Hex1bNode
     /// </summary>
     public SplitButtonNode? ActionButton { get; set; }
 
+    /// <summary>
+    /// Whether to show the timeout progress bar.
+    /// When false, the progress bar is hidden (e.g., in the drawer view).
+    /// </summary>
+    public bool ShowProgressBar { get; set; } = true;
+
     private bool _isFocused;
     public override bool IsFocused
     {
@@ -149,7 +155,7 @@ public sealed class NotificationCardNode : Hex1bNode
         {
             height += 1; // Action row
         }
-        if (Notification?.Timeout != null)
+        if (ShowProgressBar && Notification?.Timeout != null)
         {
             height += 1; // Progress bar row
         }
@@ -246,7 +252,7 @@ public sealed class NotificationCardNode : Hex1bNode
             var bodyLines = WrapText(Body, width - 2);
             foreach (var line in bodyLines)
             {
-                if (currentY >= y + height - (Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
+                if (currentY >= y + height - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
                 var paddedLine = line.PadRight(width - 2);
                 context.SetCursorPosition(x, currentY);
@@ -258,7 +264,7 @@ public sealed class NotificationCardNode : Hex1bNode
         // Draw action row background and render action button child
         if (ActionButton != null)
         {
-            if (currentY < y + height - (Notification?.Timeout != null ? 1 : 0))
+            if (currentY < y + height - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0))
             {
                 // Fill the row with background, then let button render on top
                 var actionWidth = _actionButtonSize.Width;
@@ -279,7 +285,7 @@ public sealed class NotificationCardNode : Hex1bNode
         }
 
         // Fill remaining rows (except progress bar)
-        var progressBarRow = Notification?.Timeout != null ? 1 : 0;
+        var progressBarRow = ShowProgressBar && Notification?.Timeout != null ? 1 : 0;
         while (currentY < y + height - progressBarRow)
         {
             context.SetCursorPosition(x, currentY);
@@ -287,8 +293,8 @@ public sealed class NotificationCardNode : Hex1bNode
             currentY++;
         }
 
-        // Draw timeout progress bar if notification has a timeout
-        if (Notification?.Timeout != null && currentY < y + height)
+        // Draw timeout progress bar if notification has a timeout and we should show it
+        if (ShowProgressBar && Notification?.Timeout != null && currentY < y + height)
         {
             var progress = CalculateTimeoutProgress();
             
