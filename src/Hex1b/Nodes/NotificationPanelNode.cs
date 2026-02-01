@@ -106,6 +106,16 @@ public sealed class NotificationPanelNode : Hex1bNode
     public BackdropNode? DrawerBackdrop { get; set; }
 
     /// <summary>
+    /// Scroll node for the drawer content when there are many notifications.
+    /// </summary>
+    public ScrollNode? DrawerScroll { get; set; }
+
+    /// <summary>
+    /// VStack node to hold drawer cards inside the scroll.
+    /// </summary>
+    public VStackNode? DrawerVStack { get; set; }
+
+    /// <summary>
     /// Whether the notification drawer is expanded. Syncs with NotificationStack.IsPanelVisible.
     /// </summary>
     public bool IsDrawerExpanded
@@ -222,21 +232,29 @@ public sealed class NotificationPanelNode : Hex1bNode
 
     private void ArrangeDrawerCards(Rect drawerBounds)
     {
-        var y = drawerBounds.Y + 2; // Leave room for header
-
-        for (int i = 0; i < DrawerCardNodes.Count; i++)
+        // Arrange the scroll/vstack to fill the drawer content area (below header)
+        var contentY = drawerBounds.Y + 2; // Leave room for header
+        var contentHeight = drawerBounds.Height - 2;
+        var contentBounds = new Rect(drawerBounds.X + 1, contentY, drawerBounds.Width - 2, contentHeight);
+        
+        if (DrawerScroll != null)
         {
-            var card = DrawerCardNodes[i];
-
-            // Measure and arrange the card
-            var constraints = new Constraints(0, drawerBounds.Width - 2, 0, drawerBounds.Height / 3);
-            var size = card.Measure(constraints);
-            card.Arrange(new Rect(drawerBounds.X + 1, y, size.Width, size.Height));
-
-            y += size.Height + CardSpacing;
-
-            // Stop if we run out of space
-            if (y >= drawerBounds.Y + drawerBounds.Height - 1) break;
+            DrawerScroll.Measure(new Constraints(contentBounds.Width, contentBounds.Width, 0, contentHeight));
+            DrawerScroll.Arrange(contentBounds);
+        }
+        else
+        {
+            // Fallback: arrange cards manually if scroll not set up
+            var y = contentY;
+            for (int i = 0; i < DrawerCardNodes.Count; i++)
+            {
+                var card = DrawerCardNodes[i];
+                var constraints = new Constraints(0, drawerBounds.Width - 2, 0, drawerBounds.Height / 3);
+                var size = card.Measure(constraints);
+                card.Arrange(new Rect(drawerBounds.X + 1, y, size.Width, size.Height));
+                y += size.Height + CardSpacing;
+                if (y >= drawerBounds.Y + drawerBounds.Height - 1) break;
+            }
         }
     }
 
@@ -254,12 +272,22 @@ public sealed class NotificationPanelNode : Hex1bNode
                 }
             }
             
-            // Drawer cards yielded after backdrop so they're checked first in hit testing
-            foreach (var card in DrawerCardNodes)
+            // Drawer scroll/cards yielded after backdrop so they're checked first in hit testing
+            if (DrawerScroll != null)
             {
-                foreach (var focusable in card.GetFocusableNodes())
+                foreach (var focusable in DrawerScroll.GetFocusableNodes())
                 {
                     yield return focusable;
+                }
+            }
+            else
+            {
+                foreach (var card in DrawerCardNodes)
+                {
+                    foreach (var focusable in card.GetFocusableNodes())
+                    {
+                        yield return focusable;
+                    }
                 }
             }
         }
@@ -341,7 +369,7 @@ public sealed class NotificationPanelNode : Hex1bNode
     private void RenderDrawer(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var bg = theme.Get(NotificationCardTheme.BackgroundColor);
+        var bg = theme.Get(GlobalTheme.BackgroundColor);
         var titleColor = theme.Get(NotificationCardTheme.TitleColor);
         var bgAnsi = bg.ToBackgroundAnsi();
         var fgAnsi = titleColor.ToForegroundAnsi();
@@ -368,17 +396,25 @@ public sealed class NotificationPanelNode : Hex1bNode
             }
             else
             {
-                // Empty row (cards render on top)
+                // Empty row (scroll content renders on top)
                 context.Write($"{bgAnsi}│{new string(' ', DrawerWidth - 1)}{reset}");
             }
         }
 
-        // Render drawer cards
-        foreach (var card in DrawerCardNodes)
+        // Render scroll node which contains the VStack of cards
+        if (DrawerScroll != null)
         {
-            if (card.Bounds.Y < Bounds.Y + Bounds.Height)
+            context.RenderChild(DrawerScroll);
+        }
+        else
+        {
+            // Fallback: render cards directly
+            foreach (var card in DrawerCardNodes)
             {
-                card.Render(context);
+                if (card.Bounds.Y < Bounds.Y + Bounds.Height)
+                {
+                    card.Render(context);
+                }
             }
         }
 
@@ -406,9 +442,17 @@ public sealed class NotificationPanelNode : Hex1bNode
                 yield return DrawerBackdrop;
             }
             
-            foreach (var card in DrawerCardNodes)
+            // Include scroll node which contains the cards
+            if (DrawerScroll != null)
             {
-                yield return card;
+                yield return DrawerScroll;
+            }
+            else
+            {
+                foreach (var card in DrawerCardNodes)
+                {
+                    yield return card;
+                }
             }
         }
         else

@@ -1,3 +1,4 @@
+using Hex1b.Layout;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -197,11 +198,29 @@ public sealed record NotificationPanelWidget : Hex1bWidget
                 var existingCard = node.DrawerCardNodes[i];
                 node.DrawerCardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
             }
+            
+            // Create VStack to hold all drawer cards
+            node.DrawerVStack ??= new VStackNode();
+            node.DrawerVStack.Children.Clear();
+            foreach (var card in node.DrawerCardNodes)
+            {
+                node.DrawerVStack.Children.Add(card);
+                card.Parent = node.DrawerVStack;
+            }
+            
+            // Create Scroll to wrap the VStack for overflow handling
+            node.DrawerScroll ??= new ScrollNode();
+            node.DrawerScroll.Child = node.DrawerVStack;
+            node.DrawerScroll.Orientation = ScrollOrientation.Vertical;
+            node.DrawerScroll.Parent = node;
+            node.DrawerVStack.Parent = node.DrawerScroll;
         }
         else
         {
-            // Clear backdrop and drawer cards when not expanded
+            // Clear backdrop, scroll, vstack, and drawer cards when not expanded
             node.DrawerBackdrop = null;
+            node.DrawerScroll = null;
+            node.DrawerVStack = null;
             node.DrawerCardNodes.Clear();
         }
 

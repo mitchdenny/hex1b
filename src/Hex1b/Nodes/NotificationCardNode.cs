@@ -216,13 +216,19 @@ public sealed class NotificationCardNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        var theme = context.Theme;
+        var originalTheme = context.Theme;
         
         // Get colors from theme
-        var cardBg = theme.Get(NotificationCardTheme.BackgroundColor);
-        var globalBg = theme.Get(GlobalTheme.BackgroundColor);
-        var titleColor = theme.Get(NotificationCardTheme.TitleColor);
-        var bodyColor = theme.Get(NotificationCardTheme.BodyColor);
+        var cardBg = originalTheme.Get(NotificationCardTheme.BackgroundColor);
+        var globalBg = originalTheme.Get(GlobalTheme.BackgroundColor);
+        var titleColor = originalTheme.Get(NotificationCardTheme.TitleColor);
+        var bodyColor = originalTheme.Get(NotificationCardTheme.BodyColor);
+
+        // Create a scoped theme for children that sets button background to card background
+        // This ensures buttons rendered inside the card use the card's background color
+        var childTheme = originalTheme.Clone();
+        childTheme.Set(ButtonTheme.BackgroundColor, cardBg);
+        context.Theme = childTheme;
 
         // Half-block border: card bg as foreground, global bg as background
         // This creates the illusion of a soft-edged card floating over the content
@@ -231,7 +237,7 @@ public sealed class NotificationCardNode : Hex1bNode
         var cardBgAnsi = cardBg.ToBackgroundAnsi();
         var titleFgAnsi = titleColor.ToForegroundAnsi();
         var bodyFgAnsi = bodyColor.ToForegroundAnsi();
-        var resetCodes = theme.GetResetToGlobalCodes();
+        var resetCodes = childTheme.GetResetToGlobalCodes();
 
         var x = Bounds.X;
         var y = Bounds.Y;
@@ -269,12 +275,23 @@ public sealed class NotificationCardNode : Hex1bNode
         var titlePadding = titleMaxWidth - displayTitle.Length;
 
         context.SetCursorPosition(x, currentY);
-        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}{resetCodes}");
+        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}");
         
-        // Render dismiss button child
+        // Fill gap between title and dismiss button (if any)
         if (DismissButton != null)
         {
+            var titleEndX = x + 1 + titleMaxWidth;
+            var gapWidth = _dismissButtonX - titleEndX;
+            if (gapWidth > 0)
+            {
+                context.Write($"{new string(' ', gapWidth)}");
+            }
+            context.Write($"{resetCodes}");
             context.RenderChild(DismissButton);
+        }
+        else
+        {
+            context.Write($"{resetCodes}");
         }
         
         // Right border for title row
@@ -304,19 +321,21 @@ public sealed class NotificationCardNode : Hex1bNode
             {
                 // Left border + padding
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} {resetCodes}");
+                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} ");
                 
                 context.RenderChild(ActionButton);
                 
-                // Fill rest of row + right border
+                // Fill rest of row up to right border
                 var actionWidth = _actionButtonSize.Width;
-                var actionPadding = contentWidth - 2 - actionWidth;
+                var actionEndX = x + 2 + actionWidth;
+                var rightBorderX = x + width - 1;
+                var actionPadding = rightBorderX - actionEndX;
                 if (actionPadding > 0)
                 {
-                    context.SetCursorPosition(x + 2 + actionWidth, currentY);
+                    context.SetCursorPosition(actionEndX, currentY);
                     context.Write($"{cardBgAnsi}{new string(' ', actionPadding)}{resetCodes}");
                 }
-                context.SetCursorPosition(x + width - 1, currentY);
+                context.SetCursorPosition(rightBorderX, currentY);
                 context.Write($"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
@@ -337,8 +356,8 @@ public sealed class NotificationCardNode : Hex1bNode
             var progress = CalculateTimeoutProgress();
             
             // Get braille characters from theme
-            var filledChar = theme.Get(NotificationCardTheme.ProgressFilledCharacter);
-            var rightEdgeChar = theme.Get(NotificationCardTheme.ProgressLeftHalfCharacter);
+            var filledChar = childTheme.Get(NotificationCardTheme.ProgressFilledCharacter);
+            var rightEdgeChar = childTheme.Get(NotificationCardTheme.ProgressLeftHalfCharacter);
             
             // Half-cell precision for progress bar (inside borders)
             var halfCellUnits = progress * contentWidth * 2;
@@ -351,7 +370,7 @@ public sealed class NotificationCardNode : Hex1bNode
             var emptyBar = new string(' ', emptyWidth);
 
             context.SetCursorPosition(x, currentY);
-            var progressColor = theme.Get(NotificationCardTheme.ProgressBarColor);
+            var progressColor = childTheme.Get(NotificationCardTheme.ProgressBarColor);
             var progressFgAnsi = progressColor.ToForegroundAnsi();
             context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{progressFgAnsi}{cardBgAnsi}{filledBar}{halfPart}{emptyBar}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
             currentY++;
@@ -360,6 +379,9 @@ public sealed class NotificationCardNode : Hex1bNode
         // ═══ BOTTOM BORDER ROW (with corner quadrants) ═══
         context.SetCursorPosition(x, currentY);
         context.Write($"{cardBgFgAnsi}{globalBgAnsi}{bottomLeftCorner}{new string(bottomBorder, contentWidth)}{bottomRightCorner}{resetCodes}");
+        
+        // Restore original theme
+        context.Theme = originalTheme;
     }
 
     private double CalculateTimeoutProgress()
