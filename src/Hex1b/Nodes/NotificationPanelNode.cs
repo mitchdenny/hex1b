@@ -244,20 +244,20 @@ public sealed class NotificationPanelNode : Hex1bNode
     {
         if (IsDrawerExpanded)
         {
-            // Drawer cards get focus when drawer is open
-            foreach (var card in DrawerCardNodes)
+            // Include backdrop first so it's checked AFTER cards in reverse hit testing
+            // (HitTest iterates in reverse, so items yielded first are checked last)
+            if (DrawerBackdrop != null)
             {
-                foreach (var focusable in card.GetFocusableNodes())
+                foreach (var focusable in DrawerBackdrop.GetFocusableNodes())
                 {
                     yield return focusable;
                 }
             }
             
-            // Include backdrop last so it catches clicks outside drawer cards
-            // (HitTest iterates in reverse, so backdrop is checked after cards)
-            if (DrawerBackdrop != null)
+            // Drawer cards yielded after backdrop so they're checked first in hit testing
+            foreach (var card in DrawerCardNodes)
             {
-                foreach (var focusable in DrawerBackdrop.GetFocusableNodes())
+                foreach (var focusable in card.GetFocusableNodes())
                 {
                     yield return focusable;
                 }
