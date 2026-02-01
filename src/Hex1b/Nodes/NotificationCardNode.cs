@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -8,7 +9,7 @@ namespace Hex1b.Nodes;
 /// <summary>
 /// Render node for <see cref="NotificationCardWidget"/>.
 /// Displays a notification with title, optional body, action buttons, and timeout progress bar.
-/// Uses inverted colors (swapped foreground/background) for visual distinction.
+/// Composes child ButtonNode for dismiss and SplitButtonNode for actions.
 /// </summary>
 public sealed class NotificationCardNode : Hex1bNode
 {
@@ -43,9 +44,14 @@ public sealed class NotificationCardNode : Hex1bNode
     public IReadOnlyList<NotificationAction> SecondaryActions { get; set; } = [];
 
     /// <summary>
-    /// Child nodes for the card content.
+    /// The dismiss button child node.
     /// </summary>
-    public List<Hex1bNode> ChildNodes { get; set; } = [];
+    public ButtonNode? DismissButton { get; set; }
+
+    /// <summary>
+    /// The action button child node.
+    /// </summary>
+    public SplitButtonNode? ActionButton { get; set; }
 
     private bool _isFocused;
     public override bool IsFocused
@@ -75,66 +81,39 @@ public sealed class NotificationCardNode : Hex1bNode
         }
     }
 
-    public override bool IsFocusable => true;
+    public override bool IsFocusable => false; // Children are focusable, not the card itself
+    public override bool ManagesChildFocus => true;
 
     // Card dimensions
     private const int CardWidth = 40;
     private const int MinCardHeight = 2;
 
+    // Cached positions for child layout
+    private int _dismissButtonX;
+    private int _actionButtonY;
+
+    /// <summary>
+    /// Returns focusable children (dismiss button and action button).
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (DismissButton != null) yield return DismissButton;
+        if (ActionButton != null) yield return ActionButton;
+    }
+
+    /// <summary>
+    /// Returns all children for rendering.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (DismissButton != null) yield return DismissButton;
+        if (ActionButton != null) yield return ActionButton;
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Escape dismisses the notification
+        // Escape dismisses the notification (global shortcut)
         bindings.Key(Hex1bKey.Escape).Action(DismissNotification, "Dismiss");
-        
-        // X key also dismisses
-        bindings.Key(Hex1bKey.X).Action(DismissNotification, "Dismiss");
-
-        // Enter triggers primary action if available
-        if (PrimaryAction != null)
-        {
-            bindings.Key(Hex1bKey.Enter).Action(TriggerPrimaryAction, "Activate");
-        }
-
-        // Mouse click handling
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Click");
-    }
-
-    private async Task HandleMouseClick(InputBindingActionContext ctx)
-    {
-        if (ctx.MouseX < 0 || ctx.MouseY < 0) return;
-
-        var relativeX = ctx.MouseX - Bounds.X;
-        var relativeY = ctx.MouseY - Bounds.Y;
-
-        // Check if click is on the dismiss button [×] (top-right)
-        var dismissBtnWidth = 3; // "[×]"
-        var dismissBtnX = Bounds.Width - dismissBtnWidth;
-        if (relativeY == 0 && relativeX >= dismissBtnX)
-        {
-            await DismissNotification(ctx);
-            return;
-        }
-
-        // Check if click is on the action row
-        var actionRowY = CalculateActionRowY();
-        if (actionRowY >= 0 && relativeY == actionRowY && PrimaryAction != null)
-        {
-            await TriggerPrimaryAction(ctx);
-            return;
-        }
-    }
-
-    private int CalculateActionRowY()
-    {
-        if (PrimaryAction == null && SecondaryActions.Count == 0) return -1;
-
-        var rowY = 1; // After title
-        if (!string.IsNullOrEmpty(Body))
-        {
-            var bodyLines = WrapText(Body, CardWidth - 2);
-            rowY += bodyLines.Count;
-        }
-        return rowY;
     }
 
     private async Task DismissNotification(InputBindingActionContext ctx)
@@ -152,36 +131,74 @@ public sealed class NotificationCardNode : Hex1bNode
         }
     }
 
-    private async Task TriggerPrimaryAction(InputBindingActionContext ctx)
-    {
-        if (PrimaryAction != null && Notification != null && Stack != null)
-        {
-            var actionCtx = new NotificationActionContext(Notification, Stack, ctx.CancellationToken, ctx);
-            await PrimaryAction.Handler(actionCtx);
-        }
-    }
+    // Cached sizes from measuring children
+    private Size _dismissButtonSize;
+    private Size _actionButtonSize;
 
     public override Size Measure(Constraints constraints)
     {
         // Calculate height based on content
-        var height = 1; // Title row
+        var height = 1; // Title row (includes dismiss button)
         if (!string.IsNullOrEmpty(Body))
         {
             // Wrap body text to card width
             var bodyLines = WrapText(Body, CardWidth - 2); // -2 for padding
             height += bodyLines.Count;
         }
-        if (PrimaryAction != null || SecondaryActions.Count > 0)
+        if (ActionButton != null)
         {
             height += 1; // Action row
         }
         if (Notification?.Timeout != null)
         {
-            height += 1; // Progress bar row (half-height, but still needs a row)
+            height += 1; // Progress bar row
+        }
+
+        // Measure child buttons and cache their sizes
+        if (DismissButton != null)
+        {
+            _dismissButtonSize = DismissButton.Measure(new Constraints(0, 5, 0, 1)); // "[ × ]" style
+        }
+        if (ActionButton != null)
+        {
+            _actionButtonSize = ActionButton.Measure(new Constraints(0, CardWidth - 2, 0, 1));
         }
 
         var size = new Size(CardWidth, Math.Max(MinCardHeight, height));
         return constraints.Constrain(size);
+    }
+
+    public override void Arrange(Rect bounds)
+    {
+        base.Arrange(bounds);
+
+        var x = bounds.X;
+        var y = bounds.Y;
+        var width = bounds.Width;
+
+        // Position dismiss button at top-right
+        if (DismissButton != null)
+        {
+            var dismissWidth = _dismissButtonSize.Width;
+            _dismissButtonX = x + width - dismissWidth;
+            DismissButton.Arrange(new Rect(_dismissButtonX, y, dismissWidth, 1));
+        }
+
+        // Calculate action button row position
+        var actionY = y + 1; // After title
+        if (!string.IsNullOrEmpty(Body))
+        {
+            var bodyLines = WrapText(Body, width - 2);
+            actionY += bodyLines.Count;
+        }
+
+        // Position action button
+        if (ActionButton != null)
+        {
+            _actionButtonY = actionY;
+            var actionWidth = _actionButtonSize.Width;
+            ActionButton.Arrange(new Rect(x + 1, actionY, actionWidth, 1));
+        }
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -189,19 +206,13 @@ public sealed class NotificationCardNode : Hex1bNode
         var theme = context.Theme;
         
         // Get colors from theme
-        var bg = IsFocused 
-            ? theme.Get(NotificationCardTheme.FocusedBackgroundColor)
-            : theme.Get(NotificationCardTheme.BackgroundColor);
+        var bg = theme.Get(NotificationCardTheme.BackgroundColor);
         var titleColor = theme.Get(NotificationCardTheme.TitleColor);
         var bodyColor = theme.Get(NotificationCardTheme.BodyColor);
-        var actionColor = theme.Get(NotificationCardTheme.ActionColor);
-        var dismissColor = theme.Get(NotificationCardTheme.DismissButtonColor);
 
         var bgAnsi = bg.ToBackgroundAnsi();
         var titleFgAnsi = titleColor.ToForegroundAnsi();
         var bodyFgAnsi = bodyColor.ToForegroundAnsi();
-        var actionFgAnsi = actionColor.ToForegroundAnsi();
-        var dismissFgAnsi = dismissColor.ToForegroundAnsi();
         var resetCodes = theme.GetResetToGlobalCodes();
 
         var x = Bounds.X;
@@ -209,31 +220,24 @@ public sealed class NotificationCardNode : Hex1bNode
         var width = Bounds.Width;
         var height = Bounds.Height;
 
-        // Get mouse position relative to this card for hover highlighting
-        var mouseX = context.MouseX;
-        var mouseY = context.MouseY;
-        var relativeMouseX = mouseX - x;
-        var relativeMouseY = mouseY - y;
-
         var currentY = y;
 
-        // Draw title row with dismiss button
-        var dismissBtn = "[×]";
-        var titleMaxWidth = width - 2 - dismissBtn.Length; // padding, dismiss
+        // Draw title row background (dismiss button renders itself)
+        var dismissWidth = _dismissButtonSize.Width > 0 ? _dismissButtonSize.Width : 5;
+        var titleMaxWidth = width - 1 - dismissWidth; // padding + space for dismiss
         var displayTitle = Title.Length > titleMaxWidth 
             ? Title[..(titleMaxWidth - 1)] + "…" 
             : Title;
-        var titlePadding = width - 1 - displayTitle.Length - dismissBtn.Length;
-
-        // Check if mouse is hovering over dismiss button
-        var dismissBtnX = width - dismissBtn.Length;
-        var isDismissHovered = IsHovered && relativeMouseY == 0 && relativeMouseX >= dismissBtnX;
-        var dismissFgCode = isDismissHovered 
-            ? titleColor.ToForegroundAnsi() // Brighten on hover
-            : dismissFgAnsi;
+        var titlePadding = titleMaxWidth - displayTitle.Length;
 
         context.SetCursorPosition(x, currentY);
-        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissFgCode}{dismissBtn}{resetCodes}");
+        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{resetCodes}");
+        
+        // Render dismiss button child
+        if (DismissButton != null)
+        {
+            context.RenderChild(DismissButton);
+        }
         currentY++;
 
         // Draw body if present
@@ -242,7 +246,7 @@ public sealed class NotificationCardNode : Hex1bNode
             var bodyLines = WrapText(Body, width - 2);
             foreach (var line in bodyLines)
             {
-                if (currentY >= y + height - (Notification?.Timeout != null ? 1 : 0)) break;
+                if (currentY >= y + height - (Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
                 var paddedLine = line.PadRight(width - 2);
                 context.SetCursorPosition(x, currentY);
@@ -251,23 +255,25 @@ public sealed class NotificationCardNode : Hex1bNode
             }
         }
 
-        // Draw action row if there are actions
-        var actionRowY = currentY - y;
-        if (PrimaryAction != null || SecondaryActions.Count > 0)
+        // Draw action row background and render action button child
+        if (ActionButton != null)
         {
             if (currentY < y + height - (Notification?.Timeout != null ? 1 : 0))
             {
-                var isActionHovered = IsHovered && relativeMouseY == actionRowY;
-                var actionText = BuildActionText(width - 2);
-                
-                // Highlight the action button when hovered
-                var actionBg = isActionHovered 
-                    ? theme.Get(NotificationCardTheme.FocusedBackgroundColor)
-                    : bg;
-                var actionBgAnsi = actionBg.ToBackgroundAnsi();
-                
+                // Fill the row with background, then let button render on top
+                var actionWidth = _actionButtonSize.Width;
+                var actionPadding = width - 2 - actionWidth;
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{actionFgAnsi}{actionBgAnsi} {actionText} {resetCodes}");
+                context.Write($"{bgAnsi} {resetCodes}"); // Left padding
+                
+                context.RenderChild(ActionButton);
+                
+                // Fill rest of row
+                if (actionPadding > 0)
+                {
+                    context.SetCursorPosition(x + 1 + actionWidth, currentY);
+                    context.Write($"{bgAnsi}{new string(' ', actionPadding + 1)}{resetCodes}");
+                }
                 currentY++;
             }
         }
@@ -375,11 +381,4 @@ public sealed class NotificationCardNode : Hex1bNode
 
         return lines;
     }
-
-    public override IEnumerable<Hex1bNode> GetFocusableNodes()
-    {
-        yield return this;
-    }
-
-    public override IEnumerable<Hex1bNode> GetChildren() => ChildNodes;
 }

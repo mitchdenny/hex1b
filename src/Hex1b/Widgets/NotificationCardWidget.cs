@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -7,11 +8,11 @@ namespace Hex1b.Widgets;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The notification card renders as a bordered box with:
+/// The notification card composes child widgets:
 /// <list type="bullet">
-///   <item><description>Title row with optional dismiss button</description></item>
+///   <item><description>Title row with dismiss ButtonNode</description></item>
 ///   <item><description>Body text (if present)</description></item>
-///   <item><description>Action buttons (primary + secondary dropdown)</description></item>
+///   <item><description>Action button (SplitButtonNode with primary + secondary actions)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -38,7 +39,7 @@ public sealed record NotificationCardWidget : Hex1bWidget
         Stack = stack;
     }
 
-    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NotificationCardNode ?? new NotificationCardNode();
 
@@ -55,7 +56,47 @@ public sealed record NotificationCardWidget : Hex1bWidget
         node.PrimaryAction = Notification.PrimaryActionValue;
         node.SecondaryActions = Notification.SecondaryActions;
 
-        return Task.FromResult<Hex1bNode>(node);
+        // Reconcile dismiss button
+        var dismissWidget = new ButtonWidget("×")
+            .OnClick(async e =>
+            {
+                if (Notification.DismissHandler != null)
+                {
+                    var eventCtx = new NotificationEventContext(Notification, Stack, e.Context.CancellationToken);
+                    await Notification.DismissHandler(eventCtx);
+                }
+                Stack.Dismiss(Notification);
+            });
+        node.DismissButton = (ButtonNode)await dismissWidget.ReconcileAsync(node.DismissButton, context);
+
+        // Reconcile action button if there's a primary action
+        if (Notification.PrimaryActionValue != null)
+        {
+            var actionWidget = new SplitButtonWidget(Notification.PrimaryActionValue.Label)
+                .OnPrimaryClick(async e =>
+                {
+                    var actionCtx = new NotificationActionContext(Notification, Stack, e.Context.CancellationToken, e.Context);
+                    await Notification.PrimaryActionValue.Handler(actionCtx);
+                });
+
+            // Add secondary actions
+            foreach (var secondary in Notification.SecondaryActions)
+            {
+                actionWidget = actionWidget.WithSecondaryAction(secondary.Label, async e =>
+                {
+                    var actionCtx = new NotificationActionContext(Notification, Stack, e.Context.CancellationToken, e.Context);
+                    await secondary.Handler(actionCtx);
+                });
+            }
+
+            node.ActionButton = (SplitButtonNode)await actionWidget.ReconcileAsync(node.ActionButton, context);
+        }
+        else
+        {
+            node.ActionButton = null;
+        }
+
+        return node;
     }
 
     internal override Type GetExpectedNodeType() => typeof(NotificationCardNode);
