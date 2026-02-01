@@ -124,10 +124,36 @@ public sealed class NotificationPanelNode : Hex1bNode
     /// </summary>
     private const int CardSpacing = 1;
 
+    /// <summary>
+    /// The bounds of the drawer area when expanded.
+    /// Used for click-outside detection.
+    /// </summary>
+    private Rect _drawerBounds;
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Alt+N toggles the notification drawer
         bindings.Alt().Key(Hex1bKey.N).Action(ToggleDrawer, "Toggle notifications");
+        
+        // Click outside drawer to collapse it
+        bindings.Mouse(Input.MouseButton.Left).Action(HandleMouseClick, "Collapse drawer on outside click");
+    }
+
+    private Task HandleMouseClick(InputBindingActionContext ctx)
+    {
+        // If drawer is expanded and click is outside drawer bounds, collapse it
+        if (IsDrawerExpanded)
+        {
+            var x = ctx.MouseX;
+            var y = ctx.MouseY;
+            
+            if (!_drawerBounds.Contains(x, y))
+            {
+                Notifications.HidePanel();
+                MarkDirty();
+            }
+        }
+        return Task.CompletedTask;
     }
 
     private Task ToggleDrawer(InputBindingActionContext ctx)
@@ -158,7 +184,8 @@ public sealed class NotificationPanelNode : Hex1bNode
             Content?.Arrange(new Rect(bounds.X, bounds.Y, contentWidth, bounds.Height));
 
             // Arrange drawer cards on the right
-            ArrangeDrawerCards(new Rect(bounds.X + contentWidth, bounds.Y, DrawerWidth, bounds.Height));
+            _drawerBounds = new Rect(bounds.X + contentWidth, bounds.Y, DrawerWidth, bounds.Height);
+            ArrangeDrawerCards(_drawerBounds);
         }
         else
         {
@@ -169,10 +196,14 @@ public sealed class NotificationPanelNode : Hex1bNode
             {
                 // Arrange drawer cards on the right (floating on top)
                 var drawerX = bounds.X + bounds.Width - DrawerWidth;
-                ArrangeDrawerCards(new Rect(drawerX, bounds.Y, DrawerWidth, bounds.Height));
+                _drawerBounds = new Rect(drawerX, bounds.Y, DrawerWidth, bounds.Height);
+                ArrangeDrawerCards(_drawerBounds);
             }
             else
             {
+                // Clear drawer bounds when not expanded
+                _drawerBounds = Rect.Zero;
+                
                 // Arrange floating notification cards in top-right corner
                 ArrangeFloatingCards(bounds);
             }
