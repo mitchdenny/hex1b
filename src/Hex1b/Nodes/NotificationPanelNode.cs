@@ -53,6 +53,11 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
     public int OffsetY { get; set; } = 1;
 
     /// <summary>
+    /// Whether the drawer floats on top of content or docks beside it.
+    /// </summary>
+    public bool DrawerFloats { get; set; } = true;
+
+    /// <summary>
     /// Notification card nodes for floating view. Managed by NotificationPanelWidget reconciliation.
     /// </summary>
     public List<NotificationCardNode> CardNodes { get; } = new();
@@ -113,9 +118,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
     {
         base.Arrange(bounds);
 
-        if (IsDrawerExpanded)
+        if (IsDrawerExpanded && !DrawerFloats)
         {
-            // Content gets reduced width when drawer is open
+            // Drawer docks beside content - content gets reduced width
             var contentWidth = Math.Max(0, bounds.Width - DrawerWidth);
             Content?.Arrange(new Rect(bounds.X, bounds.Y, contentWidth, bounds.Height));
 
@@ -124,10 +129,20 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
         }
         else
         {
+            // Content gets full width - drawer/cards float on top
             Content?.Arrange(bounds);
 
-            // Arrange floating notification cards in top-right corner
-            ArrangeFloatingCards(bounds);
+            if (IsDrawerExpanded)
+            {
+                // Arrange drawer cards on the right (floating on top)
+                var drawerX = bounds.X + bounds.Width - DrawerWidth;
+                ArrangeDrawerCards(new Rect(drawerX, bounds.Y, DrawerWidth, bounds.Height));
+            }
+            else
+            {
+                // Arrange floating notification cards in top-right corner
+                ArrangeFloatingCards(bounds);
+            }
         }
     }
 

@@ -56,145 +56,144 @@ var statusMessage = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
-    // Wrap in NotificationPanel to enable notifications throughout the app
-    ctx.NotificationPanel(
-        ctx.ZStack(z => [
-            z.VStack(outer => [
-                // ─────────────────────────────────────────────────────────────────
-                // TOP BAR (Menu + Notification Bell) - uses InfoBar for unified background
-                // ─────────────────────────────────────────────────────────────────
-                outer.InfoBar(bar => [
-                    bar.Section(s => s.MenuBar(m => [
-                        m.Menu("File", m => [
-                    m.MenuItem("New Task").OnActivated(e => {
-                        tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
-                        lastAction = "Created new task";
-                        statusMessage = "Task created";
-                        // Post a notification with secondary actions
-                        e.Context.Notifications.Post(
-                            new Notification("📋 Task Created", $"New Task {tasks.Count}")
-                                .WithTimeout(TimeSpan.FromSeconds(30))
-                                .PrimaryAction("View", async ctx => {
-                                    selectedNavIndex = 1; // Switch to Tasks view
-                                    currentView = "Tasks";
-                                    lastAction = "Viewing tasks";
-                                    ctx.Dismiss();
-                                })
-                                .SecondaryAction("Edit", async ctx => {
-                                    lastAction = "Editing new task";
-                                    ctx.Dismiss();
-                                })
-                                .SecondaryAction("Set Priority", async ctx => {
-                                    lastAction = "Setting priority";
-                                    ctx.Dismiss();
-                                }));
-                    }),
-                    m.Separator(),
-                    m.MenuItem("Save").OnActivated(e => {
-                        lastAction = "Saved";
-                        statusMessage = "All changes saved";
-                        // Post a notification with secondary actions
-                        e.Context.Notifications.Post(
-                            new Notification("✓ Saved", "All changes saved successfully")
-                                .WithTimeout(TimeSpan.FromSeconds(30))
-                                .PrimaryAction("Undo", async ctx => {
-                                    lastAction = "Undo save";
-                                    statusMessage = "Save undone";
-                                    ctx.Dismiss();
-                                })
-                                .SecondaryAction("View Changes", async ctx => {
-                                    lastAction = "Viewing changes";
-                                    ctx.Dismiss();
-                                })
-                                .SecondaryAction("Save Copy", async ctx => {
-                                    lastAction = "Saving copy";
-                                    ctx.Dismiss();
-                                }));
-                    }),
-                    m.MenuItem("Save As...").OnActivated(e => {
-                        lastAction = "Save As dialog";
-                    }),
-                    m.Separator(),
-                    m.MenuItem("Export...").OnActivated(e => {
-                        lastAction = "Export dialog";
-                    }),
-                    m.Separator(),
-                    m.MenuItem("Quit").OnActivated(e => e.Context.RequestStop())
-                ]),
-                m.Menu("Edit", m => [
-                    m.MenuItem("Undo").Disabled(),
-                    m.MenuItem("Redo").Disabled(),
-                    m.Separator(),
-                    m.MenuItem("Cut"),
-                    m.MenuItem("Copy"),
-                    m.MenuItem("Paste"),
-                    m.Separator(),
-                    m.MenuItem("Select All")
-                ]),
-                m.Menu("View", m => [
-                    m.MenuItem("Toggle Sidebar").OnActivated(e => {
-                        isNavExpanded = !isNavExpanded;
-                        lastAction = isNavExpanded ? "Sidebar shown" : "Sidebar hidden";
-                    }),
-                    m.MenuItem("Toggle Details").OnActivated(e => {
-                        isDetailsExpanded = !isDetailsExpanded;
-                        lastAction = isDetailsExpanded ? "Details shown" : "Details hidden";
-                    }),
-                    m.Separator(),
-                    m.Menu("Go To", m => [
-                        ..navItems.Select((nav, i) => 
-                            m.MenuItem(nav.Item2).OnActivated(e => {
-                                selectedNavIndex = i;
-                                currentView = nav.Item2;
-                                lastAction = $"Navigated to {nav.Item2}";
-                            })
-                        )
+    ctx.ZStack(z => [
+        z.VStack(outer => [
+            // ─────────────────────────────────────────────────────────────────
+            // TOP BAR (Menu + Notification Bell) - uses InfoBar for unified background
+            // ─────────────────────────────────────────────────────────────────
+            outer.InfoBar(bar => [
+                bar.Section(s => s.MenuBar(m => [
+                    m.Menu("File", m => [
+                        m.MenuItem("New Task").OnActivated(e => {
+                            tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
+                            lastAction = "Created new task";
+                            statusMessage = "Task created";
+                            // Post a notification with secondary actions
+                            e.Context.Notifications.Post(
+                                new Notification("📋 Task Created", $"New Task {tasks.Count}")
+                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .PrimaryAction("View", async ctx => {
+                                        selectedNavIndex = 1; // Switch to Tasks view
+                                        currentView = "Tasks";
+                                        lastAction = "Viewing tasks";
+                                        ctx.Dismiss();
+                                    })
+                                    .SecondaryAction("Edit", async ctx => {
+                                        lastAction = "Editing new task";
+                                        ctx.Dismiss();
+                                    })
+                                    .SecondaryAction("Set Priority", async ctx => {
+                                        lastAction = "Setting priority";
+                                        ctx.Dismiss();
+                                    }));
+                        }),
+                        m.Separator(),
+                        m.MenuItem("Save").OnActivated(e => {
+                            lastAction = "Saved";
+                            statusMessage = "All changes saved";
+                            // Post a notification with secondary actions
+                            e.Context.Notifications.Post(
+                                new Notification("✓ Saved", "All changes saved successfully")
+                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .PrimaryAction("Undo", async ctx => {
+                                        lastAction = "Undo save";
+                                        statusMessage = "Save undone";
+                                        ctx.Dismiss();
+                                    })
+                                    .SecondaryAction("View Changes", async ctx => {
+                                        lastAction = "Viewing changes";
+                                        ctx.Dismiss();
+                                    })
+                                    .SecondaryAction("Save Copy", async ctx => {
+                                        lastAction = "Saving copy";
+                                        ctx.Dismiss();
+                                    }));
+                        }),
+                        m.MenuItem("Save As...").OnActivated(e => {
+                            lastAction = "Save As dialog";
+                        }),
+                        m.Separator(),
+                        m.MenuItem("Export...").OnActivated(e => {
+                            lastAction = "Export dialog";
+                        }),
+                        m.Separator(),
+                        m.MenuItem("Quit").OnActivated(e => e.Context.RequestStop())
                     ]),
-                    m.Separator(),
-                    m.MenuItem("Refresh").OnActivated(e => {
-                        lastAction = "Refreshed";
-                        statusMessage = "Content refreshed";
-                    })
-                ]),
-                m.Menu("Help", m => [
-                    m.MenuItem("Documentation").OnActivated(e => {
-                        lastAction = "Opening documentation...";
-                    }),
-                    m.MenuItem("Keyboard Shortcuts").OnActivated(e => {
-                        lastAction = "Showing shortcuts...";
-                    }),
-                    m.Separator(),
-                    m.MenuItem("About").OnActivated(e => {
-                        lastAction = "FullAppDemo v1.0 - Hex1b Demo Application";
-                    })
-                ])
-            ])),
-                    // Spacer to push notification icon to the right
-                    bar.Spacer(),
-                    // Notification bell icon (finds NotificationPanel in parent chain)
-                    bar.Section(s => s.NotificationIcon()),
-                ]),
+                    m.Menu("Edit", m => [
+                        m.MenuItem("Undo").Disabled(),
+                        m.MenuItem("Redo").Disabled(),
+                        m.Separator(),
+                        m.MenuItem("Cut"),
+                        m.MenuItem("Copy"),
+                        m.MenuItem("Paste"),
+                        m.Separator(),
+                        m.MenuItem("Select All")
+                    ]),
+                    m.Menu("View", m => [
+                        m.MenuItem("Toggle Sidebar").OnActivated(e => {
+                            isNavExpanded = !isNavExpanded;
+                            lastAction = isNavExpanded ? "Sidebar shown" : "Sidebar hidden";
+                        }),
+                        m.MenuItem("Toggle Details").OnActivated(e => {
+                            isDetailsExpanded = !isDetailsExpanded;
+                            lastAction = isDetailsExpanded ? "Details shown" : "Details hidden";
+                        }),
+                        m.Separator(),
+                        m.Menu("Go To", m => [
+                            ..navItems.Select((nav, i) => 
+                                m.MenuItem(nav.Item2).OnActivated(e => {
+                                    selectedNavIndex = i;
+                                    currentView = nav.Item2;
+                                    lastAction = $"Navigated to {nav.Item2}";
+                                })
+                            )
+                        ]),
+                        m.Separator(),
+                        m.MenuItem("Refresh").OnActivated(e => {
+                            lastAction = "Refreshed";
+                            statusMessage = "Content refreshed";
+                        })
+                    ]),
+                    m.Menu("Help", m => [
+                        m.MenuItem("Documentation").OnActivated(e => {
+                            lastAction = "Opening documentation...";
+                        }),
+                        m.MenuItem("Keyboard Shortcuts").OnActivated(e => {
+                            lastAction = "Showing shortcuts...";
+                        }),
+                        m.Separator(),
+                        m.MenuItem("About").OnActivated(e => {
+                            lastAction = "FullAppDemo v1.0 - Hex1b Demo Application";
+                        })
+                    ])
+                ])),
+                // Spacer to push notification icon to the right
+                bar.Spacer(),
+                // Notification bell icon (finds NotificationPanel in parent chain)
+                bar.Section(s => s.NotificationIcon()),
+            ]),
 
             // ─────────────────────────────────────────────────────────────────
-            // MAIN CONTENT AREA (with sidebars)
+            // MAIN CONTENT AREA (with sidebars) - wrapped in NotificationPanel
             // ─────────────────────────────────────────────────────────────────
-            outer.HStack(content => [
-                // LEFT SIDEBAR - Navigation Drawer
-                content.Drawer()
-                    .Expanded(isNavExpanded)
-                    .CollapsedContent(c => [
-                        c.VStack(collapsed => [
-                            collapsed.Button("»").OnClick(_ => {
-                                isNavExpanded = true;
-                                lastAction = "Sidebar expanded";
-                            }),
-                            ..navItems.Select((nav, i) =>
-                                collapsed.Button(nav.Item1)
-                                    .OnClick(_ => {
-                                        selectedNavIndex = i;
-                                        currentView = nav.Item2;
-                                        lastAction = $"Navigated to {nav.Item2}";
-                                    })
+            outer.NotificationPanel(
+                outer.HStack(content => [
+                    // LEFT SIDEBAR - Navigation Drawer
+                    content.Drawer()
+                        .Expanded(isNavExpanded)
+                        .CollapsedContent(c => [
+                            c.VStack(collapsed => [
+                                collapsed.Button("»").OnClick(_ => {
+                                    isNavExpanded = true;
+                                    lastAction = "Sidebar expanded";
+                                }),
+                                ..navItems.Select((nav, i) =>
+                                    collapsed.Button(nav.Item1)
+                                        .OnClick(_ => {
+                                            selectedNavIndex = i;
+                                            currentView = nav.Item2;
+                                            lastAction = $"Navigated to {nav.Item2}";
+                                        })
                             )
                         ])
                     ])
@@ -267,7 +266,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             ..BuildDetailsContent(details, currentView, tasks, selectedTaskIndex)
                         ])
                     ])
-            ]).Fill(),
+                ]) // Close HStack
+            ).WithOffset(2, 2).Fill(), // Close NotificationPanel
 
             // ─────────────────────────────────────────────────────────────────
             // INFO BAR (Status Bar)
@@ -283,8 +283,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Separator(" │ "),
                 s.Section("Ctrl+C: Exit")
             ])
-        ])
-    ])).WithOffset(2, 2))  // Close ZStack and NotificationPanel with offset
+        ]) // Close VStack
+    ])) // Close ZStack
     .WithMouse()
     .Build();
 

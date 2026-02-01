@@ -54,6 +54,12 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     public bool EnableAnimation { get; init; } = true;
 
     /// <summary>
+    /// Whether the drawer floats on top of content (true) or docks beside it (false).
+    /// Default is true (floating).
+    /// </summary>
+    public bool DrawerFloats { get; init; } = true;
+
+    /// <summary>
     /// Sets the content that notifications will overlay.
     /// </summary>
     /// <param name="content">The main content widget.</param>
@@ -67,6 +73,13 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <param name="stack">The notification stack to use.</param>
     public NotificationPanelWidget WithStack(NotificationStack stack)
         => this with { ExternalStack = stack };
+
+    /// <summary>
+    /// Sets whether the drawer floats on top of content or docks beside it.
+    /// </summary>
+    /// <param name="floats">True for floating overlay (default), false for docked beside content.</param>
+    public NotificationPanelWidget WithDrawerFloats(bool floats = true)
+        => this with { DrawerFloats = floats };
 
     /// <summary>
     /// Sets the maximum number of floating notifications.
@@ -115,6 +128,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
         node.MaxFloating = MaxFloating;
         node.OffsetX = OffsetX;
         node.OffsetY = OffsetY;
+        node.DrawerFloats = DrawerFloats;
 
         // Reconcile content
         if (Content != null)
