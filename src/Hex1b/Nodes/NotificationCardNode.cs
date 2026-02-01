@@ -143,22 +143,25 @@ public sealed class NotificationCardNode : Hex1bNode
 
     public override Size Measure(Constraints constraints)
     {
-        // Calculate height based on content
-        var height = 1; // Title row (includes dismiss button)
+        // Calculate content height
+        var contentHeight = 1; // Title row (includes dismiss button)
         if (!string.IsNullOrEmpty(Body))
         {
-            // Wrap body text to card width
-            var bodyLines = WrapText(Body, CardWidth - 2); // -2 for padding
-            height += bodyLines.Count;
+            // Wrap body text to card width (minus border + padding)
+            var bodyLines = WrapText(Body, CardWidth - 4); // -2 for half-block borders, -2 for padding
+            contentHeight += bodyLines.Count;
         }
         if (ActionButton != null)
         {
-            height += 1; // Action row
+            contentHeight += 1; // Action row
         }
         if (ShowProgressBar && Notification?.Timeout != null)
         {
-            height += 1; // Progress bar row
+            contentHeight += 1; // Progress bar row
         }
+
+        // Add 2 rows for top and bottom half-block borders
+        var height = contentHeight + 2;
 
         // Measure child buttons and cache their sizes
         if (DismissButton != null)
@@ -167,10 +170,10 @@ public sealed class NotificationCardNode : Hex1bNode
         }
         if (ActionButton != null)
         {
-            _actionButtonSize = ActionButton.Measure(new Constraints(0, CardWidth - 2, 0, 1));
+            _actionButtonSize = ActionButton.Measure(new Constraints(0, CardWidth - 4, 0, 1));
         }
 
-        var size = new Size(CardWidth, Math.Max(MinCardHeight, height));
+        var size = new Size(CardWidth, Math.Max(MinCardHeight + 2, height));
         return constraints.Constrain(size);
     }
 
@@ -182,19 +185,23 @@ public sealed class NotificationCardNode : Hex1bNode
         var y = bounds.Y;
         var width = bounds.Width;
 
-        // Position dismiss button at top-right
+        // Content starts after top border row
+        var contentY = y + 1;
+        var contentWidth = width - 2; // Subtract left and right half-block borders
+
+        // Position dismiss button at top-right (inside content area)
         if (DismissButton != null)
         {
             var dismissWidth = _dismissButtonSize.Width;
-            _dismissButtonX = x + width - dismissWidth;
-            DismissButton.Arrange(new Rect(_dismissButtonX, y, dismissWidth, 1));
+            _dismissButtonX = x + width - 1 - dismissWidth; // -1 for right border
+            DismissButton.Arrange(new Rect(_dismissButtonX, contentY, dismissWidth, 1));
         }
 
         // Calculate action button row position
-        var actionY = y + 1; // After title
+        var actionY = contentY + 1; // After title
         if (!string.IsNullOrEmpty(Body))
         {
-            var bodyLines = WrapText(Body, width - 2);
+            var bodyLines = WrapText(Body, contentWidth - 2); // -2 for padding
             actionY += bodyLines.Count;
         }
 
@@ -203,7 +210,7 @@ public sealed class NotificationCardNode : Hex1bNode
         {
             _actionButtonY = actionY;
             var actionWidth = _actionButtonSize.Width;
-            ActionButton.Arrange(new Rect(x + 1, actionY, actionWidth, 1));
+            ActionButton.Arrange(new Rect(x + 2, actionY, actionWidth, 1)); // +2 for left border + padding
         }
     }
 
@@ -212,11 +219,16 @@ public sealed class NotificationCardNode : Hex1bNode
         var theme = context.Theme;
         
         // Get colors from theme
-        var bg = theme.Get(NotificationCardTheme.BackgroundColor);
+        var cardBg = theme.Get(NotificationCardTheme.BackgroundColor);
+        var globalBg = theme.Get(GlobalTheme.BackgroundColor);
         var titleColor = theme.Get(NotificationCardTheme.TitleColor);
         var bodyColor = theme.Get(NotificationCardTheme.BodyColor);
 
-        var bgAnsi = bg.ToBackgroundAnsi();
+        // Half-block border: card bg as foreground, global bg as background
+        // This creates the illusion of a soft-edged card floating over the content
+        var cardBgFgAnsi = cardBg.ToForegroundAnsi();  // For half-block characters
+        var globalBgAnsi = globalBg.ToBackgroundAnsi(); // Background behind half-blocks
+        var cardBgAnsi = cardBg.ToBackgroundAnsi();
         var titleFgAnsi = titleColor.ToForegroundAnsi();
         var bodyFgAnsi = bodyColor.ToForegroundAnsi();
         var resetCodes = theme.GetResetToGlobalCodes();
@@ -226,99 +238,128 @@ public sealed class NotificationCardNode : Hex1bNode
         var width = Bounds.Width;
         var height = Bounds.Height;
 
+        // Half-block characters for soft border effect
+        // Top border uses ▄ (lower half filled) - connects to content below
+        // Bottom border uses ▀ (upper half filled) - connects to content above
+        const char topBorder = '▄';    // Lower half is fg color
+        const char bottomBorder = '▀'; // Upper half is fg color  
+        const char leftEdge = '▐';     // Right half is fg color (on left edge of card)
+        const char rightEdge = '▌';    // Left half is fg color (on right edge of card)
+        
+        // Corner quadrant blocks for rounded effect
+        const char topLeftCorner = '▗';     // Lower-right quadrant (top-left of card)
+        const char topRightCorner = '▖';    // Lower-left quadrant (top-right of card)
+        const char bottomLeftCorner = '▝';  // Upper-right quadrant (bottom-left of card)
+        const char bottomRightCorner = '▘'; // Upper-left quadrant (bottom-right of card)
+
+        var contentWidth = width - 2; // Minus left and right borders
         var currentY = y;
 
-        // Draw title row background (dismiss button renders itself)
+        // ═══ TOP BORDER ROW (with corner quadrants) ═══
+        context.SetCursorPosition(x, currentY);
+        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{topLeftCorner}{new string(topBorder, contentWidth)}{topRightCorner}{resetCodes}");
+        currentY++;
+
+        // ═══ TITLE ROW ═══
         var dismissWidth = _dismissButtonSize.Width > 0 ? _dismissButtonSize.Width : 5;
-        var titleMaxWidth = width - 1 - dismissWidth; // padding + space for dismiss
+        var titleMaxWidth = contentWidth - 1 - dismissWidth; // padding + space for dismiss
         var displayTitle = Title.Length > titleMaxWidth 
             ? Title[..(titleMaxWidth - 1)] + "…" 
             : Title;
         var titlePadding = titleMaxWidth - displayTitle.Length;
 
         context.SetCursorPosition(x, currentY);
-        context.Write($"{titleFgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{resetCodes}");
+        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}{resetCodes}");
         
         // Render dismiss button child
         if (DismissButton != null)
         {
             context.RenderChild(DismissButton);
         }
+        
+        // Right border for title row
+        context.SetCursorPosition(x + width - 1, currentY);
+        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
         currentY++;
 
-        // Draw body if present
+        // ═══ BODY ROWS ═══
         if (!string.IsNullOrEmpty(Body))
         {
-            var bodyLines = WrapText(Body, width - 2);
+            var bodyLines = WrapText(Body, contentWidth - 2); // -2 for internal padding
             foreach (var line in bodyLines)
             {
-                if (currentY >= y + height - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
+                if (currentY >= y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
-                var paddedLine = line.PadRight(width - 2);
+                var paddedLine = line.PadRight(contentWidth - 2);
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{bodyFgAnsi}{bgAnsi} {paddedLine} {resetCodes}");
+                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{bodyFgAnsi}{cardBgAnsi} {paddedLine} {cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
         }
 
-        // Draw action row background and render action button child
+        // ═══ ACTION ROW ═══
         if (ActionButton != null)
         {
-            if (currentY < y + height - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0))
+            if (currentY < y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0))
             {
-                // Fill the row with background, then let button render on top
-                var actionWidth = _actionButtonSize.Width;
-                var actionPadding = width - 2 - actionWidth;
+                // Left border + padding
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{bgAnsi} {resetCodes}"); // Left padding
+                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} {resetCodes}");
                 
                 context.RenderChild(ActionButton);
                 
-                // Fill rest of row
+                // Fill rest of row + right border
+                var actionWidth = _actionButtonSize.Width;
+                var actionPadding = contentWidth - 2 - actionWidth;
                 if (actionPadding > 0)
                 {
-                    context.SetCursorPosition(x + 1 + actionWidth, currentY);
-                    context.Write($"{bgAnsi}{new string(' ', actionPadding + 1)}{resetCodes}");
+                    context.SetCursorPosition(x + 2 + actionWidth, currentY);
+                    context.Write($"{cardBgAnsi}{new string(' ', actionPadding)}{resetCodes}");
                 }
+                context.SetCursorPosition(x + width - 1, currentY);
+                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
         }
 
-        // Fill remaining rows (except progress bar)
+        // ═══ FILL REMAINING CONTENT ROWS ═══
         var progressBarRow = ShowProgressBar && Notification?.Timeout != null ? 1 : 0;
-        while (currentY < y + height - progressBarRow)
+        while (currentY < y + height - 1 - progressBarRow)
         {
             context.SetCursorPosition(x, currentY);
-            context.Write($"{bgAnsi}{new string(' ', width)}{resetCodes}");
+            context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi}{new string(' ', contentWidth)}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
             currentY++;
         }
 
-        // Draw timeout progress bar if notification has a timeout and we should show it
-        if (ShowProgressBar && Notification?.Timeout != null && currentY < y + height)
+        // ═══ PROGRESS BAR ROW (inside border) ═══
+        if (ShowProgressBar && Notification?.Timeout != null && currentY < y + height - 1)
         {
             var progress = CalculateTimeoutProgress();
             
             // Get braille characters from theme
             var filledChar = theme.Get(NotificationCardTheme.ProgressFilledCharacter);
-            var leftHalfChar = theme.Get(NotificationCardTheme.ProgressLeftHalfCharacter);
+            var rightEdgeChar = theme.Get(NotificationCardTheme.ProgressLeftHalfCharacter);
             
-            // Half-cell precision: multiply by 2 to get half-cell units
-            var halfCellUnits = progress * width * 2;
+            // Half-cell precision for progress bar (inside borders)
+            var halfCellUnits = progress * contentWidth * 2;
             var filledWidth = (int)(halfCellUnits / 2);
             var hasHalfCell = ((int)halfCellUnits % 2) == 1;
-            var emptyWidth = width - filledWidth - (hasHalfCell ? 1 : 0);
+            var emptyWidth = contentWidth - filledWidth - (hasHalfCell ? 1 : 0);
 
-            // Build progress bar with half-cell precision
-            // For countdown, trailing edge uses left-half character
             var filledBar = new string(filledChar, filledWidth);
-            var halfPart = hasHalfCell ? leftHalfChar.ToString() : "";
+            var halfPart = hasHalfCell ? rightEdgeChar.ToString() : "";
             var emptyBar = new string(' ', emptyWidth);
 
             context.SetCursorPosition(x, currentY);
             var progressColor = theme.Get(NotificationCardTheme.ProgressBarColor);
             var progressFgAnsi = progressColor.ToForegroundAnsi();
-            context.Write($"{progressFgAnsi}{bgAnsi}{filledBar}{halfPart}{emptyBar}{resetCodes}");
+            context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{progressFgAnsi}{cardBgAnsi}{filledBar}{halfPart}{emptyBar}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+            currentY++;
         }
+
+        // ═══ BOTTOM BORDER ROW (with corner quadrants) ═══
+        context.SetCursorPosition(x, currentY);
+        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{bottomLeftCorner}{new string(bottomBorder, contentWidth)}{bottomRightCorner}{resetCodes}");
     }
 
     private double CalculateTimeoutProgress()

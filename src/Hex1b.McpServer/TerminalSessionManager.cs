@@ -4,16 +4,155 @@ namespace Hex1b.McpServer;
 
 /// <summary>
 /// Manages multiple terminal sessions with thread-safe operations.
+/// Supports both local sessions (launched by MCP server) and remote targets (connected via UDS).
 /// </summary>
 public sealed class TerminalSessionManager : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, TerminalSession> _sessions = new();
+    private readonly ConcurrentDictionary<string, ITerminalTarget> _targets = new();
     private bool _disposed;
 
     /// <summary>
     /// Gets the number of active sessions.
     /// </summary>
     public int SessionCount => _sessions.Count;
+
+    /// <summary>
+    /// Gets the number of all targets (local + remote).
+    /// </summary>
+    public int TargetCount => _targets.Count;
+
+    /// <summary>
+    /// Gets a terminal target by ID (either local or remote).
+    /// </summary>
+    /// <param name="id">The target ID.</param>
+    /// <returns>The target if found, null otherwise.</returns>
+    public ITerminalTarget? GetTarget(string id)
+    {
+        _targets.TryGetValue(id, out var target);
+        return target;
+    }
+
+    /// <summary>
+    /// Lists all terminal targets (both local and remote).
+    /// </summary>
+    public IReadOnlyList<ITerminalTarget> ListTargets()
+    {
+        return [.. _targets.Values];
+    }
+
+    /// <summary>
+    /// Connects to a remote Hex1b application by process ID.
+    /// </summary>
+    /// <param name="processId">The process ID of the Hex1b application.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The connected remote target.</returns>
+    public async Task<RemoteTerminalTarget> ConnectRemoteAsync(int processId, CancellationToken ct = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(TerminalSessionManager));
+
+        var target = await RemoteTerminalTarget.ConnectByPidAsync(processId, ct);
+        
+        if (!_targets.TryAdd(target.Id, target))
+        {
+            await target.DisposeAsync();
+            throw new InvalidOperationException($"A target with ID '{target.Id}' already exists.");
+        }
+
+        return target;
+    }
+
+    /// <summary>
+    /// Discovers and connects to all remote Hex1b applications with diagnostics enabled.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>List of newly connected remote targets.</returns>
+    public async Task<IReadOnlyList<RemoteTerminalTarget>> DiscoverAndConnectRemotesAsync(CancellationToken ct = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(TerminalSessionManager));
+
+        var socketDir = GetSocketDirectory();
+        var newTargets = new List<RemoteTerminalTarget>();
+
+        if (!Directory.Exists(socketDir))
+            return newTargets;
+
+        var socketFiles = Directory.GetFiles(socketDir, "*.diagnostics.socket");
+
+        foreach (var socketPath in socketFiles)
+        {
+            var fileName = Path.GetFileName(socketPath);
+            var pidStr = fileName.Replace(".diagnostics.socket", "");
+            
+            if (!int.TryParse(pidStr, out var pid))
+                continue;
+
+            var targetId = $"remote-{pid}";
+            
+            // Skip if already connected
+            if (_targets.ContainsKey(targetId))
+                continue;
+
+            // Check if process is still running
+            if (!IsProcessRunning(pid))
+            {
+                // Clean up stale socket
+                try { File.Delete(socketPath); }
+                catch { /* ignore */ }
+                continue;
+            }
+
+            try
+            {
+                var target = await RemoteTerminalTarget.ConnectAsync(socketPath, ct);
+                if (_targets.TryAdd(target.Id, target))
+                {
+                    newTargets.Add(target);
+                }
+            }
+            catch
+            {
+                // Failed to connect, skip
+            }
+        }
+
+        return newTargets;
+    }
+
+    /// <summary>
+    /// Disconnects a remote target.
+    /// </summary>
+    /// <param name="id">The target ID.</param>
+    /// <returns>True if disconnected, false if not found.</returns>
+    public async Task<bool> DisconnectRemoteAsync(string id)
+    {
+        if (!_targets.TryRemove(id, out var target))
+            return false;
+
+        await target.DisposeAsync();
+        return true;
+    }
+
+    private static string GetSocketDirectory()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(home, ".hex1b", "sockets");
+    }
+
+    private static bool IsProcessRunning(int pid)
+    {
+        try
+        {
+            var process = System.Diagnostics.Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Starts a new terminal session with an auto-generated ID.
@@ -86,6 +225,10 @@ public sealed class TerminalSessionManager : IAsyncDisposable
             throw new InvalidOperationException($"A session with ID '{id}' already exists.");
         }
 
+        // Also register as a target
+        var target = new LocalTerminalTarget(session);
+        _targets.TryAdd(id, target);
+
         return session;
     }
 
@@ -156,6 +299,9 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     /// <returns>True if the session was found and removed, false if not found.</returns>
     public async Task<bool> RemoveSessionAsync(string id)
     {
+        // Also remove from targets
+        _targets.TryRemove(id, out _);
+
         if (!_sessions.TryRemove(id, out var session))
             return false;
 
@@ -171,6 +317,9 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     /// <returns>True if the session was found and stopped, false if not found.</returns>
     public async Task<bool> StopAndRemoveSessionAsync(string id, int signal = 15)
     {
+        // Also remove from targets
+        _targets.TryRemove(id, out _);
+
         if (!_sessions.TryRemove(id, out var session))
             return false;
 
@@ -186,6 +335,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
     {
         var sessions = _sessions.Values.ToList();
         _sessions.Clear();
+        _targets.Clear();
 
         foreach (var session in sessions)
         {

@@ -291,6 +291,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]) // Close VStack
     ])) // Close ZStack
     .WithMouse()
+    .WithMcpDiagnostics()
     .Build();
 
 await terminal.RunAsync();

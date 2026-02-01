@@ -829,6 +829,40 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Enables MCP diagnostics for this terminal, allowing external MCP tools to capture
+    /// terminal state and inject input.
+    /// </summary>
+    /// <param name="appName">Optional application name for identification. Defaults to the entry assembly name.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Creates a Unix domain socket at ~/.hex1b/sockets/[pid].diagnostics.socket that MCP tools
+    /// can connect to for:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>Querying terminal info (dimensions, app name)</item>
+    ///   <item>Capturing terminal state as ANSI or SVG</item>
+    ///   <item>Injecting input characters</item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithMcpDiagnostics()
+    ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello!"))
+    ///     .Build();
+    /// 
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithMcpDiagnostics(string? appName = null)
+    {
+        var filter = new Diagnostics.McpDiagnosticsPresentationFilter(appName);
+        _presentationFilters.Add(filter);
+        return this;
+    }
+
+    /// <summary>
     /// Sets the time provider for the terminal. Used for testing.
     /// </summary>
     /// <param name="timeProvider">The time provider to use.</param>
