@@ -56,23 +56,37 @@ var statusMessage = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
-    ctx.ZStack(z => [
-        z.VStack(outer => [
-            // ─────────────────────────────────────────────────────────────────
-            // MENU BAR
-            // ─────────────────────────────────────────────────────────────────
-            outer.MenuBar(m => [
-                m.Menu("File", m => [
+    // Wrap in NotificationPanel to enable notifications throughout the app
+    ctx.NotificationPanel(
+        ctx.ZStack(z => [
+            z.VStack(outer => [
+                // ─────────────────────────────────────────────────────────────────
+                // MENU BAR
+                // ─────────────────────────────────────────────────────────────────
+                outer.MenuBar(m => [
+                    m.Menu("File", m => [
                     m.MenuItem("New Task").OnActivated(e => {
                         tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
                         lastAction = "Created new task";
                         statusMessage = "Task created";
+                        // Post a notification
+                        e.Context.Notifications.Post(
+                            new Notification("📋 Task Created", $"New Task {tasks.Count}")
+                                .WithTimeout(TimeSpan.FromSeconds(3)));
                     }),
                     m.Separator(),
                     m.MenuItem("Save").OnActivated(e => {
                         lastAction = "Saved";
                         statusMessage = "All changes saved";
-                        // TODO: This will trigger a notification in future phases
+                        // Post a notification
+                        e.Context.Notifications.Post(
+                            new Notification("✓ Saved", "All changes saved successfully")
+                                .WithTimeout(TimeSpan.FromSeconds(5))
+                                .PrimaryAction("Undo", async ctx => {
+                                    lastAction = "Undo save";
+                                    statusMessage = "Save undone";
+                                    ctx.Dismiss();
+                                }));
                     }),
                     m.MenuItem("Save As...").OnActivated(e => {
                         lastAction = "Save As dialog";
@@ -242,7 +256,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("Ctrl+C: Exit")
             ])
         ])
-    ]))
+    ])))  // Close ZStack and NotificationPanel
     .WithMouse()
     .Build();
 
