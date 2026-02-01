@@ -109,28 +109,33 @@ public sealed class NotificationIconNode : Hex1bNode
 
         var theme = context.Theme;
         
-        // Use MenuBar theme colors for unified appearance with menu bar
+        // Use global theme colors - this allows the icon to inherit from parent
+        // theme panels (like InfoBar which inverts colors)
         Hex1bColor fg, bg;
-        if (_isFocused)
+        if (_isFocused || isPanelVisible)
         {
-            fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
-            bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
+            // Swap colors when focused or panel is open to indicate active state
+            fg = theme.Get(GlobalTheme.BackgroundColor);
+            bg = theme.Get(GlobalTheme.ForegroundColor);
+            
+            // Handle defaults
+            if (fg.IsDefault) fg = Hex1bColor.White;
+            if (bg.IsDefault) bg = Hex1bColor.Black;
         }
         else if (_isHovered)
         {
-            fg = theme.Get(MenuBarTheme.HoveredForegroundColor);
-            bg = theme.Get(MenuBarTheme.HoveredBackgroundColor);
-        }
-        else if (isPanelVisible)
-        {
-            // Indicate panel is open with focused colors
-            fg = theme.Get(MenuBarTheme.FocusedForegroundColor);
-            bg = theme.Get(MenuBarTheme.FocusedBackgroundColor);
+            // Slight emphasis on hover - use same as focused
+            fg = theme.Get(GlobalTheme.BackgroundColor);
+            bg = theme.Get(GlobalTheme.ForegroundColor);
+            
+            if (fg.IsDefault) fg = Hex1bColor.White;
+            if (bg.IsDefault) bg = Hex1bColor.Black;
         }
         else
         {
-            fg = theme.Get(MenuBarTheme.ForegroundColor);
-            bg = theme.Get(MenuBarTheme.BackgroundColor);
+            // Normal state - use inherited theme colors
+            fg = theme.Get(GlobalTheme.ForegroundColor);
+            bg = theme.Get(GlobalTheme.BackgroundColor);
         }
 
         var fgAnsi = fg.ToForegroundAnsi();
