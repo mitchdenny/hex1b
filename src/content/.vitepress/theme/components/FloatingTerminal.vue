@@ -31,11 +31,20 @@ const isResizing = ref(false)
 const isAnimating = ref(false)
 const resizeDirection = ref('')
 let recentlyInteracted = false
+const isMaximized = ref(false)
+const preMaximizeState = ref<{
+  x: number
+  y: number
+  cols: number
+  rows: number
+} | null>(null)
 const resizeState = ref<{
   startX: number
   startY: number
   startCols: number
   startRows: number
+  startPosX: number
+  startPosY: number
   cellWidth: number
   cellHeight: number
 } | null>(null)
@@ -275,6 +284,12 @@ function startResize(e: MouseEvent, direction: string) {
   e.preventDefault()
   e.stopPropagation()
   
+  // Exit maximized state when user starts resizing
+  if (isMaximized.value) {
+    isMaximized.value = false
+    preMaximizeState.value = null
+  }
+  
   isResizing.value = true
   resizeDirection.value = direction
   
@@ -285,6 +300,8 @@ function startResize(e: MouseEvent, direction: string) {
     startY: e.clientY,
     startCols: terminalSize.value.cols,
     startRows: terminalSize.value.rows,
+    startPosX: position.value.x,
+    startPosY: position.value.y,
     cellWidth,
     cellHeight
   }
@@ -297,7 +314,7 @@ function startResize(e: MouseEvent, direction: string) {
 function onResize(e: MouseEvent) {
   if (!isResizing.value || !resizeState.value) return
   
-  const { startX, startY, startCols, startRows, cellWidth, cellHeight } = resizeState.value
+  const { startX, startY, startCols, startRows, startPosX, startPosY, cellWidth, cellHeight } = resizeState.value
   const direction = resizeDirection.value
   
   const deltaX = e.clientX - startX
@@ -308,23 +325,32 @@ function onResize(e: MouseEvent) {
   
   let newCols = startCols
   let newRows = startRows
+  let newPosX = startPosX
+  let newPosY = startPosY
   
   if (direction.includes('e')) {
     newCols = Math.max(40, Math.min(maxCols, startCols + Math.round(deltaX / cellWidth)))
   } else if (direction.includes('w')) {
-    newCols = Math.max(40, Math.min(maxCols, startCols - Math.round(deltaX / cellWidth)))
+    const colDelta = Math.round(deltaX / cellWidth)
+    newCols = Math.max(40, Math.min(maxCols, startCols - colDelta))
+    // Move position by the mouse delta to keep right edge fixed
+    newPosX = startPosX + deltaX
   }
   
   if (direction.includes('s')) {
     newRows = Math.max(10, Math.min(maxRows, startRows + Math.round(deltaY / cellHeight)))
   } else if (direction.includes('n')) {
-    newRows = Math.max(10, Math.min(maxRows, startRows - Math.round(deltaY / cellHeight)))
+    const rowDelta = Math.round(deltaY / cellHeight)
+    newRows = Math.max(10, Math.min(maxRows, startRows - rowDelta))
+    // Move position by the mouse delta to keep bottom edge fixed
+    newPosY = startPosY + deltaY
   }
   
   // Check if size actually changed
   const sizeChanged = newCols !== terminalSize.value.cols || newRows !== terminalSize.value.rows
   
   terminalSize.value = { cols: newCols, rows: newRows }
+  position.value = { x: newPosX, y: newPosY }
   
   // Live resize: Apply the new size and send to server during drag
   if (sizeChanged && terminal) {
@@ -413,6 +439,54 @@ function getMaxTerminalSize(): { maxCols: number; maxRows: number } {
   const maxRows = Math.floor(maxHeight / cellHeight)
   
   return { maxCols: Math.max(40, maxCols), maxRows: Math.max(10, maxRows) }
+}
+
+function toggleMaximize() {
+  if (isMaximized.value && preMaximizeState.value) {
+    // Restore to previous size/position
+    const { x, y, cols, rows } = preMaximizeState.value
+    position.value = { x, y }
+    terminalSize.value = { cols, rows }
+    isMaximized.value = false
+    preMaximizeState.value = null
+    
+    if (terminal) {
+      terminal.resize(cols, rows)
+      if (websocket?.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({ type: 'resize', cols, rows }))
+      }
+    }
+  } else {
+    // Save current state and maximize
+    preMaximizeState.value = {
+      x: position.value.x,
+      y: position.value.y,
+      cols: terminalSize.value.cols,
+      rows: terminalSize.value.rows
+    }
+    
+    const { maxCols, maxRows } = getMaxTerminalSize()
+    const { cellWidth, cellHeight } = getTerminalCellSize()
+    
+    // Calculate the terminal window size in pixels
+    const termWidth = maxCols * cellWidth + 20 // borders + padding
+    const termHeight = maxRows * cellHeight + 60 // header + borders + padding
+    
+    // Center the maximized terminal
+    position.value = {
+      x: (window.innerWidth - termWidth) / 2,
+      y: (window.innerHeight - termHeight) / 2
+    }
+    terminalSize.value = { cols: maxCols, rows: maxRows }
+    isMaximized.value = true
+    
+    if (terminal) {
+      terminal.resize(maxCols, maxRows)
+      if (websocket?.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({ type: 'resize', cols: maxCols, rows: maxRows }))
+      }
+    }
+  }
 }
 
 function constrainTerminalSize() {
@@ -506,7 +580,7 @@ watch(() => props.example, () => {
           </div>
           
           <!-- Header -->
-          <div class="terminal-header">
+          <div class="terminal-header" @dblclick="toggleMaximize">
             <span class="terminal-title">{{ title || example }}</span>
             <div class="terminal-controls">
               <button class="terminal-refresh" @click.stop="refresh" title="Refresh">↻</button>
