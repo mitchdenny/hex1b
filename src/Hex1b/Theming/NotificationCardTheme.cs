@@ -5,6 +5,7 @@ namespace Hex1b.Theming;
 /// </summary>
 /// <remarks>
 /// Default colors use a dark gray background with bright title and muted body text.
+/// Progress bar uses braille characters for a thin, subtle appearance.
 /// </remarks>
 public static class NotificationCardTheme
 {
@@ -50,4 +51,27 @@ public static class NotificationCardTheme
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> DismissButtonColor = 
         new($"{nameof(NotificationCardTheme)}.{nameof(DismissButtonColor)}", () => Hex1bColor.FromRgb(120, 120, 120));
+    
+    /// <summary>
+    /// Character for a fully filled progress bar cell.
+    /// Default is '⣀' (U+28C0, braille dots 7,8 - two bottom dots).
+    /// </summary>
+    public static readonly Hex1bThemeElement<char> ProgressFilledCharacter = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(ProgressFilledCharacter)}", () => '⣀');
+    
+    /// <summary>
+    /// Character for a left-half filled progress bar cell.
+    /// Default is '⡀' (U+2840, braille dot 7 - left bottom dot).
+    /// Used at the trailing edge when progress is decreasing (countdown).
+    /// </summary>
+    public static readonly Hex1bThemeElement<char> ProgressLeftHalfCharacter = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(ProgressLeftHalfCharacter)}", () => '⡀');
+    
+    /// <summary>
+    /// Character for a right-half filled progress bar cell.
+    /// Default is '⢀' (U+2880, braille dot 8 - right bottom dot).
+    /// Used at the trailing edge when progress is increasing.
+    /// </summary>
+    public static readonly Hex1bThemeElement<char> ProgressRightHalfCharacter = 
+        new($"{nameof(NotificationCardTheme)}.{nameof(ProgressRightHalfCharacter)}", () => '⢀');
 }

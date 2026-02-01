@@ -70,7 +70,6 @@ public sealed class NotificationCardNode : Hex1bNode
     /// <summary>
     /// Lower one-eighth block character for progress bar (thinner appearance).
     /// </summary>
-    private const char ProgressBlock = '▁'; // U+2581
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -213,18 +212,27 @@ public sealed class NotificationCardNode : Hex1bNode
         if (Notification?.Timeout != null && currentY < y + height)
         {
             var progress = CalculateTimeoutProgress();
-            var filledWidth = (int)(width * progress);
-            var emptyWidth = width - filledWidth;
+            
+            // Get braille characters from theme
+            var filledChar = theme.Get(NotificationCardTheme.ProgressFilledCharacter);
+            var leftHalfChar = theme.Get(NotificationCardTheme.ProgressLeftHalfCharacter);
+            
+            // Half-cell precision: multiply by 2 to get half-cell units
+            var halfCellUnits = progress * width * 2;
+            var filledWidth = (int)(halfCellUnits / 2);
+            var hasHalfCell = ((int)halfCellUnits % 2) == 1;
+            var emptyWidth = width - filledWidth - (hasHalfCell ? 1 : 0);
 
-            // Use thin block for progress bar
-            var filledBar = new string(ProgressBlock, filledWidth);
+            // Build progress bar with half-cell precision
+            // For countdown, trailing edge uses left-half character
+            var filledBar = new string(filledChar, filledWidth);
+            var halfPart = hasHalfCell ? leftHalfChar.ToString() : "";
             var emptyBar = new string(' ', emptyWidth);
 
             context.SetCursorPosition(x, currentY);
-            // Progress bar uses bright theme color for filled portion
             var progressColor = theme.Get(NotificationCardTheme.ProgressBarColor);
             var progressFgAnsi = progressColor.ToForegroundAnsi();
-            context.Write($"{progressFgAnsi}{bgAnsi}{filledBar}{emptyBar}{resetCodes}");
+            context.Write($"{progressFgAnsi}{bgAnsi}{filledBar}{halfPart}{emptyBar}{resetCodes}");
         }
     }
 
