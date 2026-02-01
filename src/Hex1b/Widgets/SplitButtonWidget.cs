@@ -35,6 +35,11 @@ public sealed record SplitButtonWidget : Hex1bWidget
     internal IReadOnlyList<SplitButtonAction> SecondaryActions { get; init; } = [];
 
     /// <summary>
+    /// Callback invoked when the dropdown menu is opened.
+    /// </summary>
+    internal Action? DropdownOpenedCallback { get; init; }
+
+    /// <summary>
     /// Creates a split button with the specified primary label.
     /// </summary>
     /// <param name="primaryLabel">The label for the primary action.</param>
@@ -54,6 +59,12 @@ public sealed record SplitButtonWidget : Hex1bWidget
     /// </summary>
     public SplitButtonWidget OnPrimaryClick(Func<SplitButtonClickedEventArgs, Task> handler)
         => this with { PrimaryHandler = handler };
+
+    /// <summary>
+    /// Sets a callback invoked when the dropdown menu is opened.
+    /// </summary>
+    public SplitButtonWidget OnDropdownOpened(Action callback)
+        => this with { DropdownOpenedCallback = callback };
 
     /// <summary>
     /// Adds a secondary action to the dropdown menu.
@@ -91,6 +102,7 @@ public sealed record SplitButtonWidget : Hex1bWidget
         node.PrimaryLabel = PrimaryLabel;
         node.SourceWidget = this;
         node.SecondaryActions = SecondaryActions;
+        node.DropdownOpenedCallback = DropdownOpenedCallback;
 
         if (PrimaryHandler != null)
         {

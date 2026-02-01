@@ -84,6 +84,11 @@ public sealed record NotificationCardWidget : Hex1bWidget
                 {
                     var actionCtx = new NotificationActionContext(Notification, Stack, e.Context.CancellationToken, e.Context);
                     await Notification.PrimaryActionValue.Handler(actionCtx);
+                })
+                .OnDropdownOpened(() =>
+                {
+                    // Cancel the timeout when user opens dropdown - they're interacting with it
+                    Stack.CancelTimeout(Notification);
                 });
 
             // Add secondary actions

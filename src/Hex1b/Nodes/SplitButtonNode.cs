@@ -33,6 +33,11 @@ public sealed class SplitButtonNode : Hex1bNode
     public IReadOnlyList<SplitButtonAction> SecondaryActions { get; set; } = [];
 
     /// <summary>
+    /// Callback invoked when the dropdown menu is opened.
+    /// </summary>
+    public Action? DropdownOpenedCallback { get; set; }
+
+    /// <summary>
     /// Whether the dropdown menu is currently open.
     /// </summary>
     public bool IsDropdownOpen { get; set; }
@@ -119,6 +124,9 @@ public sealed class SplitButtonNode : Hex1bNode
 
         IsDropdownOpen = true;
         MarkDirty();
+
+        // Invoke callback (e.g., to cancel notification timeout)
+        DropdownOpenedCallback?.Invoke();
 
         // Build and push the dropdown menu
         ctx.Popups.PushAnchored(this, AnchorPosition.Below, BuildDropdownContent,

@@ -232,6 +232,27 @@ public sealed class NotificationStack
     }
 
     /// <summary>
+    /// Cancels the timeout for a specific notification.
+    /// The notification will remain visible until explicitly dismissed.
+    /// </summary>
+    /// <param name="notification">The notification to cancel the timeout for.</param>
+    public void CancelTimeout(Notification notification)
+    {
+        lock (_lock)
+        {
+            var entry = _entries.FirstOrDefault(e => ReferenceEquals(e.Notification, notification));
+            if (entry != null)
+            {
+                entry.CancelTimeout();
+                // Clear the timeout so progress bar stops
+                notification.Timeout = null;
+            }
+        }
+        
+        Changed?.Invoke();
+    }
+
+    /// <summary>
     /// Hides a notification from floating view without dismissing it.
     /// The notification remains in the panel.
     /// </summary>
