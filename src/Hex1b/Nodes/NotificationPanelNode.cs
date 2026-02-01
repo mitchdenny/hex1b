@@ -101,6 +101,11 @@ public sealed class NotificationPanelNode : Hex1bNode
     public List<NotificationCardNode> DrawerCardNodes { get; } = new();
 
     /// <summary>
+    /// Backdrop node used to capture clicks outside the drawer when expanded.
+    /// </summary>
+    public BackdropNode? DrawerBackdrop { get; set; }
+
+    /// <summary>
     /// Whether the notification drawer is expanded. Syncs with NotificationStack.IsPanelVisible.
     /// </summary>
     public bool IsDrawerExpanded
@@ -134,26 +139,6 @@ public sealed class NotificationPanelNode : Hex1bNode
     {
         // Alt+N toggles the notification drawer
         bindings.Alt().Key(Hex1bKey.N).Action(ToggleDrawer, "Toggle notifications");
-        
-        // Click outside drawer to collapse it
-        bindings.Mouse(Input.MouseButton.Left).Action(HandleMouseClick, "Collapse drawer on outside click");
-    }
-
-    private Task HandleMouseClick(InputBindingActionContext ctx)
-    {
-        // If drawer is expanded and click is outside drawer bounds, collapse it
-        if (IsDrawerExpanded)
-        {
-            var x = ctx.MouseX;
-            var y = ctx.MouseY;
-            
-            if (!_drawerBounds.Contains(x, y))
-            {
-                Notifications.HidePanel();
-                MarkDirty();
-            }
-        }
-        return Task.CompletedTask;
     }
 
     private Task ToggleDrawer(InputBindingActionContext ctx)
@@ -176,6 +161,9 @@ public sealed class NotificationPanelNode : Hex1bNode
     public override void Arrange(Rect bounds)
     {
         base.Arrange(bounds);
+
+        // Arrange backdrop to fill entire bounds (captures clicks outside drawer)
+        DrawerBackdrop?.Arrange(bounds);
 
         if (IsDrawerExpanded && !DrawerFloats)
         {
@@ -264,6 +252,16 @@ public sealed class NotificationPanelNode : Hex1bNode
                     yield return focusable;
                 }
             }
+            
+            // Include backdrop last so it catches clicks outside drawer cards
+            // (HitTest iterates in reverse, so backdrop is checked after cards)
+            if (DrawerBackdrop != null)
+            {
+                foreach (var focusable in DrawerBackdrop.GetFocusableNodes())
+                {
+                    yield return focusable;
+                }
+            }
         }
         else
         {
@@ -300,6 +298,11 @@ public sealed class NotificationPanelNode : Hex1bNode
 
         if (IsDrawerExpanded)
         {
+            // Render backdrop first (transparent, but handles click-outside)
+            if (DrawerBackdrop != null)
+            {
+                context.RenderChild(DrawerBackdrop);
+            }
             RenderDrawer(context);
         }
         else
@@ -397,6 +400,12 @@ public sealed class NotificationPanelNode : Hex1bNode
 
         if (IsDrawerExpanded)
         {
+            // Include backdrop for click-outside handling
+            if (DrawerBackdrop != null)
+            {
+                yield return DrawerBackdrop;
+            }
+            
             foreach (var card in DrawerCardNodes)
             {
                 yield return card;

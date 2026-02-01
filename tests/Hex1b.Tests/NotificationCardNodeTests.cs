@@ -422,4 +422,72 @@ public class NotificationCardNodeTests
             snapshot.ContainsText("Notifications (1)") || snapshot.ContainsText("Notifications(1)"),
             $"Drawer should show with count. Screen:\n{snapshot}");
     }
+
+    [Fact]
+    public async Task NotificationDrawer_ClickOutside_CollapsesDrawer()
+    {
+        // Verifies that clicking outside the drawer collapses it
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .WithMouse()
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Button("Menu"),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        outer.VStack(content => [
+                            content.Button("Post").OnClick(e =>
+                            {
+                                e.Context.Notifications.Post(
+                                    new Notification("Test", "Test notification")
+                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                            }),
+                            content.Text("Main content area - click here to close drawer")
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "ready")
+            // Post a notification
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2), "notification posted")
+            // Open the drawer with Alt+N
+            .Alt().Key(Hex1bKey.N)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(2), "drawer opened")
+            .Capture("drawer_open")
+            // Click outside the drawer (left side of screen, in the content area)
+            // Drawer is on the right (~42 chars wide), so click at x=5 which is definitely outside
+            .ClickAt(5, 10)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after_click_outside")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Drawer should have collapsed - "Notifications (1)" header should be gone
+        Assert.False(
+            snapshot.ContainsText("Notifications (1)"),
+            $"Drawer should have collapsed after clicking outside. Screen:\n{snapshot.GetText()}");
+    }
 }

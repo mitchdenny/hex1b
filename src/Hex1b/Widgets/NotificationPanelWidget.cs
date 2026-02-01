@@ -161,9 +161,22 @@ public sealed record NotificationPanelWidget : Hex1bWidget
             node.CardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
         }
 
-        // Reconcile drawer cards for all notifications (when drawer is expanded)
+        // Reconcile drawer backdrop and cards when drawer is expanded
         if (node.IsDrawerExpanded)
         {
+            // Create a backdrop that catches outside clicks and collapses the drawer
+            var backdropWidget = new BackdropWidget(null)
+            {
+                Style = BackdropStyle.Transparent,
+                ClickAwayHandler = () =>
+                {
+                    node.Notifications.HidePanel();
+                    node.MarkDirty();
+                    return Task.CompletedTask;
+                }
+            };
+            node.DrawerBackdrop = (BackdropNode)(await context.ReconcileChildAsync(node.DrawerBackdrop, backdropWidget, node))!;
+            
             var all = node.Notifications.All;
             
             // Ensure drawer card node list matches count
@@ -187,7 +200,8 @@ public sealed record NotificationPanelWidget : Hex1bWidget
         }
         else
         {
-            // Clear drawer cards when not expanded
+            // Clear backdrop and drawer cards when not expanded
+            node.DrawerBackdrop = null;
             node.DrawerCardNodes.Clear();
         }
 
