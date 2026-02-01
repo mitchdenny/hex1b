@@ -9,7 +9,7 @@ namespace Hex1b;
 /// Render node for <see cref="ZStackWidget"/>.
 /// Stacks children on the Z-axis, with later children rendering on top of earlier ones.
 /// </summary>
-public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
+public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotificationHost
 {
     /// <summary>
     /// The child nodes, in render order (first = bottom, last = top).
@@ -20,6 +20,12 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
     /// The popup stack for this ZStack. Content pushed here appears as overlay layers.
     /// </summary>
     public PopupStack Popups { get; } = new();
+    
+    /// <summary>
+    /// The notification stack for this ZStack. Notifications posted here can be displayed
+    /// by any NotificationPanel that registers with this stack.
+    /// </summary>
+    public NotificationStack Notifications { get; } = new();
     
     /// <summary>
     /// Tracks the topmost popup entry from the last reconcile cycle.

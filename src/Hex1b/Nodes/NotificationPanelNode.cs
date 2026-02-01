@@ -7,29 +7,62 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// Render node for <see cref="NotificationPanelWidget"/>.
-/// Implements <see cref="INotificationHost"/> to allow posting notifications from anywhere in the tree.
+/// Displays floating notifications and a drawer panel.
 /// </summary>
 /// <remarks>
+/// <para>
+/// NotificationPanelNode finds the nearest <see cref="INotificationHost"/> (typically a ZStackNode)
+/// in its parent chain and uses that host's <see cref="NotificationStack"/>.
+/// This allows the NotificationPanel to be placed anywhere in the widget tree while still
+/// accessing the app-wide notification system.
+/// </para>
+/// <para>
 /// Renders floating notifications as cards in the top-right corner of the panel.
 /// Notifications stack vertically, newest on top.
 /// When the drawer is expanded, shows all notifications (including timed-out) in a sidebar.
+/// </para>
 /// </remarks>
-public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
+public sealed class NotificationPanelNode : Hex1bNode
 {
-    private NotificationStack? _externalStack;
-    private readonly NotificationStack _internalStack = new();
+    private NotificationStack? _cachedStack;
 
     /// <summary>
-    /// The notification stack for this host. Uses external stack if set, otherwise internal.
+    /// Gets the notification stack from the nearest INotificationHost in the parent chain.
+    /// Caches the result for performance.
     /// </summary>
-    public NotificationStack Notifications => _externalStack ?? _internalStack;
-
-    /// <summary>
-    /// Sets an external notification stack to use instead of the internal one.
-    /// </summary>
-    internal void SetExternalStack(NotificationStack? stack)
+    public NotificationStack Notifications
     {
-        _externalStack = stack;
+        get
+        {
+            if (_cachedStack != null)
+            {
+                return _cachedStack;
+            }
+
+            // Walk up parent chain to find INotificationHost
+            var current = Parent;
+            while (current != null)
+            {
+                if (current is INotificationHost host)
+                {
+                    _cachedStack = host.Notifications;
+                    return _cachedStack;
+                }
+                current = current.Parent;
+            }
+
+            throw new InvalidOperationException(
+                "No notification host found. Ensure NotificationPanel is inside a ZStack.");
+        }
+    }
+
+    /// <summary>
+    /// Clears the cached notification stack reference.
+    /// Called when the node is re-parented.
+    /// </summary>
+    internal void ClearCachedStack()
+    {
+        _cachedStack = null;
     }
 
     /// <summary>

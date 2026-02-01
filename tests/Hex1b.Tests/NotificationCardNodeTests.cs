@@ -276,4 +276,150 @@ public class NotificationCardNodeTests
         // Drawer should show "Notifications (1)" header
         Assert.True(snapshot.ContainsText("Notifications (1)"), "Drawer should show notification count");
     }
+
+    [Fact]
+    public async Task NotificationIcon_OutsidePanel_CanAccessNotifications()
+    {
+        // This test verifies the core architectural requirement:
+        // NotificationIcon and NotificationPanel are SIBLINGS in the widget tree,
+        // yet both can access the same notification system.
+        //
+        // Widget tree structure:
+        // ZStack (root - should provide NotificationStack)
+        //   └── VStack
+        //       ├── HStack with Button + NotificationIcon  ← NOT inside NotificationPanel
+        //       └── NotificationPanel                       ← Sibling, not parent
+        //           └── Content with Post button
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        Exception? caughtException = null;
+        var notificationPosted = false;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    // Top bar with NotificationIcon - OUTSIDE the NotificationPanel
+                    outer.HStack(bar => [
+                        bar.Button("Menu"),
+                        bar.NotificationIcon()
+                    ]),
+                    // NotificationPanel wraps only the content area
+                    outer.NotificationPanel(
+                        outer.VStack(content => [
+                            content.Button("Post Notification").OnClick(e =>
+                            {
+                                notificationPosted = true;
+                                e.Context.Notifications.Post(
+                                    new Notification("Test Alert", "From content area")
+                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                            })
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = workload,
+                OnRescue = args => caughtException = args.Exception
+            }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post Notification") && s.ContainsText("🔔"), TimeSpan.FromSeconds(2), "button and icon")
+            // Focus order: Menu -> NotificationIcon -> Post Notification
+            // Tab twice to get to Post button
+            .Key(Hex1bKey.Tab) // Move from Menu to NotificationIcon
+            .Key(Hex1bKey.Tab) // Move from NotificationIcon to Post Notification
+            .Key(Hex1bKey.Enter) // Click Post Notification
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Test Alert"), TimeSpan.FromSeconds(2), "notification posted")
+            .Capture("after_post")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Verify no exception was thrown accessing notifications
+        Assert.Null(caughtException);
+        
+        // Verify notification was actually posted
+        Assert.True(notificationPosted, "Notification handler should have been called");
+        
+        // Verify notification appears on screen
+        Assert.True(snapshot.ContainsText("Test Alert"), "Notification should appear");
+    }
+
+    [Fact]
+    public async Task NotificationIcon_Click_TogglesRegisteredPanel()
+    {
+        // Verifies that clicking NotificationIcon toggles the panel visibility
+        // even when the icon is outside the panel's widget subtree.
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Text("App Title"),
+                        bar.Text("").FillWidth(),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        outer.VStack(content => [
+                            content.Button("Post").OnClick(e =>
+                            {
+                                e.Context.Notifications.Post(
+                                    new Notification("Alert", "Something happened")
+                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                            }),
+                            content.Text("Main content area")
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "ready")
+            // Post a notification first
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(2), "notification")
+            // Now click the notification icon - Tab twice to reach it
+            .Shift().Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Tab)
+            .Key(Hex1bKey.Enter) // Click icon to open drawer
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("drawer_should_open")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Drawer should be visible with notification count header
+        Assert.True(
+            snapshot.ContainsText("Notifications (1)") || snapshot.ContainsText("Notifications(1)"),
+            $"Drawer should show with count. Screen:\n{snapshot}");
+    }
 }

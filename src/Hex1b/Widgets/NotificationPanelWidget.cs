@@ -28,12 +28,6 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     internal Hex1bWidget? Content { get; init; }
 
     /// <summary>
-    /// An external notification stack to use instead of the internal one.
-    /// When set, the panel uses this stack for all notifications.
-    /// </summary>
-    internal NotificationStack? ExternalStack { get; init; }
-
-    /// <summary>
     /// Maximum number of notifications to show floating at once.
     /// </summary>
     public int MaxFloating { get; init; } = 3;
@@ -65,14 +59,6 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <param name="content">The main content widget.</param>
     public NotificationPanelWidget WithContent(Hex1bWidget content)
         => this with { Content = content };
-
-    /// <summary>
-    /// Uses an external notification stack instead of an internal one.
-    /// This allows sharing notification state with the rest of the app.
-    /// </summary>
-    /// <param name="stack">The notification stack to use.</param>
-    public NotificationPanelWidget WithStack(NotificationStack stack)
-        => this with { ExternalStack = stack };
 
     /// <summary>
     /// Sets whether the drawer floats on top of content or docks beside it.
@@ -122,8 +108,8 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     {
         var node = existingNode as NotificationPanelNode ?? new NotificationPanelNode();
         
-        // Set external stack if provided
-        node.SetExternalStack(ExternalStack);
+        // Clear cached stack so it re-discovers from parent chain
+        node.ClearCachedStack();
         
         node.MaxFloating = MaxFloating;
         node.OffsetX = OffsetX;
@@ -141,7 +127,19 @@ public sealed record NotificationPanelWidget : Hex1bWidget
         }
 
         // Reconcile notification cards for floating notifications
-        var floating = node.Notifications.Floating;
+        // Note: Notifications property will find the parent ZStack's NotificationStack
+        NotificationStack notifications;
+        try
+        {
+            notifications = node.Notifications;
+        }
+        catch (InvalidOperationException)
+        {
+            // No notification host found yet (parent not set) - skip card reconciliation
+            return node;
+        }
+        
+        var floating = notifications.Floating;
         var visibleCount = Math.Min(floating.Count, MaxFloating);
         
         // Ensure card node list matches visible count
