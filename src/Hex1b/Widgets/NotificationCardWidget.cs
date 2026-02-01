@@ -67,7 +67,7 @@ public sealed record NotificationCardWidget : Hex1bWidget
                 }
                 Stack.Dismiss(Notification);
             });
-        node.DismissButton = (ButtonNode)await dismissWidget.ReconcileAsync(node.DismissButton, context);
+        node.DismissButton = (ButtonNode?)await context.ReconcileChildAsync(node.DismissButton, dismissWidget, node);
 
         // Reconcile action button if there's a primary action
         if (Notification.PrimaryActionValue != null)
@@ -89,7 +89,7 @@ public sealed record NotificationCardWidget : Hex1bWidget
                 });
             }
 
-            node.ActionButton = (SplitButtonNode)await actionWidget.ReconcileAsync(node.ActionButton, context);
+            node.ActionButton = (SplitButtonNode?)await context.ReconcileChildAsync(node.ActionButton, actionWidget, node);
         }
         else
         {

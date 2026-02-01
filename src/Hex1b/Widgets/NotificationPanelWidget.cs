@@ -123,13 +123,13 @@ public sealed record NotificationPanelWidget : Hex1bWidget
             node.CardNodes.RemoveAt(node.CardNodes.Count - 1);
         }
 
-        // Reconcile each visible notification card
+        // Reconcile each visible notification card using ReconcileChildAsync to set parent chain
         for (int i = 0; i < visibleCount; i++)
         {
             var notification = floating[i];
             var cardWidget = new NotificationCardWidget(notification, node.Notifications);
             var existingCard = node.CardNodes[i];
-            node.CardNodes[i] = (NotificationCardNode)await cardWidget.ReconcileAsync(existingCard, context);
+            node.CardNodes[i] = (NotificationCardNode)(await context.ReconcileChildAsync(existingCard, cardWidget, node))!;
         }
 
         return node;

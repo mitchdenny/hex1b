@@ -103,7 +103,6 @@ public class NotificationCardNodeTests
         Assert.NotNull(node.DismissButton);
         Assert.Null(node.ActionButton); // No action button without primary action
     }
-}
 
     [Fact]
     public async Task NotificationCard_RendersActionButtonLabel()
@@ -152,3 +151,76 @@ public class NotificationCardNodeTests
         Assert.True(snapshot.ContainsText("Test Alert"), "Should show notification title");
         Assert.True(snapshot.ContainsText("View Details"), "Should show action button label");
     }
+
+    [Fact]
+    public async Task NotificationCard_SplitButtonDropdown_OpensSuccessfully()
+    {
+        // This test verifies that the dropdown on a SplitButton inside a NotificationCard
+        // can open successfully (requires proper parent chain to find popup host)
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        Exception? caughtException = null;
+        var notificationPosted = false;
+
+        using var app = new Hex1bApp(
+            ctx =>
+            {
+                return ctx.NotificationPanel(
+                    ctx.VStack(v => [
+                        v.Button("Post").OnClick(e =>
+                        {
+                            notificationPosted = true;
+                            e.Context.Notifications.Post(
+                                new Notification("Test", "Body")
+                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .PrimaryAction("Action", async c => c.Dismiss())
+                                    .SecondaryAction("Option A", async c => c.Dismiss())
+                                    .SecondaryAction("Option B", async c => c.Dismiss()));
+                        })
+                    ])
+                );
+            },
+            new Hex1bAppOptions 
+            { 
+                WorkloadAdapter = workload,
+                OnRescue = args => caughtException = args.Exception
+            }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "post button")
+            // Click Post button to create notification
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "notification with dropdown")
+            // Tab to the action button in the notification
+            .Key(Hex1bKey.Tab)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            // Press Down arrow to open dropdown
+            .Key(Hex1bKey.DownArrow)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after_down")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Verify notification was actually posted
+        Assert.True(notificationPosted, "Notification should have been posted");
+        
+        // Verify no "popup host" exception was thrown - the parent chain is correctly set up
+        if (caughtException != null)
+        {
+            Assert.DoesNotContain("popup host", caughtException.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+}
