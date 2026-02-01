@@ -138,21 +138,13 @@ public sealed class NotificationCardNode : Hex1bNode
     {
         var theme = context.Theme;
         
-        // Inverted colors: swap foreground and background
-        var normalFg = theme.GetGlobalBackground(); // Use bg as fg
-        var normalBg = theme.GetGlobalForeground(); // Use fg as bg
-        
-        // For focused state, use button focus colors but inverted
+        // Get colors from theme (defaults are inverted: black on white)
         var fg = IsFocused 
-            ? theme.Get(ButtonTheme.FocusedBackgroundColor)
-            : normalFg;
+            ? theme.Get(NotificationCardTheme.FocusedForegroundColor)
+            : theme.Get(NotificationCardTheme.ForegroundColor);
         var bg = IsFocused 
-            ? theme.Get(ButtonTheme.FocusedForegroundColor)
-            : normalBg;
-
-        // Handle default colors
-        if (fg.IsDefault) fg = normalFg;
-        if (bg.IsDefault) bg = normalBg;
+            ? theme.Get(NotificationCardTheme.FocusedBackgroundColor)
+            : theme.Get(NotificationCardTheme.BackgroundColor);
 
         var fgAnsi = fg.ToForegroundAnsi();
         var bgAnsi = bg.ToBackgroundAnsi();
@@ -225,8 +217,10 @@ public sealed class NotificationCardNode : Hex1bNode
             var emptyBar = new string(' ', emptyWidth);
 
             context.SetCursorPosition(x, currentY);
-            // Progress bar uses same inverted colors
-            context.Write($"{fgAnsi}{bgAnsi}{filledBar}{emptyBar}{resetCodes}");
+            // Progress bar uses theme color for filled portion
+            var progressColor = theme.Get(NotificationCardTheme.ProgressBarColor);
+            var progressFgAnsi = progressColor.ToForegroundAnsi();
+            context.Write($"{progressFgAnsi}{bgAnsi}{filledBar}{emptyBar}{resetCodes}");
         }
     }
 
