@@ -26,16 +26,18 @@ var navItems = new[]
 var selectedNavIndex = 0;
 
 // Tasks data (for Tasks view)
-var tasks = new List<(string status, string title, string priority)>
+var priorityOptions = new[] { "Low", "Medium", "High" };
+var tasks = new List<TaskItem>
 {
-    ("✓", "Set up project structure", "Low"),
-    ("○", "Implement notification widget", "High"),
-    ("○", "Add keyboard navigation", "Medium"),
-    ("○", "Write unit tests", "High"),
-    ("○", "Update documentation", "Low"),
+    new("Set up project structure", "Low") { IsCompleted = true },
+    new("Implement notification widget", "High"),
+    new("Add keyboard navigation", "Medium"),
+    new("Write unit tests", "High"),
+    new("Update documentation", "Low"),
 };
 var selectedTaskIndex = 0;
 object? focusedTaskKey = null;
+var selectedTaskKeys = new HashSet<string>(); // Track selected tasks by title
 
 // Files data (for Files view)
 var files = new[]
@@ -67,7 +69,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 bar.Section(s => s.MenuBar(m => [
                     m.Menu("File", m => [
                         m.MenuItem("New Task").OnActivated(e => {
-                            tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
+                            tasks.Add(new TaskItem($"New Task {tasks.Count + 1}", "Medium"));
                             lastAction = "Created new task";
                             statusMessage = "Task created";
                             // Post a notification with secondary actions
@@ -232,7 +234,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         main.Text($"  {navItems[selectedNavIndex].Item1} {currentView}"),
                         main.Text("  " + new string('═', 40)),
                         main.Text(""),
-                        ..BuildViewContent(main, currentView, tasks, selectedTaskIndex, focusedTaskKey, files,
+                        ..BuildViewContent(main, currentView, tasks, priorityOptions, selectedTaskIndex, focusedTaskKey, files,
                             settingsOptions, darkModeIndex, notificationsIndex, autoSaveIndex,
                             idx => selectedTaskIndex = idx,
                             key => focusedTaskKey = key,
@@ -300,7 +302,8 @@ await terminal.RunAsync();
 static IEnumerable<Hex1bWidget> BuildViewContent(
     WidgetContext<VStackWidget> ctx,
     string view,
-    List<(string status, string title, string priority)> tasks,
+    List<TaskItem> tasks,
+    string[] priorityOptions,
     int selectedTaskIndex,
     object? focusedTaskKey,
     (string icon, string name, string size)[] files,
@@ -318,7 +321,7 @@ static IEnumerable<Hex1bWidget> BuildViewContent(
     return view switch
     {
         "Dashboard" => BuildDashboardView(ctx, tasks),
-        "Tasks" => BuildTasksView(ctx, tasks, selectedTaskIndex, focusedTaskKey, setSelectedTask, setFocusedTaskKey, setStatus),
+        "Tasks" => BuildTasksView(ctx, tasks, priorityOptions, selectedTaskIndex, focusedTaskKey, setSelectedTask, setFocusedTaskKey, setStatus),
         "Files" => BuildFilesView(ctx, files),
         "Settings" => BuildSettingsView(ctx, settingsOptions, darkModeIndex, notificationsIndex, 
             autoSaveIndex, setDarkMode, setNotifications, setAutoSave, setStatus),
@@ -329,11 +332,11 @@ static IEnumerable<Hex1bWidget> BuildViewContent(
 
 static IEnumerable<Hex1bWidget> BuildDashboardView(
     WidgetContext<VStackWidget> ctx,
-    List<(string status, string title, string priority)> tasks)
+    List<TaskItem> tasks)
 {
-    var completedCount = tasks.Count(t => t.status == "✓");
+    var completedCount = tasks.Count(t => t.IsCompleted);
     var pendingCount = tasks.Count - completedCount;
-    var highPriorityCount = tasks.Count(t => t.priority == "High" && t.status != "✓");
+    var highPriorityCount = tasks.Count(t => t.Priority == "High" && !t.IsCompleted);
 
     return [
         ctx.Text("  Welcome to FullAppDemo!"),
@@ -365,7 +368,8 @@ static IEnumerable<Hex1bWidget> BuildDashboardView(
 
 static IEnumerable<Hex1bWidget> BuildTasksView(
     WidgetContext<VStackWidget> ctx,
-    List<(string status, string title, string priority)> tasks,
+    List<TaskItem> tasks,
+    string[] priorityOptions,
     int selectedTaskIndex,
     object? focusedTaskKey,
     Action<int> setSelectedTask,
@@ -373,48 +377,54 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
     Action<string> setStatus)
 {
     // Filter tasks into pending and completed
-    var pendingTasks = tasks.Where(t => t.status != "✓").ToList();
-    var completedTasks = tasks.Where(t => t.status == "✓").ToList();
+    var pendingTasks = tasks.Where(t => !t.IsCompleted).ToList();
+    var completedTasks = tasks.Where(t => t.IsCompleted).ToList();
     
-    // Helper to build a task table
+    // Helper to build a task table with selection column and priority picker
     Hex1bWidget BuildTaskTable(
-        IReadOnlyList<(string status, string title, string priority)> taskList,
+        IReadOnlyList<TaskItem> taskList,
         string emptyMessage)
     {
         return ctx.Table(taskList)
-            .RowKey(t => t.title)
+            .RowKey(t => t.Title)
             .Header(h => [
                 h.Cell("Task").Width(SizeHint.Fill),
-                h.Cell("Priority").Width(SizeHint.Fixed(12))
+                h.Cell("Priority").Width(SizeHint.Fixed(16))
             ])
-            .Row((r, task, state) => {
-                var priorityIcon = task.priority switch
-                {
-                    "High" => "🔴",
-                    "Medium" => "🟡",
-                    _ => "🟢"
-                };
-                return [
-                    r.Cell(task.title),
-                    r.Cell($"{priorityIcon} {task.priority}")
-                ];
+            .Row((r, task, state) => [
+                r.Cell(task.Title),
+                r.Cell(c => c.Picker(priorityOptions, Array.IndexOf(priorityOptions, task.Priority))
+                    .OnSelectionChanged(e => {
+                        task.Priority = e.SelectedText ?? "Medium";
+                        setStatus($"Priority set to {task.Priority}");
+                    }))
+            ])
+            .SelectionColumn(
+                isSelected: task => task.IsSelected,
+                onChanged: (task, selected) => {
+                    task.IsSelected = selected;
+                    setStatus(selected ? $"Selected: {task.Title}" : $"Deselected: {task.Title}");
+                })
+            .OnSelectAll(() => {
+                foreach (var t in taskList) t.IsSelected = true;
+                setStatus("All tasks selected");
+            })
+            .OnDeselectAll(() => {
+                foreach (var t in taskList) t.IsSelected = false;
+                setStatus("All tasks deselected");
             })
             .Empty(e => e.Text($"  {emptyMessage}"))
             .Focus(focusedTaskKey)
             .OnFocusChanged(key => {
                 setFocusedTaskKey(key);
                 // Update selectedTaskIndex based on focused key
-                var index = tasks.FindIndex(t => (object)t.title == key);
+                var index = tasks.FindIndex(t => (object)t.Title == key);
                 if (index >= 0) setSelectedTask(index);
             })
             .OnRowActivated((key, task) => {
-                // Toggle task status on Enter/double-click
-                var index = tasks.FindIndex(t => t.title == task.title);
-                if (index >= 0)
-                {
-                    tasks[index] = (task.status == "✓" ? "○" : "✓", task.title, task.priority);
-                    setStatus(task.status == "✓" ? "Task marked incomplete" : "Task completed!");
-                }
+                // Toggle task completion status on Enter/double-click
+                task.IsCompleted = !task.IsCompleted;
+                setStatus(task.IsCompleted ? "Task completed!" : "Task marked incomplete");
             })
             .FillHeight();
     }
@@ -423,7 +433,7 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
         ctx.HStack(h => [
             h.Text("  "),
             h.Button("+ Add Task").OnClick(_ => {
-                tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
+                tasks.Add(new TaskItem($"New Task {tasks.Count + 1}", "Medium"));
                 setStatus("Task added");
             }),
             h.Text(" "),
@@ -431,8 +441,17 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
                 if (selectedTaskIndex >= 0 && selectedTaskIndex < tasks.Count)
                 {
                     var task = tasks[selectedTaskIndex];
-                    tasks[selectedTaskIndex] = (task.status == "✓" ? "○" : "✓", task.title, task.priority);
-                    setStatus(task.status == "✓" ? "Task marked incomplete" : "Task completed!");
+                    task.IsCompleted = !task.IsCompleted;
+                    setStatus(task.IsCompleted ? "Task completed!" : "Task marked incomplete");
+                }
+            }),
+            h.Text(" "),
+            h.Button("Delete Selected").OnClick(_ => {
+                var toRemove = tasks.Where(t => t.IsSelected).ToList();
+                if (toRemove.Count > 0)
+                {
+                    foreach (var t in toRemove) tasks.Remove(t);
+                    setStatus($"Deleted {toRemove.Count} task(s)");
                 }
             })
         ]).FixedHeight(1),
@@ -538,7 +557,7 @@ static IEnumerable<Hex1bWidget> BuildHelpView(WidgetContext<VStackWidget> ctx)
 static IEnumerable<Hex1bWidget> BuildDetailsContent(
     WidgetContext<VStackWidget> ctx,
     string view,
-    List<(string status, string title, string priority)> tasks,
+    List<TaskItem> tasks,
     int selectedTaskIndex)
 {
     return view switch
@@ -547,17 +566,26 @@ static IEnumerable<Hex1bWidget> BuildDetailsContent(
             ctx.Text($" Task #{selectedTaskIndex + 1}"),
             ctx.Text(""),
             ctx.Text($" Title:"),
-            ctx.Text($"   {tasks[selectedTaskIndex].title}"),
+            ctx.Text($"   {tasks[selectedTaskIndex].Title}"),
             ctx.Text(""),
             ctx.Text($" Priority:"),
-            ctx.Text($"   {tasks[selectedTaskIndex].priority}"),
+            ctx.Text($"   {tasks[selectedTaskIndex].Priority}"),
             ctx.Text(""),
             ctx.Text($" Status:"),
-            ctx.Text($"   {(tasks[selectedTaskIndex].status == "✓" ? "Complete" : "Pending")}"),
+            ctx.Text($"   {(tasks[selectedTaskIndex].IsCompleted ? "Complete" : "Pending")}"),
         ],
         _ => [
             ctx.Text(" Select an item"),
             ctx.Text(" to see details"),
         ]
     };
+}
+
+// Task item class for mutable state
+class TaskItem(string title, string priority)
+{
+    public string Title { get; set; } = title;
+    public string Priority { get; set; } = priority;
+    public bool IsCompleted { get; set; }
+    public bool IsSelected { get; set; }
 }

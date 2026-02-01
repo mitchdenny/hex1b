@@ -1,5 +1,7 @@
 using System.Globalization;
 using Hex1b.Input;
+using Hex1b.Nodes;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -223,40 +225,37 @@ public class UnicodeBorderAlignmentTests
     
     /// <summary>
     /// Asserts that the right border character appears in the same column on all bordered rows.
+    /// Uses cell-based checking to correctly handle wide characters.
     /// </summary>
     private void AssertRightBorderAligned(
         Hex1bTerminalSnapshot snapshot, 
         string charDescription,
         string testChar)
     {
-        var text = snapshot.GetText();
-        var lines = text.Split('\n');
+        var width = snapshot.Width;
+        var height = snapshot.Height;
+        var borderChars = new HashSet<string> { "│", "┐", "┘", "║", "╗", "╝" };
         
-        // Find the border character column on each line
-        var borderPositions = new List<(int lineNum, int position)>();
+        // Find the border character column on each line by checking actual cell positions
+        var borderPositions = new List<(int lineNum, int column)>();
         
-        for (int i = 0; i < lines.Length; i++)
+        for (int y = 0; y < height; y++)
         {
-            var line = lines[i].TrimEnd();
-            if (string.IsNullOrEmpty(line)) continue;
-            
-            // Look for right border character (│ or similar)
-            var borderChars = new[] { '│', '┐', '┘', '║', '╗', '╝' };
-            
-            // Find rightmost border character
-            var rightBorderPos = -1;
-            for (int j = line.Length - 1; j >= 0; j--)
+            // Find rightmost border character by scanning cells from right to left
+            var rightBorderCol = -1;
+            for (int x = width - 1; x >= 0; x--)
             {
-                if (borderChars.Contains(line[j]))
+                var cell = snapshot.GetCell(x, y);
+                if (borderChars.Contains(cell.Character))
                 {
-                    rightBorderPos = j;
+                    rightBorderCol = x;
                     break;
                 }
             }
             
-            if (rightBorderPos >= 0)
+            if (rightBorderCol >= 0)
             {
-                borderPositions.Add((i, rightBorderPos));
+                borderPositions.Add((y, rightBorderCol));
             }
         }
         
@@ -265,21 +264,21 @@ public class UnicodeBorderAlignmentTests
         {
             Assert.Fail($"Expected multiple border lines for '{charDescription}' ({testChar}). " +
                 $"Found {borderPositions.Count} lines with borders.\n" +
-                $"Screen:\n{text}");
+                $"Screen:\n{snapshot.GetText()}");
         }
         
-        var expectedPosition = borderPositions[0].position;
-        var misaligned = borderPositions.Where(p => p.position != expectedPosition).ToList();
+        var expectedPosition = borderPositions[0].column;
+        var misaligned = borderPositions.Where(p => p.column != expectedPosition).ToList();
         
         if (misaligned.Count > 0)
         {
             var details = string.Join("\n", borderPositions.Select(p => 
-                $"  Line {p.lineNum}: border at column {p.position}"));
+                $"  Line {p.lineNum}: border at column {p.column}"));
             
             Assert.Fail(
                 $"Border misalignment detected for '{charDescription}' (char: {testChar})\n" +
                 $"Expected all borders at column {expectedPosition}, but found:\n{details}\n\n" +
-                $"Screen:\n{text}");
+                $"Screen:\n{snapshot.GetText()}");
         }
     }
     
@@ -290,6 +289,25 @@ public class UnicodeBorderAlignmentTests
     private async Task AssertBorderAlignmentBatchAsync(
         string[] chars,
         string categoryName,
+        CancellationToken cancellationToken = default)
+    {
+        // Limit batch size to fit in terminal (leave room for baseline, end marker, and border chrome)
+        const int maxCharsPerBatch = 25;  // Terminal is 30 rows, need room for border + markers
+        
+        // Process in batches
+        var batchNum = 0;
+        for (int batchStart = 0; batchStart < chars.Length; batchStart += maxCharsPerBatch)
+        {
+            batchNum++;
+            var batchChars = chars.Skip(batchStart).Take(maxCharsPerBatch).ToArray();
+            await AssertBorderAlignmentSingleBatchAsync(batchChars, $"{categoryName} (batch {batchNum})", batchNum, cancellationToken);
+        }
+    }
+    
+    private async Task AssertBorderAlignmentSingleBatchAsync(
+        string[] chars,
+        string categoryName,
+        int batchNumber,
         CancellationToken cancellationToken = default)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -307,21 +325,30 @@ public class UnicodeBorderAlignmentTests
         }
         lines.Add("END MARKER");
         
+        // Wrap in HStack so the border can have its own size (not forced to fill terminal)
         using var app = new Hex1bApp(
-            ctx => ctx.Border(
-                ctx.VStack(v => lines.Select(line => v.Text(line)).ToArray())
-            ).FixedWidth(BorderWidth),
+            ctx => ctx.HStack(h => [
+                h.Border(
+                    h.VStack(v => lines.Select(line => v.Text(line)).ToArray())
+                ).FixedWidth(BorderWidth)
+            ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
         var runTask = app.RunAsync(cancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for render, then capture - don't use Capture() to avoid duplicate name issues
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("END MARKER"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, cancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, cancellationToken);
+            .ApplyAsync(terminal, cancellationToken);
         
         await runTask;
         
@@ -337,42 +364,41 @@ public class UnicodeBorderAlignmentTests
         string categoryName,
         string[] testChars)
     {
-        var text = snapshot.GetText();
-        var lines = text.Split('\n');
+        var width = snapshot.Width;
+        var height = snapshot.Height;
+        var borderCharSet = new HashSet<string> { "│", "┐", "┘", "║", "╗", "╝" };
         
-        var borderPositions = new List<(int lineNum, int position, string lineContent)>();
-        var borderChars = new[] { '│', '┐', '┘', '║', '╗', '╝' };
+        var borderPositions = new List<(int lineNum, int column, string lineContent)>();
         
-        for (int i = 0; i < lines.Length; i++)
+        for (int y = 0; y < height; y++)
         {
-            var line = lines[i].TrimEnd();
-            if (string.IsNullOrEmpty(line)) continue;
-            
-            var rightBorderPos = -1;
-            for (int j = line.Length - 1; j >= 0; j--)
+            // Find rightmost border character by scanning cells from right to left
+            var rightBorderCol = -1;
+            for (int x = width - 1; x >= 0; x--)
             {
-                if (borderChars.Contains(line[j]))
+                var cell = snapshot.GetCell(x, y);
+                if (borderCharSet.Contains(cell.Character))
                 {
-                    rightBorderPos = j;
+                    rightBorderCol = x;
                     break;
                 }
             }
             
-            if (rightBorderPos >= 0)
+            if (rightBorderCol >= 0)
             {
-                borderPositions.Add((i, rightBorderPos, line));
+                borderPositions.Add((y, rightBorderCol, snapshot.GetLine(y)));
             }
         }
         
         if (borderPositions.Count < 2)
         {
             Assert.Fail($"Expected multiple border lines for '{categoryName}'. " +
-                $"Found {borderPositions.Count}.\nScreen:\n{text}");
+                $"Found {borderPositions.Count}.\nScreen:\n{snapshot.GetText()}");
         }
         
-        var expectedPosition = borderPositions[0].position;
+        var expectedPosition = borderPositions[0].column;
         var misaligned = borderPositions
-            .Where(p => p.position != expectedPosition)
+            .Where(p => p.column != expectedPosition)
             .ToList();
         
         if (misaligned.Count > 0)
@@ -385,21 +411,21 @@ public class UnicodeBorderAlignmentTests
                 {
                     if (m.lineContent.Contains(chr))
                     {
-                        failedChars.Add($"'{chr}' (U+{GetCodepoints(chr)}) - border at col {m.position}");
+                        failedChars.Add($"'{chr}' (U+{GetCodepoints(chr)}) - border at col {m.column}");
                         break;
                     }
                 }
             }
             
             var details = string.Join("\n", misaligned.Select(p => 
-                $"  Line {p.lineNum} (col {p.position}): {p.lineContent.Substring(0, Math.Min(50, p.lineContent.Length))}..."));
+                $"  Line {p.lineNum} (col {p.column}): {p.lineContent.Substring(0, Math.Min(50, p.lineContent.Length))}..."));
             
             Assert.Fail(
                 $"Border misalignment in '{categoryName}'\n" +
                 $"Expected all borders at column {expectedPosition}\n\n" +
                 $"Failed characters:\n{string.Join("\n", failedChars)}\n\n" +
                 $"Misaligned lines:\n{details}\n\n" +
-                $"Full screen:\n{text}");
+                $"Full screen:\n{snapshot.GetText()}");
         }
     }
     
@@ -824,4 +850,310 @@ public class UnicodeBorderAlignmentTests
     }
     
     #endregion
+    
+    #region Debug Tests
+    
+    [Fact]
+    public async Task Debug_VariationSelectorEmoji_CellStorage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+        
+        using var cts = new CancellationTokenSource();
+        // Test with warning emoji (⚠️ = U+26A0 + U+FE0F)
+        using var app = new Hex1bApp(
+            ctx => ctx.Text("A⚠️B"),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(cts.Token);
+        await Task.Delay(100);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Check individual cells
+        var cellInfo = new System.Text.StringBuilder();
+        for (int x = 0; x < 10; x++)
+        {
+            var cell = snapshot.GetCell(x, 0);
+            var ch = cell.Character ?? "";
+            var codepoints = string.Join("+", ch.EnumerateRunes().Select(r => $"U+{r.Value:X4}"));
+            cellInfo.AppendLine($"Cell[{x}] = '{ch}' (len={ch.Length}, codepoints={codepoints})");
+        }
+        
+        _output.WriteLine(cellInfo.ToString());
+        
+        cts.Cancel();
+        try { await runTask; } catch (OperationCanceledException) { }
+        
+        // Expected layout:
+        // Cell 0: A (width 1)
+        // Cell 1: ⚠️ (width 2, should include both U+26A0 and U+FE0F)
+        // Cell 2: "" (continuation cell for ⚠️)
+        // Cell 3: B (width 1)
+        
+        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.Equal("⚠️", snapshot.GetCell(1, 0).Character);  // Full emoji with VS16
+        Assert.Equal("", snapshot.GetCell(2, 0).Character);    // Continuation
+        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+    }
+    
+    [Fact]
+    public async Task Debug_DesktopComputerEmoji_CellStorage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+        
+        using var cts = new CancellationTokenSource();
+        // Test with desktop computer emoji (🖥️ = U+1F5A5 + U+FE0F)
+        using var app = new Hex1bApp(
+            ctx => ctx.Text("A🖥️B"),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(cts.Token);
+        await Task.Delay(100);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Check individual cells
+        var cellInfo = new System.Text.StringBuilder();
+        for (int x = 0; x < 10; x++)
+        {
+            var cell = snapshot.GetCell(x, 0);
+            var ch = cell.Character ?? "";
+            var codepoints = string.Join("+", ch.EnumerateRunes().Select(r => $"U+{r.Value:X4}"));
+            cellInfo.AppendLine($"Cell[{x}] = '{ch}' (len={ch.Length}, codepoints={codepoints})");
+        }
+        
+        _output.WriteLine(cellInfo.ToString());
+        
+        cts.Cancel();
+        try { await runTask; } catch (OperationCanceledException) { }
+        
+        // Expected layout:
+        // Cell 0: A (width 1)
+        // Cell 1: 🖥️ (width 2, should include both U+1F5A5 and U+FE0F)
+        // Cell 2: "" (continuation cell for 🖥️)
+        // Cell 3: B (width 1)
+        
+        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        // Check that cell 1 is the full emoji with VS16, not just the base character
+        var cell1 = snapshot.GetCell(1, 0).Character;
+        _output.WriteLine($"Cell1 codepoints: {string.Join("+", cell1?.EnumerateRunes().Select(r => $"U+{r.Value:X4}") ?? [])}");
+        Assert.True(cell1?.Contains("\uFE0F") ?? false, $"Expected VS16 (FE0F) in cell 1, got: {cell1}");
+        Assert.Equal("", snapshot.GetCell(2, 0).Character);    // Continuation
+        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+    }
+    
+    [Fact]
+    public async Task Debug_BorderAlignment_CellPositions()
+    {
+        const int width = 20;
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 10)  // Wider terminal
+            .Build();
+        
+        using var cts = new CancellationTokenSource();
+        // Wrap in HStack so the border can have its own size
+        using var app = new Hex1bApp(
+            ctx => ctx.HStack(h => [
+                h.Border(h.Text("Hi")).FixedWidth(width),
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(cts.Token);
+        await Task.Delay(100);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        // Check each row for the right border at column width-1
+        var rightBorderColumn = width - 1;
+        
+        _output.WriteLine($"Expected right border at column {rightBorderColumn}");
+        
+        for (int y = 0; y < 4; y++)
+        {
+            // Find right border in this row by looking for vertical border chars
+            int foundRightBorder = -1;
+            for (int x = 30; x >= 0; x--) // Search from right to left
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (cell.Character == "│" || cell.Character == "┐" || cell.Character == "┘")
+                {
+                    foundRightBorder = x;
+                    break;
+                }
+            }
+            
+            // Also show the raw cells for debugging
+            var sb = new System.Text.StringBuilder();
+            for (int x = 0; x < 30; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (string.IsNullOrEmpty(cell.Character))
+                    sb.Append('_'); // Mark continuation cells
+                else
+                    sb.Append(cell.Character);
+            }
+            _output.WriteLine($"Row {y}: right border at col {foundRightBorder}, cells: [{sb}]");
+        }
+        
+        // Now check specific assertions
+        // Row 0 is top border (┌───┐)
+        Assert.Equal("┐", snapshot.GetCell(rightBorderColumn, 0).Character);
+        
+        cts.Cancel();
+        try { await runTask; } catch (OperationCanceledException) { }
+    }
+    
+    #endregion
+    
+    private readonly ITestOutputHelper _output;
+    
+    public UnicodeBorderAlignmentTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    #region Grapheme Cluster Regression Tests
+    
+    /// <summary>
+    /// Regression test for the grapheme cluster bug where emoji with variation selectors
+    /// were split into separate cells, causing border misalignment.
+    /// </summary>
+    [Fact]
+    public void Surface_EmojiWithVariationSelector_GraphemeClusterKeptTogether()
+    {
+        // Regression test: emoji with VS16 should occupy 2 cells (main + continuation)
+        var surface = new Surfaces.Surface(40, 10);
+        var theme = new Theming.Hex1bTheme("test");
+        var context = new Surfaces.SurfaceRenderContext(surface, theme);
+        
+        context.SetCursorPosition(0, 0);
+        context.Write("🖥️");  // U+1F5A5 + U+FE0F (desktop computer with variation selector)
+        
+        // Cell 0 should have the complete emoji (including VS16)
+        Assert.Equal("🖥️", surface[0, 0].Character);
+        Assert.Equal(2, surface[0, 0].DisplayWidth);
+        
+        // Cell 1 should be a continuation cell
+        Assert.True(surface[1, 0].IsContinuation);
+    }
+    
+    /// <summary>
+    /// Regression test: border at column 29 should not be affected by emoji in content.
+    /// </summary>
+    [Fact]
+    public void Surface_BorderWithEmoji_RightBorderAtCorrectPosition()
+    {
+        var surface = new Surfaces.Surface(40, 10);
+        var theme = new Theming.Hex1bTheme("test");
+        var context = new Surfaces.SurfaceRenderContext(surface, theme);
+        
+        const int borderWidth = 30;
+        const int innerWidth = borderWidth - 2;
+        
+        // Simulate BorderNode rendering: left border, inner fill, right border, then content
+        context.SetCursorPosition(0, 2);
+        context.Write("│");
+        
+        context.SetCursorPosition(1, 2);
+        context.Write(new string(' ', innerWidth));
+        
+        context.SetCursorPosition(borderWidth - 1, 2);
+        context.Write("│");
+        
+        context.SetCursorPosition(1, 2);
+        context.Write("Test 🖥️ char");  // Text with VS16 emoji
+        
+        // Right border should still be at column 29
+        Assert.Equal("│", surface[0, 2].Character);   // Left border
+        Assert.Equal("│", surface[29, 2].Character);  // Right border
+    }
+    
+    #endregion
+    
+    #region MockLayoutProvider for Tests
+    
+    private class MockLayoutProvider : ILayoutProvider
+    {
+        public MockLayoutProvider(Layout.Rect clipRect)
+        {
+            ClipRect = clipRect;
+        }
+        
+        public Layout.Rect ClipRect { get; }
+        public ClipMode ClipMode => ClipMode.Clip;
+        public ILayoutProvider? ParentLayoutProvider { get; set; }
+        
+        public bool ShouldRenderAt(int x, int y)
+        {
+            return x >= ClipRect.X && x < ClipRect.X + ClipRect.Width &&
+                   y >= ClipRect.Y && y < ClipRect.Y + ClipRect.Height;
+        }
+        
+        public (int adjustedX, string clippedText) ClipString(int x, int y, string text)
+        {
+            return LayoutProviderHelper.ClipString(this, x, y, text);
+        }
+    }
+    
+    #endregion
+    
+    /// <summary>
+    /// Integration test: border with emoji content renders correctly.
+    /// </summary>
+    [Fact]
+    public async Task BorderWithEmojiContent_RightBorderAligned()
+    {
+        const int width = 30;
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 10)
+            .Build();
+        
+        using var cts = new CancellationTokenSource();
+        using var app = new Hex1bApp(
+            ctx => ctx.HStack(h => [
+                h.Border(
+                    h.VStack(v => [
+                        v.Text("Plain ASCII"),
+                        v.Text("Test 🖥️ char"),  // Line with VS16 emoji
+                        v.Text("After line")
+                    ])
+                ).FixedWidth(width)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+        
+        var runTask = app.RunAsync(cts.Token);
+        await Task.Delay(100);
+        
+        var snapshot = terminal.CreateSnapshot();
+        var rightBorderColumn = width - 1;  // Column 29
+        
+        // All rows should have the border at column 29
+        Assert.Equal("┐", snapshot.GetCell(rightBorderColumn, 0).Character);  // top border
+        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 1).Character);  // Plain ASCII line
+        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 2).Character);  // 🖥️ line - key test
+        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 3).Character);  // After line
+        
+        cts.Cancel();
+        try { await runTask; } catch (OperationCanceledException) { }
+    }
 }

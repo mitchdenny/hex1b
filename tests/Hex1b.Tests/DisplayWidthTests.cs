@@ -308,4 +308,118 @@ public class DisplayWidthTests
     }
 
     #endregion
+    
+    [Fact]
+    public void GetStringWidth_VariationSelectorEmoji_CalculatesCorrectly()
+    {
+        // "Test ⚠️ char" = Test(4) + space(1) + ⚠️(2) + space(1) + char(4) = 12
+        var text = "Test ⚠️ char";
+        var expected = 12;
+        var actual = DisplayWidth.GetStringWidth(text);
+        
+        Assert.Equal(expected, actual);
+    }
+    
+    [Fact]
+    public void GetGraphemeWidth_WarningEmojiWithVS16_ReturnsTwo()
+    {
+        // ⚠️ is U+26A0 + U+FE0F (warning + variation selector-16)
+        var warning = "⚠️";
+        
+        // Check it's actually the 2-codepoint version
+        var runes = warning.EnumerateRunes().ToArray();
+        Assert.Equal(2, runes.Length);
+        Assert.Equal(0x26A0, runes[0].Value);  // Warning sign
+        Assert.Equal(0xFE0F, runes[1].Value);  // Variation selector-16
+        
+        var width = DisplayWidth.GetGraphemeWidth(warning);
+        Assert.Equal(2, width);
+    }
+
+    [Fact]
+    public void StringInterpolation_PreservesVariationSelector()
+    {
+        var emoji = "🖥️";
+        var interpolated = $"Test {emoji} char";
+        
+        // Check that the variation selector is preserved
+        var runes = interpolated.EnumerateRunes().ToArray();
+        
+        // Should contain: T,e,s,t, ,🖥,FE0F, ,c,h,a,r
+        var hasVS16 = runes.Any(r => r.Value == 0xFE0F);
+        Assert.True(hasVS16, "Variation selector FE0F should be preserved in interpolated string");
+        
+        // Check width calculation
+        var width = DisplayWidth.GetStringWidth(interpolated);
+        // "Test " = 5, 🖥️ = 2, " char" = 5 → total = 12
+        Assert.Equal(12, width);
+    }
+    
+    [Fact]
+    public void SliceByDisplayWidthWithAnsi_VS16Emoji_NoPaddingWhenNotClipped()
+    {
+        // When slicing "Test 🖥️ char" (12 columns) with 28 columns max,
+        // there should be no padding since the text fits entirely
+        var text = "Test 🖥️ char";
+        var (sliced, columns, paddingBefore, paddingAfter) = 
+            DisplayWidth.SliceByDisplayWidthWithAnsi(text, 0, 28);
+        
+        Assert.Equal(text, sliced);
+        Assert.Equal(12, columns);
+        Assert.Equal(0, paddingBefore);
+        Assert.Equal(0, paddingAfter);
+    }
+    
+    [Fact]
+    public void SliceByDisplayWidthWithAnsi_InnerFillSpaces_NoPadding()
+    {
+        // When slicing 28 spaces with 60 columns max, there should be no padding
+        var innerFill = new string(' ', 28);
+        var (sliced, columns, paddingBefore, paddingAfter) = 
+            DisplayWidth.SliceByDisplayWidthWithAnsi(innerFill, 0, 28);
+        
+        Assert.Equal(28, sliced.Length);
+        Assert.Equal(28, columns);
+        Assert.Equal(0, paddingBefore);
+        Assert.Equal(0, paddingAfter);
+    }
+    
+    #region Checkbox and Symbol Characters
+    
+    [Theory]
+    [InlineData("✓", 1)]  // Check Mark U+2713 - NO Emoji_Presentation, defaults to text
+    [InlineData("✔", 2)]  // Heavy Check Mark U+2714 - HAS Emoji_Presentation
+    [InlineData("○", 1)]  // White Circle U+25CB - NO Emoji_Presentation
+    [InlineData("●", 1)]  // Black Circle U+25CF - NO Emoji_Presentation
+    [InlineData("☑", 2)]  // Ballot Box with Check U+2611 - HAS Emoji_Presentation
+    [InlineData("☐", 1)]  // Ballot Box U+2610 - NO Emoji_Presentation
+    public void GetGraphemeWidth_CheckboxSymbols_ReturnsExpected(string symbol, int expectedWidth)
+    {
+        var actualWidth = DisplayWidth.GetGraphemeWidth(symbol);
+        Assert.Equal(expectedWidth, actualWidth);
+    }
+    
+    [Fact]
+    public void GetStringWidth_CheckmarkLine_CalculatesCorrectly()
+    {
+        // "  ✓ Completed Tasks" = 2 spaces + ✓ (1) + space (1) + "Completed Tasks" (15) = 19
+        // Note: Using ✓ (U+2713) which defaults to text presentation (width 1)
+        var line = "  ✓ Completed Tasks";
+        var width = DisplayWidth.GetStringWidth(line);
+        Assert.Equal(19, width);
+    }
+    
+    [Fact]
+    public void GetStringWidth_ClipboardEmoji_CalculatesCorrectly()
+    {
+        // 📋 is a wide emoji (2 columns)
+        var clipboard = "📋";
+        Assert.Equal(2, DisplayWidth.GetGraphemeWidth(clipboard));
+        
+        // "  📋 Pending Tasks" = 2 spaces + 📋 (2) + space (1) + "Pending Tasks" (13) = 18
+        var line = "  📋 Pending Tasks";
+        Assert.Equal(18, DisplayWidth.GetStringWidth(line));
+    }
+    
+    #endregion
 }

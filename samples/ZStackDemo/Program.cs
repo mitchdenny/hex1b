@@ -32,7 +32,6 @@ var allItems = new[]
 try
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithRenderingModeFromEnvironment() // Read HEX1B_RENDERING_MODE env var (Surface, Legacy, Validation)
         .WithHex1bApp((app, options) =>
             ctx => ctx.ThemePanel(
             theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),

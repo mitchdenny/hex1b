@@ -75,12 +75,25 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
             return constraints.Constrain(new Size(targetWidth.Value, targetHeight.Value));
         }
 
+        // When we have a fixed width/height, constrain the child to that minus border
+        // Otherwise use the parent constraints
+        var effectiveMaxWidth = targetWidth.HasValue 
+            ? Math.Max(0, targetWidth.Value - 2) 
+            : Math.Max(0, constraints.MaxWidth - 2);
+        var effectiveMaxHeight = targetHeight.HasValue 
+            ? Math.Max(0, targetHeight.Value - 2) 
+            : Math.Max(0, constraints.MaxHeight - 2);
+        
+        // Compute min values, ensuring they don't exceed max
+        var effectiveMinWidth = Math.Min(Math.Max(0, constraints.MinWidth - 2), effectiveMaxWidth);
+        var effectiveMinHeight = Math.Min(Math.Max(0, constraints.MinHeight - 2), effectiveMaxHeight);
+        
         // Border adds 2 to width (left + right border) and 2 to height (top + bottom border)
         var childConstraints = new Constraints(
-            Math.Max(0, constraints.MinWidth - 2),
-            Math.Max(0, constraints.MaxWidth - 2),
-            Math.Max(0, constraints.MinHeight - 2),
-            Math.Max(0, constraints.MaxHeight - 2)
+            effectiveMinWidth,
+            effectiveMaxWidth,
+            effectiveMinHeight,
+            effectiveMaxHeight
         );
 
         var childSize = Child?.Measure(childConstraints) ?? Size.Zero;
