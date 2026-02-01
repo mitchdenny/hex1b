@@ -29,6 +29,16 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     public int MaxFloating { get; init; } = 3;
 
     /// <summary>
+    /// Horizontal offset from the right edge for floating notifications.
+    /// </summary>
+    public int OffsetX { get; init; } = 1;
+
+    /// <summary>
+    /// Vertical offset from the top edge for floating notifications.
+    /// </summary>
+    public int OffsetY { get; init; } = 1;
+
+    /// <summary>
     /// Sets the content that notifications will overlay.
     /// </summary>
     /// <param name="content">The main content widget.</param>
@@ -42,10 +52,20 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     public NotificationPanelWidget WithMaxFloating(int max)
         => this with { MaxFloating = max };
 
+    /// <summary>
+    /// Sets the offset from the corner for floating notifications.
+    /// </summary>
+    /// <param name="x">Horizontal offset from right edge.</param>
+    /// <param name="y">Vertical offset from top edge.</param>
+    public NotificationPanelWidget WithOffset(int x, int y)
+        => this with { OffsetX = x, OffsetY = y };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NotificationPanelNode ?? new NotificationPanelNode();
         node.MaxFloating = MaxFloating;
+        node.OffsetX = OffsetX;
+        node.OffsetY = OffsetY;
 
         // Reconcile content
         if (Content != null)

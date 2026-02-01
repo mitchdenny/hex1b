@@ -7,7 +7,8 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// Render node for <see cref="NotificationCardWidget"/>.
-/// Displays a notification with title, optional body, and action buttons.
+/// Displays a notification with title, optional body, action buttons, and timeout progress bar.
+/// Uses inverted colors (swapped foreground/background) for visual distinction.
 /// </summary>
 public sealed class NotificationCardNode : Hex1bNode
 {
@@ -64,7 +65,12 @@ public sealed class NotificationCardNode : Hex1bNode
 
     // Card dimensions
     private const int CardWidth = 40;
-    private const int MinCardHeight = 3;
+    private const int MinCardHeight = 2;
+
+    /// <summary>
+    /// Lower half block character for progress bar.
+    /// </summary>
+    private const char ProgressBlock = '▄';
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -108,17 +114,20 @@ public sealed class NotificationCardNode : Hex1bNode
     public override Size Measure(Constraints constraints)
     {
         // Calculate height based on content
-        var height = 2; // Top and bottom borders
-        height += 1; // Title row
+        var height = 1; // Title row
         if (!string.IsNullOrEmpty(Body))
         {
             // Wrap body text to card width
-            var bodyLines = WrapText(Body, CardWidth - 4); // -4 for borders and padding
+            var bodyLines = WrapText(Body, CardWidth - 2); // -2 for padding
             height += bodyLines.Count;
         }
         if (PrimaryAction != null || SecondaryActions.Count > 0)
         {
             height += 1; // Action row
+        }
+        if (Notification?.Timeout != null)
+        {
+            height += 1; // Progress bar row (half-height, but still needs a row)
         }
 
         var size = new Size(CardWidth, Math.Max(MinCardHeight, height));
@@ -128,53 +137,57 @@ public sealed class NotificationCardNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var fg = theme.GetGlobalForeground();
-        var bg = theme.GetGlobalBackground();
-        var resetCodes = theme.GetResetToGlobalCodes();
+        
+        // Inverted colors: swap foreground and background
+        var normalFg = theme.GetGlobalBackground(); // Use bg as fg
+        var normalBg = theme.GetGlobalForeground(); // Use fg as bg
+        
+        // For focused state, use button focus colors but inverted
+        var fg = IsFocused 
+            ? theme.Get(ButtonTheme.FocusedBackgroundColor)
+            : normalFg;
+        var bg = IsFocused 
+            ? theme.Get(ButtonTheme.FocusedForegroundColor)
+            : normalBg;
 
-        // Use focused colors if focused
-        if (IsFocused)
-        {
-            fg = theme.Get(ButtonTheme.FocusedForegroundColor);
-            bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-        }
+        // Handle default colors
+        if (fg.IsDefault) fg = normalFg;
+        if (bg.IsDefault) bg = normalBg;
 
         var fgAnsi = fg.ToForegroundAnsi();
         var bgAnsi = bg.ToBackgroundAnsi();
+        var resetCodes = theme.GetResetToGlobalCodes();
 
         var x = Bounds.X;
         var y = Bounds.Y;
         var width = Bounds.Width;
         var height = Bounds.Height;
 
-        // Draw top border
-        context.SetCursorPosition(x, y);
-        context.Write($"{fgAnsi}{bgAnsi}┌{new string('─', width - 2)}┐{resetCodes}");
+        var currentY = y;
 
         // Draw title row with dismiss button
         var dismissBtn = "[×]";
-        var titleMaxWidth = width - 4 - dismissBtn.Length; // borders, padding, dismiss
+        var titleMaxWidth = width - 2 - dismissBtn.Length; // padding, dismiss
         var displayTitle = Title.Length > titleMaxWidth 
             ? Title[..(titleMaxWidth - 1)] + "…" 
             : Title;
-        var titlePadding = width - 4 - displayTitle.Length - dismissBtn.Length;
+        var titlePadding = width - 1 - displayTitle.Length - dismissBtn.Length;
 
-        context.SetCursorPosition(x, y + 1);
-        context.Write($"{fgAnsi}{bgAnsi}│ {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissBtn} │{resetCodes}");
-
-        var currentY = y + 2;
+        context.SetCursorPosition(x, currentY);
+        context.Write($"{fgAnsi}{bgAnsi} {displayTitle}{new string(' ', Math.Max(0, titlePadding))}{dismissBtn}{resetCodes}");
+        currentY++;
 
         // Draw body if present
         if (!string.IsNullOrEmpty(Body))
         {
-            var bodyLines = WrapText(Body, width - 4);
+            var bodyLines = WrapText(Body, width - 2);
             foreach (var line in bodyLines)
             {
-                if (currentY >= y + height - 1) break; // Leave room for bottom border
+                if (currentY >= y + height - (Notification?.Timeout != null ? 1 : 0)) break;
 
-                var paddedLine = line.PadRight(width - 4);
+                var paddedLine = line.PadRight(width - 2);
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{fgAnsi}{bgAnsi}│ {paddedLine} │{resetCodes}");
+                context.Write($"{fgAnsi}{bgAnsi} {paddedLine} {resetCodes}");
                 currentY++;
             }
         }
@@ -182,26 +195,51 @@ public sealed class NotificationCardNode : Hex1bNode
         // Draw action row if there are actions
         if (PrimaryAction != null || SecondaryActions.Count > 0)
         {
-            if (currentY < y + height - 1)
+            if (currentY < y + height - (Notification?.Timeout != null ? 1 : 0))
             {
-                var actionText = BuildActionText(width - 4);
+                var actionText = BuildActionText(width - 2);
                 context.SetCursorPosition(x, currentY);
-                context.Write($"{fgAnsi}{bgAnsi}│ {actionText} │{resetCodes}");
+                context.Write($"{fgAnsi}{bgAnsi} {actionText} {resetCodes}");
                 currentY++;
             }
         }
 
-        // Fill remaining rows
-        while (currentY < y + height - 1)
+        // Fill remaining rows (except progress bar)
+        var progressBarRow = Notification?.Timeout != null ? 1 : 0;
+        while (currentY < y + height - progressBarRow)
         {
             context.SetCursorPosition(x, currentY);
-            context.Write($"{fgAnsi}{bgAnsi}│{new string(' ', width - 2)}│{resetCodes}");
+            context.Write($"{fgAnsi}{bgAnsi}{new string(' ', width)}{resetCodes}");
             currentY++;
         }
 
-        // Draw bottom border
-        context.SetCursorPosition(x, y + height - 1);
-        context.Write($"{fgAnsi}{bgAnsi}└{new string('─', width - 2)}┘{resetCodes}");
+        // Draw timeout progress bar if notification has a timeout
+        if (Notification?.Timeout != null && currentY < y + height)
+        {
+            var progress = CalculateTimeoutProgress();
+            var filledWidth = (int)(width * progress);
+            var emptyWidth = width - filledWidth;
+
+            // Use half-height block for progress bar
+            var filledBar = new string(ProgressBlock, filledWidth);
+            var emptyBar = new string(' ', emptyWidth);
+
+            context.SetCursorPosition(x, currentY);
+            // Progress bar uses same inverted colors
+            context.Write($"{fgAnsi}{bgAnsi}{filledBar}{emptyBar}{resetCodes}");
+        }
+    }
+
+    private double CalculateTimeoutProgress()
+    {
+        if (Notification?.Timeout == null) return 0;
+
+        var elapsed = DateTimeOffset.Now - Notification.CreatedAt;
+        var remaining = Notification.Timeout.Value - elapsed;
+        
+        if (remaining <= TimeSpan.Zero) return 0;
+        
+        return remaining.TotalMilliseconds / Notification.Timeout.Value.TotalMilliseconds;
     }
 
     private string BuildActionText(int maxWidth)

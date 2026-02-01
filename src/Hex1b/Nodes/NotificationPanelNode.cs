@@ -31,6 +31,16 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
     public int MaxFloating { get; set; } = 3;
 
     /// <summary>
+    /// Horizontal offset from the right edge for floating notifications.
+    /// </summary>
+    public int OffsetX { get; set; } = 1;
+
+    /// <summary>
+    /// Vertical offset from the top edge for floating notifications.
+    /// </summary>
+    public int OffsetY { get; set; } = 1;
+
+    /// <summary>
     /// Cached notification card nodes for rendering.
     /// </summary>
     private readonly List<NotificationCardNode> _cardNodes = new();
@@ -76,9 +86,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
             _cardNodes.Add(new NotificationCardNode());
         }
 
-        // Position cards from top-right, stacking downward
-        var x = bounds.X + bounds.Width - CardWidth - 1;
-        var y = bounds.Y + 1;
+        // Position cards from top-right with offset, stacking downward
+        var x = bounds.X + bounds.Width - CardWidth - OffsetX;
+        var y = bounds.Y + OffsetY;
 
         for (int i = 0; i < visibleCount; i++)
         {
