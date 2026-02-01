@@ -38,12 +38,16 @@ public sealed class NotificationStack
 
     /// <summary>
     /// Shows the notification panel/drawer.
+    /// When the panel opens, all currently floating notifications are hidden from
+    /// the floating view (they remain visible in the drawer). This signals that
+    /// the user has seen them.
     /// </summary>
     public void ShowPanel()
     {
         if (!IsPanelVisible)
         {
             IsPanelVisible = true;
+            HideAllFromFloating();
             Changed?.Invoke();
         }
     }
@@ -62,10 +66,21 @@ public sealed class NotificationStack
 
     /// <summary>
     /// Toggles the notification panel/drawer visibility.
+    /// When opening, all currently floating notifications are hidden from
+    /// the floating view (they remain visible in the drawer).
     /// </summary>
     public void TogglePanel()
     {
-        IsPanelVisible = !IsPanelVisible;
+        if (!IsPanelVisible)
+        {
+            // Opening the panel - hide all floating notifications
+            IsPanelVisible = true;
+            HideAllFromFloating();
+        }
+        else
+        {
+            IsPanelVisible = false;
+        }
         Changed?.Invoke();
     }
 
@@ -233,6 +248,22 @@ public sealed class NotificationStack
         }
 
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Hides all notifications from floating view without dismissing them.
+    /// Called when the notification panel is opened to signal the user has seen them.
+    /// Does NOT invoke the Changed event - callers should do that.
+    /// </summary>
+    private void HideAllFromFloating()
+    {
+        lock (_lock)
+        {
+            foreach (var entry in _entries)
+            {
+                entry.IsFloating = false;
+            }
+        }
     }
 
     private void StartTimeoutTimer(NotificationEntry entry, TimeSpan timeout)
