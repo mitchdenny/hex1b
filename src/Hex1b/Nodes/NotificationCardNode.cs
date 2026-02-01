@@ -262,8 +262,7 @@ public sealed class NotificationCardNode : Hex1bNode
         var currentY = y;
 
         // ═══ TOP BORDER ROW (with corner quadrants) ═══
-        context.SetCursorPosition(x, currentY);
-        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{topLeftCorner}{new string(topBorder, contentWidth)}{topRightCorner}{resetCodes}");
+        context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{topLeftCorner}{new string(topBorder, contentWidth)}{topRightCorner}{resetCodes}");
         currentY++;
 
         // ═══ TITLE ROW ═══
@@ -274,8 +273,8 @@ public sealed class NotificationCardNode : Hex1bNode
             : Title;
         var titlePadding = titleMaxWidth - displayTitle.Length;
 
-        context.SetCursorPosition(x, currentY);
-        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}");
+        // Build the title row content string up to the dismiss button
+        var titleContent = $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}";
         
         // Fill gap between title and dismiss button (if any)
         if (DismissButton != null)
@@ -284,19 +283,20 @@ public sealed class NotificationCardNode : Hex1bNode
             var gapWidth = _dismissButtonX - titleEndX;
             if (gapWidth > 0)
             {
-                context.Write($"{new string(' ', gapWidth)}");
+                titleContent += new string(' ', gapWidth);
             }
-            context.Write($"{resetCodes}");
+            titleContent += resetCodes;
+            context.WriteClipped(x, currentY, titleContent);
             context.RenderChild(DismissButton);
         }
         else
         {
-            context.Write($"{resetCodes}");
+            titleContent += resetCodes;
+            context.WriteClipped(x, currentY, titleContent);
         }
         
         // Right border for title row
-        context.SetCursorPosition(x + width - 1, currentY);
-        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+        context.WriteClipped(x + width - 1, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
         currentY++;
 
         // ═══ BODY ROWS ═══
@@ -308,8 +308,7 @@ public sealed class NotificationCardNode : Hex1bNode
                 if (currentY >= y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
                 var paddedLine = line.PadRight(contentWidth - 2);
-                context.SetCursorPosition(x, currentY);
-                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{bodyFgAnsi}{cardBgAnsi} {paddedLine} {cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+                context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{bodyFgAnsi}{cardBgAnsi} {paddedLine} {cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
         }
@@ -320,8 +319,7 @@ public sealed class NotificationCardNode : Hex1bNode
             if (currentY < y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0))
             {
                 // Left border + padding
-                context.SetCursorPosition(x, currentY);
-                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} ");
+                context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} ");
                 
                 context.RenderChild(ActionButton);
                 
@@ -332,11 +330,9 @@ public sealed class NotificationCardNode : Hex1bNode
                 var actionPadding = rightBorderX - actionEndX;
                 if (actionPadding > 0)
                 {
-                    context.SetCursorPosition(actionEndX, currentY);
-                    context.Write($"{cardBgAnsi}{new string(' ', actionPadding)}{resetCodes}");
+                    context.WriteClipped(actionEndX, currentY, $"{cardBgAnsi}{new string(' ', actionPadding)}{resetCodes}");
                 }
-                context.SetCursorPosition(rightBorderX, currentY);
-                context.Write($"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+                context.WriteClipped(rightBorderX, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
         }
@@ -345,8 +341,7 @@ public sealed class NotificationCardNode : Hex1bNode
         var progressBarRow = ShowProgressBar && Notification?.Timeout != null ? 1 : 0;
         while (currentY < y + height - 1 - progressBarRow)
         {
-            context.SetCursorPosition(x, currentY);
-            context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi}{new string(' ', contentWidth)}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+            context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi}{new string(' ', contentWidth)}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
             currentY++;
         }
 
@@ -369,16 +364,14 @@ public sealed class NotificationCardNode : Hex1bNode
             var halfPart = hasHalfCell ? rightEdgeChar.ToString() : "";
             var emptyBar = new string(' ', emptyWidth);
 
-            context.SetCursorPosition(x, currentY);
             var progressColor = childTheme.Get(NotificationCardTheme.ProgressBarColor);
             var progressFgAnsi = progressColor.ToForegroundAnsi();
-            context.Write($"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{progressFgAnsi}{cardBgAnsi}{filledBar}{halfPart}{emptyBar}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
+            context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{progressFgAnsi}{cardBgAnsi}{filledBar}{halfPart}{emptyBar}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
             currentY++;
         }
 
         // ═══ BOTTOM BORDER ROW (with corner quadrants) ═══
-        context.SetCursorPosition(x, currentY);
-        context.Write($"{cardBgFgAnsi}{globalBgAnsi}{bottomLeftCorner}{new string(bottomBorder, contentWidth)}{bottomRightCorner}{resetCodes}");
+        context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{bottomLeftCorner}{new string(bottomBorder, contentWidth)}{bottomRightCorner}{resetCodes}");
         
         // Restore original theme
         context.Theme = originalTheme;

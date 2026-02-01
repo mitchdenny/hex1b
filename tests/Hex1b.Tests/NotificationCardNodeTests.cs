@@ -624,3 +624,201 @@ public class NotificationCardNodeTests
             $"Notification should have been dismissed.\nHitTest: {hitTestDebug}\nScreen:\n{snapshot.GetText()}");
     }
 }
+
+
+/// <summary>
+/// Tests for notification panel hit testing behavior.
+/// </summary>
+public class NotificationPanelHitTestTests
+{
+    /// <summary>
+    /// Regression test: When notification drawer is expanded over content,
+    /// clicking on notification cards should NOT pass through to the content below.
+    /// The drawer should have priority in hit testing.
+    /// </summary>
+    [Fact]
+    public async Task NotificationPanel_DrawerExpanded_BlocksHitTestToContentBelow()
+    {
+        // Arrange - Create a notification panel with buttons underneath
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(112, 36)
+            .Build();
+
+        bool contentButtonClicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Text("App Title"),
+                        bar.Text("").FillWidth(),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        // Content buttons that could receive clicks
+                        outer.VStack(v => [
+                            v.Button("Post Notifications").OnClick(e =>
+                            {
+                                e.Context.Notifications.Post(
+                                    new Notification("Test 1", "First notification")
+                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                                e.Context.Notifications.Post(
+                                    new Notification("Test 2", "Second notification")
+                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                                e.Context.Notifications.ShowPanel();
+                            }),
+                            v.Button("Content Button").OnClick(_ => contentButtonClicked = true)
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Post notifications and open drawer
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post Notifications"), TimeSpan.FromSeconds(2), "ready")
+            // Tab to move from NotificationIcon to Post Notifications button
+            .Key(Hex1bKey.Tab)
+            .Wait(TimeSpan.FromMilliseconds(50))
+            .Key(Hex1bKey.Enter) // Click "Post Notifications" button
+            .Wait(TimeSpan.FromMilliseconds(300))
+            .WaitUntil(s => s.ContainsText("Test 1") || s.ContainsText("Test 2"), TimeSpan.FromSeconds(2), "notifications_posted")
+            .Capture("notifications_posted")
+            // Now tab to navigate through drawer elements
+            .Key(Hex1bKey.Tab) // Navigate in drawer
+            .Key(Hex1bKey.Tab)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("after_tab")
+            .Key(Hex1bKey.Enter) // Try to click something in the drawer
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("after_click")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // The content button should NOT have been clicked
+        // Focus should stay on drawer elements, not pass through to content
+        Assert.False(contentButtonClicked,
+            $"Content button should NOT be clicked when drawer is expanded. Screen:\n{snapshot}");
+        
+        // The drawer should still be visible
+        Assert.True(snapshot.ContainsText("Notifications"),
+            $"Drawer should still be visible. Screen:\n{snapshot}");
+    }
+
+    /// <summary>
+    /// Test that when drawer is collapsed, content buttons are accessible.
+    /// </summary>
+    [Fact]
+    public async Task NotificationPanel_DrawerCollapsed_ContentIsAccessible()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(112, 36)
+            .Build();
+
+        bool contentButtonClicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.HStack(bar => [
+                        bar.Text("App Title"),
+                        bar.Text("").FillWidth(),
+                        bar.NotificationIcon()
+                    ]),
+                    outer.NotificationPanel(
+                        outer.VStack(v => [
+                            v.Button("Content Button").OnClick(_ => contentButtonClicked = true),
+                            v.Text("Some content")
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content Button"), TimeSpan.FromSeconds(2), "ready")
+            // Tab to move from NotificationIcon to Content Button
+            .Key(Hex1bKey.Tab)
+            .Wait(TimeSpan.FromMilliseconds(50))
+            .Key(Hex1bKey.Enter) // Click the content button - drawer is collapsed
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("after_click")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Content button should be clicked when drawer is collapsed
+        Assert.True(contentButtonClicked,
+            $"Content button SHOULD be clickable when drawer is collapsed. Screen:\n{snapshot}");
+    }
+
+    /// <summary>
+    /// Test that floating notifications have priority over content.
+    /// </summary>
+    [Fact]
+    public async Task NotificationPanel_FloatingNotification_HasPriorityOverContent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(112, 36)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.ZStack(z => [
+                z.VStack(outer => [
+                    outer.NotificationPanel(
+                        outer.VStack(v => [
+                            v.Button("Post Notification").OnClick(e =>
+                            {
+                                e.Context.Notifications.Post(
+                                    new Notification("Alert", "Important message")
+                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                            }),
+                            v.Text("Main content area")
+                        ])
+                    ).Fill()
+                ])
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(2), "ready")
+            .Key(Hex1bKey.Enter) // Post notification
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(2), "notification_visible")
+            .Capture("with_notification")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Floating notification should be visible on top
+        Assert.True(snapshot.ContainsText("Alert"),
+            $"Floating notification should be visible. Screen:\n{snapshot}");
+        Assert.True(snapshot.ContainsText("Important message"),
+            $"Notification body should be visible. Screen:\n{snapshot}");
+    }
+}

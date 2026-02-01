@@ -262,8 +262,19 @@ public sealed class NotificationPanelNode : Hex1bNode
     {
         if (IsDrawerExpanded)
         {
-            // Include backdrop first so it's checked AFTER cards in reverse hit testing
-            // (HitTest iterates in reverse, so items yielded first are checked last)
+            // When drawer is expanded, content focusables should be yielded FIRST
+            // so they have lower priority in hit testing (HitTest checks in reverse order).
+            // This ensures drawer elements block clicks on content below.
+            if (Content != null)
+            {
+                foreach (var focusable in Content.GetFocusableNodes())
+                {
+                    yield return focusable;
+                }
+            }
+            
+            // Include backdrop so it catches clicks outside drawer content
+            // (yielded after content but before drawer cards for proper layering)
             if (DrawerBackdrop != null)
             {
                 foreach (var focusable in DrawerBackdrop.GetFocusableNodes())
@@ -272,7 +283,7 @@ public sealed class NotificationPanelNode : Hex1bNode
                 }
             }
             
-            // Drawer scroll/cards yielded after backdrop so they're checked first in hit testing
+            // Drawer scroll/cards yielded last so they're checked first in hit testing
             if (DrawerScroll != null)
             {
                 foreach (var focusable in DrawerScroll.GetFocusableNodes())
@@ -293,7 +304,17 @@ public sealed class NotificationPanelNode : Hex1bNode
         }
         else
         {
-            // Floating notifications get focus priority
+            // Floating notifications get focus priority (yielded first = checked last)
+            // Content is yielded first so it has lower hit test priority
+            if (Content != null)
+            {
+                foreach (var focusable in Content.GetFocusableNodes())
+                {
+                    yield return focusable;
+                }
+            }
+            
+            // Floating cards are yielded last so they're checked first
             var floating = Notifications.Floating;
             var visibleCount = Math.Min(floating.Count, MaxFloating);
 
@@ -303,15 +324,6 @@ public sealed class NotificationPanelNode : Hex1bNode
                 {
                     yield return focusable;
                 }
-            }
-        }
-
-        // Then content focusables
-        if (Content != null)
-        {
-            foreach (var focusable in Content.GetFocusableNodes())
-            {
-                yield return focusable;
             }
         }
     }

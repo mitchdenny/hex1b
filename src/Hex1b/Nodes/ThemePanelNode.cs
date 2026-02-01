@@ -80,6 +80,11 @@ public sealed class ThemePanelNode : Hex1bNode
         
         // Restore original theme
         context.Theme = originalTheme;
+        
+        // Reset the render context's style state to match the restored theme
+        // This ensures subsequent nodes don't inherit our mutated colors
+        var originalResetCode = originalTheme.GetResetToGlobalCodes();
+        context.Write(originalResetCode);
     }
 
     /// <summary>
