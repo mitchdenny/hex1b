@@ -74,7 +74,7 @@ async function initTerminal() {
       theme: terminalTheme,
       fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", Menlo, Monaco, monospace',
       fontSize: 14,
-      lineHeight: 1.2,
+      lineHeight: 1,
       cursorBlink: true,
       cursorStyle: 'block',
       allowProposedApi: true
