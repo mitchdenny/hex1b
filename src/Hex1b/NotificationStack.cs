@@ -32,6 +32,44 @@ public sealed class NotificationStack
     public event Action? Changed;
 
     /// <summary>
+    /// Whether the notification panel/drawer is visible.
+    /// </summary>
+    public bool IsPanelVisible { get; set; }
+
+    /// <summary>
+    /// Shows the notification panel/drawer.
+    /// </summary>
+    public void ShowPanel()
+    {
+        if (!IsPanelVisible)
+        {
+            IsPanelVisible = true;
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Hides the notification panel/drawer.
+    /// </summary>
+    public void HidePanel()
+    {
+        if (IsPanelVisible)
+        {
+            IsPanelVisible = false;
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Toggles the notification panel/drawer visibility.
+    /// </summary>
+    public void TogglePanel()
+    {
+        IsPanelVisible = !IsPanelVisible;
+        Changed?.Invoke();
+    }
+
+    /// <summary>
     /// Gets all active notifications in the stack (both floating and docked).
     /// Newest notifications are first.
     /// </summary>

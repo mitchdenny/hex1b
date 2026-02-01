@@ -36,6 +36,37 @@ public static class NotificationPanelExtensions
     }
 
     /// <summary>
+    /// Creates a notification panel with an external notification stack.
+    /// This allows the calling code to access notification state (count, visibility).
+    /// </summary>
+    /// <typeparam name="T">The parent widget type.</typeparam>
+    /// <param name="context">The widget context.</param>
+    /// <param name="stack">The external notification stack to use.</param>
+    /// <param name="content">The content to display.</param>
+    /// <returns>A notification panel widget.</returns>
+    /// <example>
+    /// <code>
+    /// var notifications = new NotificationStack();
+    /// 
+    /// ctx.NotificationPanel(notifications,
+    ///     ctx.VStack(v => [
+    ///         v.Text($"Notifications: {notifications.Count}"),
+    ///         v.Button("Toggle Panel").OnClick(_ => notifications.TogglePanel())
+    ///     ])
+    /// )
+    /// </code>
+    /// </example>
+    public static NotificationPanelWidget NotificationPanel<T>(
+        this WidgetContext<T> context,
+        NotificationStack stack,
+        Hex1bWidget content) where T : Hex1bWidget
+    {
+        return new NotificationPanelWidget()
+            .WithStack(stack)
+            .WithContent(content);
+    }
+
+    /// <summary>
     /// Creates a notification panel with configuration options.
     /// </summary>
     /// <typeparam name="T">The parent widget type.</typeparam>

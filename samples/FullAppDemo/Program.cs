@@ -61,10 +61,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ctx.ZStack(z => [
             z.VStack(outer => [
                 // ─────────────────────────────────────────────────────────────────
-                // MENU BAR
+                // TOP BAR (Menu + Notification Bell)
                 // ─────────────────────────────────────────────────────────────────
-                outer.MenuBar(m => [
-                    m.Menu("File", m => [
+                outer.HStack(topBar => [
+                    topBar.MenuBar(m => [
+                        m.Menu("File", m => [
                     m.MenuItem("New Task").OnActivated(e => {
                         tasks.Add(("○", $"New Task {tasks.Count + 1}", "Medium"));
                         lastAction = "Created new task";
@@ -168,6 +169,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     })
                 ])
             ]),
+                    // Spacer to push notification icon to the right
+                    topBar.Text("").FillWidth(),
+                    // Notification bell icon (finds NotificationPanel in parent chain)
+                    topBar.NotificationIcon(),
+                ]),
 
             // ─────────────────────────────────────────────────────────────────
             // MAIN CONTENT AREA (with sidebars)

@@ -16,10 +16,21 @@ namespace Hex1b.Nodes;
 /// </remarks>
 public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
 {
+    private NotificationStack? _externalStack;
+    private readonly NotificationStack _internalStack = new();
+
     /// <summary>
-    /// The notification stack for this host.
+    /// The notification stack for this host. Uses external stack if set, otherwise internal.
     /// </summary>
-    public NotificationStack Notifications { get; } = new();
+    public NotificationStack Notifications => _externalStack ?? _internalStack;
+
+    /// <summary>
+    /// Sets an external notification stack to use instead of the internal one.
+    /// </summary>
+    internal void SetExternalStack(NotificationStack? stack)
+    {
+        _externalStack = stack;
+    }
 
     /// <summary>
     /// The main content node.
@@ -52,9 +63,13 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
     public List<NotificationCardNode> DrawerCardNodes { get; } = new();
 
     /// <summary>
-    /// Whether the notification drawer is expanded.
+    /// Whether the notification drawer is expanded. Syncs with NotificationStack.IsPanelVisible.
     /// </summary>
-    public bool IsDrawerExpanded { get; set; }
+    public bool IsDrawerExpanded
+    {
+        get => Notifications.IsPanelVisible;
+        set => Notifications.IsPanelVisible = value;
+    }
 
     /// <summary>
     /// Width of notification cards.
@@ -79,7 +94,7 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
 
     private Task ToggleDrawer(InputBindingActionContext ctx)
     {
-        IsDrawerExpanded = !IsDrawerExpanded;
+        Notifications.TogglePanel();
         MarkDirty();
         return Task.CompletedTask;
     }

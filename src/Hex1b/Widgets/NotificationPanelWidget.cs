@@ -8,11 +8,10 @@ namespace Hex1b.Widgets;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is a placeholder implementation for Phase 2. The full implementation will include:
+/// The NotificationPanel can use either an internal or external NotificationStack:
 /// <list type="bullet">
-///   <item><description>Floating notification cards as overlays</description></item>
-///   <item><description>Expandable drawer showing all notifications</description></item>
-///   <item><description>Configurable max visible floating notifications</description></item>
+///   <item><description>Internal: The panel manages its own stack (default)</description></item>
+///   <item><description>External: Pass a NotificationStack to share state with the rest of the app</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -27,6 +26,12 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// The content to display in the main area (notifications overlay on top of this).
     /// </summary>
     internal Hex1bWidget? Content { get; init; }
+
+    /// <summary>
+    /// An external notification stack to use instead of the internal one.
+    /// When set, the panel uses this stack for all notifications.
+    /// </summary>
+    internal NotificationStack? ExternalStack { get; init; }
 
     /// <summary>
     /// Maximum number of notifications to show floating at once.
@@ -54,6 +59,14 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <param name="content">The main content widget.</param>
     public NotificationPanelWidget WithContent(Hex1bWidget content)
         => this with { Content = content };
+
+    /// <summary>
+    /// Uses an external notification stack instead of an internal one.
+    /// This allows sharing notification state with the rest of the app.
+    /// </summary>
+    /// <param name="stack">The notification stack to use.</param>
+    public NotificationPanelWidget WithStack(NotificationStack stack)
+        => this with { ExternalStack = stack };
 
     /// <summary>
     /// Sets the maximum number of floating notifications.
@@ -95,6 +108,10 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NotificationPanelNode ?? new NotificationPanelNode();
+        
+        // Set external stack if provided
+        node.SetExternalStack(ExternalStack);
+        
         node.MaxFloating = MaxFloating;
         node.OffsetX = OffsetX;
         node.OffsetY = OffsetY;
