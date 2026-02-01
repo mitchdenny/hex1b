@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -34,6 +35,7 @@ var tasks = new List<(string status, string title, string priority)>
     ("○", "Update documentation", "Low"),
 };
 var selectedTaskIndex = 0;
+object? focusedTaskKey = null;
 
 // Files data (for Files view)
 var files = new[]
@@ -230,9 +232,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         main.Text($"  {navItems[selectedNavIndex].Item1} {currentView}"),
                         main.Text("  " + new string('═', 40)),
                         main.Text(""),
-                        ..BuildViewContent(main, currentView, tasks, selectedTaskIndex, files,
+                        ..BuildViewContent(main, currentView, tasks, selectedTaskIndex, focusedTaskKey, files,
                             settingsOptions, darkModeIndex, notificationsIndex, autoSaveIndex,
                             idx => selectedTaskIndex = idx,
+                            key => focusedTaskKey = key,
                             idx => darkModeIndex = idx,
                             idx => notificationsIndex = idx,
                             idx => autoSaveIndex = idx,
@@ -299,12 +302,14 @@ static IEnumerable<Hex1bWidget> BuildViewContent(
     string view,
     List<(string status, string title, string priority)> tasks,
     int selectedTaskIndex,
+    object? focusedTaskKey,
     (string icon, string name, string size)[] files,
     string[] settingsOptions,
     int darkModeIndex,
     int notificationsIndex,
     int autoSaveIndex,
     Action<int> setSelectedTask,
+    Action<object?> setFocusedTaskKey,
     Action<int> setDarkMode,
     Action<int> setNotifications,
     Action<int> setAutoSave,
@@ -313,7 +318,7 @@ static IEnumerable<Hex1bWidget> BuildViewContent(
     return view switch
     {
         "Dashboard" => BuildDashboardView(ctx, tasks),
-        "Tasks" => BuildTasksView(ctx, tasks, selectedTaskIndex, setSelectedTask, setStatus),
+        "Tasks" => BuildTasksView(ctx, tasks, selectedTaskIndex, focusedTaskKey, setSelectedTask, setFocusedTaskKey, setStatus),
         "Files" => BuildFilesView(ctx, files),
         "Settings" => BuildSettingsView(ctx, settingsOptions, darkModeIndex, notificationsIndex, 
             autoSaveIndex, setDarkMode, setNotifications, setAutoSave, setStatus),
@@ -362,11 +367,61 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
     WidgetContext<VStackWidget> ctx,
     List<(string status, string title, string priority)> tasks,
     int selectedTaskIndex,
+    object? focusedTaskKey,
     Action<int> setSelectedTask,
+    Action<object?> setFocusedTaskKey,
     Action<string> setStatus)
 {
-    var widgets = new List<Hex1bWidget>
+    // Filter tasks into pending and completed
+    var pendingTasks = tasks.Where(t => t.status != "✓").ToList();
+    var completedTasks = tasks.Where(t => t.status == "✓").ToList();
+    
+    // Helper to build a task table
+    Hex1bWidget BuildTaskTable(
+        IReadOnlyList<(string status, string title, string priority)> taskList,
+        string emptyMessage)
     {
+        return ctx.Table(taskList)
+            .RowKey(t => t.title)
+            .Header(h => [
+                h.Cell("Status").Width(SizeHint.Fixed(8)),
+                h.Cell("Task").Width(SizeHint.Fill),
+                h.Cell("Priority").Width(SizeHint.Fixed(12))
+            ])
+            .Row((r, task, state) => {
+                var priorityIcon = task.priority switch
+                {
+                    "High" => "🔴",
+                    "Medium" => "🟡",
+                    _ => "🟢"
+                };
+                return [
+                    r.Cell($"  {task.status}"),
+                    r.Cell(task.title),
+                    r.Cell($"{priorityIcon} {task.priority}")
+                ];
+            })
+            .Empty(e => e.Text($"  {emptyMessage}"))
+            .Focus(focusedTaskKey)
+            .OnFocusChanged(key => {
+                setFocusedTaskKey(key);
+                // Update selectedTaskIndex based on focused key
+                var index = tasks.FindIndex(t => (object)t.title == key);
+                if (index >= 0) setSelectedTask(index);
+            })
+            .OnRowActivated((key, task) => {
+                // Toggle task status on Enter/double-click
+                var index = tasks.FindIndex(t => t.title == task.title);
+                if (index >= 0)
+                {
+                    tasks[index] = (task.status == "✓" ? "○" : "✓", task.title, task.priority);
+                    setStatus(task.status == "✓" ? "Task marked incomplete" : "Task completed!");
+                }
+            })
+            .FillHeight();
+    }
+    
+    return [
         ctx.HStack(h => [
             h.Text("  "),
             h.Button("+ Add Task").OnClick(_ => {
@@ -384,27 +439,12 @@ static IEnumerable<Hex1bWidget> BuildTasksView(
             })
         ]).FixedHeight(1),
         ctx.Text(""),
-        ctx.Text("  Status │ Task                          │ Priority"),
-        ctx.Text("  ───────┼───────────────────────────────┼─────────"),
-    };
-
-    for (int i = 0; i < tasks.Count; i++)
-    {
-        var task = tasks[i];
-        var index = i;
-        var prefix = i == selectedTaskIndex ? "▸ " : "  ";
-        var priorityColor = task.priority switch
-        {
-            "High" => "🔴",
-            "Medium" => "🟡",
-            _ => "🟢"
-        };
-        
-        widgets.Add(ctx.Button($"{prefix}{task.status}    │ {task.title,-29} │ {priorityColor} {task.priority}")
-            .OnClick(_ => setSelectedTask(index)));
-    }
-
-    return widgets;
+        ctx.Text("  📋 Pending Tasks"),
+        BuildTaskTable(pendingTasks, "No pending tasks"),
+        ctx.Text(""),
+        ctx.Text("  ✓ Completed Tasks"),
+        BuildTaskTable(completedTasks, "No completed tasks")
+    ];
 }
 
 static IEnumerable<Hex1bWidget> BuildFilesView(
