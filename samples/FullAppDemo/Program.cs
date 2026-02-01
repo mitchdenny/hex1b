@@ -322,6 +322,17 @@ static IEnumerable<Hex1bWidget> BuildDashboardView(
         ctx.Text(""),
         ctx.Text("  Use the navigation sidebar to explore different views."),
         ctx.Text("  Press Alt+F for File menu, Alt+V for View menu."),
+        ctx.Text(""),
+        ctx.Text("  ── Test SplitButton (standalone) ──"),
+        ctx.HStack(h => [
+            h.Text("  "),
+            h.SplitButton("Action")
+                .OnPrimaryClick(_ => { /* Primary action */ })
+                .WithSecondaryAction("Option A", _ => { })
+                .WithSecondaryAction("Option B", _ => { }),
+            h.Text("  "),
+            h.Button("Regular Button"),
+        ]),
     ];
 }
 

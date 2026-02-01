@@ -41,9 +41,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
     public int OffsetY { get; set; } = 1;
 
     /// <summary>
-    /// Cached notification card nodes for rendering.
+    /// Notification card nodes for rendering. Managed by NotificationPanelWidget reconciliation.
     /// </summary>
-    private readonly List<NotificationCardNode> _cardNodes = new();
+    public List<NotificationCardNode> CardNodes { get; } = new();
 
     /// <summary>
     /// Width of notification cards.
@@ -80,28 +80,13 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
         var floating = Notifications.Floating;
         var visibleCount = Math.Min(floating.Count, MaxFloating);
 
-        // Ensure we have enough card nodes
-        while (_cardNodes.Count < visibleCount)
-        {
-            _cardNodes.Add(new NotificationCardNode());
-        }
-
         // Position cards from top-right with offset, stacking downward
         var x = bounds.X + bounds.Width - CardWidth - OffsetX;
         var y = bounds.Y + OffsetY;
 
-        for (int i = 0; i < visibleCount; i++)
+        for (int i = 0; i < visibleCount && i < CardNodes.Count; i++)
         {
-            var notification = floating[i];
-            var card = _cardNodes[i];
-
-            // Update card content
-            card.Title = notification.Title;
-            card.Body = notification.Body;
-            card.Notification = notification;
-            card.Stack = Notifications;
-            card.PrimaryAction = notification.PrimaryActionValue;
-            card.SecondaryActions = notification.SecondaryActions;
+            var card = CardNodes[i];
 
             // Measure and arrange the card
             var constraints = new Constraints(0, CardWidth, 0, bounds.Height / 2);
@@ -118,9 +103,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
         var floating = Notifications.Floating;
         var visibleCount = Math.Min(floating.Count, MaxFloating);
 
-        for (int i = 0; i < visibleCount && i < _cardNodes.Count; i++)
+        for (int i = 0; i < visibleCount && i < CardNodes.Count; i++)
         {
-            foreach (var focusable in _cardNodes[i].GetFocusableNodes())
+            foreach (var focusable in CardNodes[i].GetFocusableNodes())
             {
                 yield return focusable;
             }
@@ -148,9 +133,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
         var floating = Notifications.Floating;
         var visibleCount = Math.Min(floating.Count, MaxFloating);
 
-        for (int i = 0; i < visibleCount && i < _cardNodes.Count; i++)
+        for (int i = 0; i < visibleCount && i < CardNodes.Count; i++)
         {
-            _cardNodes[i].Render(context);
+            CardNodes[i].Render(context);
         }
 
         // If there are more notifications than visible, show overflow indicator
@@ -161,8 +146,8 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
             var x = Bounds.X + Bounds.Width - CardWidth - 1;
             
             // Position below the last visible card
-            var lastCardBottom = _cardNodes.Count > 0 
-                ? _cardNodes[visibleCount - 1].Bounds.Y + _cardNodes[visibleCount - 1].Bounds.Height
+            var lastCardBottom = CardNodes.Count > 0 
+                ? CardNodes[visibleCount - 1].Bounds.Y + CardNodes[visibleCount - 1].Bounds.Height
                 : Bounds.Y + 1;
             
             context.SetCursorPosition(x, lastCardBottom);
@@ -180,9 +165,9 @@ public sealed class NotificationPanelNode : Hex1bNode, INotificationHost
         // Include visible card nodes as children
         var floating = Notifications.Floating;
         var visibleCount = Math.Min(floating.Count, MaxFloating);
-        for (int i = 0; i < visibleCount && i < _cardNodes.Count; i++)
+        for (int i = 0; i < visibleCount && i < CardNodes.Count; i++)
         {
-            yield return _cardNodes[i];
+            yield return CardNodes[i];
         }
     }
 }

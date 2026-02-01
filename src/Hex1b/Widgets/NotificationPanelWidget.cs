@@ -109,6 +109,29 @@ public sealed record NotificationPanelWidget : Hex1bWidget
             node.Content = null;
         }
 
+        // Reconcile notification cards for floating notifications
+        var floating = node.Notifications.Floating;
+        var visibleCount = Math.Min(floating.Count, MaxFloating);
+        
+        // Ensure card node list matches visible count
+        while (node.CardNodes.Count < visibleCount)
+        {
+            node.CardNodes.Add(null!);
+        }
+        while (node.CardNodes.Count > visibleCount)
+        {
+            node.CardNodes.RemoveAt(node.CardNodes.Count - 1);
+        }
+
+        // Reconcile each visible notification card
+        for (int i = 0; i < visibleCount; i++)
+        {
+            var notification = floating[i];
+            var cardWidget = new NotificationCardWidget(notification, node.Notifications);
+            var existingCard = node.CardNodes[i];
+            node.CardNodes[i] = (NotificationCardNode)await cardWidget.ReconcileAsync(existingCard, context);
+        }
+
         return node;
     }
 
