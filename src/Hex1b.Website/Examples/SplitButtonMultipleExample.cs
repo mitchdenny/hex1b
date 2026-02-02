@@ -42,16 +42,16 @@ public class SplitButtonMultipleExample(ILogger<SplitButtonMultipleExample> logg
                     v.Text($"Priority: {state.Priority}"),
                     v.Text(""),
                     v.HStack(h => [
-                        h.SplitButton("Create Task")
-                           .OnPrimaryClick(_ => state.TaskName = "New Task")
-                           .WithSecondaryAction("From Template", _ => state.TaskName = "Template Task")
-                           .WithSecondaryAction("Duplicate Last", _ => state.TaskName = "Duplicated Task"),
+                        h.SplitButton()
+                           .PrimaryAction("Create Task", _ => state.TaskName = "New Task")
+                           .SecondaryAction("From Template", _ => state.TaskName = "Template Task")
+                           .SecondaryAction("Duplicate Last", _ => state.TaskName = "Duplicated Task"),
                         h.Text(" "),
-                        h.SplitButton("Set Priority")
-                           .OnPrimaryClick(_ => state.Priority = "Normal")
-                           .WithSecondaryAction("Low", _ => state.Priority = "Low")
-                           .WithSecondaryAction("High", _ => state.Priority = "High")
-                           .WithSecondaryAction("Urgent", _ => state.Priority = "Urgent")
+                        h.SplitButton()
+                           .PrimaryAction("Set Priority", _ => state.Priority = "Normal")
+                           .SecondaryAction("Low", _ => state.Priority = "Low")
+                           .SecondaryAction("High", _ => state.Priority = "High")
+                           .SecondaryAction("Urgent", _ => state.Priority = "Urgent")
                     ])
                 ])
             ], title: "Task Manager");

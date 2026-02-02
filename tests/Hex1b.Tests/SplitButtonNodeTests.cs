@@ -22,7 +22,7 @@ public class SplitButtonNodeTests
             .Build();
 
         using var app = new Hex1bApp(
-            ctx => ctx.SplitButton("Action").OnPrimaryClick(_ => { }),
+            ctx => ctx.SplitButton().PrimaryAction("Action", _ => { }),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -42,7 +42,7 @@ public class SplitButtonNodeTests
     }
 
     [Fact]
-    public async Task SplitButton_WithSecondaryActions_ShowsDropdownArrow()
+    public async Task SplitButton_SecondaryActions_ShowsDropdownArrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
@@ -52,9 +52,9 @@ public class SplitButtonNodeTests
             .Build();
 
         using var app = new Hex1bApp(
-            ctx => ctx.SplitButton("Action")
-                .OnPrimaryClick(_ => { })
-                .WithSecondaryAction("Option A", _ => { }),
+            ctx => ctx.SplitButton()
+                .PrimaryAction("Action", _ => { })
+                .SecondaryAction("Option A", _ => { }),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -85,7 +85,7 @@ public class SplitButtonNodeTests
             .Build();
 
         using var app = new Hex1bApp(
-            ctx => ctx.SplitButton("Action").OnPrimaryClick(_ => { }),
+            ctx => ctx.SplitButton().PrimaryAction("Action", _ => { }),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -118,7 +118,7 @@ public class SplitButtonNodeTests
     }
 
     [Fact]
-    public void Measure_WithSecondaryActions_IncludesArrow()
+    public void Measure_SecondaryActions_IncludesArrow()
     {
         var node = new SplitButtonNode 
         { 

@@ -101,8 +101,8 @@ public sealed record NotificationCardWidget : Hex1bWidget
         // Reconcile action button if there's a primary action
         if (Notification.PrimaryActionValue != null)
         {
-            var actionWidget = new SplitButtonWidget(Notification.PrimaryActionValue.Label)
-                .OnPrimaryClick(async e =>
+            var actionWidget = new SplitButtonWidget()
+                .PrimaryAction(Notification.PrimaryActionValue.Label, async e =>
                 {
                     var actionCtx = new NotificationActionContext(Notification, Stack, e.Context.CancellationToken, e.Context);
                     await Notification.PrimaryActionValue.Handler(actionCtx);
@@ -116,7 +116,7 @@ public sealed record NotificationCardWidget : Hex1bWidget
             // Add secondary actions
             foreach (var secondary in Notification.SecondaryActions)
             {
-                actionWidget = actionWidget.WithSecondaryAction(secondary.Label, async e =>
+                actionWidget = actionWidget.SecondaryAction(secondary.Label, async e =>
                 {
                     var actionCtx = new NotificationActionContext(Notification, Stack, e.Context.CancellationToken, e.Context);
                     await secondary.Handler(actionCtx);

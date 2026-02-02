@@ -9,11 +9,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         v.Text(""),
         v.Text($"Last action: {state.LastAction}"),
         v.Text(""),
-        v.SplitButton("Save")
-           .OnPrimaryClick(_ => state.LastAction = "Saved file")
-           .WithSecondaryAction("Save As...", _ => state.LastAction = "Save As dialog")
-           .WithSecondaryAction("Save All", _ => state.LastAction = "Saved all files")
-           .WithSecondaryAction("Save Copy", _ => state.LastAction = "Saved copy"),
+        v.SplitButton()
+           .PrimaryAction("Save", _ => state.LastAction = "Saved file")
+           .SecondaryAction("Save As...", _ => state.LastAction = "Save As dialog")
+           .SecondaryAction("Save All", _ => state.LastAction = "Saved all files")
+           .SecondaryAction("Save Copy", _ => state.LastAction = "Saved copy"),
         v.Text(""),
         v.Text("Click the button or press ▼ for more options")
     ]))
@@ -37,16 +37,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text($"Priority: {state.Priority}"),
             v.Text(""),
             v.HStack(h => [
-                h.SplitButton("Create Task")
-                   .OnPrimaryClick(_ => state.TaskName = "New Task")
-                   .WithSecondaryAction("From Template", _ => state.TaskName = "Template Task")
-                   .WithSecondaryAction("Duplicate Last", _ => state.TaskName = "Duplicated Task"),
+                h.SplitButton()
+                   .PrimaryAction("Create Task", _ => state.TaskName = "New Task")
+                   .SecondaryAction("From Template", _ => state.TaskName = "Template Task")
+                   .SecondaryAction("Duplicate Last", _ => state.TaskName = "Duplicated Task"),
                 h.Text(" "),
-                h.SplitButton("Set Priority")
-                   .OnPrimaryClick(_ => state.Priority = "Normal")
-                   .WithSecondaryAction("Low", _ => state.Priority = "Low")
-                   .WithSecondaryAction("High", _ => state.Priority = "High")
-                   .WithSecondaryAction("Urgent", _ => state.Priority = "Urgent")
+                h.SplitButton()
+                   .PrimaryAction("Set Priority", _ => state.Priority = "Normal")
+                   .SecondaryAction("Low", _ => state.Priority = "Low")
+                   .SecondaryAction("High", _ => state.Priority = "High")
+                   .SecondaryAction("Urgent", _ => state.Priority = "Urgent")
             ])
         ])
     ], title: "Task Manager"))
@@ -69,7 +69,7 @@ Split buttons are ideal when you have a common default action but need to expose
 
 ## Basic Usage
 
-Create split buttons using `SplitButton()` with a primary label, then chain handlers and secondary actions:
+Create split buttons using `SplitButton()`, then chain `PrimaryAction()` and `SecondaryAction()` methods:
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="split-button-basic" exampleTitle="Split Button - Basic Usage" />
 
@@ -97,11 +97,11 @@ When the dropdown is open:
 
 ### Primary Action
 
-Use `OnPrimaryClick()` to handle the main button click:
+Use `PrimaryAction()` to set the label and handler for the main button:
 
 ```csharp
-ctx.SplitButton("Run")
-   .OnPrimaryClick(e => RunDefaultCommand())
+ctx.SplitButton()
+   .PrimaryAction("Run", e => RunDefaultCommand())
 ```
 
 The handler receives `SplitButtonClickedEventArgs` with:
@@ -111,14 +111,14 @@ The handler receives `SplitButtonClickedEventArgs` with:
 
 ### Secondary Actions
 
-Add dropdown menu items with `WithSecondaryAction()`:
+Add dropdown menu items with `SecondaryAction()`:
 
 ```csharp
-ctx.SplitButton("Run")
-   .OnPrimaryClick(_ => RunDefault())
-   .WithSecondaryAction("Run with Debugger", _ => RunDebug())
-   .WithSecondaryAction("Run Tests", _ => RunTests())
-   .WithSecondaryAction("Run Benchmarks", _ => RunBenchmarks())
+ctx.SplitButton()
+   .PrimaryAction("Run", _ => RunDefault())
+   .SecondaryAction("Run with Debugger", _ => RunDebug())
+   .SecondaryAction("Run Tests", _ => RunTests())
+   .SecondaryAction("Run Benchmarks", _ => RunBenchmarks())
 ```
 
 Actions appear in the dropdown in the order they're added.
@@ -128,13 +128,13 @@ Actions appear in the dropdown in the order they're added.
 Both primary and secondary actions support async handlers:
 
 ```csharp
-ctx.SplitButton("Deploy")
-   .OnPrimaryClick(async e => {
+ctx.SplitButton()
+   .PrimaryAction("Deploy", async e => {
        await DeployToProductionAsync();
        e.Context.Notifications.Post(
            new Notification("Deployed", "Successfully deployed to production"));
    })
-   .WithSecondaryAction("Deploy to Staging", async e => {
+   .SecondaryAction("Deploy to Staging", async e => {
        await DeployToStagingAsync();
    })
 ```
@@ -144,10 +144,11 @@ ctx.SplitButton("Deploy")
 Use `OnDropdownOpened()` to react when the dropdown menu opens:
 
 ```csharp
-ctx.SplitButton("Options")
+ctx.SplitButton()
+   .PrimaryAction("Options", _ => { })
    .OnDropdownOpened(() => Analytics.Track("dropdown_opened"))
-   .WithSecondaryAction("Option A", _ => { })
-   .WithSecondaryAction("Option B", _ => { })
+   .SecondaryAction("Option A", _ => { })
+   .SecondaryAction("Option B", _ => { })
 ```
 
 This is useful for:

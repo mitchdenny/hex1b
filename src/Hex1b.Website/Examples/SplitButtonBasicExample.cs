@@ -40,11 +40,11 @@ public class SplitButtonBasicExample(ILogger<SplitButtonBasicExample> logger) : 
                 v.Text(""),
                 v.Text($"Last action: {state.LastAction}"),
                 v.Text(""),
-                v.SplitButton("Save")
-                   .OnPrimaryClick(_ => state.LastAction = "Saved file")
-                   .WithSecondaryAction("Save As...", _ => state.LastAction = "Save As dialog")
-                   .WithSecondaryAction("Save All", _ => state.LastAction = "Saved all files")
-                   .WithSecondaryAction("Save Copy", _ => state.LastAction = "Saved copy"),
+                v.SplitButton()
+                   .PrimaryAction("Save", _ => state.LastAction = "Saved file")
+                   .SecondaryAction("Save As...", _ => state.LastAction = "Save As dialog")
+                   .SecondaryAction("Save All", _ => state.LastAction = "Saved all files")
+                   .SecondaryAction("Save Copy", _ => state.LastAction = "Saved copy"),
                 v.Text(""),
                 v.Text("Click the button or press ▼ for more options")
             ]);

@@ -357,10 +357,10 @@ static IEnumerable<Hex1bWidget> BuildDashboardView(
         ctx.Text("  ── Test SplitButton (standalone) ──"),
         ctx.HStack(h => [
             h.Text("  "),
-            h.SplitButton("Action")
-                .OnPrimaryClick(_ => { /* Primary action */ })
-                .WithSecondaryAction("Option A", _ => { })
-                .WithSecondaryAction("Option B", _ => { }),
+            h.SplitButton()
+                .PrimaryAction("Action", _ => { /* Primary action */ })
+                .SecondaryAction("Option A", _ => { })
+                .SecondaryAction("Option B", _ => { }),
             h.Text("  "),
             h.Button("Regular Button"),
         ]),

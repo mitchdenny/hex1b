@@ -8,8 +8,8 @@ namespace Hex1b.Events;
 /// <remarks>
 /// <para>
 /// This event args class is passed to handlers registered with
-/// <see cref="Widgets.SplitButtonWidget.OnPrimaryClick(System.Action{SplitButtonClickedEventArgs})"/>
-/// and <see cref="Widgets.SplitButtonWidget.WithSecondaryAction(string, System.Action{SplitButtonClickedEventArgs})"/>.
+/// <see cref="Widgets.SplitButtonWidget.PrimaryAction(string, System.Action{SplitButtonClickedEventArgs})"/>
+/// and <see cref="Widgets.SplitButtonWidget.SecondaryAction(string, System.Action{SplitButtonClickedEventArgs})"/>.
 /// </para>
 /// <para>
 /// Use <see cref="Context"/> to access app-level services like focus management, popups, notifications,

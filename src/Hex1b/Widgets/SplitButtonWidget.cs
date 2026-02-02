@@ -10,7 +10,7 @@ namespace Hex1b.Widgets;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The split button renders as: <c>[ Primary ▼ ]</c> where "Primary" is the label.
+/// The split button renders as: <c>[ Primary ▼ ]</c> where "Primary" is the label from the primary action.
 /// </para>
 /// <para>
 /// <strong>Interaction:</strong>
@@ -28,11 +28,11 @@ namespace Hex1b.Widgets;
 /// <example>
 /// <para>A save button with alternative save options:</para>
 /// <code>
-/// ctx.SplitButton("Save")
-///    .OnPrimaryClick(e =&gt; SaveFile())
-///    .WithSecondaryAction("Save As...", e =&gt; SaveAs())
-///    .WithSecondaryAction("Save All", e =&gt; SaveAll())
-///    .WithSecondaryAction("Save Copy", e =&gt; SaveCopy())
+/// ctx.SplitButton()
+///    .PrimaryAction("Save", e =&gt; SaveFile())
+///    .SecondaryAction("Save As...", e =&gt; SaveAs())
+///    .SecondaryAction("Save All", e =&gt; SaveAll())
+///    .SecondaryAction("Save Copy", e =&gt; SaveCopy())
 /// </code>
 /// </example>
 /// <seealso cref="ButtonWidget"/>
@@ -61,29 +61,30 @@ public sealed record SplitButtonWidget : Hex1bWidget
     internal Action? DropdownOpenedCallback { get; init; }
 
     /// <summary>
-    /// Creates a split button with the specified primary label.
+    /// Creates a split button. Use <see cref="PrimaryAction(string, Action{SplitButtonClickedEventArgs})"/>
+    /// to set the primary action label and handler.
     /// </summary>
-    /// <param name="primaryLabel">The label for the primary action.</param>
-    public SplitButtonWidget(string primaryLabel)
+    public SplitButtonWidget()
     {
-        PrimaryLabel = primaryLabel;
     }
 
     /// <summary>
-    /// Sets a synchronous handler for the primary action.
+    /// Sets the primary action with a label and synchronous handler.
     /// </summary>
+    /// <param name="label">The label displayed on the primary button.</param>
     /// <param name="handler">The handler invoked when the primary button is clicked.</param>
-    /// <returns>A new widget instance with the handler configured.</returns>
-    public SplitButtonWidget OnPrimaryClick(Action<SplitButtonClickedEventArgs> handler)
-        => this with { PrimaryHandler = args => { handler(args); return Task.CompletedTask; } };
+    /// <returns>A new widget instance with the primary action configured.</returns>
+    public SplitButtonWidget PrimaryAction(string label, Action<SplitButtonClickedEventArgs> handler)
+        => this with { PrimaryLabel = label, PrimaryHandler = args => { handler(args); return Task.CompletedTask; } };
 
     /// <summary>
-    /// Sets an asynchronous handler for the primary action.
+    /// Sets the primary action with a label and asynchronous handler.
     /// </summary>
+    /// <param name="label">The label displayed on the primary button.</param>
     /// <param name="handler">The async handler invoked when the primary button is clicked.</param>
-    /// <returns>A new widget instance with the handler configured.</returns>
-    public SplitButtonWidget OnPrimaryClick(Func<SplitButtonClickedEventArgs, Task> handler)
-        => this with { PrimaryHandler = handler };
+    /// <returns>A new widget instance with the primary action configured.</returns>
+    public SplitButtonWidget PrimaryAction(string label, Func<SplitButtonClickedEventArgs, Task> handler)
+        => this with { PrimaryLabel = label, PrimaryHandler = handler };
 
     /// <summary>
     /// Sets a callback invoked when the dropdown menu is opened.
@@ -107,7 +108,7 @@ public sealed record SplitButtonWidget : Hex1bWidget
     /// Secondary actions appear in the dropdown menu when the user clicks the arrow (▼)
     /// or presses the Down arrow key. Actions are displayed in the order they were added.
     /// </remarks>
-    public SplitButtonWidget WithSecondaryAction(string label, Action<SplitButtonClickedEventArgs> handler)
+    public SplitButtonWidget SecondaryAction(string label, Action<SplitButtonClickedEventArgs> handler)
     {
         var actions = SecondaryActions.ToList();
         actions.Add(new SplitButtonAction(label, args => { handler(args); return Task.CompletedTask; }));
@@ -124,7 +125,7 @@ public sealed record SplitButtonWidget : Hex1bWidget
     /// Secondary actions appear in the dropdown menu when the user clicks the arrow (▼)
     /// or presses the Down arrow key. Actions are displayed in the order they were added.
     /// </remarks>
-    public SplitButtonWidget WithSecondaryAction(string label, Func<SplitButtonClickedEventArgs, Task> handler)
+    public SplitButtonWidget SecondaryAction(string label, Func<SplitButtonClickedEventArgs, Task> handler)
     {
         var actions = SecondaryActions.ToList();
         actions.Add(new SplitButtonAction(label, handler));
