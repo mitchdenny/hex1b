@@ -58,20 +58,24 @@ public class RenderOptimizationTests
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        
+        // WaitUntil verifies the content is present - this IS the assertion
+        // Note: The snapshot returned by ApplyWithCaptureAsync is taken AFTER Ctrl+C,
+        // so we cannot reliably assert on it (terminal may be cleared on Linux).
+        // The WaitUntil passing means the render happened correctly.
+        await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
             .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Each frame has different text, so each frame should render
         // Initial (Counter: 1) + 'a' (Counter: 2) + 'b' (Counter: 3) = 3 renders before Ctrl+C
-        // Verify by checking the final output before Ctrl+C
-        Assert.True(snapshot.ContainsText("Counter: 3"));
+        // The WaitUntil above already verified "Counter: 3" was displayed
     }
 
     [Fact]
