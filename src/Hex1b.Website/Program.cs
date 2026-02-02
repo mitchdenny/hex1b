@@ -134,6 +134,15 @@ builder.Services.AddSingleton<IGalleryExample, TableBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TableSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, TableFocusExample>();
 
+// Split Button examples
+builder.Services.AddSingleton<IGalleryExample, SplitButtonBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, SplitButtonMultipleExample>();
+
+// Notification examples
+builder.Services.AddSingleton<IGalleryExample, NotificationsBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, NotificationsActionsExample>();
+builder.Services.AddSingleton<IGalleryExample, NotificationsLifecycleExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
