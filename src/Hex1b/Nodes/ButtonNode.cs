@@ -91,7 +91,10 @@ public sealed class ButtonNode : Hex1bNode
             {
                 return Rect.Zero;
             }
-            return new Rect(Bounds.X, Bounds.Y, _measuredSize.Width, _measuredSize.Height);
+            // Use measured size if available, otherwise fall back to arranged bounds
+            var width = _measuredSize.Width > 0 ? _measuredSize.Width : Bounds.Width;
+            var height = _measuredSize.Height > 0 ? _measuredSize.Height : Bounds.Height;
+            return new Rect(Bounds.X, Bounds.Y, width, height);
         }
     }
 

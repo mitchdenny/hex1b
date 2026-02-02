@@ -66,7 +66,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// <summary>
     /// Gets the socket directory path (~/.hex1b/sockets/).
     /// </summary>
-    public static string GetSocketDirectory()
+    internal static string GetSocketDirectory()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(home, ".hex1b", "sockets");
@@ -75,7 +75,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// <summary>
     /// Gets the socket path for the current process.
     /// </summary>
-    public static string GetSocketPath()
+    internal static string GetSocketPath()
     {
         var pid = Environment.ProcessId;
         return Path.Combine(GetSocketDirectory(), $"{pid}.diagnostics.socket");

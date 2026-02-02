@@ -135,9 +135,15 @@ public sealed class NotificationPanelNode : Hex1bNode
     private const int DrawerWidth = 42;
 
     /// <summary>
-    /// Spacing between cards.
+    /// Spacing between floating notification cards.
+    /// Set to 0 because the half-height block borders provide visual separation.
     /// </summary>
-    private const int CardSpacing = 1;
+    private const int FloatingCardSpacing = 0;
+    
+    /// <summary>
+    /// Spacing between drawer cards.
+    /// </summary>
+    private const int DrawerCardSpacing = 0;
 
     /// <summary>
     /// The bounds of the drawer area when expanded.
@@ -226,7 +232,7 @@ public sealed class NotificationPanelNode : Hex1bNode
             var size = card.Measure(constraints);
             card.Arrange(new Rect(x, y, size.Width, size.Height));
 
-            y += size.Height + CardSpacing;
+            y += size.Height + FloatingCardSpacing;
         }
     }
 
@@ -252,7 +258,7 @@ public sealed class NotificationPanelNode : Hex1bNode
                 var constraints = new Constraints(0, drawerBounds.Width - 2, 0, drawerBounds.Height / 3);
                 var size = card.Measure(constraints);
                 card.Arrange(new Rect(drawerBounds.X + 1, y, size.Width, size.Height));
-                y += size.Height + CardSpacing;
+                y += size.Height + DrawerCardSpacing;
                 if (y >= drawerBounds.Y + drawerBounds.Height - 1) break;
             }
         }

@@ -6,7 +6,7 @@ namespace Hex1b.Diagnostics;
 /// <summary>
 /// Request sent to the diagnostics socket.
 /// </summary>
-public sealed class DiagnosticsRequest
+internal sealed class DiagnosticsRequest
 {
     /// <summary>
     /// The method to invoke: "info", "capture", or "input".
@@ -60,7 +60,7 @@ public sealed class DiagnosticsRequest
 /// <summary>
 /// Base response from the diagnostics socket.
 /// </summary>
-public sealed class DiagnosticsResponse
+internal sealed class DiagnosticsResponse
 {
     /// <summary>
     /// Whether the request was successful.

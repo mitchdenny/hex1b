@@ -399,16 +399,13 @@ public class NotificationCardNodeTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(2), "ready")
-            // Post a notification first
+            // Post a notification first - Tab to Post button and press Enter
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
             .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(2), "notification")
-            // Now click the notification icon - Tab twice to reach it
-            .Shift().Key(Hex1bKey.Tab)
-            .Key(Hex1bKey.Tab)
-            .Key(Hex1bKey.Tab)
-            .Key(Hex1bKey.Enter) // Click icon to open drawer
+            // Use Alt+N to toggle the drawer (standard keyboard shortcut)
+            .Alt().Key(Hex1bKey.N)
             .Wait(TimeSpan.FromMilliseconds(200))
             .Capture("drawer_should_open")
             .Ctrl().Key(Hex1bKey.C)
@@ -608,7 +605,8 @@ public class NotificationCardNodeTests
             // Click on the dismiss button [ × ] 
             // Drawer starts at col 38, card at 39, card width 40, button 5 chars
             // Button X = 39 + 40 - 5 = 74, so button spans cols 74-78
-            .ClickAt(76, 3)
+            // Button is on row 4 (0-indexed): row 0=Menu, row 1=Post/header, row 2=separator, row 3=card top, row 4=card title with button
+            .ClickAt(76, 4)
             .Wait(TimeSpan.FromMilliseconds(200))
             .Capture("after_dismiss")
             .Ctrl().Key(Hex1bKey.C)

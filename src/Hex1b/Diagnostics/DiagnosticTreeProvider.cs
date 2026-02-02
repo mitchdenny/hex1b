@@ -9,7 +9,7 @@ namespace Hex1b.Diagnostics;
 /// Interface for components that can provide diagnostic tree information.
 /// Implemented by Hex1bApp to expose the widget/node tree for MCP diagnostics.
 /// </summary>
-public interface IDiagnosticTreeProvider
+internal interface IDiagnosticTreeProvider
 {
     /// <summary>
     /// Gets the current node tree as a JSON-serializable diagnostic tree.
@@ -30,7 +30,7 @@ public interface IDiagnosticTreeProvider
 /// <summary>
 /// A diagnostic representation of a node in the UI tree.
 /// </summary>
-public sealed class DiagnosticNode
+internal sealed class DiagnosticNode
 {
     /// <summary>
     /// The type name of the node (e.g., "ButtonNode", "TextBlockNode").
@@ -163,7 +163,7 @@ public sealed class DiagnosticNode
 /// <summary>
 /// A diagnostic representation of a rectangle.
 /// </summary>
-public sealed class DiagnosticRect
+internal sealed class DiagnosticRect
 {
     [JsonPropertyName("x")]
     public int X { get; set; }
@@ -191,7 +191,7 @@ public sealed class DiagnosticRect
 /// <summary>
 /// Diagnostic information about a popup entry.
 /// </summary>
-public sealed class DiagnosticPopupEntry
+internal sealed class DiagnosticPopupEntry
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -221,7 +221,7 @@ public sealed class DiagnosticPopupEntry
 /// <summary>
 /// Diagnostic information about an anchor.
 /// </summary>
-public sealed class DiagnosticAnchorInfo
+internal sealed class DiagnosticAnchorInfo
 {
     [JsonPropertyName("anchorNodeType")]
     public string? AnchorNodeType { get; set; }
@@ -239,7 +239,7 @@ public sealed class DiagnosticAnchorInfo
 /// <summary>
 /// Diagnostic information about the focus ring.
 /// </summary>
-public sealed class DiagnosticFocusInfo
+internal sealed class DiagnosticFocusInfo
 {
     [JsonPropertyName("focusableCount")]
     public int FocusableCount { get; set; }
@@ -260,7 +260,7 @@ public sealed class DiagnosticFocusInfo
 /// <summary>
 /// A focusable entry in the focus ring.
 /// </summary>
-public sealed class DiagnosticFocusableEntry
+internal sealed class DiagnosticFocusableEntry
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }

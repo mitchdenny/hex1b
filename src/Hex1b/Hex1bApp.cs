@@ -1162,14 +1162,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // IDiagnosticTreeProvider implementation
     // ========================================
     
-    /// <inheritdoc />
-    public DiagnosticNode? GetDiagnosticTree()
+    DiagnosticNode? IDiagnosticTreeProvider.GetDiagnosticTree()
     {
         return _rootNode != null ? DiagnosticNode.FromNode(_rootNode) : null;
     }
     
-    /// <inheritdoc />
-    public IReadOnlyList<DiagnosticPopupEntry> GetDiagnosticPopups()
+    IReadOnlyList<DiagnosticPopupEntry> IDiagnosticTreeProvider.GetDiagnosticPopups()
     {
         var popups = new List<DiagnosticPopupEntry>();
         
@@ -1216,8 +1214,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         return popups;
     }
     
-    /// <inheritdoc />
-    public DiagnosticFocusInfo GetDiagnosticFocusInfo()
+    DiagnosticFocusInfo IDiagnosticTreeProvider.GetDiagnosticFocusInfo()
     {
         var focusables = _focusRing.Focusables;
         var currentIndex = -1;
