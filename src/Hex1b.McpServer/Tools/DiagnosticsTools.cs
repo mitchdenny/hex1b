@@ -275,6 +275,98 @@ public class DiagnosticsTools
         }
     }
 
+    /// <summary>
+    /// Gets the widget/node tree from a Hex1b application for debugging.
+    /// </summary>
+    [McpServerTool, Description("Gets the widget/node tree, popup stack, and focus ring information from a Hex1b application. Use this to debug hit testing, focus, and layout issues.")]
+    public async Task<GetHex1bTreeResult> GetHex1bTree(
+        [Description("Process ID of the Hex1b application")] int processId,
+        CancellationToken ct = default)
+    {
+        var socketPath = GetSocketPath(processId);
+
+        if (!File.Exists(socketPath))
+        {
+            return new GetHex1bTreeResult
+            {
+                Success = false,
+                ProcessId = processId,
+                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithMcpDiagnostics() enabled."
+            };
+        }
+
+        if (!IsProcessRunning(processId))
+        {
+            try { File.Delete(socketPath); }
+            catch { /* ignore */ }
+
+            return new GetHex1bTreeResult
+            {
+                Success = false,
+                ProcessId = processId,
+                Message = $"Process {processId} is no longer running."
+            };
+        }
+
+        try
+        {
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), ct);
+
+            await using var stream = new NetworkStream(socket, ownsSocket: false);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            await using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+
+            // Send tree request
+            var request = new { method = "tree" };
+            await writer.WriteLineAsync(JsonSerializer.Serialize(request, JsonOptions));
+
+            // Read response
+            var responseLine = await reader.ReadLineAsync(ct);
+            if (string.IsNullOrEmpty(responseLine))
+            {
+                return new GetHex1bTreeResult
+                {
+                    Success = false,
+                    ProcessId = processId,
+                    Message = "No response from diagnostics socket."
+                };
+            }
+
+            var response = JsonSerializer.Deserialize<TreeDiagnosticsResponse>(responseLine, JsonOptions);
+            if (response == null || !response.Success)
+            {
+                return new GetHex1bTreeResult
+                {
+                    Success = false,
+                    ProcessId = processId,
+                    Message = response?.Error ?? "Unknown error from diagnostics socket."
+                };
+            }
+
+            return new GetHex1bTreeResult
+            {
+                Success = true,
+                ProcessId = processId,
+                Message = $"Retrieved tree from {response.Width}x{response.Height} terminal",
+                Width = response.Width ?? 0,
+                Height = response.Height ?? 0,
+                Tree = response.Tree,
+                Popups = response.Popups,
+                FocusInfo = response.FocusInfo
+            };
+        }
+        catch (Exception ex)
+        {
+            return new GetHex1bTreeResult
+            {
+                Success = false,
+                ProcessId = processId,
+                Message = $"Failed to get tree: {ex.Message}"
+            };
+        }
+    }
+
     private static string ProcessEscapeSequences(string input)
     {
         // Process common escape sequences
@@ -396,6 +488,33 @@ public class DiagnosticsTools
         [JsonPropertyName("data")]
         public string? Data { get; set; }
     }
+    
+    /// <summary>
+    /// Response from diagnostics socket for tree method.
+    /// </summary>
+    private sealed class TreeDiagnosticsResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("error")]
+        public string? Error { get; set; }
+
+        [JsonPropertyName("width")]
+        public int? Width { get; set; }
+
+        [JsonPropertyName("height")]
+        public int? Height { get; set; }
+
+        [JsonPropertyName("tree")]
+        public JsonElement? Tree { get; set; }
+        
+        [JsonPropertyName("popups")]
+        public JsonElement? Popups { get; set; }
+        
+        [JsonPropertyName("focusInfo")]
+        public JsonElement? FocusInfo { get; set; }
+    }
 }
 
 // === Result Types ===
@@ -479,4 +598,34 @@ public class SendInputToHex1bTerminalResult
 
     [JsonPropertyName("charactersSent")]
     public int CharactersSent { get; init; }
+}
+
+public class GetHex1bTreeResult
+{
+    [JsonPropertyName("success")]
+    public required bool Success { get; init; }
+
+    [JsonPropertyName("processId")]
+    public required int ProcessId { get; init; }
+
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
+
+    [JsonPropertyName("width")]
+    public int Width { get; init; }
+
+    [JsonPropertyName("height")]
+    public int Height { get; init; }
+    
+    [JsonPropertyName("tree")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Tree { get; init; }
+    
+    [JsonPropertyName("popups")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Popups { get; init; }
+    
+    [JsonPropertyName("focusInfo")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? FocusInfo { get; init; }
 }

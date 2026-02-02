@@ -78,8 +78,22 @@ public sealed class ButtonNode : Hex1bNode
     
     /// <summary>
     /// Hit test bounds are limited to the actual button content, not the full arranged bounds.
+    /// If the button hasn't been arranged (Bounds is zero), returns empty bounds to prevent
+    /// accidental hits on nodes that are scrolled out of view or otherwise not displayed.
     /// </summary>
-    public override Rect HitTestBounds => new Rect(Bounds.X, Bounds.Y, _measuredSize.Width, _measuredSize.Height);
+    public override Rect HitTestBounds
+    {
+        get
+        {
+            // If Bounds has zero dimensions, this node wasn't arranged (e.g., scrolled out of view)
+            // Return zero-size rect to prevent hit testing
+            if (Bounds.Width == 0 && Bounds.Height == 0)
+            {
+                return Rect.Zero;
+            }
+            return new Rect(Bounds.X, Bounds.Y, _measuredSize.Width, _measuredSize.Height);
+        }
+    }
 
     public override void Render(Hex1bRenderContext context)
     {

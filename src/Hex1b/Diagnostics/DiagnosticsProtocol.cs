@@ -109,6 +109,24 @@ public sealed class DiagnosticsResponse
     /// </summary>
     [JsonPropertyName("data")]
     public string? Data { get; set; }
+    
+    /// <summary>
+    /// For "tree" method: the widget/node tree.
+    /// </summary>
+    [JsonPropertyName("tree")]
+    public DiagnosticNode? Tree { get; set; }
+    
+    /// <summary>
+    /// For "tree" method: the popup stack.
+    /// </summary>
+    [JsonPropertyName("popups")]
+    public IReadOnlyList<DiagnosticPopupEntry>? Popups { get; set; }
+    
+    /// <summary>
+    /// For "tree" method: focus ring information.
+    /// </summary>
+    [JsonPropertyName("focusInfo")]
+    public DiagnosticFocusInfo? FocusInfo { get; set; }
 }
 
 /// <summary>

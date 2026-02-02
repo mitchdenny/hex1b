@@ -208,6 +208,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             "input" => await HandleInputRequestAsync(request.Data),
             "key" => HandleKeyRequest(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
+            "tree" => HandleTreeRequest(),
             _ => new DiagnosticsResponse { Success = false, Error = $"Unknown method: {request.Method}" }
         };
     }
@@ -388,6 +389,30 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         }
 
         return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct mouse injection" };
+    }
+
+    private DiagnosticsResponse HandleTreeRequest()
+    {
+        if (_terminal == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Terminal not initialized" };
+        }
+
+        // Get the diagnostic tree provider from the workload adapter
+        if (_terminal.Workload is Hex1bAppWorkloadAdapter workload && workload.DiagnosticTreeProvider is { } provider)
+        {
+            return new DiagnosticsResponse
+            {
+                Success = true,
+                Width = _terminal.Width,
+                Height = _terminal.Height,
+                Tree = provider.GetDiagnosticTree(),
+                Popups = provider.GetDiagnosticPopups(),
+                FocusInfo = provider.GetDiagnosticFocusInfo()
+            };
+        }
+
+        return new DiagnosticsResponse { Success = false, Error = "No diagnostic tree provider available" };
     }
 
     private static async Task WriteErrorAsync(StreamWriter writer, string error)
