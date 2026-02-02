@@ -1,26 +1,47 @@
 namespace Hex1b;
 
 /// <summary>
-/// Manages a collection of notifications with floating/docked state tracking.
+/// Manages a collection of notifications with floating/docked state tracking and timeout handling.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The notification stack tracks:
+/// The notification stack is the central manager for all notifications in an application.
+/// It tracks:
 /// <list type="bullet">
 ///   <item><description>All active notifications</description></item>
 ///   <item><description>Which notifications are currently "floating" (visible as overlays)</description></item>
 ///   <item><description>Timeout timers for auto-hiding from floating view</description></item>
+///   <item><description>Panel/drawer visibility state</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// Notifications have three states:
+/// <strong>Notification lifecycle:</strong>
 /// <list type="number">
-///   <item><description>Floating - visible as overlay, not yet timed out</description></item>
-///   <item><description>Docked - timed out but still in the panel</description></item>
-///   <item><description>Dismissed - removed from the stack entirely</description></item>
+///   <item><description><strong>Floating:</strong> Visible as overlay card, countdown timer running.</description></item>
+///   <item><description><strong>Docked:</strong> Timed out or drawer opened - no longer floating but still in panel.</description></item>
+///   <item><description><strong>Dismissed:</strong> Removed from the stack entirely.</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// Access the notification stack from event handlers via <c>e.Context.Notifications</c>
+/// or through the <see cref="Input.InputBindingActionContext.Notifications"/> property.
+/// </para>
 /// </remarks>
+/// <example>
+/// <para>Posting a notification from a button click:</para>
+/// <code>
+/// ctx.Button("Save").OnClick(e =&gt; {
+///     SaveFile();
+///     e.Context.Notifications.Post(
+///         new Notification("File Saved", "document.txt saved successfully")
+///             .Timeout(TimeSpan.FromSeconds(5))
+///             .PrimaryAction("Open Folder", async ctx =&gt; OpenFolder())
+///     );
+/// });
+/// </code>
+/// </example>
+/// <seealso cref="Notification"/>
+/// <seealso cref="Widgets.NotificationPanelWidget"/>
 public sealed class NotificationStack
 {
     private readonly List<NotificationEntry> _entries = new();

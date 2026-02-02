@@ -4,22 +4,41 @@ using Hex1b.Nodes;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A notification card widget that displays a single notification with title, body, and actions.
+/// A notification card widget that displays a single notification with title, body, and action buttons.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The notification card composes child widgets:
+/// Notification cards are the visual representation of a <see cref="Notification"/>. They are
+/// automatically created by <see cref="NotificationPanelWidget"/> - you typically don't create
+/// them directly.
+/// </para>
+/// <para>
+/// <strong>Card layout:</strong>
+/// <code>
+/// ┌────────────────────────────────────┐
+/// │ Title                        [ × ] │
+/// │ Body text (if present)             │
+/// │ [ Primary ▼ ]                      │
+/// │ ▓▓▓▓▓▓▓▓▓░░░░░ (timeout progress) │
+/// └────────────────────────────────────┘
+/// </code>
+/// </para>
+/// <para>
+/// <strong>Features:</strong>
 /// <list type="bullet">
-///   <item><description>Title row with dismiss ButtonNode</description></item>
-///   <item><description>Body text (if present)</description></item>
-///   <item><description>Action button (SplitButtonNode with primary + secondary actions)</description></item>
+///   <item><description>Dismiss button (×) removes the notification entirely.</description></item>
+///   <item><description>Primary action button with optional dropdown for secondary actions.</description></item>
+///   <item><description>Progress bar showing time until auto-hide (for floating cards only).</description></item>
 /// </list>
 /// </para>
 /// </remarks>
+/// <seealso cref="Notification"/>
+/// <seealso cref="NotificationPanelWidget"/>
+/// <seealso cref="SplitButtonWidget"/>
 public sealed record NotificationCardWidget : Hex1bWidget
 {
     /// <summary>
-    /// The notification to display.
+    /// The notification to display in this card.
     /// </summary>
     public Notification Notification { get; }
 
@@ -29,9 +48,12 @@ public sealed record NotificationCardWidget : Hex1bWidget
     internal NotificationStack Stack { get; init; }
 
     /// <summary>
-    /// Whether to show the timeout progress bar. Default is true.
-    /// Set to false for drawer cards where the countdown isn't relevant.
+    /// Whether to show the timeout progress bar. Defaults to true.
     /// </summary>
+    /// <remarks>
+    /// Set to false for drawer cards where the countdown isn't relevant - once the user
+    /// has opened the drawer, they're reviewing notifications at their own pace.
+    /// </remarks>
     public bool ShowProgressBar { get; init; } = true;
 
     /// <summary>
