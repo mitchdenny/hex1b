@@ -24,7 +24,7 @@ public class DiagnosticsTools
     /// Lists all Hex1b terminals that have diagnostics enabled via WithMcpDiagnostics().
     /// Connects to each socket to get info about the running application.
     /// </summary>
-    [McpServerTool, Description("Lists all Hex1b terminals that have diagnostics enabled via WithMcpDiagnostics(). Returns information about each running application including name, process ID, and dimensions.")]
+    [McpServerTool, Description("Lists all Hex1b terminals that have diagnostics enabled via WithMcpDiagnostics(). Returns information about each running application including name, process ID, and dimensions. Tip: Use GetHex1bSkill to get comprehensive documentation about all Hex1b MCP tools.")]
     public async Task<GetHex1bStacksResult> GetHex1bStacksWithDiagnosticsEnabled(
         CancellationToken ct = default)
     {
@@ -83,7 +83,7 @@ public class DiagnosticsTools
     /// <summary>
     /// Captures the terminal state from a Hex1b application with diagnostics enabled.
     /// </summary>
-    [McpServerTool, Description("Captures the terminal state from a Hex1b application with diagnostics enabled. Saves the capture to a file as ANSI or SVG format.")]
+    [McpServerTool, Description("Captures the terminal state from a Hex1b application with diagnostics enabled. Saves the capture to a file as ANSI, SVG, or text format. Use GetHex1bSkill for comprehensive MCP documentation.")]
     public async Task<CaptureHex1bTerminalResult> CaptureHex1bTerminal(
         [Description("Process ID of the Hex1b application to capture")] int processId,
         [Description("File path to save the capture (required).")] string savePath,
@@ -186,7 +186,7 @@ public class DiagnosticsTools
     /// <summary>
     /// Sends input to a Hex1b application with diagnostics enabled.
     /// </summary>
-    [McpServerTool, Description("Sends input characters to a Hex1b application with diagnostics enabled. Use this to interact with the terminal.")]
+    [McpServerTool, Description("Sends input characters to a Hex1b application with diagnostics enabled. Supports escape sequences like \\n, \\t, \\x1b. Use GetHex1bSkill for comprehensive MCP documentation.")]
     public async Task<SendInputToHex1bTerminalResult> SendInputToHex1bTerminal(
         [Description("Process ID of the Hex1b application")] int processId,
         [Description("The input to send. Supports escape sequences like \\n for newline, \\t for tab, \\x1b for escape.")] string input,
@@ -278,7 +278,7 @@ public class DiagnosticsTools
     /// <summary>
     /// Gets the widget/node tree from a Hex1b application for debugging.
     /// </summary>
-    [McpServerTool, Description("Gets the widget/node tree, popup stack, and focus ring information from a Hex1b application. Use this to debug hit testing, focus, and layout issues.")]
+    [McpServerTool, Description("Gets the widget/node tree, popup stack, and focus ring information from a Hex1b application. Use this to debug hit testing, focus, and layout issues. Essential for understanding why clicks aren't working or focus is wrong. Use GetHex1bSkill for comprehensive documentation.")]
     public async Task<GetHex1bTreeResult> GetHex1bTree(
         [Description("Process ID of the Hex1b application")] int processId,
         CancellationToken ct = default)

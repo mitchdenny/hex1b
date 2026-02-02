@@ -833,6 +833,8 @@ public sealed class Hex1bTerminalBuilder
     /// terminal state and inject input.
     /// </summary>
     /// <param name="appName">Optional application name for identification. Defaults to the entry assembly name.</param>
+    /// <param name="forceEnable">When true, enables diagnostics even in Release builds. 
+    /// By default, diagnostics are automatically disabled in Release builds for security.</param>
     /// <returns>This builder for chaining.</returns>
     /// <remarks>
     /// <para>
@@ -841,9 +843,19 @@ public sealed class Hex1bTerminalBuilder
     /// </para>
     /// <list type="bullet">
     ///   <item>Querying terminal info (dimensions, app name)</item>
-    ///   <item>Capturing terminal state as ANSI or SVG</item>
-    ///   <item>Injecting input characters</item>
+    ///   <item>Capturing terminal state as ANSI, SVG, or text</item>
+    ///   <item>Injecting input characters and mouse clicks</item>
+    ///   <item>Inspecting the widget/node tree for debugging</item>
     /// </list>
+    /// <para>
+    /// <strong>Security Note:</strong> This method is a no-op in Release builds unless 
+    /// <paramref name="forceEnable"/> is true. This prevents accidental exposure of
+    /// diagnostic capabilities in production deployments.
+    /// </para>
+    /// <para>
+    /// <strong>Tip:</strong> Use the <c>GetHex1bSkill</c> MCP tool to get comprehensive
+    /// documentation about all available MCP tools and best practices.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -855,8 +867,15 @@ public sealed class Hex1bTerminalBuilder
     /// await terminal.RunAsync();
     /// </code>
     /// </example>
-    public Hex1bTerminalBuilder WithMcpDiagnostics(string? appName = null)
+    public Hex1bTerminalBuilder WithMcpDiagnostics(string? appName = null, bool forceEnable = false)
     {
+#if !DEBUG
+        // In Release builds, only enable if explicitly forced
+        if (!forceEnable)
+        {
+            return this;
+        }
+#endif
         var filter = new Diagnostics.McpDiagnosticsPresentationFilter(appName);
         _presentationFilters.Add(filter);
         return this;
