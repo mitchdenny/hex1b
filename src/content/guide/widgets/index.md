@@ -46,3 +46,4 @@ Widgets for special behaviors.
 - **[Rescue](/guide/widgets/rescue)** — Error boundaries for graceful failure handling
 - **[ThemePanel](/guide/widgets/themepanel)** — Scope theme overrides to subtrees
 - **[Terminal](/guide/widgets/terminal)** — Embed child terminal sessions
+- **[Surface](/guide/widgets/surface)** — Low-level rendering with layered compositing

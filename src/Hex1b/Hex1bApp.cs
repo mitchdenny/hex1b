@@ -125,7 +125,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private Surface? _previousSurface;
     
     // Animation timer for RedrawAfter() support
-    private readonly AnimationTimer _animationTimer = new();
+    private readonly AnimationTimer _animationTimer;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -140,6 +140,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
+        
+        // Create animation timer with configured frame rate limit
+        var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
+        _animationTimer = new AnimationTimer(TimeSpan.FromMilliseconds(frameRateLimitMs));
         
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;

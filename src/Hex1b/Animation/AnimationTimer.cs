@@ -10,36 +10,68 @@ namespace Hex1b.Animation;
 /// fire once and are removed.
 /// </para>
 /// <para>
-/// A minimum interval of 16ms (60 FPS) is enforced to prevent CPU spin
-/// from overly aggressive animation requests.
+/// A minimum interval is enforced to prevent CPU spin from overly aggressive
+/// animation requests. The default is 16ms (~60 FPS) but can be configured
+/// via <see cref="Hex1bAppOptions.FrameRateLimitMs"/>.
 /// </para>
 /// </remarks>
 public sealed class AnimationTimer
 {
     /// <summary>
-    /// Minimum interval between frames (16ms = ~60 FPS).
+    /// Default minimum interval between frames (16ms = ~60 FPS).
     /// </summary>
-    public static readonly TimeSpan MinimumInterval = TimeSpan.FromMilliseconds(16);
+    public static readonly TimeSpan DefaultMinimumInterval = TimeSpan.FromMilliseconds(16);
+    
+    /// <summary>
+    /// Absolute minimum interval (1ms) to prevent CPU spin.
+    /// </summary>
+    public static readonly TimeSpan AbsoluteMinimumInterval = TimeSpan.FromMilliseconds(1);
 
     private readonly List<ScheduledTimer> _timers = new();
     private readonly object _lock = new();
+    private readonly TimeSpan _minimumInterval;
+    
+    /// <summary>
+    /// Gets the minimum interval between frames for this timer.
+    /// </summary>
+    public TimeSpan MinimumInterval => _minimumInterval;
+
+    /// <summary>
+    /// Creates an AnimationTimer with the default minimum interval (16ms).
+    /// </summary>
+    public AnimationTimer() : this(DefaultMinimumInterval)
+    {
+    }
+    
+    /// <summary>
+    /// Creates an AnimationTimer with a custom minimum interval.
+    /// </summary>
+    /// <param name="minimumInterval">
+    /// The minimum interval between frames. Values below 1ms are clamped to 1ms.
+    /// </param>
+    public AnimationTimer(TimeSpan minimumInterval)
+    {
+        _minimumInterval = minimumInterval < AbsoluteMinimumInterval 
+            ? AbsoluteMinimumInterval 
+            : minimumInterval;
+    }
 
     /// <summary>
     /// Schedules a one-shot timer that fires after the specified delay.
     /// </summary>
-    /// <param name="delay">The delay before firing. Clamped to minimum of 16ms.</param>
+    /// <param name="delay">The delay before firing. Clamped to minimum interval.</param>
     /// <param name="callback">The callback to invoke when the timer fires.</param>
     /// <remarks>
     /// The callback is invoked on the main thread during the render loop.
-    /// Delays less than 16ms are clamped to 16ms to enforce a 60 FPS cap.
+    /// Delays less than the minimum interval are clamped.
     /// </remarks>
     public void Schedule(TimeSpan delay, Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        // Enforce minimum interval (60 FPS cap)
-        if (delay < MinimumInterval)
-            delay = MinimumInterval;
+        // Enforce minimum interval
+        if (delay < _minimumInterval)
+            delay = _minimumInterval;
 
         var dueTime = DateTime.UtcNow + delay;
 

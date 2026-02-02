@@ -143,6 +143,11 @@ builder.Services.AddSingleton<IGalleryExample, NotificationsBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, NotificationsActionsExample>();
 builder.Services.AddSingleton<IGalleryExample, NotificationsLifecycleExample>();
 
+// Surface examples
+builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
+builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
@@ -175,12 +180,23 @@ var rewriteOptions = new RewriteOptions()
             return;
         }
         
+        // Try exact .html file first (e.g., /reference/Hex1b.Widgets.ButtonWidget.html)
         var htmlPath = cleanPath + ".html";
         var fileInfo = app.Environment.WebRootFileProvider.GetFileInfo(htmlPath);
         
         if (fileInfo.Exists)
         {
             request.Path = htmlPath;
+            return;
+        }
+        
+        // Try directory with index.html (e.g., /reference/index.html for /reference/)
+        var indexPath = cleanPath + "/index.html";
+        fileInfo = app.Environment.WebRootFileProvider.GetFileInfo(indexPath);
+        
+        if (fileInfo.Exists)
+        {
+            request.Path = indexPath;
         }
     });
 
