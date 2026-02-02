@@ -89,7 +89,9 @@ public sealed class ProgressNode : Hex1bNode
         
         // Get theme elements
         var filledChar = theme.Get(ProgressTheme.FilledCharacter);
+        var filledRightHalfChar = theme.Get(ProgressTheme.FilledRightHalfCharacter);
         var emptyChar = theme.Get(ProgressTheme.EmptyCharacter);
+        var useHalfCell = theme.Get(ProgressTheme.UseHalfCellPrecision);
         var indeterminateChar = theme.Get(ProgressTheme.IndeterminateCharacter);
         var filledFg = theme.Get(ProgressTheme.FilledForegroundColor);
         var filledBg = theme.Get(ProgressTheme.FilledBackgroundColor);
@@ -116,10 +118,13 @@ public sealed class ProgressNode : Hex1bNode
         }
         else
         {
+            // For increasing progress, use right-half character at trailing edge
             output = RenderDeterminate(
                 Bounds.Width,
                 filledChar,
+                filledRightHalfChar,
                 emptyChar,
+                useHalfCell,
                 filledFg,
                 filledBg,
                 emptyFg,
@@ -140,7 +145,9 @@ public sealed class ProgressNode : Hex1bNode
     private string RenderDeterminate(
         int width,
         char filledChar,
+        char filledHalfChar,
         char emptyChar,
+        bool useHalfCell,
         Hex1bColor filledFg,
         Hex1bColor filledBg,
         Hex1bColor emptyFg,
@@ -152,19 +159,38 @@ public sealed class ProgressNode : Hex1bNode
         // Calculate fill percentage
         var range = Maximum - Minimum;
         var percentage = range > 0 ? Math.Clamp((Value - Minimum) / range, 0.0, 1.0) : 0.0;
-        var filledWidth = (int)Math.Round(percentage * width);
-        var emptyWidth = width - filledWidth;
+        
+        int filledWidth;
+        bool hasHalfCell = false;
+        
+        if (useHalfCell)
+        {
+            // Half-cell precision: multiply by 2 to get half-cell units
+            var halfCellUnits = percentage * width * 2;
+            filledWidth = (int)(halfCellUnits / 2);
+            hasHalfCell = ((int)halfCellUnits % 2) == 1;
+        }
+        else
+        {
+            filledWidth = (int)Math.Round(percentage * width);
+        }
+        
+        var emptyWidth = width - filledWidth - (hasHalfCell ? 1 : 0);
         
         // Build the progress bar string
         var filledPart = filledWidth > 0
             ? $"{filledFg.ToForegroundAnsi()}{filledBg.ToBackgroundAnsi()}{new string(filledChar, filledWidth)}"
+            : "";
+        
+        var halfPart = hasHalfCell
+            ? $"{filledFg.ToForegroundAnsi()}{filledBg.ToBackgroundAnsi()}{filledHalfChar}"
             : "";
             
         var emptyPart = emptyWidth > 0
             ? $"{emptyFg.ToForegroundAnsi()}{emptyBg.ToBackgroundAnsi()}{new string(emptyChar, emptyWidth)}"
             : "";
         
-        return $"{filledPart}{emptyPart}{resetCodes}";
+        return $"{filledPart}{halfPart}{emptyPart}{resetCodes}";
     }
     
     private string RenderIndeterminate(

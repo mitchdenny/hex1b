@@ -7,7 +7,6 @@ var throwCount = 0;
 var lastAction = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithRenderingModeFromEnvironment() // Read HEX1B_RENDERING_MODE env var (Surface, Legacy, Validation)
     .WithHex1bApp((app, options) => ctx =>
         ctx.VStack(v => [
             v.Text("RescueWidget Demo"),

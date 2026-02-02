@@ -91,4 +91,21 @@ public class Hex1bAppOptions
     /// Default is 100ms.
     /// </summary>
     public int InputCoalescingMaxDelayMs { get; set; } = 100;
+    
+    /// <summary>
+    /// Minimum frame interval in milliseconds. This sets the floor for animation timers
+    /// and effectively caps the maximum frame rate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The default of 16ms corresponds to approximately 60 FPS, which is suitable
+    /// for most terminal UIs. Lower values allow higher frame rates for smooth
+    /// animations in scenarios like games or data visualizations using <see cref="Widgets.SurfaceWidget"/>.
+    /// </para>
+    /// <para>
+    /// Setting this too low may cause excessive CPU usage. Values below 1ms are
+    /// clamped to 1ms to prevent CPU spin.
+    /// </para>
+    /// </remarks>
+    public int FrameRateLimitMs { get; set; } = 16;
 }

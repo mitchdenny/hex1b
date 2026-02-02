@@ -57,6 +57,8 @@ public static class TerminalRegionAnsiExtensions
         }
 
         // Group cells by row for efficient row-based rendering
+        // Cells are kept in X position order (not sequence order) so that text extraction
+        // produces correct results when ANSI escape codes are stripped.
         var cellsByRow = new Dictionary<int, List<(int X, TerminalCell Cell)>>();
         for (int y = 0; y < region.Height; y++)
         {
@@ -65,8 +67,6 @@ public static class TerminalRegionAnsiExtensions
             {
                 cellsByRow[y].Add((x, region.GetCell(x, y)));
             }
-            // Sort cells in this row by sequence number
-            cellsByRow[y].Sort((a, b) => a.Cell.Sequence.CompareTo(b.Cell.Sequence));
         }
 
         // Track current state to minimize escape sequences
@@ -88,7 +88,7 @@ public static class TerminalRegionAnsiExtensions
                 sb.Append("\r");
             }
 
-            // Render all cells in this row (sorted by sequence)
+            // Render all cells in this row (in X position order)
             foreach (var (x, cell) in cellsByRow[row])
             {
                 var ch = cell.Character;

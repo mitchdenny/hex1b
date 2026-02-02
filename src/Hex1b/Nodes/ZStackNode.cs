@@ -9,7 +9,7 @@ namespace Hex1b;
 /// Render node for <see cref="ZStackWidget"/>.
 /// Stacks children on the Z-axis, with later children rendering on top of earlier ones.
 /// </summary>
-public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
+public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotificationHost
 {
     /// <summary>
     /// The child nodes, in render order (first = bottom, last = top).
@@ -20,6 +20,12 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
     /// The popup stack for this ZStack. Content pushed here appears as overlay layers.
     /// </summary>
     public PopupStack Popups { get; } = new();
+    
+    /// <summary>
+    /// The notification stack for this ZStack. Notifications posted here can be displayed
+    /// by any NotificationPanel that registers with this stack.
+    /// </summary>
+    public NotificationStack Notifications { get; } = new();
     
     /// <summary>
     /// Tracks the topmost popup entry from the last reconcile cycle.
@@ -148,6 +154,11 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost
             // Future: support alignment/positioning within the ZStack
             child.Arrange(bounds);
         }
+        
+        // After layout, clean up any popups with stale anchor references.
+        // This happens when an anchor node is replaced during reconciliation but
+        // the popup still holds a reference to the old node (which has zero bounds).
+        Popups.RemoveStaleAnchoredPopups();
     }
 
     public override void Render(Hex1bRenderContext context)

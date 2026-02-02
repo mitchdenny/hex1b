@@ -166,6 +166,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             lifecycleAdapter.TerminalCreated(this);
         }
         
+        // Notify terminal-aware presentation filters
+        foreach (var filter in _presentationFilters)
+        {
+            if (filter is ITerminalAwarePresentationFilter terminalAwareFilter)
+            {
+                terminalAwareFilter.SetTerminal(this);
+            }
+        }
+        
         // Get dimensions from presentation adapter (it's the source of truth)
         _width = _presentation.Width > 0 ? _presentation.Width : options.Width;
         _height = _presentation.Height > 0 ? _presentation.Height : options.Height;
@@ -225,6 +234,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Terminal height.
     /// </summary>
     internal int Height => _height;
+
+    /// <summary>
+    /// The workload adapter for this terminal.
+    /// </summary>
+    internal IHex1bTerminalWorkloadAdapter Workload => _workload;
     
     /// <summary>
     /// Terminal capabilities from the presentation adapter, workload adapter, or defaults.
@@ -1328,6 +1342,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await NotifyWorkloadFiltersInputAsync(tokens);
             }
         }
+    }
+
+    /// <summary>
+    /// Sends raw input bytes to the workload.
+    /// </summary>
+    /// <param name="bytes">The bytes to send.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task SendInputAsync(byte[] bytes, CancellationToken ct = default)
+    {
+        await _workload.WriteInputAsync(bytes, ct);
     }
 
     /// <summary>

@@ -21,7 +21,14 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+
+#if DEBUG
+// Register host for debug shutdown tool
+DebugTools.Host = host;
+#endif
+
+await host.RunAsync();
 
 /// <summary>
 /// Simple ping tool to verify the MCP server is working.
@@ -39,3 +46,28 @@ public static class PingTool
         return $"pong! Hex1b.McpServer is running. Server time: {DateTime.UtcNow:O}";
     }
 }
+
+#if DEBUG
+/// <summary>
+/// Debug-only tools for development.
+/// </summary>
+[McpServerToolType]
+public static class DebugTools
+{
+    internal static IHost? Host { get; set; }
+
+    /// <summary>
+    /// Shuts down the MCP server. Only available in DEBUG builds.
+    /// </summary>
+    [McpServerTool, Description("Shuts down the MCP server (DEBUG builds only). Use this to restart the server after code changes.")]
+    public static string Shutdown()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100); // Give time for response to be sent
+            Host?.StopAsync();
+        });
+        return "Shutting down MCP server...";
+    }
+}
+#endif

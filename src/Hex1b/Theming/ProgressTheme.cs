@@ -36,6 +36,26 @@ public static class ProgressTheme
         new($"{nameof(ProgressTheme)}.{nameof(FilledCharacter)}", () => '█');
     
     /// <summary>
+    /// The character used for a left-half filled cell.
+    /// </summary>
+    /// <remarks>
+    /// Default is '▌' (left half block). For braille style, use '⡀' (U+2840).
+    /// Used at the trailing edge when progress is decreasing (e.g., countdown timer).
+    /// </remarks>
+    public static readonly Hex1bThemeElement<char> FilledLeftHalfCharacter = 
+        new($"{nameof(ProgressTheme)}.{nameof(FilledLeftHalfCharacter)}", () => '▌');
+    
+    /// <summary>
+    /// The character used for a right-half filled cell.
+    /// </summary>
+    /// <remarks>
+    /// Default is '▐' (right half block). For braille style, use '⢀' (U+2880).
+    /// Used at the trailing edge when progress is increasing (e.g., download progress).
+    /// </remarks>
+    public static readonly Hex1bThemeElement<char> FilledRightHalfCharacter = 
+        new($"{nameof(ProgressTheme)}.{nameof(FilledRightHalfCharacter)}", () => '▐');
+    
+    /// <summary>
     /// The character used to render the empty (uncompleted) portion of the progress bar.
     /// </summary>
     /// <remarks>
@@ -43,6 +63,16 @@ public static class ProgressTheme
     /// </remarks>
     public static readonly Hex1bThemeElement<char> EmptyCharacter = 
         new($"{nameof(ProgressTheme)}.{nameof(EmptyCharacter)}", () => '░');
+    
+    /// <summary>
+    /// Whether to use half-cell precision for smoother progress display.
+    /// </summary>
+    /// <remarks>
+    /// When true, the progress bar uses half-cell characters for sub-cell precision.
+    /// Default is false for classic block-style rendering.
+    /// </remarks>
+    public static readonly Hex1bThemeElement<bool> UseHalfCellPrecision = 
+        new($"{nameof(ProgressTheme)}.{nameof(UseHalfCellPrecision)}", () => false);
     
     /// <summary>
     /// The character used for the animated segment in indeterminate mode.

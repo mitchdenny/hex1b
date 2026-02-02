@@ -26,7 +26,6 @@ _ = Task.Run(async () =>
 });
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithRenderingModeFromEnvironment() // Read HEX1B_RENDERING_MODE env var (Surface, Legacy, Validation)
     .WithHex1bApp((app, options) => ctx =>
     // Wrap in ZStack for popup support (required for overlay mode)
     ctx.ZStack(z => [

@@ -47,6 +47,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
 
     /// <summary>
+    /// Optional diagnostic tree provider for MCP diagnostics.
+    /// Set by Hex1bApp when it starts running.
+    /// </summary>
+    internal Diagnostics.IDiagnosticTreeProvider? DiagnosticTreeProvider { get; set; }
+
+    /// <summary>
     /// Creates a new app workload adapter.
     /// </summary>
     /// <param name="capabilities">Terminal capabilities. If null, defaults with full support.</param>

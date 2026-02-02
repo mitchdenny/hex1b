@@ -118,6 +118,29 @@ public sealed class InputBindingActionContext
     public PopupStack Popups => FindNearestPopupHost()?.Popups 
         ?? throw new InvalidOperationException("No popup host found. Ensure code runs within a Hex1bApp context.");
     
+    /// <summary>
+    /// Gets the notification stack for the nearest notification host (typically a NotificationPanel) in the focused node's ancestry.
+    /// Use this to post notifications from event handlers.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.Button("Save")
+    ///    .OnClick(e => {
+    ///        SaveFile();
+    ///        e.Notifications.Post(new Notification("Saved", "File saved successfully"));
+    ///    });
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">Thrown if no notification host is found in the tree.</exception>
+    public NotificationStack Notifications => FindNearestNotificationHost()?.Notifications
+        ?? throw new InvalidOperationException("No notification host found. Add a NotificationPanel to your widget tree.");
+    
+    /// <summary>
+    /// Tries to get the notification stack, returning null if no notification host is found.
+    /// Use this when notifications are optional and you don't want an exception.
+    /// </summary>
+    public NotificationStack? TryGetNotifications() => FindNearestNotificationHost()?.Notifications;
+    
     private IPopupHost? FindNearestPopupHost()
     {
         // Walk from the focused node up the parent chain to find the nearest popup host
@@ -125,6 +148,21 @@ public sealed class InputBindingActionContext
         while (current != null)
         {
             if (current is IPopupHost host)
+            {
+                return host;
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
+    
+    private INotificationHost? FindNearestNotificationHost()
+    {
+        // Walk from the focused node up the parent chain to find the nearest notification host
+        Hex1bNode? current = FocusedNode;
+        while (current != null)
+        {
+            if (current is INotificationHost host)
             {
                 return host;
             }

@@ -18,6 +18,7 @@ Widgets for organizing and positioning content.
 Widgets that respond to user input.
 
 - **[Button](/guide/widgets/button)** — Clickable buttons with keyboard support
+- **[SplitButton](/guide/widgets/split-button)** — Button with dropdown for secondary actions
 - **[TextBox](/guide/widgets/textbox)** — Single and multi-line text input
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
 - **[Table](/guide/widgets/table)** — Data tables with sorting, selection, and virtualization
@@ -31,6 +32,7 @@ Widgets that respond to user input.
 Widgets for presenting information.
 
 - **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
+- **[Notifications](/guide/widgets/notifications)** — Floating notifications with actions and drawer
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting
 - **[Progress](/guide/widgets/progress)** — Progress bars for known completion amounts
 - **[Spinner](/guide/widgets/spinner)** — Animated activity indicators
@@ -44,3 +46,4 @@ Widgets for special behaviors.
 - **[Rescue](/guide/widgets/rescue)** — Error boundaries for graceful failure handling
 - **[ThemePanel](/guide/widgets/themepanel)** — Scope theme overrides to subtrees
 - **[Terminal](/guide/widgets/terminal)** — Embed child terminal sessions
+- **[Surface](/guide/widgets/surface)** — Low-level rendering with layered compositing

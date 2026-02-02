@@ -1177,4 +1177,212 @@ public class BorderNodeTests
     }
 
     #endregion
+    
+    #region Border Background Bug Tests
+
+    /// <summary>
+    /// Regression test for picker dropdown border showing white background.
+    /// The border should use the default (empty) global background, not inherit
+    /// a modified theme from a sibling ThemePanelNode.
+    /// </summary>
+    [Fact]
+    public async Task BorderNode_UsesGlobalBackground_WhenThemeIsDefault()
+    {
+        // Arrange
+        var theme = Hex1bThemes.Default;
+        var node = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+        
+        // Act - get global background from theme
+        var globalBg = theme.GetGlobalBackground();
+        var globalBgAnsi = globalBg.IsDefault ? "" : globalBg.ToBackgroundAnsi();
+        
+        // Assert - default theme should have default background (empty ANSI code)
+        Assert.True(globalBg.IsDefault, "Default theme should have IsDefault=true for BackgroundColor");
+        Assert.Equal("", globalBgAnsi);
+    }
+
+    /// <summary>
+    /// Verifies that when a theme is mutated with a white global background,
+    /// the mutated theme returns the correct white ANSI code.
+    /// </summary>
+    [Fact]
+    public async Task ThemeMutation_SetsGlobalBackground_ReturnsCorrectAnsi()
+    {
+        // Arrange - Clone the theme to allow mutation
+        var baseTheme = Hex1bThemes.Default.Clone();
+        
+        // Simulate InfoBar's invert behavior: set global background to white
+        var mutatedTheme = baseTheme
+            .Set(GlobalTheme.BackgroundColor, Hex1bColor.White);
+        
+        // Act
+        var originalBg = Hex1bThemes.Default.GetGlobalBackground();
+        var mutatedBg = mutatedTheme.GetGlobalBackground();
+        
+        // Assert
+        Assert.True(originalBg.IsDefault, "Original theme should have default background");
+        Assert.False(mutatedBg.IsDefault, "Mutated theme should NOT have default background");
+        Assert.Equal(255, mutatedBg.R);
+        Assert.Equal(255, mutatedBg.G);
+        Assert.Equal(255, mutatedBg.B);
+    }
+
+    /// <summary>
+    /// Tests that ThemePanelNode correctly restores the theme after rendering.
+    /// This is critical for siblings that render after the ThemePanelNode.
+    /// </summary>
+    [Fact]
+    public async Task ThemePanelNode_RestoresTheme_AfterRendering()
+    {
+        // Arrange
+        var surface = new Hex1b.Surfaces.Surface(20, 10);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface, Hex1bThemes.Default);
+        
+        var child = new TextBlockNode { Text = "Panel Content" };
+        var themePanel = new ThemePanelNode
+        {
+            ThemeMutator = t => t.Set(GlobalTheme.BackgroundColor, Hex1bColor.White),
+            Child = child
+        };
+        themePanel.Measure(new Constraints(20, 20, 10, 10));
+        themePanel.Arrange(new Rect(0, 0, 20, 10));
+        
+        var themeBefore = context.Theme;
+        var bgBefore = themeBefore.GetGlobalBackground();
+        
+        // Act
+        themePanel.Render(context);
+        
+        // Assert - theme should be restored after render
+        var themeAfter = context.Theme;
+        var bgAfter = themeAfter.GetGlobalBackground();
+        
+        Assert.True(bgBefore.IsDefault, "Theme before should have default background");
+        Assert.True(bgAfter.IsDefault, "Theme after should be restored to default background");
+        Assert.Same(themeBefore, themeAfter);
+    }
+
+    /// <summary>
+    /// Tests the full scenario: rendering a VStack with InfoBar (white bg theme)
+    /// followed by a Border (should use default bg theme).
+    /// </summary>
+    [Fact]
+    public async Task VStack_WithInfoBarThenBorder_BorderHasDefaultBackground()
+    {
+        // This simulates the bug scenario:
+        // VStack contains:
+        //   1. InfoBar with inverted colors (sets white global background via ThemePanelNode)
+        //   2. Border (should NOT inherit the white background)
+        
+        // Arrange
+        var surface = new Hex1b.Surfaces.Surface(40, 20);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface, Hex1bThemes.Default);
+        
+        // Create InfoBar-like ThemePanelNode that sets white background
+        var infoBarContent = new TextBlockNode { Text = "Menu Bar" };
+        var infoBarThemePanel = new ThemePanelNode
+        {
+            ThemeMutator = t => t.Set(GlobalTheme.BackgroundColor, Hex1bColor.White),
+            Child = infoBarContent
+        };
+        
+        // Create a Border (like the picker dropdown)
+        var borderContent = new TextBlockNode { Text = "Dropdown" };
+        var border = new BorderNode { Child = borderContent };
+        
+        // Create VStack to hold both
+        var vstack = new VStackNode();
+        infoBarThemePanel.Measure(new Constraints(40, 40, 1, 1));
+        infoBarThemePanel.Arrange(new Rect(0, 0, 40, 1));
+        infoBarThemePanel.Parent = vstack;
+        
+        border.Measure(new Constraints(10, 10, 5, 5));
+        border.Arrange(new Rect(0, 2, 10, 5));
+        border.Parent = vstack;
+        
+        // Act - render in order (simulate VStack.Render)
+        context.RenderChild(infoBarThemePanel);
+        
+        // Check theme AFTER infobar renders
+        var bgAfterInfoBar = context.Theme.GetGlobalBackground();
+        
+        context.RenderChild(border);
+        
+        // Assert
+        // After infobar, theme should be restored to default
+        Assert.True(bgAfterInfoBar.IsDefault, 
+            "Theme should be restored after ThemePanelNode renders, but global background is still modified!");
+    }
+
+    /// <summary>
+    /// Tests the actual border rendering to verify no white background is in the output.
+    /// This catches the case where the border incorrectly gets a background color.
+    /// </summary>
+    [Fact]
+    public async Task BorderNode_Render_NoBackgroundColorWhenDefaultTheme()
+    {
+        // Arrange
+        var surface = new Hex1b.Surfaces.Surface(15, 7);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface, Hex1bThemes.Default);
+        
+        var border = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
+        border.Measure(new Constraints(15, 15, 7, 7));
+        border.Arrange(new Rect(0, 0, 10, 5));
+        
+        // Act
+        border.Render(context);
+        
+        // Assert - Check the top-left corner cell's background
+        var topLeftCell = surface[0, 0];
+        Assert.True(topLeftCell.Background == null, 
+            $"Top-left corner should have null background, but has RGB({topLeftCell.Background?.R},{topLeftCell.Background?.G},{topLeftCell.Background?.B})");
+        
+        // Check a border character cell (horizontal line)
+        var topBorderCell = surface[1, 0];
+        Assert.True(topBorderCell.Background == null, 
+            $"Top border should have null background, but has RGB({topBorderCell.Background?.R},{topBorderCell.Background?.G},{topBorderCell.Background?.B})");
+    }
+
+    /// <summary>
+    /// Tests that after a ThemePanelNode renders with white background,
+    /// a sibling BorderNode does NOT have white background in its cells.
+    /// </summary>
+    [Fact]
+    public async Task BorderNode_AfterThemePanelRender_NoWhiteBackground()
+    {
+        // Arrange
+        var surface = new Hex1b.Surfaces.Surface(40, 20);
+        var context = new Hex1b.Surfaces.SurfaceRenderContext(surface, Hex1bThemes.Default);
+        
+        // First, render a ThemePanelNode that sets white background (like InfoBar)
+        var infoBarContent = new TextBlockNode { Text = "Menu" };
+        var infoBarThemePanel = new ThemePanelNode
+        {
+            ThemeMutator = t => t.Set(GlobalTheme.BackgroundColor, Hex1bColor.White),
+            Child = infoBarContent
+        };
+        infoBarThemePanel.Measure(new Constraints(40, 40, 1, 1));
+        infoBarThemePanel.Arrange(new Rect(0, 0, 40, 1));
+        infoBarThemePanel.Render(context);
+        
+        // Now render a BorderNode at a different position (like picker dropdown)
+        var border = new BorderNode { Child = new TextBlockNode { Text = "Dropdown" } };
+        border.Measure(new Constraints(12, 12, 5, 5));
+        border.Arrange(new Rect(5, 5, 12, 5));
+        border.Render(context);
+        
+        // Assert - Border cells should NOT have white background
+        var borderTopLeft = surface[5, 5];
+        var isWhite = borderTopLeft.Background != null && 
+                      borderTopLeft.Background.Value.R == 255 && 
+                      borderTopLeft.Background.Value.G == 255 && 
+                      borderTopLeft.Background.Value.B == 255;
+        
+        Assert.False(isWhite, 
+            $"Border top-left should NOT have white background, but has RGB({borderTopLeft.Background?.R},{borderTopLeft.Background?.G},{borderTopLeft.Background?.B})");
+    }
+
+    #endregion
 }

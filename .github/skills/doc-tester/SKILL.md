@@ -378,10 +378,13 @@ When given a focus area, use these templates to guide testing:
 - [ ] (etc.)
 
 #### Live Demo Testing (Playwright)
-- [ ] Demo loads when clicked
+- [ ] **"Run in browser" button exists** for at least one code example
+- [ ] Demo loads when clicked (no 500 errors)
 - [ ] Initial state matches description
 - [ ] Interactions work as documented
 - [ ] Demo matches the code example shown
+
+⚠️ **CRITICAL: If "Run in browser" button is MISSING for interactive widgets, report this as a Critical bug.** Every interactive widget (buttons, inputs, lists, etc.) MUST have at least one working interactive demo. Missing demos indicate incomplete documentation.
 
 #### Cross-Reference
 - [ ] Matches `src/Hex1b/Widgets/[WidgetName]Widget.cs`
@@ -1133,8 +1136,9 @@ When the docs are correct but the library doesn't work as documented:
 
 - Live demos that don't match static code snippets
 - WebSocket examples with different behavior than documented
-- Missing or broken interactive examples
+- **Missing interactive examples for interactive widgets** (Critical - "Run in browser" button missing)
 - Demo state that persists incorrectly
+- Demo fails with 500 error (example not registered in Program.cs)
 
 ### Conceptual Inaccuracies
 

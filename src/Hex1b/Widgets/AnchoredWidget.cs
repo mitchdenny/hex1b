@@ -46,6 +46,12 @@ internal sealed class AnchoredNode : Hex1bNode
     private Size _childSize;
     
     /// <summary>
+    /// Indicates whether the anchor node appears to be stale (has zero or invalid bounds).
+    /// When true, the parent popup should be dismissed.
+    /// </summary>
+    public bool IsAnchorStale { get; private set; }
+    
+    /// <summary>
     /// Returns the child's bounds for hit testing, not our full layout bounds.
     /// This allows BackdropNode to correctly detect clicks outside the popup content.
     /// </summary>
@@ -73,8 +79,27 @@ internal sealed class AnchoredNode : Hex1bNode
         
         var anchorBounds = AnchorNode.Bounds;
         
-        // Calculate position based on anchor and preferred position
-        var (x, y) = CalculatePosition(anchorBounds, _childSize, bounds);
+        // Detect stale anchor: if the anchor has zero dimensions OR is positioned at (0,0)
+        // with zero size, it's likely been replaced during reconciliation and never arranged.
+        // A legitimate anchor at (0,0) would have non-zero dimensions.
+        IsAnchorStale = anchorBounds.Width == 0 && anchorBounds.Height == 0;
+        
+        // If anchor is stale, position at a safe fallback (top-left corner visible)
+        // The popup will likely be dismissed on the next frame when the PopupStack
+        // detects the stale state.
+        int x, y;
+        if (IsAnchorStale)
+        {
+            // Position at top-left as fallback - makes the stale state visible for debugging
+            // In practice, the popup should be dismissed before this is rendered
+            x = 0;
+            y = 0;
+        }
+        else
+        {
+            // Calculate position based on anchor and preferred position
+            (x, y) = CalculatePosition(anchorBounds, _childSize, bounds);
+        }
         
         // Clamp to screen bounds
         x = Math.Max(0, Math.Min(x, bounds.Width - _childSize.Width));

@@ -472,14 +472,19 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return "";
         }
         
-        // Handle surrogate pairs
-        if (char.IsHighSurrogate(text[start]) && start + 1 < text.Length && char.IsLowSurrogate(text[start + 1]))
+        // Use .NET's grapheme cluster enumeration to properly handle:
+        // - Surrogate pairs (emoji like 🖥)
+        // - Combining characters (variation selectors like U+FE0F)
+        // - Extended grapheme clusters (emoji + skin tones, ZWJ sequences)
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(text, start);
+        if (enumerator.MoveNext())
         {
-            charCount = 2;
-            return text.Substring(start, 2);
+            var grapheme = enumerator.GetTextElement();
+            charCount = grapheme.Length;
+            return grapheme;
         }
         
-        // Single character
+        // Fallback (shouldn't happen)
         charCount = 1;
         return text[start].ToString();
     }

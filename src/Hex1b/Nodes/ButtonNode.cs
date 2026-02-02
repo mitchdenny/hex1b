@@ -70,7 +70,32 @@ public sealed class ButtonNode : Hex1bNode
         // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
         var width = Label.Length + 4;
         var height = 1;
-        return constraints.Constrain(new Size(width, height));
+        _measuredSize = constraints.Constrain(new Size(width, height));
+        return _measuredSize;
+    }
+    
+    private Size _measuredSize;
+    
+    /// <summary>
+    /// Hit test bounds are limited to the actual button content, not the full arranged bounds.
+    /// If the button hasn't been arranged (Bounds is zero), returns empty bounds to prevent
+    /// accidental hits on nodes that are scrolled out of view or otherwise not displayed.
+    /// </summary>
+    public override Rect HitTestBounds
+    {
+        get
+        {
+            // If Bounds has zero dimensions, this node wasn't arranged (e.g., scrolled out of view)
+            // Return zero-size rect to prevent hit testing
+            if (Bounds.Width == 0 && Bounds.Height == 0)
+            {
+                return Rect.Zero;
+            }
+            // Use measured size if available, otherwise fall back to arranged bounds
+            var width = _measuredSize.Width > 0 ? _measuredSize.Width : Bounds.Width;
+            var height = _measuredSize.Height > 0 ? _measuredSize.Height : Bounds.Height;
+            return new Rect(Bounds.X, Bounds.Y, width, height);
+        }
     }
 
     public override void Render(Hex1bRenderContext context)
