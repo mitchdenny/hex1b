@@ -166,9 +166,9 @@ public sealed class NotificationStack
             _entries.Insert(0, entry); // Newest first
 
             // Start timeout timer if configured
-            if (notification.Timeout.HasValue)
+            if (notification.TimeoutDuration.HasValue)
             {
-                StartTimeoutTimer(entry, notification.Timeout.Value);
+                StartTimeoutTimer(entry, notification.TimeoutDuration.Value);
             }
         }
 
@@ -245,7 +245,7 @@ public sealed class NotificationStack
             {
                 entry.CancelTimeout();
                 // Clear the timeout so progress bar stops
-                notification.Timeout = null;
+                notification.TimeoutDuration = null;
             }
         }
         

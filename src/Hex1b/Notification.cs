@@ -14,7 +14,7 @@ namespace Hex1b;
 /// Use the fluent API to configure actions and lifecycle handlers:
 /// <code>
 /// var notification = new Notification("File saved", "document.txt saved successfully")
-///     .WithTimeout(TimeSpan.FromSeconds(5))
+///     .Timeout(TimeSpan.FromSeconds(5))
 ///     .PrimaryAction("View", async ctx => await OpenFileAsync())
 ///     .SecondaryAction("Undo", async ctx => await UndoSaveAsync())
 ///     .OnDismiss(async ctx => await CleanupAsync());
@@ -54,7 +54,7 @@ public sealed class Notification
     /// The notification remains in the notification panel until explicitly dismissed.
     /// If null, the notification floats indefinitely until dismissed.
     /// </summary>
-    public TimeSpan? Timeout { get; set; }
+    public TimeSpan? TimeoutDuration { get; set; }
 
     /// <summary>
     /// When this notification was created.
@@ -83,12 +83,13 @@ public sealed class Notification
 
     /// <summary>
     /// Sets the timeout duration for this notification.
+    /// After the timeout, the notification hides from floating view but remains in the notification panel.
     /// </summary>
-    /// <param name="timeout">The duration after which the notification hides from floating view.</param>
+    /// <param name="duration">The duration after which the notification hides from floating view.</param>
     /// <returns>This notification for fluent chaining.</returns>
-    public Notification WithTimeout(TimeSpan timeout)
+    public Notification Timeout(TimeSpan duration)
     {
-        Timeout = timeout;
+        TimeoutDuration = duration;
         return this;
     }
 

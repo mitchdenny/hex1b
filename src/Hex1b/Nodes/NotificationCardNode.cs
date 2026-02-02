@@ -155,7 +155,7 @@ public sealed class NotificationCardNode : Hex1bNode
         {
             contentHeight += 1; // Action row
         }
-        if (ShowProgressBar && Notification?.Timeout != null)
+        if (ShowProgressBar && Notification?.TimeoutDuration != null)
         {
             contentHeight += 1; // Progress bar row
         }
@@ -305,7 +305,7 @@ public sealed class NotificationCardNode : Hex1bNode
             var bodyLines = WrapText(Body, contentWidth - 2); // -2 for internal padding
             foreach (var line in bodyLines)
             {
-                if (currentY >= y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
+                if (currentY >= y + height - 1 - (ShowProgressBar && Notification?.TimeoutDuration != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
                 var paddedLine = line.PadRight(contentWidth - 2);
                 context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{bodyFgAnsi}{cardBgAnsi} {paddedLine} {cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
@@ -316,7 +316,7 @@ public sealed class NotificationCardNode : Hex1bNode
         // ═══ ACTION ROW ═══
         if (ActionButton != null)
         {
-            if (currentY < y + height - 1 - (ShowProgressBar && Notification?.Timeout != null ? 1 : 0))
+            if (currentY < y + height - 1 - (ShowProgressBar && Notification?.TimeoutDuration != null ? 1 : 0))
             {
                 // Left border + padding
                 context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi} ");
@@ -338,7 +338,7 @@ public sealed class NotificationCardNode : Hex1bNode
         }
 
         // ═══ FILL REMAINING CONTENT ROWS ═══
-        var progressBarRow = ShowProgressBar && Notification?.Timeout != null ? 1 : 0;
+        var progressBarRow = ShowProgressBar && Notification?.TimeoutDuration != null ? 1 : 0;
         while (currentY < y + height - 1 - progressBarRow)
         {
             context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{cardBgAnsi}{new string(' ', contentWidth)}{cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
@@ -346,7 +346,7 @@ public sealed class NotificationCardNode : Hex1bNode
         }
 
         // ═══ PROGRESS BAR ROW (inside border) ═══
-        if (ShowProgressBar && Notification?.Timeout != null && currentY < y + height - 1)
+        if (ShowProgressBar && Notification?.TimeoutDuration != null && currentY < y + height - 1)
         {
             var progress = CalculateTimeoutProgress();
             
@@ -379,14 +379,14 @@ public sealed class NotificationCardNode : Hex1bNode
 
     private double CalculateTimeoutProgress()
     {
-        if (Notification?.Timeout == null) return 0;
+        if (Notification?.TimeoutDuration == null) return 0;
 
         var elapsed = DateTimeOffset.Now - Notification.CreatedAt;
-        var remaining = Notification.Timeout.Value - elapsed;
+        var remaining = Notification.TimeoutDuration.Value - elapsed;
         
         if (remaining <= TimeSpan.Zero) return 0;
         
-        return remaining.TotalMilliseconds / Notification.Timeout.Value.TotalMilliseconds;
+        return remaining.TotalMilliseconds / Notification.TimeoutDuration.Value.TotalMilliseconds;
     }
 
     private string BuildActionText(int maxWidth)

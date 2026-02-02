@@ -75,7 +75,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             // Post a notification with secondary actions
                             e.Context.Notifications.Post(
                                 new Notification("📋 Task Created", $"New Task {tasks.Count}")
-                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .Timeout(TimeSpan.FromSeconds(30))
                                     .PrimaryAction("View", async ctx => {
                                         selectedNavIndex = 1; // Switch to Tasks view
                                         currentView = "Tasks";
@@ -98,7 +98,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             // Post a notification with secondary actions
                             e.Context.Notifications.Post(
                                 new Notification("✓ Saved", "All changes saved successfully")
-                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .Timeout(TimeSpan.FromSeconds(30))
                                     .PrimaryAction("Undo", async ctx => {
                                         lastAction = "Undo save";
                                         statusMessage = "Save undone";

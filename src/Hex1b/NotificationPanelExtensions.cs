@@ -24,7 +24,7 @@ public static class NotificationPanelExtensions
     ///             v.Button("Save").OnClick(e => {
     ///                 SaveFile();
     ///                 e.Notifications.Post(new Notification("Saved!", "File saved successfully")
-    ///                     .WithTimeout(TimeSpan.FromSeconds(3)));
+    ///                     .Timeout(TimeSpan.FromSeconds(3)));
     ///             })
     ///         )
     ///     ])

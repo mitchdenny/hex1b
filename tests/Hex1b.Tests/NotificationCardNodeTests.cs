@@ -123,7 +123,7 @@ public class NotificationCardNodeTests
                         {
                             e.Context.Notifications.Post(
                                 new Notification("Test Alert", "Something happened")
-                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .Timeout(TimeSpan.FromSeconds(30))
                                     .PrimaryAction("View Details", async c => c.Dismiss()));
                         })
                     ])
@@ -178,7 +178,7 @@ public class NotificationCardNodeTests
                             notificationPosted = true;
                             e.Context.Notifications.Post(
                                 new Notification("Test", "Body")
-                                    .WithTimeout(TimeSpan.FromSeconds(30))
+                                    .Timeout(TimeSpan.FromSeconds(30))
                                     .PrimaryAction("Action", async c => c.Dismiss())
                                     .SecondaryAction("Option A", async c => c.Dismiss())
                                     .SecondaryAction("Option B", async c => c.Dismiss()));
@@ -246,7 +246,7 @@ public class NotificationCardNodeTests
                             notificationPosted = true;
                             e.Context.Notifications.Post(
                                 new Notification("Test Notification", "This is a test")
-                                    .WithTimeout(TimeSpan.FromSeconds(30)));
+                                    .Timeout(TimeSpan.FromSeconds(30)));
                         })
                     ])
                 );
@@ -317,7 +317,7 @@ public class NotificationCardNodeTests
                                 notificationPosted = true;
                                 e.Context.Notifications.Post(
                                     new Notification("Test Alert", "From content area")
-                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                                        .Timeout(TimeSpan.FromSeconds(30)));
                             })
                         ])
                     ).Fill()
@@ -385,7 +385,7 @@ public class NotificationCardNodeTests
                             {
                                 e.Context.Notifications.Post(
                                     new Notification("Alert", "Something happened")
-                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                                        .Timeout(TimeSpan.FromSeconds(30)));
                             }),
                             content.Text("Main content area")
                         ])
@@ -449,7 +449,7 @@ public class NotificationCardNodeTests
                             {
                                 e.Context.Notifications.Post(
                                     new Notification("Test", "Test notification")
-                                        .WithTimeout(TimeSpan.FromSeconds(30)));
+                                        .Timeout(TimeSpan.FromSeconds(30)));
                             }),
                             content.Text("Main content area - click here to close drawer")
                         ])
@@ -516,7 +516,7 @@ public class NotificationCardNodeTests
                         {
                             e.Context.Notifications.Post(
                                 new Notification("Drawer Test", "Check progress bar visibility")
-                                    .WithTimeout(TimeSpan.FromSeconds(30)));
+                                    .Timeout(TimeSpan.FromSeconds(30)));
                         })
                     ).Fill()
                 ])
@@ -582,7 +582,7 @@ public class NotificationCardNodeTests
                         {
                             e.Context.Notifications.Post(
                                 new Notification("Dismiss Test", "Click the X to dismiss")
-                                    .WithTimeout(TimeSpan.FromSeconds(60)));
+                                    .Timeout(TimeSpan.FromSeconds(60)));
                         })
                     ).Fill()
                 ])
@@ -664,10 +664,10 @@ public class NotificationPanelHitTestTests
                             {
                                 e.Context.Notifications.Post(
                                     new Notification("Test 1", "First notification")
-                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                                        .Timeout(TimeSpan.FromMinutes(5)));
                                 e.Context.Notifications.Post(
                                     new Notification("Test 2", "Second notification")
-                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                                        .Timeout(TimeSpan.FromMinutes(5)));
                                 e.Context.Notifications.ShowPanel();
                             }),
                             v.Button("Content Button").OnClick(_ => contentButtonClicked = true)
@@ -791,7 +791,7 @@ public class NotificationPanelHitTestTests
                             {
                                 e.Context.Notifications.Post(
                                     new Notification("Alert", "Important message")
-                                        .WithTimeout(TimeSpan.FromMinutes(5)));
+                                        .Timeout(TimeSpan.FromMinutes(5)));
                             }),
                             v.Text("Main content area")
                         ])
