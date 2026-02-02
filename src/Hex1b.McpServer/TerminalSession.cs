@@ -324,8 +324,8 @@ public sealed class TerminalSession : IAsyncDisposable
         if (_disposed)
             throw new ObjectDisposedException(nameof(TerminalSession));
 
-        // Start recording
-        _asciinemaRecorder.StartRecording(filePath, _width, _height, options ?? new AsciinemaRecorderOptions
+        // Start recording - dimensions are automatically inferred from the session
+        _asciinemaRecorder.StartRecording(filePath, options ?? new AsciinemaRecorderOptions
         {
             AutoFlush = true,
             Title = $"{Command} session",

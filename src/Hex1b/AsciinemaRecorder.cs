@@ -110,18 +110,17 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     /// Starts recording to the specified file.
     /// </summary>
     /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
-    /// <param name="width">Terminal width in columns.</param>
-    /// <param name="height">Terminal height in rows.</param>
     /// <param name="options">Recording options. If null, defaults are used.</param>
     /// <exception cref="InvalidOperationException">Thrown if already recording.</exception>
     /// <remarks>
     /// <para>
     /// This method is used for dynamic recording scenarios where recording starts
-    /// after the terminal session has already begun. Use <see cref="WriteInitialStateAsync"/>
+    /// after the terminal session has already begun. The terminal dimensions are
+    /// automatically taken from the session. Use <see cref="WriteInitialStateAsync"/>
     /// to capture the current terminal state before continuing.
     /// </para>
     /// </remarks>
-    public void StartRecording(string filePath, int width, int height, AsciinemaRecorderOptions? options = null)
+    public void StartRecording(string filePath, AsciinemaRecorderOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         
@@ -134,8 +133,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
             _filePath = filePath;
             _options = options ?? new AsciinemaRecorderOptions();
-            _width = width;
-            _height = height;
+            // _width and _height are already set from OnSessionStartAsync
             _recordingStartTime = DateTimeOffset.UtcNow;
             _timestamp = _recordingStartTime;
             _headerWritten = false;

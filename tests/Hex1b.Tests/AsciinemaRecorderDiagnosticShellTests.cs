@@ -73,7 +73,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
 
             if (startRecording && recordingPath != null)
             {
-                recorder.StartRecording(recordingPath, 80, 24, new AsciinemaRecorderOptions
+                recorder.StartRecording(recordingPath, new AsciinemaRecorderOptions
                 {
                     AutoFlush = true,
                     Title = "Diagnostic Shell Test"
@@ -275,7 +275,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
         
         // Act - start recording mid-session
-        ctx.Recorder.StartRecording(tempFile, 80, 24, new AsciinemaRecorderOptions
+        ctx.Recorder.StartRecording(tempFile, new AsciinemaRecorderOptions
         {
             AutoFlush = true,
             Title = "Mid-Session Recording"
@@ -329,7 +329,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.Recorder.StopRecordingAsync();
 
         // Second recording
-        ctx.Recorder.StartRecording(tempFile2, 80, 24, new AsciinemaRecorderOptions { AutoFlush = true });
+        ctx.Recorder.StartRecording(tempFile2, new AsciinemaRecorderOptions { AutoFlush = true });
         await ctx.SendCommandAsync("echo second");
         await Task.Delay(200);
         await ctx.Recorder.StopRecordingAsync();
@@ -359,7 +359,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
 
         // Act & Assert
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            ctx.Recorder.StartRecording(tempFile2, 80, 24, new AsciinemaRecorderOptions()));
+            ctx.Recorder.StartRecording(tempFile2, new AsciinemaRecorderOptions()));
         
         Assert.Contains("already recording", ex.Message.ToLower());
     }

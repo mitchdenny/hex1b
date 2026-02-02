@@ -12,11 +12,15 @@ public class RecordingTools(TerminalSessionManager sessionManager)
     /// <summary>
     /// Starts recording the terminal session to an asciinema file.
     /// </summary>
-    [McpServerTool, Description("Start recording a terminal session to an asciinema file. The current terminal state is captured as the initial frame. Use stop_asciinema_recording to finish.")]
+    [McpServerTool, Description("""
+        Start recording a terminal session to an asciinema file. The current terminal state is captured as the initial frame.
+        Use stop_asciinema_recording to finish. Tip: Set idle_time_limit (default 2 seconds) to compress long pauses during playback.
+        """)]
     public async Task<StartRecordingResult> StartAsciinemaRecording(
         [Description("The session ID returned by start_bash_terminal or start_pwsh_terminal")] string sessionId,
         [Description("Path to save the asciinema recording file (.cast extension recommended)")] string filePath,
         [Description("Optional title for the recording")] string? title = null,
+        [Description("Maximum time between events during playback in seconds. Longer pauses are compressed to this value. Default is 2 seconds. Set to null or 0 to preserve real-time delays.")] float? idleTimeLimit = 2.0f,
         CancellationToken ct = default)
     {
         var session = sessionManager.GetSession(sessionId);
@@ -55,19 +59,27 @@ public class RecordingTools(TerminalSessionManager sessionManager)
                 filePath = Path.ChangeExtension(filePath, ".cast");
             }
 
+            // Treat 0 as "no limit" (same as null)
+            var effectiveIdleLimit = idleTimeLimit is null or <= 0 ? null : idleTimeLimit;
+
             var options = new AsciinemaRecorderOptions
             {
                 AutoFlush = true,
-                Title = title ?? $"{session.Command} session"
+                Title = title ?? $"{session.Command} session",
+                IdleTimeLimit = effectiveIdleLimit
             };
 
             await session.StartRecordingAsync(filePath, options, ct);
+
+            var idleLimitMsg = effectiveIdleLimit.HasValue 
+                ? $" Idle time limit: {effectiveIdleLimit}s."
+                : " No idle time limit (real-time playback).";
 
             return new StartRecordingResult
             {
                 Success = true,
                 SessionId = sessionId,
-                Message = $"Started recording to '{filePath}'. The current terminal state has been captured as the initial frame.",
+                Message = $"Started recording to '{filePath}'. The current terminal state has been captured as the initial frame.{idleLimitMsg}",
                 FilePath = filePath
             };
         }
