@@ -478,6 +478,23 @@ Widget documentation benefits from live terminal demos using the `<CodeBlock>` c
 - You're showing multiple variations of the same feature
 - The code snippet is a partial example (not full `Hex1bApp` setup)
 
+##### ⚠️ REQUIRED: Interactive Examples for All Interactive Widgets
+
+**Every widget documentation page with interactive elements MUST include:**
+
+1. **At least one working interactive demo** via `<CodeBlock example="...">` component
+2. **A corresponding example class** in `src/Hex1b.Website/Examples/`
+3. **Registration** in `src/Hex1b.Website/Program.cs`
+
+This is NOT optional. Documentation without working interactive demos is incomplete. When writing widget docs:
+
+- [ ] Create the example `.cs` file in `src/Hex1b.Website/Examples/`
+- [ ] Register the example in `Program.cs` with `builder.Services.AddSingleton<IGalleryExample, YourExample>()`
+- [ ] Add the `example="example-id"` attribute to `<CodeBlock>` in the markdown
+- [ ] Test the demo by clicking "Run in browser" on the documentation page
+
+**Verification**: After writing documentation, navigate to the page in a browser and click "Run in browser" to confirm the demo works.
+
 ##### Creating Live Demos
 
 1. **Create WebSocket example files** in `src/Hex1b.Website/Examples/` for each demo
