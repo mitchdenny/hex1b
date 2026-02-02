@@ -33,8 +33,8 @@ namespace Hex1b;
 /// <seealso href="https://docs.asciinema.org/manual/asciicast/v2/"/>
 public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisposable, IDisposable
 {
-    private readonly AsciinemaRecorderOptions _options;
-    private readonly string _filePath;
+    private AsciinemaRecorderOptions _options;
+    private string? _filePath;
     private readonly List<AsciinemaEvent> _pendingEvents = new();
     private readonly object _lock = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -43,11 +43,29 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     private int _width;
     private int _height;
     private DateTimeOffset _timestamp;
+    private DateTimeOffset _recordingStartTime;
     private bool _headerWritten;
     private bool _disposed;
+    private bool _isRecording;
+
+    /// <summary>
+    /// Creates a new Asciinema recorder in idle mode (not recording).
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="StartRecording"/> to begin recording to a file.
+    /// This constructor is useful for dynamic recording scenarios where
+    /// recording starts after the terminal session has already begun.
+    /// </remarks>
+    public AsciinemaRecorder()
+    {
+        _filePath = null;
+        _options = new AsciinemaRecorderOptions();
+        _isRecording = false;
+    }
 
     /// <summary>
     /// Creates a new Asciinema recorder that writes to the specified file.
+    /// Recording starts immediately when the session starts.
     /// </summary>
     /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
     /// <param name="options">Recording options. If null, defaults are used.</param>
@@ -56,6 +74,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         _filePath = filePath;
         _options = options ?? new AsciinemaRecorderOptions();
+        _isRecording = true; // Start recording immediately for backward compatibility
     }
 
     /// <summary>
@@ -64,9 +83,14 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     public AsciinemaRecorderOptions Options => _options;
 
     /// <summary>
-    /// Gets the file path being written to.
+    /// Gets the file path being written to, or null if not recording.
     /// </summary>
-    public string FilePath => _filePath;
+    public string? FilePath => _filePath;
+
+    /// <summary>
+    /// Gets whether the recorder is currently recording.
+    /// </summary>
+    public bool IsRecording => _isRecording;
 
     /// <summary>
     /// Gets the number of events pending flush.
@@ -83,6 +107,121 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <summary>
+    /// Starts recording to the specified file.
+    /// </summary>
+    /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
+    /// <param name="width">Terminal width in columns.</param>
+    /// <param name="height">Terminal height in rows.</param>
+    /// <param name="options">Recording options. If null, defaults are used.</param>
+    /// <exception cref="InvalidOperationException">Thrown if already recording.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method is used for dynamic recording scenarios where recording starts
+    /// after the terminal session has already begun. Use <see cref="WriteInitialStateAsync"/>
+    /// to capture the current terminal state before continuing.
+    /// </para>
+    /// </remarks>
+    public void StartRecording(string filePath, int width, int height, AsciinemaRecorderOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        
+        lock (_lock)
+        {
+            if (_isRecording)
+            {
+                throw new InvalidOperationException("Already recording. Call StopRecordingAsync() first.");
+            }
+
+            _filePath = filePath;
+            _options = options ?? new AsciinemaRecorderOptions();
+            _width = width;
+            _height = height;
+            _recordingStartTime = DateTimeOffset.UtcNow;
+            _timestamp = _recordingStartTime;
+            _headerWritten = false;
+            _pendingEvents.Clear();
+            _isRecording = true;
+        }
+    }
+
+    /// <summary>
+    /// Stops recording and finalizes the current file.
+    /// </summary>
+    /// <returns>The path to the finalized recording file, or null if not recording.</returns>
+    /// <remarks>
+    /// After calling this method, <see cref="StartRecording"/> can be called again
+    /// to start a new recording to a different file.
+    /// </remarks>
+    public async Task<string?> StopRecordingAsync(CancellationToken ct = default)
+    {
+        string? completedFilePath;
+        
+        lock (_lock)
+        {
+            if (!_isRecording)
+            {
+                return null;
+            }
+
+            _isRecording = false;
+            completedFilePath = _filePath;
+        }
+
+        // Flush any remaining events and close the file
+        await FlushAsync(ct);
+        
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            if (_writer != null)
+            {
+                await _writer.DisposeAsync();
+                _writer = null;
+            }
+            _fileStream = null;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+
+        return completedFilePath;
+    }
+
+    /// <summary>
+    /// Writes synthesized initial state as the first output event.
+    /// </summary>
+    /// <param name="ansiContent">ANSI content representing the current terminal state.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <remarks>
+    /// <para>
+    /// This method is used when starting a recording mid-session to capture
+    /// the current terminal state. The content should be ANSI escape sequences
+    /// that recreate the current screen (clear, position cursor, set attributes, print text).
+    /// </para>
+    /// <para>
+    /// The event is written at time 0, before any subsequent output events.
+    /// </para>
+    /// </remarks>
+    public async Task WriteInitialStateAsync(string ansiContent, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(ansiContent)) return;
+
+        lock (_lock)
+        {
+            if (!_isRecording) return;
+            
+            // Insert at the beginning with time 0
+            _pendingEvents.Insert(0, new AsciinemaEvent(0, "o", ansiContent));
+        }
+
+        if (_options.AutoFlush)
+        {
+            await FlushAsync(ct);
+        }
+    }
+
+    /// <summary>
     /// Adds a marker event at the current time.
     /// </summary>
     /// <param name="label">Optional label for the marker.</param>
@@ -91,6 +230,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     {
         lock (_lock)
         {
+            if (!_isRecording) return;
+            
             var time = elapsed ?? (_headerWritten ? DateTimeOffset.UtcNow - _timestamp : TimeSpan.Zero);
             _pendingEvents.Add(new AsciinemaEvent(time.TotalSeconds, "m", label));
         }
@@ -104,6 +245,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
             _width = width;
             _height = height;
             _timestamp = timestamp;
+            _recordingStartTime = timestamp;
         }
         await ValueTask.CompletedTask;
     }
@@ -117,7 +259,11 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         var text = AnsiTokenSerializer.Serialize(tokens);
         lock (_lock)
         {
-            _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "o", text));
+            if (!_isRecording) return;
+            
+            // Calculate elapsed time relative to when recording started
+            var recordingElapsed = GetRecordingElapsed(elapsed);
+            _pendingEvents.Add(new AsciinemaEvent(recordingElapsed.TotalSeconds, "o", text));
         }
 
         if (_options.AutoFlush)
@@ -144,7 +290,10 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         var text = Tokens.AnsiTokenSerializer.Serialize(tokens);
         lock (_lock)
         {
-            _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "i", text));
+            if (!_isRecording) return;
+            
+            var recordingElapsed = GetRecordingElapsed(elapsed);
+            _pendingEvents.Add(new AsciinemaEvent(recordingElapsed.TotalSeconds, "i", text));
         }
 
         if (_options.AutoFlush)
@@ -160,7 +309,11 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         {
             _width = width;
             _height = height;
-            _pendingEvents.Add(new AsciinemaEvent(elapsed.TotalSeconds, "r", $"{width}x{height}"));
+            
+            if (!_isRecording) return;
+            
+            var recordingElapsed = GetRecordingElapsed(elapsed);
+            _pendingEvents.Add(new AsciinemaEvent(recordingElapsed.TotalSeconds, "r", $"{width}x{height}"));
         }
 
         if (_options.AutoFlush)
@@ -177,6 +330,29 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     }
 
     /// <summary>
+    /// Calculates elapsed time relative to when recording started.
+    /// </summary>
+    /// <remarks>
+    /// For recordings started at session start, this returns the session elapsed time.
+    /// For recordings started mid-session, this returns time since StartRecording was called.
+    /// </remarks>
+    private TimeSpan GetRecordingElapsed(TimeSpan sessionElapsed)
+    {
+        // If recording started at session start, use session elapsed directly
+        if (_recordingStartTime == _timestamp)
+        {
+            return sessionElapsed;
+        }
+        
+        // For mid-session recordings, calculate from when recording started
+        var sessionStart = _timestamp;
+        var recordingOffset = _recordingStartTime - sessionStart;
+        var recordingElapsed = sessionElapsed - recordingOffset;
+        
+        return recordingElapsed < TimeSpan.Zero ? TimeSpan.Zero : recordingElapsed;
+    }
+
+    /// <summary>
     /// Flushes any pending events to the file.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
@@ -187,6 +363,10 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
         lock (_lock)
         {
+            // Can't flush if no file path is set
+            if (_filePath == null)
+                return;
+                
             if (_pendingEvents.Count == 0 && _headerWritten)
                 return;
 
@@ -197,7 +377,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
                     Version = 2,
                     Width = _width,
                     Height = _height,
-                    Timestamp = _timestamp.ToUnixTimeSeconds(),
+                    Timestamp = _recordingStartTime.ToUnixTimeSeconds(),
                     Title = _options.Title,
                     Command = _options.Command,
                     IdleTimeLimit = _options.IdleTimeLimit,
@@ -243,7 +423,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
     private async Task EnsureStreamOpenAsync()
     {
-        if (_fileStream == null)
+        if (_fileStream == null && _filePath != null)
         {
             _fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
             // Use UTF-8 without BOM - asciinema player doesn't handle BOM

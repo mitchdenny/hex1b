@@ -1,5 +1,6 @@
 using System.Text;
 using Hex1b.Automation;
+using Hex1b.Theming;
 
 namespace Hex1b.McpServer;
 
@@ -12,7 +13,7 @@ public sealed class TerminalSession : IAsyncDisposable
     private readonly Hex1bTerminalChildProcess _process;
     private readonly Hex1bTerminal _terminal;
     private readonly CapturingPresentationAdapter _presentation;
-    private readonly AsciinemaRecorder? _asciinemaRecorder;
+    private readonly AsciinemaRecorder _asciinemaRecorder;
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
     private int _width;
@@ -69,19 +70,31 @@ public sealed class TerminalSession : IAsyncDisposable
     public int ExitCode => _process.ExitCode;
 
     /// <summary>
-    /// Gets the path to the asciinema recording file, if recording is enabled.
+    /// Gets the path to the asciinema recording file that was specified at session start, if any.
+    /// For dynamic recordings, use <see cref="ActiveRecordingPath"/> instead.
     /// </summary>
     public string? AsciinemaFilePath { get; }
+
+    /// <summary>
+    /// Gets whether the session is currently recording to an asciinema file.
+    /// </summary>
+    public bool IsRecording => _asciinemaRecorder.IsRecording;
+
+    /// <summary>
+    /// Gets the path to the currently active asciinema recording, or null if not recording.
+    /// </summary>
+    public string? ActiveRecordingPath => _asciinemaRecorder.FilePath;
 
     private TerminalSession(
         string id,
         Hex1bTerminalChildProcess process,
         Hex1bTerminal terminal,
         CapturingPresentationAdapter presentation,
-        AsciinemaRecorder? asciinemaRecorder,
+        AsciinemaRecorder asciinemaRecorder,
         string command,
         IReadOnlyList<string> arguments,
         string? workingDirectory,
+        string? initialAsciinemaFilePath,
         int width,
         int height)
     {
@@ -95,7 +108,7 @@ public sealed class TerminalSession : IAsyncDisposable
         Command = command;
         Arguments = arguments;
         WorkingDirectory = workingDirectory;
-        AsciinemaFilePath = asciinemaRecorder?.FilePath;
+        AsciinemaFilePath = initialAsciinemaFilePath;
         StartedAt = DateTimeOffset.UtcNow;
     }
 
@@ -109,7 +122,7 @@ public sealed class TerminalSession : IAsyncDisposable
     /// <param name="environment">Additional environment variables.</param>
     /// <param name="width">Terminal width in columns.</param>
     /// <param name="height">Terminal height in rows.</param>
-    /// <param name="asciinemaFilePath">Optional path to save an asciinema recording.</param>
+    /// <param name="asciinemaFilePath">Optional path to save an asciinema recording from session start.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A started terminal session.</returns>
     public static async Task<TerminalSession> StartAsync(
@@ -136,8 +149,8 @@ public sealed class TerminalSession : IAsyncDisposable
         // Create a capturing presentation adapter so the terminal's output pump runs
         var presentation = new CapturingPresentationAdapter(width, height);
 
-        // Create asciinema recorder if path is specified
-        AsciinemaRecorder? asciinemaRecorder = null;
+        // Create asciinema recorder - either in recording mode (if path provided) or idle mode
+        AsciinemaRecorder asciinemaRecorder;
         if (!string.IsNullOrWhiteSpace(asciinemaFilePath))
         {
             asciinemaRecorder = new AsciinemaRecorder(asciinemaFilePath, new AsciinemaRecorderOptions
@@ -146,6 +159,11 @@ public sealed class TerminalSession : IAsyncDisposable
                 Title = $"{command} session",
                 Command = command
             });
+        }
+        else
+        {
+            // Create in idle mode for dynamic recording later
+            asciinemaRecorder = new AsciinemaRecorder();
         }
 
         // Create the virtual terminal with presentation adapter to enable output pumping
@@ -157,18 +175,15 @@ public sealed class TerminalSession : IAsyncDisposable
             Height = height
         };
 
-        // Add asciinema recorder as a workload filter if configured
-        if (asciinemaRecorder != null)
-        {
-            terminalOptions.WorkloadFilters.Add(asciinemaRecorder);
-        }
+        // Always add asciinema recorder as a workload filter (it will filter events based on IsRecording)
+        terminalOptions.WorkloadFilters.Add(asciinemaRecorder);
 
         var terminal = new Hex1bTerminal(terminalOptions);
 
         // Start the process
         await process.StartAsync(ct);
 
-        return new TerminalSession(id, process, terminal, presentation, asciinemaRecorder, command, arguments, workingDirectory, width, height);
+        return new TerminalSession(id, process, terminal, presentation, asciinemaRecorder, command, arguments, workingDirectory, asciinemaFilePath, width, height);
     }
 
     /// <summary>
@@ -293,6 +308,107 @@ public sealed class TerminalSession : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Starts recording the terminal session to an asciinema file.
+    /// </summary>
+    /// <param name="filePath">Path to the output file (typically with .cast extension).</param>
+    /// <param name="options">Optional recording options.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">Thrown if already recording.</exception>
+    /// <remarks>
+    /// The current terminal state is synthesized and written as the first event,
+    /// so the recording starts with the current screen content.
+    /// </remarks>
+    public async Task StartRecordingAsync(string filePath, AsciinemaRecorderOptions? options = null, CancellationToken ct = default)
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(TerminalSession));
+
+        // Start recording
+        _asciinemaRecorder.StartRecording(filePath, _width, _height, options ?? new AsciinemaRecorderOptions
+        {
+            AutoFlush = true,
+            Title = $"{Command} session",
+            Command = Command
+        });
+
+        // Synthesize current terminal state and write as initial event
+        var initialState = SynthesizeTerminalState();
+        await _asciinemaRecorder.WriteInitialStateAsync(initialState, ct);
+    }
+
+    /// <summary>
+    /// Stops the current asciinema recording.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The path to the completed recording file, or null if not recording.</returns>
+    public async Task<string?> StopRecordingAsync(CancellationToken ct = default)
+    {
+        return await _asciinemaRecorder.StopRecordingAsync(ct);
+    }
+
+    /// <summary>
+    /// Synthesizes the current terminal state as ANSI escape sequences.
+    /// </summary>
+    private string SynthesizeTerminalState()
+    {
+        using var snapshot = _terminal.CreateSnapshot();
+        var sb = new StringBuilder();
+        
+        // Clear screen and move cursor to home
+        sb.Append("\x1b[2J\x1b[H");
+        
+        for (int y = 0; y < snapshot.Height; y++)
+        {
+            // Position cursor at start of each row
+            if (y > 0)
+            {
+                sb.Append($"\x1b[{y + 1};1H");
+            }
+            
+            for (int x = 0; x < snapshot.Width; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                
+                // Build SGR sequence for this cell
+                sb.Append("\x1b[0"); // Reset
+                
+                // Add attributes
+                if ((cell.Attributes & CellAttributes.Bold) != 0) sb.Append(";1");
+                if ((cell.Attributes & CellAttributes.Dim) != 0) sb.Append(";2");
+                if ((cell.Attributes & CellAttributes.Italic) != 0) sb.Append(";3");
+                if ((cell.Attributes & CellAttributes.Underline) != 0) sb.Append(";4");
+                if ((cell.Attributes & CellAttributes.Blink) != 0) sb.Append(";5");
+                if ((cell.Attributes & CellAttributes.Reverse) != 0) sb.Append(";7");
+                if ((cell.Attributes & CellAttributes.Hidden) != 0) sb.Append(";8");
+                if ((cell.Attributes & CellAttributes.Strikethrough) != 0) sb.Append(";9");
+                
+                // Add foreground color
+                if (cell.Foreground is { } fg && !fg.IsDefault)
+                {
+                    sb.Append($";38;2;{fg.R};{fg.G};{fg.B}");
+                }
+                
+                // Add background color
+                if (cell.Background is { } bg && !bg.IsDefault)
+                {
+                    sb.Append($";48;2;{bg.R};{bg.G};{bg.B}");
+                }
+                
+                sb.Append('m');
+                
+                // Print the character (or space if empty)
+                var ch = string.IsNullOrEmpty(cell.Character) ? " " : cell.Character;
+                sb.Append(ch);
+            }
+        }
+        
+        // Reset attributes at the end
+        sb.Append("\x1b[0m");
+        
+        return sb.ToString();
+    }
+
     private static byte[] TranslateKey(string key, string[]? modifiers)
     {
         var hasCtrl = modifiers?.Contains("Ctrl", StringComparer.OrdinalIgnoreCase) ?? false;
@@ -361,10 +477,7 @@ public sealed class TerminalSession : IAsyncDisposable
         }
 
         // Dispose asciinema recorder first to flush any remaining events
-        if (_asciinemaRecorder != null)
-        {
-            await _asciinemaRecorder.DisposeAsync();
-        }
+        await _asciinemaRecorder.DisposeAsync();
 
         // Dispose process, terminal, and presentation adapter
         await _process.DisposeAsync();

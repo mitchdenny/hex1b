@@ -101,8 +101,11 @@ public static class TestCaptureHelper
         await recorder.FlushAsync(ct);
         
         // Read the content from the recorder's file
-        var content = await File.ReadAllTextAsync(recorder.FilePath, ct);
-        AttachFile($"{name}.cast", content);
+        if (recorder.FilePath != null)
+        {
+            var content = await File.ReadAllTextAsync(recorder.FilePath, ct);
+            AttachFile($"{name}.cast", content);
+        }
     }
 
     /// <summary>

@@ -270,7 +270,9 @@ public sealed class TerminalSessionManager : IAsyncDisposable
             HasExited = s.HasExited,
             ExitCode = s.HasExited ? s.ExitCode : null,
             ProcessId = s.ProcessId,
-            AsciinemaFilePath = s.AsciinemaFilePath
+            AsciinemaFilePath = s.AsciinemaFilePath,
+            IsRecording = s.IsRecording,
+            ActiveRecordingPath = s.ActiveRecordingPath
         }).ToList();
     }
 
@@ -441,7 +443,17 @@ public class SessionInfo
     public required int ProcessId { get; init; }
 
     /// <summary>
-    /// The path to the asciinema recording file, if recording is enabled.
+    /// The path to the asciinema recording file specified at session start, if any.
     /// </summary>
     public string? AsciinemaFilePath { get; init; }
+
+    /// <summary>
+    /// Whether the session is currently recording to an asciinema file.
+    /// </summary>
+    public required bool IsRecording { get; init; }
+
+    /// <summary>
+    /// The path to the currently active asciinema recording, or null if not recording.
+    /// </summary>
+    public string? ActiveRecordingPath { get; init; }
 }
