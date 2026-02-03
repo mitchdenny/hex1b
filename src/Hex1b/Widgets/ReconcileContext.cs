@@ -184,9 +184,14 @@ public sealed class ReconcileContext
         if (effectiveDelay.HasValue && ScheduleTimerCallback is not null)
         {
             var capturedNode = node;
+            var capturedParent = parent;
             ScheduleTimerCallback(effectiveDelay.Value, () =>
             {
                 capturedNode.MarkDirty();
+                // Also mark ancestors dirty - important for composed widgets like TreeItemNode
+                // where the grandparent (TreeNode) renders the child's state (e.g., spinner frame)
+                capturedParent?.MarkDirty();
+                capturedParent?.Parent?.MarkDirty();
                 InvalidateCallback?.Invoke();
             });
         }
