@@ -51,6 +51,16 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     public TabBarRenderMode RenderMode { get; init; } = TabBarRenderMode.Full;
 
     /// <summary>
+    /// Whether to show paging arrows when tabs overflow.
+    /// </summary>
+    public bool ShowPaging { get; init; } = true;
+
+    /// <summary>
+    /// Whether to show the dropdown selector for quick tab navigation.
+    /// </summary>
+    public bool ShowSelector { get; init; } = false;
+
+    /// <summary>
     /// Sets the selected tab index.
     /// </summary>
     /// <param name="index">The index of the tab to select.</param>
@@ -95,6 +105,18 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     public TabBarWidget Compact()
         => this with { RenderMode = TabBarRenderMode.Compact };
 
+    /// <summary>
+    /// Enables or disables paging arrows for tab overflow navigation.
+    /// </summary>
+    public TabBarWidget Paging(bool enabled = true)
+        => this with { ShowPaging = enabled };
+
+    /// <summary>
+    /// Enables or disables the dropdown selector for quick tab navigation.
+    /// </summary>
+    public TabBarWidget Selector(bool enabled = true)
+        => this with { ShowSelector = enabled };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TabBarNode ?? new TabBarNode();
@@ -123,6 +145,8 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
         // Detect position from context
         node.Position = DetectPosition(context);
         node.RenderMode = RenderMode;
+        node.ShowPaging = ShowPaging;
+        node.ShowSelector = ShowSelector;
 
         return node;
     }

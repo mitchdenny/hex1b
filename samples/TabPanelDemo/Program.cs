@@ -382,6 +382,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             statusMessage = $"Viewing: {e.SelectedTitle}";
                         })
                         .Full()
+                        .Selector()
                         .Fill()),
                         // Compact mode when height < 15
                         r.Otherwise(r => r.TabPanel(tp => [
@@ -405,6 +406,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             statusMessage = $"Viewing: {e.SelectedTitle}";
                         })
                         .Compact()
+                        .Selector()
                         .Fill())
                     ]).Fill()
                 ],

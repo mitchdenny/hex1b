@@ -78,6 +78,16 @@ public sealed class TabBarNode : Hex1bNode
     public TabBarRenderMode RenderMode { get; set; } = TabBarRenderMode.Full;
 
     /// <summary>
+    /// Whether to show paging arrows when tabs overflow.
+    /// </summary>
+    public bool ShowPaging { get; set; } = true;
+
+    /// <summary>
+    /// Whether to show the dropdown selector for quick tab navigation.
+    /// </summary>
+    public bool ShowSelector { get; set; }
+
+    /// <summary>
     /// Whether the tab bar needs overflow controls (arrows and dropdown).
     /// </summary>
     public bool NeedsOverflow => _totalTabsWidth > _availableTabsWidth;
@@ -112,12 +122,17 @@ public sealed class TabBarNode : Hex1bNode
     /// <summary>
     /// X position of the left arrow button.
     /// </summary>
-    private int _leftArrowX;
+    private int _leftArrowX = -1;
 
     /// <summary>
     /// X position of the right arrow button.
     /// </summary>
-    private int _rightArrowX;
+    private int _rightArrowX = -1;
+
+    /// <summary>
+    /// X position of the dropdown selector button.
+    /// </summary>
+    private int _selectorX = -1;
 
     /// <summary>
     /// Y position of the tab row (for mouse hit testing).
@@ -131,6 +146,13 @@ public sealed class TabBarNode : Hex1bNode
     private bool _canScrollRightCached;
 
     private const int ArrowButtonWidth = 3; // " < " or " > "
+    private const int SelectorButtonWidth = 3; // " ▼ "
+
+    /// <summary>
+    /// Width reserved for navigation controls (paging arrows and/or selector).
+    /// </summary>
+    private int ReservedControlsWidth => 
+        (ShowPaging ? ArrowButtonWidth * 2 : 0) + (ShowSelector ? SelectorButtonWidth : 0);
 
     public override Size Measure(Constraints constraints)
     {
@@ -144,8 +166,8 @@ public sealed class TabBarNode : Hex1bNode
             _totalTabsWidth += tabWidth;
         }
 
-        // Always reserve space for arrow buttons at the end
-        _availableTabsWidth = Math.Max(0, constraints.MaxWidth - (ArrowButtonWidth * 2));
+        // Reserve space for navigation controls at the end
+        _availableTabsWidth = Math.Max(0, constraints.MaxWidth - ReservedControlsWidth);
 
         // Calculate how many tabs are visible
         _visibleTabCount = CalculateVisibleTabCount();
@@ -301,28 +323,44 @@ public sealed class TabBarNode : Hex1bNode
 
         var tabsEndX = x; // Track where tabs end
 
-        // Fill remaining space before arrows
-        var remainingWidth = Bounds.Width - (x - Bounds.X) - (ArrowButtonWidth * 2);
+        // Fill remaining space before controls
+        var remainingWidth = Bounds.Width - (x - Bounds.X) - ReservedControlsWidth;
         if (remainingWidth > 0)
         {
             context.WriteClipped(x, _tabRowY, new string(' ', remainingWidth));
             x += remainingWidth;
         }
 
-        // Render left arrow (always visible, grayed if can't scroll left)
-        _leftArrowX = x;
-        var leftArrowFg = CanScrollLeft
-            ? theme.Get(TabBarTheme.ArrowForegroundColor)
-            : theme.Get(TabBarTheme.ArrowDisabledColor);
-        context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
-        x += ArrowButtonWidth;
+        // Reset control positions
+        _leftArrowX = -1;
+        _rightArrowX = -1;
+        _selectorX = -1;
 
-        // Render right arrow (always visible, grayed if can't scroll right)
-        _rightArrowX = x;
-        var rightArrowFg = CanScrollRight
-            ? theme.Get(TabBarTheme.ArrowForegroundColor)
-            : theme.Get(TabBarTheme.ArrowDisabledColor);
-        context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
+        // Render paging arrows if enabled
+        if (ShowPaging)
+        {
+            _leftArrowX = x;
+            var leftArrowFg = CanScrollLeft
+                ? theme.Get(TabBarTheme.ArrowForegroundColor)
+                : theme.Get(TabBarTheme.ArrowDisabledColor);
+            context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
+            x += ArrowButtonWidth;
+
+            _rightArrowX = x;
+            var rightArrowFg = CanScrollRight
+                ? theme.Get(TabBarTheme.ArrowForegroundColor)
+                : theme.Get(TabBarTheme.ArrowDisabledColor);
+            context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
+            x += ArrowButtonWidth;
+        }
+
+        // Render dropdown selector if enabled
+        if (ShowSelector)
+        {
+            _selectorX = x;
+            var selectorFg = theme.Get(TabBarTheme.ArrowForegroundColor);
+            context.WriteClipped(x, _tabRowY, $"{selectorFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
+        }
 
         // Render separators in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -371,8 +409,8 @@ public sealed class TabBarNode : Hex1bNode
         if (mouseY != _tabRowY)
             return;
 
-        // Check if click is on left arrow
-        if (mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
+        // Check if click is on left arrow (only if paging is enabled)
+        if (ShowPaging && _leftArrowX >= 0 && mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
         {
             if (_canScrollLeftCached)
             {
@@ -381,13 +419,20 @@ public sealed class TabBarNode : Hex1bNode
             return;
         }
 
-        // Check if click is on right arrow
-        if (mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
+        // Check if click is on right arrow (only if paging is enabled)
+        if (ShowPaging && _rightArrowX >= 0 && mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
         {
             if (_canScrollRightCached)
             {
                 ScrollOffset++;
             }
+            return;
+        }
+
+        // Check if click is on selector dropdown (only if enabled)
+        if (ShowSelector && _selectorX >= 0 && mouseX >= _selectorX && mouseX < _selectorX + SelectorButtonWidth)
+        {
+            // TODO: Show dropdown menu with all tabs
             return;
         }
 

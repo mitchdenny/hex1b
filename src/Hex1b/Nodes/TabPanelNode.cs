@@ -48,6 +48,16 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     public TabBarRenderMode RenderMode { get; set; } = TabBarRenderMode.Full;
 
     /// <summary>
+    /// Whether to show paging arrows when tabs overflow.
+    /// </summary>
+    public bool ShowPaging { get; set; } = true;
+
+    /// <summary>
+    /// Whether to show the dropdown selector for quick tab navigation.
+    /// </summary>
+    public bool ShowSelector { get; set; }
+
+    /// <summary>
     /// The total number of tabs.
     /// </summary>
     public int TabCount { get; set; }
@@ -73,6 +83,17 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private const int ArrowButtonWidth = 3;
 
     /// <summary>
+    /// Width of the dropdown selector button.
+    /// </summary>
+    private const int SelectorButtonWidth = 3;
+
+    /// <summary>
+    /// Width reserved for navigation controls (paging arrows and/or selector).
+    /// </summary>
+    private int ReservedControlsWidth => 
+        (ShowPaging ? ArrowButtonWidth * 2 : 0) + (ShowSelector ? SelectorButtonWidth : 0);
+
+    /// <summary>
     /// Tab hit regions for mouse click handling (x position, width, tab index).
     /// </summary>
     private List<(int X, int Width, int TabIndex)> _tabHitRegions = new();
@@ -85,12 +106,17 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// X position of the left arrow button.
     /// </summary>
-    private int _leftArrowX;
+    private int _leftArrowX = -1;
 
     /// <summary>
     /// X position of the right arrow button.
     /// </summary>
-    private int _rightArrowX;
+    private int _rightArrowX = -1;
+
+    /// <summary>
+    /// X position of the dropdown selector button.
+    /// </summary>
+    private int _selectorX = -1;
 
     /// <summary>
     /// Y position of the tab row (for mouse hit testing).
@@ -242,13 +268,18 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             totalWidth += width;
         }
 
-        // Always reserve space for arrow buttons at the end
-        var availableWidth = _tabBarBounds.Width - (ArrowButtonWidth * 2);
+        // Reserve space for navigation controls at the end
+        var availableWidth = _tabBarBounds.Width - ReservedControlsWidth;
 
         // Calculate visible range
         var visibleCount = CalculateVisibleCount(tabWidths, availableWidth, _scrollOffset);
         _canScrollLeft = _scrollOffset > 0;
         _canScrollRight = _scrollOffset + visibleCount < Tabs.Count;
+
+        // Reset control positions
+        _leftArrowX = -1;
+        _rightArrowX = -1;
+        _selectorX = -1;
 
         // Render visible tabs
         for (int i = _scrollOffset; i < _scrollOffset + visibleCount && i < Tabs.Count; i++)
@@ -329,28 +360,39 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
         var tabsEndX = x; // Track where tabs end
 
-        // Fill remaining space before arrows
-        var remainingWidth = _tabBarBounds.Width - (x - _tabBarBounds.X) - (ArrowButtonWidth * 2);
+        // Fill remaining space before controls
+        var remainingWidth = _tabBarBounds.Width - (x - _tabBarBounds.X) - ReservedControlsWidth;
         if (remainingWidth > 0)
         {
             context.WriteClipped(x, _tabRowY, new string(' ', remainingWidth));
             x += remainingWidth;
         }
 
-        // Render left arrow (always visible, grayed if can't scroll left)
-        _leftArrowX = x;
-        var leftArrowFg = _canScrollLeft
-            ? theme.Get(TabBarTheme.ArrowForegroundColor)
-            : theme.Get(TabBarTheme.ArrowDisabledColor);
-        context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
-        x += ArrowButtonWidth;
+        // Render paging arrows if enabled
+        if (ShowPaging)
+        {
+            _leftArrowX = x;
+            var leftArrowFg = _canScrollLeft
+                ? theme.Get(TabBarTheme.ArrowForegroundColor)
+                : theme.Get(TabBarTheme.ArrowDisabledColor);
+            context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
+            x += ArrowButtonWidth;
 
-        // Render right arrow (always visible, grayed if can't scroll right)
-        _rightArrowX = x;
-        var rightArrowFg = _canScrollRight
-            ? theme.Get(TabBarTheme.ArrowForegroundColor)
-            : theme.Get(TabBarTheme.ArrowDisabledColor);
-        context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
+            _rightArrowX = x;
+            var rightArrowFg = _canScrollRight
+                ? theme.Get(TabBarTheme.ArrowForegroundColor)
+                : theme.Get(TabBarTheme.ArrowDisabledColor);
+            context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
+            x += ArrowButtonWidth;
+        }
+
+        // Render dropdown selector if enabled
+        if (ShowSelector)
+        {
+            _selectorX = x;
+            var selectorFg = theme.Get(TabBarTheme.ArrowForegroundColor);
+            context.WriteClipped(x, _tabRowY, $"{selectorFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
+        }
 
         // Render separators in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -434,8 +476,8 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         if (mouseY != _tabRowY)
             return;
 
-        // Check if click is on left arrow
-        if (mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
+        // Check if click is on left arrow (only if paging is enabled)
+        if (ShowPaging && _leftArrowX >= 0 && mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
         {
             if (_canScrollLeft)
             {
@@ -445,14 +487,21 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             return;
         }
 
-        // Check if click is on right arrow
-        if (mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
+        // Check if click is on right arrow (only if paging is enabled)
+        if (ShowPaging && _rightArrowX >= 0 && mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
         {
             if (_canScrollRight)
             {
                 _scrollOffset++;
                 MarkDirty();
             }
+            return;
+        }
+
+        // Check if click is on selector dropdown (only if enabled)
+        if (ShowSelector && _selectorX >= 0 && mouseX >= _selectorX && mouseX < _selectorX + SelectorButtonWidth)
+        {
+            // TODO: Show dropdown menu with all tabs
             return;
         }
 
@@ -551,9 +600,9 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private void EnsureSelectedTabVisible()
     {
         // Calculate visible count with current scroll offset
-        // Always reserve space for arrow buttons at the end
+        // Reserve space for navigation controls at the end
         var tabWidths = Tabs.Select(CalculateTabWidth).ToList();
-        var availableWidth = _tabBarBounds.Width - (ArrowButtonWidth * 2);
+        var availableWidth = _tabBarBounds.Width - ReservedControlsWidth;
         var visibleCount = CalculateVisibleCount(tabWidths, availableWidth, _scrollOffset);
 
         if (SelectedIndex < _scrollOffset)
