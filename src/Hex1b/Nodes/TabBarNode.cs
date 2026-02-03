@@ -145,6 +145,11 @@ public sealed class TabBarNode : Hex1bNode
     private bool _canScrollLeftCached;
     private bool _canScrollRightCached;
 
+    /// <summary>
+    /// Synthetic anchor node for dropdown positioning.
+    /// </summary>
+    private SelectorAnchorNode? _selectorAnchor;
+
     private const int ArrowButtonWidth = 3; // " < " or " > "
     private const int SelectorButtonWidth = 3; // " ▼ "
 
@@ -519,7 +524,26 @@ public sealed class TabBarNode : Hex1bNode
         // Wrap in a border for visual distinction
         var popupContent = new BorderWidget(list);
 
-        // Push the popup anchored to this node (the tab bar)
-        ctx.Popups.PushAnchored(this, AnchorPosition.Below, popupContent, this);
+        // Create or update the synthetic anchor positioned at the selector button
+        _selectorAnchor ??= new SelectorAnchorNode();
+        _selectorAnchor.UpdateBounds(_selectorX, _tabRowY, SelectorButtonWidth, 1);
+
+        // Push the popup anchored to the selector button position
+        ctx.Popups.PushAnchored(_selectorAnchor, AnchorPosition.Below, popupContent, this);
+    }
+
+    /// <summary>
+    /// A minimal synthetic node used as an anchor for the selector dropdown.
+    /// Only provides bounds - not part of the normal node tree.
+    /// </summary>
+    private sealed class SelectorAnchorNode : Hex1bNode
+    {
+        public void UpdateBounds(int x, int y, int width, int height)
+        {
+            Bounds = new Rect(x, y, width, height);
+        }
+
+        public override Size Measure(Constraints constraints) => new(Bounds.Width, Bounds.Height);
+        public override void Render(Hex1bRenderContext context) { } // Not rendered
     }
 }

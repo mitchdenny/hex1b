@@ -129,6 +129,12 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private bool _canScrollLeft;
     private bool _canScrollRight;
 
+    /// <summary>
+    /// Synthetic anchor node for dropdown positioning.
+    /// This is a minimal node that only provides bounds for the selector button.
+    /// </summary>
+    private SelectorAnchorNode? _selectorAnchor;
+
     private bool _isFocused;
     public override bool IsFocused
     {
@@ -649,7 +655,26 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         // Wrap in a border for visual distinction
         var popupContent = new BorderWidget(list);
 
-        // Push the popup anchored to this node (the tab panel)
-        ctx.Popups.PushAnchored(this, AnchorPosition.Below, popupContent, this);
+        // Create or update the synthetic anchor positioned at the selector button
+        _selectorAnchor ??= new SelectorAnchorNode();
+        _selectorAnchor.UpdateBounds(_selectorX, _tabRowY, SelectorButtonWidth, 1);
+
+        // Push the popup anchored to the selector button position
+        ctx.Popups.PushAnchored(_selectorAnchor, AnchorPosition.Below, popupContent, this);
+    }
+
+    /// <summary>
+    /// A minimal synthetic node used as an anchor for the selector dropdown.
+    /// Only provides bounds - not part of the normal node tree.
+    /// </summary>
+    private sealed class SelectorAnchorNode : Hex1bNode
+    {
+        public void UpdateBounds(int x, int y, int width, int height)
+        {
+            Bounds = new Rect(x, y, width, height);
+        }
+
+        public override Size Measure(Constraints constraints) => new(Bounds.Width, Bounds.Height);
+        public override void Render(Hex1bRenderContext context) { } // Not rendered
     }
 }

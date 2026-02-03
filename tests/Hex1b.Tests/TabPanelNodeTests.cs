@@ -279,4 +279,118 @@ public class TabPanelNodeTests
     }
 
     #endregion
+
+    #region Selector Dropdown Tests
+
+    [Fact]
+    public async Task TabPanel_SelectorDropdown_AppearsNearTabBar()
+    {
+        // Arrange - Create a demo-like layout with menu bar, splitter, and tab panel
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(80, 24)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                // Menu bar at top
+                main.MenuBar(m => [
+                    m.Menu("File", m => [m.MenuItem("New")]),
+                    m.Menu("Edit", m => [m.MenuItem("Copy")])
+                ]),
+                // Main content with splitter
+                main.HSplitter(
+                    left => [
+                        left.Text("Tree View").Fill()
+                    ],
+                    right => [
+                        right.TabPanel(tp => [
+                            tp.Tab("Document1.cs", t => [t.Text("Content of Document1")]),
+                            tp.Tab("Document2.cs", t => [t.Text("Content of Document2")]),
+                            tp.Tab("README.md", t => [t.Text("Content of README")])
+                        ])
+                        .Selector()
+                        .Fill()
+                    ],
+                    leftWidth: 20
+                ).Fill(),
+                // Status bar at bottom
+                main.InfoBar(s => [s.Section("Ready")])
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Wait for render, then click on the selector dropdown
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // First, capture the initial state to find the selector button position
+        var initialSnapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Document1.cs") && s.ContainsText("▼"), TimeSpan.FromSeconds(1), "tab panel with selector rendered")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Find the ▼ selector button position
+        var selectorPosition = FindTextPosition(initialSnapshot, "▼");
+        Assert.True(selectorPosition.HasValue, "Should find selector button ▼ in the rendered output");
+        
+        var (selectorX, selectorY) = selectorPosition!.Value;
+        
+        // Click on the selector button
+        var afterClickSnapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(selectorX, selectorY)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("afterClick")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - The dropdown list should appear near the tab bar (within a few rows of the selector)
+        // It should NOT appear at the very bottom of the screen
+        var dropdownPosition = FindTextPosition(afterClickSnapshot, "Document1.cs", startAfterRow: selectorY);
+        
+        // The dropdown should contain all tab titles in a list format
+        Assert.True(afterClickSnapshot.ContainsText("Document1.cs"), "Dropdown should contain Document1.cs");
+        Assert.True(afterClickSnapshot.ContainsText("Document2.cs"), "Dropdown should contain Document2.cs");
+        Assert.True(afterClickSnapshot.ContainsText("README.md"), "Dropdown should contain README.md");
+        
+        // The dropdown should appear close to the selector (within 5 rows)
+        if (dropdownPosition.HasValue)
+        {
+            var dropdownY = dropdownPosition.Value.y;
+            Assert.True(dropdownY <= selectorY + 5, 
+                $"Dropdown should appear near selector (y={selectorY}), but appeared at y={dropdownY}");
+        }
+    }
+
+    /// <summary>
+    /// Helper to find the position of text in a snapshot.
+    /// </summary>
+    private static (int x, int y)? FindTextPosition(Hex1bTerminalSnapshot snapshot, string text, int startAfterRow = 0)
+    {
+        for (int y = startAfterRow; y < 50; y++) // Check up to 50 rows
+        {
+            try
+            {
+                var line = snapshot.GetLine(y);
+                var x = line.IndexOf(text, StringComparison.Ordinal);
+                if (x >= 0)
+                {
+                    return (x, y);
+                }
+            }
+            catch
+            {
+                // Row doesn't exist
+                break;
+            }
+        }
+        return null;
+    }
+
+    #endregion
 }
