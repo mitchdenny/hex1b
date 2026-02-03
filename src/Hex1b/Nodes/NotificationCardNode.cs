@@ -268,10 +268,24 @@ public sealed class NotificationCardNode : Hex1bNode
         // ═══ TITLE ROW ═══
         var dismissWidth = _dismissButtonSize.Width > 0 ? _dismissButtonSize.Width : 5;
         var titleMaxWidth = contentWidth - 1 - dismissWidth; // padding + space for dismiss
-        var displayTitle = Title.Length > titleMaxWidth 
-            ? Title[..(titleMaxWidth - 1)] + "…" 
-            : Title;
-        var titlePadding = titleMaxWidth - displayTitle.Length;
+        
+        // Use display width for proper emoji/wide character handling
+        var titleDisplayWidth = DisplayWidth.GetStringWidth(Title);
+        string displayTitle;
+        int displayTitleWidth;
+        
+        if (titleDisplayWidth > titleMaxWidth - 1)
+        {
+            var (sliced, columns, _, _) = DisplayWidth.SliceByDisplayWidth(Title, 0, titleMaxWidth - 1);
+            displayTitle = sliced + "…";
+            displayTitleWidth = columns + 1; // +1 for ellipsis
+        }
+        else
+        {
+            displayTitle = Title;
+            displayTitleWidth = titleDisplayWidth;
+        }
+        var titlePadding = titleMaxWidth - displayTitleWidth;
 
         // Build the title row content string up to the dismiss button
         var titleContent = $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{titleFgAnsi}{cardBgAnsi}{displayTitle}{new string(' ', Math.Max(0, titlePadding))}";

@@ -79,6 +79,10 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
         }
     });
 
+// Tree widget demo
+var treeDemo = builder.AddCSharpApp("tree-demo", "./samples/TreeDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
