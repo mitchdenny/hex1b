@@ -82,7 +82,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>
     /// Maximum distance (in cells) between clicks to count as a multi-click.
     /// </summary>
-    private const int DoubleClickDistance = 1;
+    private const int DoubleClickDistance = 0;
     
     // Drag state - when active, all mouse events route to the drag handler
     private DragHandler? _activeDragHandler;
