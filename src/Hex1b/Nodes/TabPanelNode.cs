@@ -78,6 +78,11 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private List<(int X, int Width, int TabIndex)> _tabHitRegions = new();
 
     /// <summary>
+    /// Icon hit regions for mouse click handling (x position, width, tab index, icon index, isLeft).
+    /// </summary>
+    private List<(int X, int Width, int TabIndex, int IconIndex, bool IsLeft, IconWidget Icon)> _iconHitRegions = new();
+
+    /// <summary>
     /// X position of the left arrow button.
     /// </summary>
     private int _leftArrowX;
@@ -214,6 +219,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     {
         // Clear hit regions for this render
         _tabHitRegions.Clear();
+        _iconHitRegions.Clear();
 
         var x = _tabBarBounds.X;
         // In Full mode: row 0 = top separator, row 1 = tabs, row 2 = bottom separator
@@ -252,6 +258,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             var tab = Tabs[i];
             var isSelected = i == SelectedIndex;
             var tabWidth = tabWidths[i];
+            var tabStartX = x;
 
             Hex1bColor fg, bg;
             if (isSelected)
@@ -268,17 +275,48 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
             var bgCode = bg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : bg.ToBackgroundAnsi();
 
-            var tabText = !string.IsNullOrEmpty(tab.Icon)
-                ? $" {tab.Icon} {tab.Title} "
-                : $" {tab.Title} ";
+            // Build tab content: [padding] [left icons] [icon] [title] [right icons] [padding]
+            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {resetToGlobal}");
+            x += 1; // left padding
 
-            tabText = tabText.PadRight(tabWidth);
+            // Render left icons
+            for (int iconIdx = 0; iconIdx < tab.LeftIcons.Count; iconIdx++)
+            {
+                var icon = tab.LeftIcons[iconIdx];
+                var iconWidth = icon.Icon.Length;
+                _iconHitRegions.Add((x, iconWidth, i, iconIdx, true, icon));
+                context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{icon.Icon} {resetToGlobal}");
+                x += iconWidth + 1;
+            }
 
-            // Track hit region for this tab
-            _tabHitRegions.Add((x, tabWidth, i));
+            // Render tab icon (if any)
+            if (!string.IsNullOrEmpty(tab.Icon))
+            {
+                context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tab.Icon} {resetToGlobal}");
+                x += tab.Icon.Length + 1;
+            }
 
-            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
-            x += tabWidth;
+            // Render title
+            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tab.Title}{resetToGlobal}");
+            x += tab.Title.Length;
+
+            // Render right icons
+            for (int iconIdx = 0; iconIdx < tab.RightIcons.Count; iconIdx++)
+            {
+                var icon = tab.RightIcons[iconIdx];
+                var iconWidth = icon.Icon.Length;
+                context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {icon.Icon}{resetToGlobal}");
+                x += 1; // space before icon
+                _iconHitRegions.Add((x, iconWidth, i, iconIdx, false, icon));
+                x += iconWidth;
+            }
+
+            // Right padding
+            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {resetToGlobal}");
+            x += 1;
+
+            // Track hit region for this tab (full width)
+            _tabHitRegions.Add((tabStartX, tabWidth, i));
         }
 
         // Fill remaining space before arrows
@@ -320,7 +358,17 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         {
             textWidth += tab.Icon.Length + 1;
         }
-        return textWidth + 2;
+        // Add space for left icons (each icon + space)
+        foreach (var icon in tab.LeftIcons)
+        {
+            textWidth += icon.Icon.Length + 1;
+        }
+        // Add space for right icons (space + each icon)
+        foreach (var icon in tab.RightIcons)
+        {
+            textWidth += icon.Icon.Length + 1;
+        }
+        return textWidth + 2; // padding
     }
 
     private static int CalculateVisibleCount(List<int> tabWidths, int availableWidth, int scrollOffset)
@@ -388,6 +436,21 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
                 MarkDirty();
             }
             return;
+        }
+
+        // Check if click is on an icon first (icons have priority over tab selection)
+        foreach (var (iconX, iconWidth, tabIndex, iconIndex, isLeft, icon) in _iconHitRegions)
+        {
+            if (mouseX >= iconX && mouseX < iconX + iconWidth)
+            {
+                // Invoke the icon's click handler if it has one
+                if (icon.ClickHandler != null)
+                {
+                    var args = new Events.IconClickedEventArgs(icon, null!, ctx);
+                    await icon.ClickHandler(args);
+                }
+                return;
+            }
         }
 
         // Check if click is on a tab

@@ -346,11 +346,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     right.Responsive(r => [
                         // Full mode when height >= 15
                         r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
-                            ..editorState.OpenDocuments.Select(doc =>
+                            ..editorState.OpenDocuments.Select((doc, idx) =>
                                 tp.Tab(doc.Name, t => [
                                     t.VScroll(s => [
                                         s.Text(doc.Content).Wrap()
                                     ]).Fill()
+                                ])
+                                .WithRightIcons(i => [
+                                    i.Icon("×").OnClick(e => {
+                                        editorState.CloseDocument(idx);
+                                        statusMessage = $"Closed: {doc.Name}";
+                                    })
                                 ])
                             )
                         ])
@@ -363,11 +369,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .Fill()),
                         // Compact mode when height < 15
                         r.Otherwise(r => r.TabPanel(tp => [
-                            ..editorState.OpenDocuments.Select(doc =>
+                            ..editorState.OpenDocuments.Select((doc, idx) =>
                                 tp.Tab(doc.Name, t => [
                                     t.VScroll(s => [
                                         s.Text(doc.Content).Wrap()
                                     ]).Fill()
+                                ])
+                                .WithRightIcons(i => [
+                                    i.Icon("×").OnClick(e => {
+                                        editorState.CloseDocument(idx);
+                                        statusMessage = $"Closed: {doc.Name}";
+                                    })
                                 ])
                             )
                         ])

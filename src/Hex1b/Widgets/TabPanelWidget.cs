@@ -97,7 +97,12 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
         node.TabCount = Tabs.Count;
 
         // Store tab info for the tab bar
-        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(t.Title, t.Icon, t.IsDisabled)).ToList();
+        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(
+            t.Title, 
+            t.Icon, 
+            t.IsDisabled,
+            t.LeftIcons,
+            t.RightIcons)).ToList();
 
         // Build and reconcile the selected tab's content
         if (Tabs.Count > 0 && node.SelectedIndex >= 0 && node.SelectedIndex < Tabs.Count)

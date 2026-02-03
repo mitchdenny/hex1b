@@ -112,7 +112,12 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
         }
 
         // Store tab info
-        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(t.Title, t.Icon, t.IsDisabled)).ToList();
+        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(
+            t.Title, 
+            t.Icon, 
+            t.IsDisabled,
+            t.LeftIcons,
+            t.RightIcons)).ToList();
         node.SelectionChangedHandler = SelectionChangedHandler;
 
         // Detect position from context
