@@ -243,7 +243,7 @@ public sealed class TabBarNode : Hex1bNode
         // Render bottom separator row in Full mode
         if (RenderMode == TabBarRenderMode.Full)
         {
-            var separatorChar = '▀'; // Lower half block for bottom border
+            var separatorChar = '▔'; // Upper one eighth block (U+2594)
             var separatorLine = new string(separatorChar, Bounds.Width);
             context.WriteClipped(Bounds.X, Bounds.Y + 2, separatorLine);
         }
