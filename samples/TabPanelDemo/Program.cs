@@ -228,7 +228,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     if (editorState.OpenDocuments.Count > 0)
                     {
                         var current = editorState.OpenDocuments[editorState.SelectedTabIndex];
-                        statusMessage = $"Saved: {current.Name}";
+                        statusMessage = $"Saved: {current.File.Name}";
                     }
                 }),
                 m.MenuItem("Save All").OnActivated(e => {
@@ -289,8 +289,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Where(f => f.Name.EndsWith(".cs"))
                             .Select(f => t.Item(f.Name)
                                 .Icon(f.Icon)
+                                .OnClicked(e => {
+                                    editorState.OpenDocument(f, keepOpen: false);
+                                    statusMessage = $"Preview: {f.Name}";
+                                })
                                 .OnActivated(e => {
-                                    editorState.OpenDocument(f);
+                                    editorState.OpenDocument(f, keepOpen: true);
                                     statusMessage = $"Opened: {f.Name}";
                                 }))
                     ]).Icon("📁").Expanded(),
@@ -299,8 +303,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Where(f => f.Name.EndsWith(".md"))
                             .Select(f => t.Item(f.Name)
                                 .Icon(f.Icon)
+                                .OnClicked(e => {
+                                    editorState.OpenDocument(f, keepOpen: false);
+                                    statusMessage = $"Preview: {f.Name}";
+                                })
                                 .OnActivated(e => {
-                                    editorState.OpenDocument(f);
+                                    editorState.OpenDocument(f, keepOpen: true);
                                     statusMessage = $"Opened: {f.Name}";
                                 }))
                     ]).Icon("📁"),
@@ -309,8 +317,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Where(f => f.Name.EndsWith(".json") || f.Name.EndsWith(".props"))
                             .Select(f => t.Item(f.Name)
                                 .Icon(f.Icon)
+                                .OnClicked(e => {
+                                    editorState.OpenDocument(f, keepOpen: false);
+                                    statusMessage = $"Preview: {f.Name}";
+                                })
                                 .OnActivated(e => {
-                                    editorState.OpenDocument(f);
+                                    editorState.OpenDocument(f, keepOpen: true);
                                     statusMessage = $"Opened: {f.Name}";
                                 }))
                     ]).Icon("📁"),
@@ -319,8 +331,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                    !f.Name.EndsWith(".json") && !f.Name.EndsWith(".props"))
                         .Select(f => t.Item(f.Name)
                             .Icon(f.Icon)
+                            .OnClicked(e => {
+                                editorState.OpenDocument(f, keepOpen: false);
+                                statusMessage = $"Preview: {f.Name}";
+                            })
                             .OnActivated(e => {
-                                editorState.OpenDocument(f);
+                                editorState.OpenDocument(f, keepOpen: true);
                                 statusMessage = $"Opened: {f.Name}";
                             }))
                 ]).Fill()
@@ -347,15 +363,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         // Full mode when height >= 15
                         r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
                             ..editorState.OpenDocuments.Select((doc, idx) =>
-                                tp.Tab(doc.Name, t => [
+                                tp.Tab(doc.KeepOpen ? doc.File.Name : $"[{doc.File.Name}]", t => [
                                     t.VScroll(s => [
-                                        s.Text(doc.Content).Wrap()
+                                        s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])
                                 .WithRightIcons(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
-                                        statusMessage = $"Closed: {doc.Name}";
+                                        statusMessage = $"Closed: {doc.File.Name}";
                                     })
                                 ])
                             )
@@ -370,15 +386,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         // Compact mode when height < 15
                         r.Otherwise(r => r.TabPanel(tp => [
                             ..editorState.OpenDocuments.Select((doc, idx) =>
-                                tp.Tab(doc.Name, t => [
+                                tp.Tab(doc.KeepOpen ? doc.File.Name : $"[{doc.File.Name}]", t => [
                                     t.VScroll(s => [
-                                        s.Text(doc.Content).Wrap()
+                                        s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])
                                 .WithRightIcons(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
-                                        statusMessage = $"Closed: {doc.Name}";
+                                        statusMessage = $"Closed: {doc.File.Name}";
                                     })
                                 ])
                             )
@@ -419,22 +435,47 @@ await terminal.RunAsync();
 class EditorState
 {
     public List<SourceFile> Files { get; } = new();
-    public List<SourceFile> OpenDocuments { get; } = new();
+    public List<OpenDocument> OpenDocuments { get; } = new();
     public int SelectedTabIndex { get; set; }
 
-    public void OpenDocument(SourceFile file)
+    public void OpenDocument(SourceFile file, bool keepOpen = false)
     {
         // Check if already open
-        var existingIndex = OpenDocuments.FindIndex(d => d.Name == file.Name);
+        var existingIndex = OpenDocuments.FindIndex(d => d.File.Name == file.Name);
         if (existingIndex >= 0)
         {
+            // If opening with keepOpen, upgrade the existing document
+            if (keepOpen && !OpenDocuments[existingIndex].KeepOpen)
+            {
+                OpenDocuments[existingIndex] = OpenDocuments[existingIndex] with { KeepOpen = true };
+            }
             SelectedTabIndex = existingIndex;
             return;
         }
 
-        // Add and select
-        OpenDocuments.Add(file);
+        // If not keepOpen, replace existing preview tab (if any)
+        if (!keepOpen)
+        {
+            var previewIndex = OpenDocuments.FindIndex(d => !d.KeepOpen);
+            if (previewIndex >= 0)
+            {
+                OpenDocuments[previewIndex] = new OpenDocument(file, false);
+                SelectedTabIndex = previewIndex;
+                return;
+            }
+        }
+
+        // Add new document
+        OpenDocuments.Add(new OpenDocument(file, keepOpen));
         SelectedTabIndex = OpenDocuments.Count - 1;
+    }
+
+    public void KeepCurrentOpen()
+    {
+        if (SelectedTabIndex >= 0 && SelectedTabIndex < OpenDocuments.Count)
+        {
+            OpenDocuments[SelectedTabIndex] = OpenDocuments[SelectedTabIndex] with { KeepOpen = true };
+        }
     }
 
     public void CloseDocument(int index)
@@ -451,3 +492,4 @@ class EditorState
 }
 
 record SourceFile(string Name, string Icon, string Content);
+record OpenDocument(SourceFile File, bool KeepOpen);

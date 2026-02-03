@@ -304,9 +304,13 @@ public sealed class TreeNode : Hex1bNode
             {
                 await ToggleExpandAsync(clickedNode, ctx);
             }
-            // Note: Checkbox clicks are handled by CheckboxNode via composition
             else
             {
+                // Fire OnClicked for leaf items
+                if (clickedNode.ClickCallback != null)
+                {
+                    await clickedNode.ClickCallback(ctx);
+                }
                 MarkDirty();
             }
         }
