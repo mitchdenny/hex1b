@@ -30,10 +30,14 @@ jobs:
         run: make
 
       - name: Restore dependencies
-        run: dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+        run: |
+          dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+          dotnet restore tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj
 
       - name: Build
-        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+        run: |
+          dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+          dotnet build tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj --no-restore
 
       - name: Run tests
         timeout-minutes: 2
@@ -41,6 +45,10 @@ jobs:
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults
+          dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=mcp-test-results.trx" \
             --results-directory ./TestResults
 
       - name: Download and install Aspire CLI

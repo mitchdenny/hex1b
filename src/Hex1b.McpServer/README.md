@@ -42,9 +42,28 @@ The server communicates via stdio using the MCP protocol.
 - **capture_terminal_screenshot** - Capture the terminal screen as an SVG image
 - **wait_for_terminal_text** - Wait for specific text to appear on the terminal
 
+### Recording
+
+- **start_asciinema_recording** - Start recording a terminal session to an asciinema file. Captures the current terminal state as the initial frame, then records all subsequent output. Supports `idle_time_limit` parameter (default 2s) to compress long pauses during playback.
+- **stop_asciinema_recording** - Stop an active recording and finalize the file. Returns the path to the completed `.cast` file.
+
 ### Utility
 
 - **ping** - Verify the MCP server is running
+
+## Recording Example
+
+```
+1. start_bash_terminal → returns sessionId
+2. send_terminal_input (run some commands)
+3. start_asciinema_recording(sessionId, "/path/to/demo.cast")
+   → Captures current screen state as initial frame
+4. ... interact with terminal ...
+5. stop_asciinema_recording(sessionId)
+   → Finalizes recording
+
+Play with: asciinema play /path/to/demo.cast
+```
 
 ## Configuration
 

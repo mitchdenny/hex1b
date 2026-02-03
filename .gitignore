@@ -499,3 +499,6 @@ samples/**/*.cast
 src/docfx/api/
 src/docfx/_site/
 src/docfx/templates/
+
+# Recording files
+*.cast

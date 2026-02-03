@@ -235,4 +235,46 @@ public class TerminalSessionInfo
     [JsonPropertyName("asciinemaFilePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AsciinemaFilePath { get; init; }
+
+    [JsonPropertyName("isRecording")]
+    public required bool IsRecording { get; init; }
+
+    [JsonPropertyName("activeRecordingPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActiveRecordingPath { get; init; }
+}
+
+public class StartRecordingResult
+{
+    [JsonPropertyName("success")]
+    public required bool Success { get; init; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; init; }
+}
+
+public class StopRecordingResult
+{
+    [JsonPropertyName("success")]
+    public required bool Success { get; init; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; init; }
+
+    [JsonPropertyName("wasRecording")]
+    public bool WasRecording { get; init; }
 }

@@ -163,7 +163,9 @@ public class SessionManagementTools(TerminalSessionManager sessionManager)
                 HasExited = s.HasExited,
                 ExitCode = s.ExitCode,
                 RunningFor = s.HasExited ? null : DateTimeOffset.UtcNow - s.StartedAt,
-                AsciinemaFilePath = s.AsciinemaFilePath
+                AsciinemaFilePath = s.AsciinemaFilePath,
+                IsRecording = s.IsRecording,
+                ActiveRecordingPath = s.ActiveRecordingPath
             }).ToArray()
         };
     }
