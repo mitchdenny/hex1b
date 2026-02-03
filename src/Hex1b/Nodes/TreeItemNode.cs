@@ -214,4 +214,65 @@ public sealed class TreeItemNode : Hex1bNode
     /// Determines if this item can be expanded (has children or hints at having children).
     /// </summary>
     public bool CanExpand => HasChildren || Children.Count > 0;
+
+    /// <summary>
+    /// Computes the selection state for cascade selection mode.
+    /// Returns Selected if this item and all descendants are selected,
+    /// Indeterminate if some descendants are selected, None otherwise.
+    /// </summary>
+    public TreeSelectionState ComputeSelectionState()
+    {
+        if (Children.Count == 0)
+        {
+            // Leaf node - simple boolean state
+            return IsSelected ? TreeSelectionState.Selected : TreeSelectionState.None;
+        }
+
+        // Parent node - check children
+        var hasSelected = false;
+        var hasUnselected = false;
+
+        foreach (var child in Children)
+        {
+            var childState = child.ComputeSelectionState();
+            if (childState == TreeSelectionState.Indeterminate)
+            {
+                // If any child is indeterminate, parent is indeterminate
+                return TreeSelectionState.Indeterminate;
+            }
+            if (childState == TreeSelectionState.Selected)
+            {
+                hasSelected = true;
+            }
+            else
+            {
+                hasUnselected = true;
+            }
+
+            if (hasSelected && hasUnselected)
+            {
+                // Mixed selection - indeterminate
+                return TreeSelectionState.Indeterminate;
+            }
+        }
+
+        if (hasSelected && !hasUnselected)
+        {
+            return TreeSelectionState.Selected;
+        }
+        
+        return TreeSelectionState.None;
+    }
+
+    /// <summary>
+    /// Sets the selection state for this item and all descendants (for cascade selection).
+    /// </summary>
+    public void SetSelectionCascade(bool selected)
+    {
+        IsSelected = selected;
+        foreach (var child in Children)
+        {
+            child.SetSelectionCascade(selected);
+        }
+    }
 }

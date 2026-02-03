@@ -16,6 +16,13 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     public bool MultiSelect { get; init; } = false;
 
     /// <summary>
+    /// Whether selecting a parent item automatically selects all children,
+    /// and deselecting a child shows partial selection on parent.
+    /// Only applies when <see cref="MultiSelect"/> is true.
+    /// </summary>
+    public bool CascadeSelection { get; init; } = false;
+
+    /// <summary>
     /// The style of guide lines used to draw tree hierarchy.
     /// </summary>
     public TreeGuideStyle GuideStyle { get; init; } = TreeGuideStyle.Unicode;
@@ -57,6 +64,14 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         => this with { MultiSelect = multiSelect };
 
     /// <summary>
+    /// Enables cascade selection mode where selecting a parent selects all children,
+    /// and partial child selection shows an indeterminate state on the parent.
+    /// Automatically enables multi-select if not already enabled.
+    /// </summary>
+    public TreeWidget WithCascadeSelection(bool cascadeSelection = true)
+        => this with { CascadeSelection = cascadeSelection, MultiSelect = cascadeSelection || MultiSelect };
+
+    /// <summary>
     /// Sets the guide style for drawing tree hierarchy lines.
     /// </summary>
     public TreeWidget WithGuideStyle(TreeGuideStyle style)
@@ -70,6 +85,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         var isNewNode = existingNode == null;
 
         node.MultiSelect = MultiSelect;
+        node.CascadeSelection = CascadeSelection;
         node.GuideStyle = GuideStyle;
         node.SourceWidget = this;
 
@@ -186,9 +202,15 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             }
 
             // Recursively reconcile children
-            var newChildren = new List<TreeItemNode>();
-            await ReconcileItemsAsync(widget.Children, node.Children, newChildren, parentTree, context);
-            node.Children = newChildren;
+            // BUT preserve dynamically loaded children if widget has none (lazy loading case)
+            if (widget.Children.Count > 0)
+            {
+                var newChildren = new List<TreeItemNode>();
+                await ReconcileItemsAsync(widget.Children, node.Children, newChildren, parentTree, context);
+                node.Children = newChildren;
+            }
+            // If widget has no children but node has dynamically loaded children, preserve them
+            // (this happens with OnExpanding lazy loading)
 
             outputNodes.Add(node);
         }

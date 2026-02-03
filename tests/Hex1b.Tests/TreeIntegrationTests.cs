@@ -997,6 +997,42 @@ public class TreeIntegrationTests
         Assert.Equal("Parent", collapsedLabel);
     }
 
+    [Fact]
+    public async Task Tree_OnExpanding_AsyncLazyLoadsChildren()
+    {
+        var loadCalled = false;
+        
+        // Direct unit test - reconcile and expand manually
+        var widget = new TreeItemWidget("Parent")
+            .OnExpanding(async e => {
+                loadCalled = true;
+                await Task.Delay(10);
+                return [new TreeItemWidget("LazyChild")];
+            });
+        
+        var treeWidget = new TreeWidget([widget]);
+        var context = ReconcileContext.CreateRoot();
+        var treeNode = await treeWidget.ReconcileAsync(null, context) as TreeNode;
+        
+        // Verify initial state
+        Assert.True(treeNode!.Items[0].HasChildren, "HasChildren should be true");
+        Assert.NotNull(treeNode.Items[0].SourceWidget?.ExpandingAsyncHandler);
+        Assert.Empty(treeNode.Items[0].Children);
+        Assert.Single(treeNode.FlattenedItems); // Only Parent
+        
+        // Expand
+        var focusRing = new FocusRing();
+        var ctx = new InputBindingActionContext(focusRing, null, default);
+        await treeNode.ToggleExpandAsync(treeNode.Items[0], ctx);
+        
+        // Verify expanded state
+        Assert.True(loadCalled, "OnExpanding handler should have been called");
+        Assert.True(treeNode.Items[0].IsExpanded, "Should be expanded");
+        Assert.Single(treeNode.Items[0].Children);
+        Assert.Equal("LazyChild", treeNode.Items[0].Children[0].Label);
+        Assert.Equal(2, treeNode.FlattenedItems.Count); // Parent + LazyChild
+    }
+
     #endregion
 
     #region Initial State Tests
@@ -1119,6 +1155,110 @@ public class TreeIntegrationTests
         var rightBorderCell = snapshot.GetCell(50, 7);
         Assert.Equal("│", leftBorderCell.Character);
         Assert.Equal("│", rightBorderCell.Character);
+    }
+
+    #endregion
+
+    #region Async Expansion Tests
+
+    [Fact]
+    public async Task Tree_AsyncExpansion_ShowsChildrenAfterLoad()
+    {
+        var loadCompleted = new TaskCompletionSource<bool>();
+        var loadStarted = new TaskCompletionSource<bool>();
+        var childrenReturned = 0;
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 20)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.Tree(
+                    new TreeItemWidget("Parent").WithIcon("📁")
+                        .OnExpanding(async e => {
+                            loadStarted.TrySetResult(true);
+                            await Task.Delay(100); // Short delay for test
+                            var children = new[] {
+                                new TreeItemWidget("Child1").WithIcon("📄"),
+                                new TreeItemWidget("Child2").WithIcon("📄")
+                            };
+                            childrenReturned = children.Length;
+                            loadCompleted.TrySetResult(true);
+                            return children;
+                        })
+                ).FillHeight()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render with Parent visible
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(2), "tree to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Verify initial state - Parent should be collapsed (▶)
+        var initialSnapshot = terminal.CreateSnapshot();
+        var initialText = initialSnapshot.GetScreenText();
+        
+        // Check if there's a focus indicator and collapsed indicator
+        Assert.True(initialSnapshot.ContainsText("▶") || initialSnapshot.ContainsText("Parent"), 
+            $"Initial screen should show Parent. Screen:\n{initialText}");
+
+        // Press Tab to ensure tree has focus, then Right arrow to expand
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Tab) // Ensure focus
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.RightArrow)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Check if load was even triggered
+        var loadTriggered = await Task.WhenAny(
+            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)),
+            Task.Delay(TimeSpan.FromSeconds(2))
+        ) == loadStarted.Task;
+        
+        // If not triggered, capture what the screen looks like now
+        if (!loadTriggered)
+        {
+            var debugSnapshot = terminal.CreateSnapshot();
+            var debugText = debugSnapshot.GetScreenText();
+            Assert.Fail($"OnExpanding handler was not called after Tab+RightArrow. Screen:\n{debugText}");
+        }
+
+        // Wait for async load to complete
+        await loadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        
+        // Give time for render to update - wait longer for async
+        await Task.Delay(500);
+
+        // Capture final state
+        var finalSnapshot = terminal.CreateSnapshot();
+        var finalText = finalSnapshot.GetScreenText();
+        
+        // Exit app
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Debug info
+        Assert.True(childrenReturned == 2, $"Handler should have returned 2 children, got {childrenReturned}");
+
+        // Verify children are now visible
+        Assert.True(finalSnapshot.ContainsText("▼"), $"Parent should show expanded indicator. Screen:\n{finalText}");
+        Assert.True(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
+        Assert.True(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
     }
 
     #endregion

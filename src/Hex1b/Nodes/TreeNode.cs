@@ -22,6 +22,12 @@ public sealed class TreeNode : Hex1bNode
     public bool MultiSelect { get; set; }
 
     /// <summary>
+    /// Whether selecting a parent cascades to all children,
+    /// and partial child selection shows indeterminate state.
+    /// </summary>
+    public bool CascadeSelection { get; set; }
+
+    /// <summary>
     /// The style of guide lines.
     /// </summary>
     public TreeGuideStyle GuideStyle { get; set; }
@@ -195,18 +201,39 @@ public sealed class TreeNode : Hex1bNode
         if (MultiSelect)
         {
             // Toggle selection
-            focused.IsSelected = !focused.IsSelected;
-            if (SelectionChangedAction != null)
-            {
-                await SelectionChangedAction(ctx);
-            }
-            MarkDirty();
+            await ToggleSelectionAsync(focused, ctx);
         }
         else if (focused.CanExpand)
         {
             // Toggle expand/collapse
             await ToggleExpandAsync(focused, ctx);
         }
+    }
+
+    /// <summary>
+    /// Toggles the selection of a tree item.
+    /// If cascade selection is enabled, also selects/deselects all descendants.
+    /// </summary>
+    internal async Task ToggleSelectionAsync(TreeItemNode node, InputBindingActionContext ctx)
+    {
+        if (CascadeSelection)
+        {
+            // Determine new state: if currently selected or indeterminate, deselect all; otherwise select all
+            var currentState = node.ComputeSelectionState();
+            var newSelected = currentState != TreeSelectionState.Selected;
+            node.SetSelectionCascade(newSelected);
+        }
+        else
+        {
+            // Simple toggle
+            node.IsSelected = !node.IsSelected;
+        }
+
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx);
+        }
+        MarkDirty();
     }
 
     private async Task ActivateFocused(InputBindingActionContext ctx)
@@ -220,19 +247,48 @@ public sealed class TreeNode : Hex1bNode
         }
     }
 
-    private Task HandleMouseClick(InputBindingActionContext ctx)
+    private async Task HandleMouseClick(InputBindingActionContext ctx)
     {
         var localY = ctx.MouseY - Bounds.Y;
+        var localX = ctx.MouseX - Bounds.X;
         var itemIndex = localY + _scrollOffset;
         
         if (itemIndex >= 0 && itemIndex < FlattenedItems.Count)
         {
+            var clickedEntry = FlattenedItems[itemIndex];
+            var clickedNode = clickedEntry.Node;
+            
+            // Calculate click regions for this item
+            // Guide width: depth * 3 chars for guides
+            var guideWidth = clickedEntry.Depth * 3;
+            
+            // Indicator region: 2 chars (e.g., "▼ " or "▶ " or " ")
+            var indicatorStartX = guideWidth;
+            var indicatorEndX = indicatorStartX + 2;
+            
+            // Checkbox region (if multi-select): 4 chars "[x] "
+            var checkboxStartX = indicatorEndX;
+            var checkboxEndX = checkboxStartX + 4;
+            
+            // Update focus first
             _focusedIndex = itemIndex;
             UpdateFocus();
-            MarkDirty();
+            
+            // Check if click is on expand/collapse indicator (for expandable nodes)
+            if (clickedNode.CanExpand && localX >= indicatorStartX && localX < indicatorEndX)
+            {
+                await ToggleExpandAsync(clickedNode, ctx);
+            }
+            // Check if click is in checkbox area (only in multi-select mode)
+            else if (MultiSelect && localX >= checkboxStartX && localX < checkboxEndX)
+            {
+                await ToggleSelectionAsync(clickedNode, ctx);
+            }
+            else
+            {
+                MarkDirty();
+            }
         }
-        
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -271,6 +327,7 @@ public sealed class TreeNode : Hex1bNode
                     // Async lazy load
                     node.IsLoading = true;
                     MarkDirty();
+                    ctx.Invalidate(); // Wake up render loop to show loading state
                     
                     var expandingArgs = new TreeItemExpandingEventArgs(SourceWidget, this, ctx, node);
                     var children = await widget.ExpandingAsyncHandler(expandingArgs);
@@ -292,6 +349,7 @@ public sealed class TreeNode : Hex1bNode
         
         RebuildFlattenedView();
         MarkDirty();
+        ctx.Invalidate(); // Wake up render loop to show the result
     }
 
     private Task LoadChildrenAsync(TreeItemNode parent, IEnumerable<TreeItemWidget> childWidgets)
@@ -494,6 +552,7 @@ public sealed class TreeNode : Hex1bNode
         var loadingIndicator = theme.Get(TreeTheme.LoadingIndicator);
         var checkboxChecked = theme.Get(TreeTheme.CheckboxChecked);
         var checkboxUnchecked = theme.Get(TreeTheme.CheckboxUnchecked);
+        var checkboxIndeterminate = theme.Get(TreeTheme.CheckboxIndeterminate);
         
         // Get colors
         var fg = theme.Get(TreeTheme.ForegroundColor);
@@ -519,27 +578,33 @@ public sealed class TreeNode : Hex1bNode
             
             // Build guide prefix
             var guidePrefix = new System.Text.StringBuilder();
+            
+            // For each ancestor level, draw guides that show whether more siblings exist
+            // at that level. The guide at column c (0-indexed) shows whether the ancestor
+            // at depth c+1 was the last among its siblings.
             for (int d = 0; d < entry.Depth; d++)
             {
-                if (d < entry.IsLastAtDepth.Length && entry.IsLastAtDepth[d])
+                // For the last depth level (d == depth-1), we add the branch connector
+                if (d == entry.Depth - 1)
                 {
-                    guidePrefix.Append(space);
+                    // This is where we connect to the parent - add branch or last branch
+                    guidePrefix.Append(node.IsLastChild ? lastBranch : branch);
                 }
                 else
                 {
-                    guidePrefix.Append(vertical);
+                    // For earlier columns, check if the ancestor at depth d+1 was the last child
+                    // If the ancestor at depth d+1 was last, we don't need a vertical continuation
+                    // Otherwise, we need a vertical to show more items will appear at that depth
+                    var ancestorDepth = d + 1;
+                    if (ancestorDepth < entry.IsLastAtDepth.Length && entry.IsLastAtDepth[ancestorDepth])
+                    {
+                        guidePrefix.Append(space);
+                    }
+                    else
+                    {
+                        guidePrefix.Append(vertical);
+                    }
                 }
-            }
-            
-            // Add branch connector for non-root items
-            if (entry.Depth > 0)
-            {
-                // Remove last guide segment and add branch
-                if (guidePrefix.Length >= 3)
-                {
-                    guidePrefix.Length -= 3;
-                }
-                guidePrefix.Append(node.IsLastChild ? lastBranch : branch);
             }
             
             // Add guide with color
@@ -594,7 +659,22 @@ public sealed class TreeNode : Hex1bNode
             // Add checkbox if multi-select
             if (MultiSelect)
             {
-                line.Append(node.IsSelected ? checkboxChecked : checkboxUnchecked);
+                if (CascadeSelection)
+                {
+                    // Use computed selection state for cascade mode
+                    var selectionState = node.ComputeSelectionState();
+                    line.Append(selectionState switch
+                    {
+                        TreeSelectionState.Selected => checkboxChecked,
+                        TreeSelectionState.Indeterminate => checkboxIndeterminate,
+                        _ => checkboxUnchecked
+                    });
+                }
+                else
+                {
+                    // Simple boolean selection
+                    line.Append(node.IsSelected ? checkboxChecked : checkboxUnchecked);
+                }
             }
             
             // Add content

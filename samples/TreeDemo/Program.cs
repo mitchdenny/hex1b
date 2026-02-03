@@ -1,21 +1,41 @@
 using Hex1b;
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 // Track the last activated item for display
 var lastActivated = "(none)";
 var selectedCount = 0;
 
-// Sample file system data for lazy loading demo
-var fileSystem = new Dictionary<string, string[]>
+// Simulated async data source for lazy loading demo
+async Task<IEnumerable<TreeItemWidget>> LoadChildrenAsync(TreeItemExpandingEventArgs e)
 {
-    ["Documents"] = ["Work", "Personal", "Archive"],
-    ["Work"] = ["Projects", "Reports", "Meetings"],
-    ["Personal"] = ["Photos", "Music", "Videos"],
-    ["Projects"] = ["ProjectA", "ProjectB", "ProjectC"],
-    ["Pictures"] = ["2023", "2024", "2025"],
-    ["Music"] = ["Rock", "Jazz", "Classical"],
-    ["Downloads"] = ["setup.exe", "document.pdf", "image.png"],
-};
+    // Simulate network/database delay (1.5 seconds to make loading indicator visible)
+    await Task.Delay(1500);
+    
+    return e.Item.Label switch
+    {
+        "Remote Server" => [
+            new TreeItemWidget("Users").WithIcon("👥").OnExpanding(LoadChildrenAsync),
+            new TreeItemWidget("Logs").WithIcon("📋").OnExpanding(LoadChildrenAsync),
+            new TreeItemWidget("Config").WithIcon("⚙️").OnExpanding(LoadChildrenAsync),
+        ],
+        "Users" => [
+            new TreeItemWidget("alice").WithIcon("👤"),
+            new TreeItemWidget("bob").WithIcon("👤"),
+            new TreeItemWidget("charlie").WithIcon("👤"),
+        ],
+        "Logs" => [
+            new TreeItemWidget("app.log").WithIcon("📄"),
+            new TreeItemWidget("error.log").WithIcon("📄"),
+            new TreeItemWidget("access.log").WithIcon("📄"),
+        ],
+        "Config" => [
+            new TreeItemWidget("settings.json").WithIcon("📄"),
+            new TreeItemWidget("secrets.env").WithIcon("🔒"),
+        ],
+        _ => []
+    };
+}
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
@@ -24,75 +44,45 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         v.Text(""),
         
         v.HStack(h => [
-            // Left side: Basic Tree with static data (many items for scrolling)
+            // Left side: Static tree
             h.Border(b => [
                 b.Tree(
                     new TreeItemWidget("Root").WithIcon("📁").Expanded().WithChildren(
                         new TreeItemWidget("Documents").WithIcon("📁").Expanded().WithChildren(
-                            new TreeItemWidget("Work").WithIcon("📁").Expanded().WithChildren(
+                            new TreeItemWidget("Work").WithIcon("📁").WithChildren(
                                 new TreeItemWidget("report.docx").WithIcon("📄"),
-                                new TreeItemWidget("presentation.pptx").WithIcon("📄"),
-                                new TreeItemWidget("spreadsheet.xlsx").WithIcon("📄"),
-                                new TreeItemWidget("budget.xlsx").WithIcon("📄"),
-                                new TreeItemWidget("memo.docx").WithIcon("📄"),
-                                new TreeItemWidget("proposal.pdf").WithIcon("📄")
+                                new TreeItemWidget("presentation.pptx").WithIcon("📄")
                             ),
-                            new TreeItemWidget("Personal").WithIcon("📁").Expanded().WithChildren(
+                            new TreeItemWidget("Personal").WithIcon("📁").WithChildren(
                                 new TreeItemWidget("resume.pdf").WithIcon("📄"),
-                                new TreeItemWidget("notes.txt").WithIcon("📄"),
-                                new TreeItemWidget("journal.md").WithIcon("📄"),
-                                new TreeItemWidget("recipes.txt").WithIcon("📄")
-                            ),
-                            new TreeItemWidget("Archive").WithIcon("📁").Expanded().WithChildren(
-                                new TreeItemWidget("2023").WithIcon("📁").WithChildren(
-                                    new TreeItemWidget("taxes.pdf").WithIcon("📄"),
-                                    new TreeItemWidget("receipts.zip").WithIcon("📦")
-                                ),
-                                new TreeItemWidget("2024").WithIcon("📁").WithChildren(
-                                    new TreeItemWidget("taxes.pdf").WithIcon("📄"),
-                                    new TreeItemWidget("receipts.zip").WithIcon("📦")
-                                ),
-                                new TreeItemWidget("backup.tar.gz").WithIcon("📦")
+                                new TreeItemWidget("notes.txt").WithIcon("📄")
                             )
                         ),
-                        new TreeItemWidget("Pictures").WithIcon("📸").Expanded().WithChildren(
+                        new TreeItemWidget("Pictures").WithIcon("📸").WithChildren(
                             new TreeItemWidget("vacation.jpg").WithIcon("📷"),
-                            new TreeItemWidget("family.png").WithIcon("📷"),
-                            new TreeItemWidget("birthday.jpg").WithIcon("📷"),
-                            new TreeItemWidget("sunset.png").WithIcon("📷"),
-                            new TreeItemWidget("portrait.jpg").WithIcon("📷")
+                            new TreeItemWidget("family.png").WithIcon("📷")
                         ),
-                        new TreeItemWidget("Music").WithIcon("🎵").Expanded().WithChildren(
-                            new TreeItemWidget("song1.mp3").WithIcon("🎶"),
-                            new TreeItemWidget("song2.mp3").WithIcon("🎶"),
-                            new TreeItemWidget("song3.mp3").WithIcon("🎶"),
-                            new TreeItemWidget("song4.mp3").WithIcon("🎶"),
-                            new TreeItemWidget("playlist.m3u").WithIcon("📝"),
-                            new TreeItemWidget("album.flac").WithIcon("🎶")
-                        ),
-                        new TreeItemWidget("Videos").WithIcon("🎬").Expanded().WithChildren(
-                            new TreeItemWidget("movie.mp4").WithIcon("🎥"),
-                            new TreeItemWidget("clip.avi").WithIcon("🎥"),
-                            new TreeItemWidget("tutorial.mkv").WithIcon("🎥")
-                        ),
-                        new TreeItemWidget("Downloads").WithIcon("📥").Expanded().WithChildren(
+                        new TreeItemWidget("Downloads").WithIcon("📥").WithChildren(
                             new TreeItemWidget("setup.exe").WithIcon("📦"),
-                            new TreeItemWidget("archive.zip").WithIcon("📦"),
-                            new TreeItemWidget("installer.dmg").WithIcon("📦"),
-                            new TreeItemWidget("package.deb").WithIcon("📦")
-                        ),
-                        new TreeItemWidget("Projects").WithIcon("💻").Expanded().WithChildren(
-                            new TreeItemWidget("website").WithIcon("🌐"),
-                            new TreeItemWidget("mobile-app").WithIcon("📱"),
-                            new TreeItemWidget("api-server").WithIcon("💻")
+                            new TreeItemWidget("archive.zip").WithIcon("📦")
                         )
                     )
                 )
                 .OnItemActivated(e => { lastActivated = e.Item.Label; })
                 .FillHeight()
-            ], title: "📂 File Browser").FillWidth().FillHeight(),
+            ], title: "📂 Static Tree").FillWidth().FillHeight(),
             
-            // Right side: Multi-select tree
+            // Middle: Async lazy-loading tree
+            h.Border(b => [
+                b.Tree(
+                    new TreeItemWidget("Remote Server").WithIcon("🖥️")
+                        .OnExpanding(LoadChildrenAsync)  // Async lazy load with 500ms delay
+                )
+                .OnItemActivated(e => { lastActivated = e.Item.Label; })
+                .FillHeight()
+            ], title: "🌐 Async Lazy Load").FillWidth().FillHeight(),
+            
+            // Right side: Multi-select tree with cascade selection
             h.Border(b => [
                 b.Tree(
                     new TreeItemWidget("Select Features").Expanded().WithChildren(
@@ -113,10 +103,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         )
                     )
                 )
-                .WithMultiSelect()
+                .WithCascadeSelection()
                 .OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })
                 .FillHeight()
-            ], title: "📋 Feature Selection (Multi-Select)").FillWidth().FillHeight()
+            ], title: "📋 Cascade Select").FillWidth().FillHeight()
         ]).FillHeight(),
         
         v.Text(""),
@@ -176,8 +166,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             h.Text($"Selected items: {selectedCount}")
         ]),
         v.Text(""),
-        v.Text("↑↓: Navigate | ←: Collapse/Parent | →: Expand/Child | Space: Toggle | Enter: Activate"),
-        v.Text("Tab: Switch trees | Ctrl+C: Exit")
+        v.Text("↑↓: Navigate | ←→: Collapse/Expand | Space: Toggle | Enter: Activate | Click ▶: Expand"),
+        v.Text("Async tree shows ◌ loading indicator during 1.5s simulated delay")
     ]))
     .WithMouse()
     .Build();

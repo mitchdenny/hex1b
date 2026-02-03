@@ -20,7 +20,7 @@ public static class TreeTheme
         new($"{nameof(TreeTheme)}.{nameof(FocusedBackgroundColor)}", () => Hex1bColor.White);
 
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedForegroundColor =
-        new($"{nameof(TreeTheme)}.{nameof(SelectedForegroundColor)}", () => Hex1bColor.Cyan);
+        new($"{nameof(TreeTheme)}.{nameof(SelectedForegroundColor)}", () => Hex1bColor.Default);
 
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedBackgroundColor =
         new($"{nameof(TreeTheme)}.{nameof(SelectedBackgroundColor)}", () => Hex1bColor.Default);
@@ -109,7 +109,7 @@ public static class TreeTheme
         new($"{nameof(TreeTheme)}.{nameof(CollapsedIndicator)}", () => "▶ ");
 
     public static readonly Hex1bThemeElement<string> LeafIndicator =
-        new($"{nameof(TreeTheme)}.{nameof(LeafIndicator)}", () => "  ");
+        new($"{nameof(TreeTheme)}.{nameof(LeafIndicator)}", () => " ");
 
     public static readonly Hex1bThemeElement<string> LoadingIndicator =
         new($"{nameof(TreeTheme)}.{nameof(LoadingIndicator)}", () => "◌ ");
@@ -119,6 +119,9 @@ public static class TreeTheme
 
     public static readonly Hex1bThemeElement<string> CheckboxUnchecked =
         new($"{nameof(TreeTheme)}.{nameof(CheckboxUnchecked)}", () => "[ ] ");
+
+    public static readonly Hex1bThemeElement<string> CheckboxIndeterminate =
+        new($"{nameof(TreeTheme)}.{nameof(CheckboxIndeterminate)}", () => "[-] ");
 
     #endregion
 }
