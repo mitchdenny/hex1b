@@ -57,11 +57,6 @@ public sealed class TreeNode : Hex1bNode
     /// </summary>
     private int _viewportHeight;
 
-    /// <summary>
-    /// The loading spinner node, reconciled when any item is loading.
-    /// </summary>
-    internal SpinnerNode? LoadingSpinnerNode { get; set; }
-
     // Event callbacks
     internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
     internal Func<InputBindingActionContext, TreeItemNode, Task>? ItemActivatedAction { get; set; }
@@ -588,9 +583,6 @@ public sealed class TreeNode : Hex1bNode
         var checkboxUnchecked = theme.Get(TreeTheme.CheckboxUnchecked);
         var checkboxIndeterminate = theme.Get(TreeTheme.CheckboxIndeterminate);
         
-        // Get the loading indicator - either from builder or theme default
-        var loadingIndicator = GetLoadingIndicatorString(theme);
-        
         // Get colors
         var fg = theme.Get(TreeTheme.ForegroundColor);
         var bg = theme.Get(TreeTheme.BackgroundColor);
@@ -682,7 +674,7 @@ public sealed class TreeNode : Hex1bNode
             // Add expand/collapse indicator
             if (node.IsLoading)
             {
-                line.Append(loadingIndicator);
+                line.Append(GetLoadingIndicatorString(node, theme));
             }
             else if (node.CanExpand)
             {
@@ -759,21 +751,21 @@ public sealed class TreeNode : Hex1bNode
     }
 
     /// <summary>
-    /// Gets the loading indicator string from the SpinnerNode.
+    /// Gets the loading indicator string from the item's SpinnerNode.
     /// The SpinnerNode handles time-based animation automatically.
     /// </summary>
-    private string GetLoadingIndicatorString(Hex1bTheme theme)
+    private string GetLoadingIndicatorString(TreeItemNode item, Hex1bTheme theme)
     {
-        if (LoadingSpinnerNode != null)
+        if (item.LoadingSpinnerNode != null)
         {
             // Get the current frame from the spinner node (it handles animation timing)
-            var style = LoadingSpinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
+            var style = item.LoadingSpinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
             
             // SpinnerNode calculates frame based on elapsed time internally
             // We need to measure it to trigger frame calculation
-            LoadingSpinnerNode.Measure(new Layout.Constraints(0, 10, 0, 1));
+            item.LoadingSpinnerNode.Measure(new Layout.Constraints(0, 10, 0, 1));
             
-            // Get the current frame
+            // Get the current frame based on time
             var elapsed = DateTime.UtcNow - _spinnerStartTime;
             var intervalMs = style.Interval.TotalMilliseconds;
             if (intervalMs <= 0) intervalMs = 80;

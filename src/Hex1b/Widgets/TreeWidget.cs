@@ -94,20 +94,8 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         await ReconcileItemsAsync(Items, node.Items, newItems, node, context);
         node.Items = newItems;
 
-        // Rebuild flattened view first so we can check loading state
+        // Rebuild flattened view
         node.RebuildFlattenedView();
-
-        // If any item is loading, reconcile a spinner widget for animation
-        if (node.HasLoadingItems())
-        {
-            var spinnerWidget = new SpinnerWidget();
-            node.LoadingSpinnerNode = await context.ReconcileChildAsync(
-                node.LoadingSpinnerNode, spinnerWidget, node) as SpinnerNode;
-        }
-        else
-        {
-            node.LoadingSpinnerNode = null;
-        }
 
         // Wire up container-level event handlers
         if (SelectionChangedHandler != null)
@@ -211,6 +199,18 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             else
             {
                 node.ToggleSelectCallback = null;
+            }
+
+            // Reconcile spinner for loading animation
+            if (node.IsLoading)
+            {
+                var spinnerWidget = new SpinnerWidget();
+                node.LoadingSpinnerNode = await context.ReconcileChildAsync(
+                    node.LoadingSpinnerNode, spinnerWidget, node) as SpinnerNode;
+            }
+            else
+            {
+                node.LoadingSpinnerNode = null;
             }
 
             // Recursively reconcile children

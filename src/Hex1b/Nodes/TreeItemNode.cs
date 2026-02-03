@@ -71,6 +71,11 @@ public sealed class TreeItemNode : Hex1bNode
     public bool IsLoading { get; set; }
     
     /// <summary>
+    /// Spinner node for loading animation. Reconciled when IsLoading is true.
+    /// </summary>
+    public SpinnerNode? LoadingSpinnerNode { get; set; }
+    
+    /// <summary>
     /// User data associated with this item.
     /// </summary>
     public object? Tag { get; set; }
