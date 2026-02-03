@@ -185,6 +185,7 @@ public sealed class ReconcileContext
         {
             var capturedNode = node;
             var capturedParent = parent;
+            var capturedInvalidate = InvalidateCallback;
             ScheduleTimerCallback(effectiveDelay.Value, () =>
             {
                 capturedNode.MarkDirty();
@@ -192,7 +193,7 @@ public sealed class ReconcileContext
                 // where the grandparent (TreeNode) renders the child's state (e.g., spinner frame)
                 capturedParent?.MarkDirty();
                 capturedParent?.Parent?.MarkDirty();
-                InvalidateCallback?.Invoke();
+                capturedInvalidate?.Invoke();
             });
         }
         
