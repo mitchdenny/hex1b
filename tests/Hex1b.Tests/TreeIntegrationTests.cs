@@ -1000,12 +1000,12 @@ public class TreeIntegrationTests
     [Fact]
     public async Task Tree_OnExpanding_AsyncLazyLoadsChildren()
     {
-        var loadCalled = false;
+        var loadCalled = new TaskCompletionSource<bool>();
         
         // Direct unit test - reconcile and expand manually
         var widget = new TreeItemWidget("Parent")
             .OnExpanding(async e => {
-                loadCalled = true;
+                loadCalled.TrySetResult(true);
                 await Task.Delay(10);
                 return [new TreeItemWidget("LazyChild")];
             });
@@ -1020,13 +1020,19 @@ public class TreeIntegrationTests
         Assert.Empty(treeNode.Items[0].Children);
         Assert.Single(treeNode.FlattenedItems); // Only Parent
         
-        // Expand
+        // Expand - this starts async work in background
         var focusRing = new FocusRing();
         var ctx = new InputBindingActionContext(focusRing, null, default);
         await treeNode.ToggleExpandAsync(treeNode.Items[0], ctx);
         
+        // Wait for the async handler to be called (with timeout)
+        var wasLoaded = await loadCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(wasLoaded, "OnExpanding handler should have been called");
+        
+        // Wait a bit more for the children to be loaded
+        await Task.Delay(100);
+        
         // Verify expanded state
-        Assert.True(loadCalled, "OnExpanding handler should have been called");
         Assert.True(treeNode.Items[0].IsExpanded, "Should be expanded");
         Assert.Single(treeNode.Items[0].Children);
         Assert.Equal("LazyChild", treeNode.Items[0].Children[0].Label);
@@ -1259,6 +1265,100 @@ public class TreeIntegrationTests
         Assert.True(finalSnapshot.ContainsText("▼"), $"Parent should show expanded indicator. Screen:\n{finalText}");
         Assert.True(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
         Assert.True(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
+    }
+
+    [Fact]
+    public async Task Tree_AsyncExpansion_ShowsSpinnerDuringLoad()
+    {
+        var loadStarted = new TaskCompletionSource<bool>();
+        var spinnerFramesSeen = new List<string>();
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 20)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.Tree(
+                    new TreeItemWidget("Parent").WithIcon("📁")
+                        .OnExpanding(async e => {
+                            loadStarted.TrySetResult(true);
+                            await Task.Delay(500); // Delay long enough to capture spinner frames
+                            return [new TreeItemWidget("Child").WithIcon("📄")];
+                        })
+                ).FillHeight()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render - same as passing test
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(2), "tree to render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Capture initial state for debugging
+        var initialSnapshot = terminal.CreateSnapshot();
+        var initialText = initialSnapshot.GetScreenText();
+
+        // Press Tab to ensure tree has focus, then Right arrow to expand - exact same as passing test
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Tab) // Ensure focus
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.RightArrow)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Check if load was even triggered - same as passing test
+        var loadTriggered = await Task.WhenAny(
+            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)),
+            Task.Delay(TimeSpan.FromSeconds(2))
+        ) == loadStarted.Task;
+        
+        if (!loadTriggered)
+        {
+            var debugSnapshot = terminal.CreateSnapshot();
+            var debugText = debugSnapshot.GetScreenText();
+            Assert.Fail($"OnExpanding handler was not called after Tab+RightArrow.\n\nInitial:\n{initialText}\n\nAfter:\n{debugText}");
+        }
+        
+        // Capture immediately after loadStarted fires - should show loading state
+        var loadingSnapshot = terminal.CreateSnapshot();
+        var loadingText = loadingSnapshot.GetScreenText();
+        spinnerFramesSeen.Add($"Immediately after loadStarted:\n{loadingText}");
+        
+        // Wait a bit for spinner to render, then capture several frames
+        for (int i = 0; i < 5; i++)
+        {
+            await Task.Delay(80); // Match spinner interval
+            var snapshot = terminal.CreateSnapshot();
+            var text = snapshot.GetScreenText();
+            spinnerFramesSeen.Add($"Frame {i} (+{(i+1)*80}ms):\n{text}");
+        }
+        
+        // Wait for expansion to complete (500ms delay in handler)
+        await Task.Delay(300);
+        
+        // Exit app
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Verify we saw spinner animation - dots spinner uses ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+        var spinnerChars = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+        var spinnerSeen = spinnerFramesSeen.Any(frame => spinnerChars.Any(c => frame.Contains(c)));
+        
+        Assert.True(spinnerSeen, 
+            $"Should have seen spinner animation during load. Frames captured:\n{string.Join("\n---\n", spinnerFramesSeen)}");
     }
 
     #endregion

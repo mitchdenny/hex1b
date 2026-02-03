@@ -57,6 +57,11 @@ public sealed class TreeNode : Hex1bNode
     /// </summary>
     private int _viewportHeight;
 
+    /// <summary>
+    /// The loading spinner node, reconciled when any item is loading.
+    /// </summary>
+    internal SpinnerNode? LoadingSpinnerNode { get; set; }
+
     // Event callbacks
     internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
     internal Func<InputBindingActionContext, TreeItemNode, Task>? ItemActivatedAction { get; set; }
@@ -324,16 +329,46 @@ public sealed class TreeNode : Hex1bNode
                 }
                 else if (widget?.ExpandingAsyncHandler != null)
                 {
-                    // Async lazy load
+                    // Async lazy load - start as background task so render loop can continue
                     node.IsLoading = true;
+                    ResetSpinnerAnimation(); // Start spinner from beginning
                     MarkDirty();
                     ctx.Invalidate(); // Wake up render loop to show loading state
                     
                     var expandingArgs = new TreeItemExpandingEventArgs(SourceWidget, this, ctx, node);
-                    var children = await widget.ExpandingAsyncHandler(expandingArgs);
-                    await LoadChildrenAsync(node, children);
                     
-                    node.IsLoading = false;
+                    // Capture necessary state for the background task
+                    var capturedSourceWidget = SourceWidget;
+                    var capturedNode = node;
+                    
+                    // Start the async work in the background
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var children = await widget.ExpandingAsyncHandler(expandingArgs);
+                            await LoadChildrenAsync(capturedNode, children);
+                        }
+                        finally
+                        {
+                            capturedNode.IsLoading = false;
+                            capturedNode.IsExpanded = true;
+                            
+                            // Fire expanded event if handler exists
+                            if (capturedNode.SourceWidget?.ExpandedHandler != null && capturedSourceWidget != null)
+                            {
+                                var args = new TreeItemExpandedEventArgs(capturedSourceWidget, this, ctx, capturedNode);
+                                await capturedNode.SourceWidget.ExpandedHandler(args);
+                            }
+                            
+                            RebuildFlattenedView();
+                            MarkDirty();
+                            ctx.Invalidate(); // Wake up render loop to show the result
+                        }
+                    });
+                    
+                    // Return immediately - don't await the async work
+                    return;
                 }
             }
             
@@ -549,10 +584,12 @@ public sealed class TreeNode : Hex1bNode
         var expandedIndicator = theme.Get(TreeTheme.ExpandedIndicator);
         var collapsedIndicator = theme.Get(TreeTheme.CollapsedIndicator);
         var leafIndicator = theme.Get(TreeTheme.LeafIndicator);
-        var loadingIndicator = theme.Get(TreeTheme.LoadingIndicator);
         var checkboxChecked = theme.Get(TreeTheme.CheckboxChecked);
         var checkboxUnchecked = theme.Get(TreeTheme.CheckboxUnchecked);
         var checkboxIndeterminate = theme.Get(TreeTheme.CheckboxIndeterminate);
+        
+        // Get the loading indicator - either from builder or theme default
+        var loadingIndicator = GetLoadingIndicatorString(theme);
         
         // Get colors
         var fg = theme.Get(TreeTheme.ForegroundColor);
@@ -719,6 +756,53 @@ public sealed class TreeNode : Hex1bNode
                 theme.Get(TreeTheme.UnicodeVertical),
                 theme.Get(TreeTheme.UnicodeSpace))
         };
+    }
+
+    /// <summary>
+    /// Gets the loading indicator string from the SpinnerNode.
+    /// The SpinnerNode handles time-based animation automatically.
+    /// </summary>
+    private string GetLoadingIndicatorString(Hex1bTheme theme)
+    {
+        if (LoadingSpinnerNode != null)
+        {
+            // Get the current frame from the spinner node (it handles animation timing)
+            var style = LoadingSpinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
+            
+            // SpinnerNode calculates frame based on elapsed time internally
+            // We need to measure it to trigger frame calculation
+            LoadingSpinnerNode.Measure(new Layout.Constraints(0, 10, 0, 1));
+            
+            // Get the current frame
+            var elapsed = DateTime.UtcNow - _spinnerStartTime;
+            var intervalMs = style.Interval.TotalMilliseconds;
+            if (intervalMs <= 0) intervalMs = 80;
+            var frameIndex = (int)(elapsed.TotalMilliseconds / intervalMs);
+            
+            return style.GetFrame(frameIndex) + " ";
+        }
+        
+        // Fallback to static indicator if no spinner node
+        return theme.Get(TreeTheme.LoadingIndicator);
+    }
+    
+    // Track when loading started for spinner animation
+    private DateTime _spinnerStartTime = DateTime.UtcNow;
+    
+    /// <summary>
+    /// Resets the spinner animation when loading starts.
+    /// </summary>
+    internal void ResetSpinnerAnimation()
+    {
+        _spinnerStartTime = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Checks if any tree item is currently loading.
+    /// </summary>
+    internal bool HasLoadingItems()
+    {
+        return FlattenedItems.Any(e => e.Node.IsLoading);
     }
 }
 
