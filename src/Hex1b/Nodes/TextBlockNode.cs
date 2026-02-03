@@ -110,28 +110,40 @@ public sealed class TextBlockNode : Hex1bNode
                 return MeasureWrapped(constraints);
                 
             case TextOverflow.Ellipsis:
-                // Ellipsis: single line, but respects max width
-                var textWidth = DisplayWidth.GetStringWidth(Text);
-                var ellipsisWidth = Math.Min(textWidth, constraints.MaxWidth);
-                return constraints.Constrain(new Size(ellipsisWidth, 1));
-                
             case TextOverflow.Truncate:
             default:
-                // Original behavior: single-line, width is text display width
-                return constraints.Constrain(new Size(DisplayWidth.GetStringWidth(Text), 1));
+                // Support multi-line text (split by newlines)
+                return MeasureMultiline(constraints);
         }
+    }
+
+    private Size MeasureMultiline(Constraints constraints)
+    {
+        // Split by newlines to support multi-line text
+        var lines = Text.Split('\n');
+        _wrappedLines = lines.ToList();
+        _lastWrapWidth = -1; // Not width-based wrapping
+        
+        var maxLineWidth = lines.Max(l => DisplayWidth.GetStringWidth(l));
+        var width = Overflow == TextOverflow.Ellipsis 
+            ? Math.Min(maxLineWidth, constraints.MaxWidth)
+            : maxLineWidth;
+            
+        return constraints.Constrain(new Size(width, lines.Length));
     }
 
     private Size MeasureWrapped(Constraints constraints)
     {
         var maxWidth = constraints.MaxWidth;
         
-        // If unbounded or very large, treat as single line
+        // If unbounded or very large, just split by newlines (no word wrapping)
         if (maxWidth == int.MaxValue || maxWidth <= 0)
         {
-            _wrappedLines = [Text];
+            var lines = Text.Split('\n');
+            _wrappedLines = lines.ToList();
             _lastWrapWidth = maxWidth;
-            return constraints.Constrain(new Size(DisplayWidth.GetStringWidth(Text), 1));
+            var maxLineWidth = lines.Max(l => DisplayWidth.GetStringWidth(l));
+            return constraints.Constrain(new Size(maxLineWidth, lines.Length));
         }
         
         // Only re-wrap if width changed
@@ -150,66 +162,79 @@ public sealed class TextBlockNode : Hex1bNode
     /// <summary>
     /// Wraps text to fit within the specified width (in display columns).
     /// Uses word boundaries when possible, breaks words only when necessary.
+    /// Respects embedded newline characters as explicit line breaks.
     /// </summary>
     private static List<string> WrapText(string text, int maxWidth)
     {
         if (string.IsNullOrEmpty(text) || maxWidth <= 0)
             return [""];
-            
-        var lines = new List<string>();
-        var words = text.Split(' ');
-        var currentLine = "";
-        var currentLineWidth = 0;
         
-        foreach (var word in words)
+        var lines = new List<string>();
+        
+        // First, split by explicit newlines
+        var paragraphs = text.Split('\n');
+        
+        foreach (var paragraph in paragraphs)
         {
-            var wordWidth = DisplayWidth.GetStringWidth(word);
-            
-            if (wordWidth > maxWidth)
+            if (string.IsNullOrEmpty(paragraph))
             {
-                // Word is wider than max width - must break it
-                if (currentLine.Length > 0)
+                lines.Add("");
+                continue;
+            }
+            
+            // Wrap each paragraph independently
+            var words = paragraph.Split(' ');
+            var currentLine = "";
+            var currentLineWidth = 0;
+            
+            foreach (var word in words)
+            {
+                var wordWidth = DisplayWidth.GetStringWidth(word);
+                
+                if (wordWidth > maxWidth)
+                {
+                    // Word is wider than max width - must break it
+                    if (currentLine.Length > 0)
+                    {
+                        lines.Add(currentLine);
+                        currentLine = "";
+                        currentLineWidth = 0;
+                    }
+                    
+                    // Break the word by display width
+                    var remaining = word;
+                    while (DisplayWidth.GetStringWidth(remaining) > maxWidth)
+                    {
+                        var (chunk, _) = SliceByWidth(remaining, maxWidth);
+                        lines.Add(chunk);
+                        remaining = remaining[chunk.Length..];
+                    }
+                    
+                    if (remaining.Length > 0)
+                    {
+                        currentLine = remaining;
+                        currentLineWidth = DisplayWidth.GetStringWidth(remaining);
+                    }
+                }
+                else if (currentLine.Length == 0)
+                {
+                    currentLine = word;
+                    currentLineWidth = wordWidth;
+                }
+                else if (currentLineWidth + 1 + wordWidth <= maxWidth)
+                {
+                    currentLine += " " + word;
+                    currentLineWidth += 1 + wordWidth;
+                }
+                else
                 {
                     lines.Add(currentLine);
-                    currentLine = "";
-                    currentLineWidth = 0;
-                }
-                
-                // Break the word by display width
-                var remaining = word;
-                while (DisplayWidth.GetStringWidth(remaining) > maxWidth)
-                {
-                    var (chunk, _) = SliceByWidth(remaining, maxWidth);
-                    lines.Add(chunk);
-                    remaining = remaining[chunk.Length..];
-                }
-                
-                if (remaining.Length > 0)
-                {
-                    currentLine = remaining;
-                    currentLineWidth = DisplayWidth.GetStringWidth(remaining);
+                    currentLine = word;
+                    currentLineWidth = wordWidth;
                 }
             }
-            else if (currentLine.Length == 0)
-            {
-                currentLine = word;
-                currentLineWidth = wordWidth;
-            }
-            else if (currentLineWidth + 1 + wordWidth <= maxWidth)
-            {
-                currentLine += " " + word;
-                currentLineWidth += 1 + wordWidth;
-            }
-            else
-            {
-                lines.Add(currentLine);
-                currentLine = word;
-                currentLineWidth = wordWidth;
-            }
-        }
-        
-        if (currentLine.Length > 0)
-        {
+            
+            // Add the last line of this paragraph
             lines.Add(currentLine);
         }
         
@@ -258,42 +283,74 @@ public sealed class TextBlockNode : Hex1bNode
 
     private void RenderTruncate(Hex1bRenderContext context, string colorCodes, string resetCodes)
     {
-        // When a LayoutProvider is active, use clipped rendering
-        // Otherwise, use the original simple behavior for backward compatibility
-        if (context.CurrentLayoutProvider != null)
+        // If _wrappedLines wasn't computed (Measure wasn't called), fallback to direct rendering
+        var lines = _wrappedLines ?? [Text];
+        if (lines.Count == 0)
+            return;
+        
+        // Determine how many lines we can render
+        var maxLines = Bounds.Height > 0 ? Bounds.Height : lines.Count;
+        
+        for (int i = 0; i < lines.Count && i < maxLines; i++)
         {
-            // Use Bounds for position - parent sets cursor but we need absolute coords for clipping
-            if (!string.IsNullOrEmpty(colorCodes))
+            var line = lines[i];
+            var y = Bounds.Y + i;
+            
+            if (context.CurrentLayoutProvider != null)
             {
-                context.WriteClipped(Bounds.X, Bounds.Y, $"{colorCodes}{Text}{resetCodes}");
+                if (!string.IsNullOrEmpty(colorCodes))
+                {
+                    context.WriteClipped(Bounds.X, y, $"{colorCodes}{line}{resetCodes}");
+                }
+                else
+                {
+                    context.WriteClipped(Bounds.X, y, line);
+                }
             }
             else
             {
-                context.WriteClipped(Bounds.X, Bounds.Y, Text);
-            }
-        }
-        else
-        {
-            // No layout provider - write at current cursor position (original behavior)
-            if (!string.IsNullOrEmpty(colorCodes))
-            {
-                context.Write($"{colorCodes}{Text}{resetCodes}");
-            }
-            else
-            {
-                context.Write(Text);
+                // No layout provider - write at current cursor position
+                if (i == 0)
+                {
+                    // First line uses current cursor position for backward compatibility
+                    if (!string.IsNullOrEmpty(colorCodes))
+                    {
+                        context.Write($"{colorCodes}{line}{resetCodes}");
+                    }
+                    else
+                    {
+                        context.Write(line);
+                    }
+                }
+                else
+                {
+                    // Subsequent lines need explicit positioning
+                    context.SetCursorPosition(Bounds.X, y);
+                    if (!string.IsNullOrEmpty(colorCodes))
+                    {
+                        context.Write($"{colorCodes}{line}{resetCodes}");
+                    }
+                    else
+                    {
+                        context.Write(line);
+                    }
+                }
             }
         }
     }
 
     private void RenderWrapped(Hex1bRenderContext context, string colorCodes, string resetCodes)
     {
-        if (_wrappedLines == null || _wrappedLines.Count == 0)
+        // If _wrappedLines wasn't computed (Measure wasn't called), fallback to Text
+        var lines = _wrappedLines ?? [Text];
+        if (lines.Count == 0)
             return;
+        
+        var maxLines = Bounds.Height > 0 ? Bounds.Height : lines.Count;
             
-        for (int i = 0; i < _wrappedLines.Count && i < Bounds.Height; i++)
+        for (int i = 0; i < lines.Count && i < maxLines; i++)
         {
-            var line = _wrappedLines[i];
+            var line = lines[i];
             var y = Bounds.Y + i;
             
             if (!string.IsNullOrEmpty(colorCodes))
@@ -309,28 +366,39 @@ public sealed class TextBlockNode : Hex1bNode
 
     private void RenderEllipsis(Hex1bRenderContext context, string colorCodes, string resetCodes)
     {
-        var text = Text;
-        var textWidth = DisplayWidth.GetStringWidth(Text);
+        // If _wrappedLines wasn't computed (Measure wasn't called), fallback to Text
+        var lines = _wrappedLines ?? [Text];
+        if (lines.Count == 0)
+            return;
         
-        if (textWidth > Bounds.Width && Bounds.Width > 3)
-        {
-            // Slice to fit with ellipsis
-            var (sliced, _) = SliceByWidth(Text, Bounds.Width - 3);
-            text = sliced + "...";
-        }
-        else if (textWidth > Bounds.Width)
-        {
-            var (sliced, _) = SliceByWidth(Text, Bounds.Width);
-            text = sliced;
-        }
+        var maxLines = Bounds.Height > 0 ? Bounds.Height : lines.Count;
         
-        if (!string.IsNullOrEmpty(colorCodes))
+        for (int i = 0; i < lines.Count && i < maxLines; i++)
         {
-            context.WriteClipped(Bounds.X, Bounds.Y, $"{colorCodes}{text}{resetCodes}");
-        }
-        else
-        {
-            context.WriteClipped(Bounds.X, Bounds.Y, text);
+            var line = lines[i];
+            var lineWidth = DisplayWidth.GetStringWidth(line);
+            var y = Bounds.Y + i;
+            
+            // Apply ellipsis truncation per line
+            if (lineWidth > Bounds.Width && Bounds.Width > 3)
+            {
+                var (sliced, _) = SliceByWidth(line, Bounds.Width - 3);
+                line = sliced + "...";
+            }
+            else if (lineWidth > Bounds.Width)
+            {
+                var (sliced, _) = SliceByWidth(line, Bounds.Width);
+                line = sliced;
+            }
+            
+            if (!string.IsNullOrEmpty(colorCodes))
+            {
+                context.WriteClipped(Bounds.X, y, $"{colorCodes}{line}{resetCodes}");
+            }
+            else
+            {
+                context.WriteClipped(Bounds.X, y, line);
+            }
         }
     }
 }
