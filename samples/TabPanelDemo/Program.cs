@@ -342,22 +342,43 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ])).Fill()
                 ]
                 : [
-                    // TabPanel with open documents
-                    right.TabPanel(tp => [
-                        ..editorState.OpenDocuments.Select(doc =>
-                            tp.Tab(doc.Name, t => [
-                                t.VScroll(s => [
-                                    s.Text(doc.Content).Wrap()
-                                ]).Fill()
-                            ])
-                        )
-                    ])
-                    .WithSelectedIndex(editorState.SelectedTabIndex)
-                    .OnSelectionChanged(e => {
-                        editorState.SelectedTabIndex = e.SelectedIndex;
-                        statusMessage = $"Viewing: {e.SelectedTitle}";
-                    })
-                    .Fill()
+                    // TabPanel with open documents - responsive Full/Compact mode
+                    right.Responsive(r => [
+                        // Full mode when height >= 15
+                        r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
+                            ..editorState.OpenDocuments.Select(doc =>
+                                tp.Tab(doc.Name, t => [
+                                    t.VScroll(s => [
+                                        s.Text(doc.Content).Wrap()
+                                    ]).Fill()
+                                ])
+                            )
+                        ])
+                        .WithSelectedIndex(editorState.SelectedTabIndex)
+                        .OnSelectionChanged(e => {
+                            editorState.SelectedTabIndex = e.SelectedIndex;
+                            statusMessage = $"Viewing: {e.SelectedTitle}";
+                        })
+                        .Full()
+                        .Fill()),
+                        // Compact mode when height < 15
+                        r.Otherwise(r => r.TabPanel(tp => [
+                            ..editorState.OpenDocuments.Select(doc =>
+                                tp.Tab(doc.Name, t => [
+                                    t.VScroll(s => [
+                                        s.Text(doc.Content).Wrap()
+                                    ]).Fill()
+                                ])
+                            )
+                        ])
+                        .WithSelectedIndex(editorState.SelectedTabIndex)
+                        .OnSelectionChanged(e => {
+                            editorState.SelectedTabIndex = e.SelectedIndex;
+                            statusMessage = $"Viewing: {e.SelectedTitle}";
+                        })
+                        .Compact()
+                        .Fill())
+                    ]).Fill()
                 ],
             leftWidth: 25
         ).Fill(),
