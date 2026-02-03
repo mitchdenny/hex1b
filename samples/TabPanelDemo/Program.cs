@@ -209,6 +209,7 @@ editorState.Files.Add(new SourceFile("LICENSE", "📜", GenerateLicenseContent()
 var statusMessage = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
     ctx.VStack(main => [
         // ─────────────────────────────────────────────────────────────────
