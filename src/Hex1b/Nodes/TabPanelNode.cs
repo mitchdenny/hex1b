@@ -67,6 +67,37 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// </summary>
     private int _scrollOffset;
 
+    /// <summary>
+    /// Width of each arrow button.
+    /// </summary>
+    private const int ArrowButtonWidth = 3;
+
+    /// <summary>
+    /// Tab hit regions for mouse click handling (x position, width, tab index).
+    /// </summary>
+    private List<(int X, int Width, int TabIndex)> _tabHitRegions = new();
+
+    /// <summary>
+    /// X position of the left arrow button.
+    /// </summary>
+    private int _leftArrowX;
+
+    /// <summary>
+    /// X position of the right arrow button.
+    /// </summary>
+    private int _rightArrowX;
+
+    /// <summary>
+    /// Y position of the tab row (for mouse hit testing).
+    /// </summary>
+    private int _tabRowY;
+
+    /// <summary>
+    /// Cached overflow state.
+    /// </summary>
+    private bool _canScrollLeft;
+    private bool _canScrollRight;
+
     private bool _isFocused;
     public override bool IsFocused
     {
@@ -181,10 +212,13 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
     private void RenderTabBar(Hex1bRenderContext context, Hex1bTheme theme, string resetToGlobal)
     {
+        // Clear hit regions for this render
+        _tabHitRegions.Clear();
+
         var x = _tabBarBounds.X;
         // In Full mode: row 0 = top separator, row 1 = tabs, row 2 = bottom separator
         // In Compact mode: row 0 = tabs
-        var tabRowY = RenderMode == TabBarRenderMode.Full ? _tabBarBounds.Y + 1 : _tabBarBounds.Y;
+        _tabRowY = RenderMode == TabBarRenderMode.Full ? _tabBarBounds.Y + 1 : _tabBarBounds.Y;
 
         // Render top separator row in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -204,26 +238,13 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             totalWidth += width;
         }
 
-        var needsOverflow = totalWidth > _tabBarBounds.Width;
-        var arrowWidth = needsOverflow ? 3 : 0;
-        var dropdownWidth = needsOverflow ? 3 : 0;
-        var availableWidth = _tabBarBounds.Width - arrowWidth * 2 - dropdownWidth;
+        // Always reserve space for arrow buttons at the end
+        var availableWidth = _tabBarBounds.Width - (ArrowButtonWidth * 2);
 
         // Calculate visible range
         var visibleCount = CalculateVisibleCount(tabWidths, availableWidth, _scrollOffset);
-        var canScrollLeft = _scrollOffset > 0;
-        var canScrollRight = _scrollOffset + visibleCount < Tabs.Count;
-
-        // Render left arrow
-        if (needsOverflow)
-        {
-            var arrowFg = canScrollLeft
-                ? theme.Get(TabBarTheme.ArrowForegroundColor)
-                : theme.Get(TabBarTheme.ArrowDisabledColor);
-            var arrowText = canScrollLeft ? " ◀ " : "   ";
-            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
-            x += arrowWidth;
-        }
+        _canScrollLeft = _scrollOffset > 0;
+        _canScrollRight = _scrollOffset + visibleCount < Tabs.Count;
 
         // Render visible tabs
         for (int i = _scrollOffset; i < _scrollOffset + visibleCount && i < Tabs.Count; i++)
@@ -253,31 +274,35 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
             tabText = tabText.PadRight(tabWidth);
 
-            context.WriteClipped(x, tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
+            // Track hit region for this tab
+            _tabHitRegions.Add((x, tabWidth, i));
+
+            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
             x += tabWidth;
         }
 
-        // Fill remaining space
-        var remainingWidth = _tabBarBounds.Width - (x - _tabBarBounds.X) - (needsOverflow ? arrowWidth + dropdownWidth : 0);
+        // Fill remaining space before arrows
+        var remainingWidth = _tabBarBounds.Width - (x - _tabBarBounds.X) - (ArrowButtonWidth * 2);
         if (remainingWidth > 0)
         {
-            context.WriteClipped(x, tabRowY, new string(' ', remainingWidth));
+            context.WriteClipped(x, _tabRowY, new string(' ', remainingWidth));
             x += remainingWidth;
         }
 
-        // Render right arrow and dropdown
-        if (needsOverflow)
-        {
-            var arrowFg = canScrollRight
-                ? theme.Get(TabBarTheme.ArrowForegroundColor)
-                : theme.Get(TabBarTheme.ArrowDisabledColor);
-            var arrowText = canScrollRight ? " ▶ " : "   ";
-            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
-            x += arrowWidth;
+        // Render left arrow (always visible, grayed if can't scroll left)
+        _leftArrowX = x;
+        var leftArrowFg = _canScrollLeft
+            ? theme.Get(TabBarTheme.ArrowForegroundColor)
+            : theme.Get(TabBarTheme.ArrowDisabledColor);
+        context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
+        x += ArrowButtonWidth;
 
-            var dropdownFg = theme.Get(TabBarTheme.DropdownForegroundColor);
-            context.WriteClipped(x, tabRowY, $"{dropdownFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
-        }
+        // Render right arrow (always visible, grayed if can't scroll right)
+        _rightArrowX = x;
+        var rightArrowFg = _canScrollRight
+            ? theme.Get(TabBarTheme.ArrowForegroundColor)
+            : theme.Get(TabBarTheme.ArrowDisabledColor);
+        context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
 
         // Render bottom separator row in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -329,6 +354,51 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         // Tab/Shift+Tab for focus navigation within content
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+
+        // Mouse click on tabs and arrows
+        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select tab or scroll");
+    }
+
+    private async Task HandleMouseClick(InputBindingActionContext ctx)
+    {
+        var mouseX = ctx.MouseX;
+        var mouseY = ctx.MouseY;
+
+        // Check if click is on the tab row
+        if (mouseY != _tabRowY)
+            return;
+
+        // Check if click is on left arrow
+        if (mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
+        {
+            if (_canScrollLeft)
+            {
+                _scrollOffset--;
+                MarkDirty();
+            }
+            return;
+        }
+
+        // Check if click is on right arrow
+        if (mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
+        {
+            if (_canScrollRight)
+            {
+                _scrollOffset++;
+                MarkDirty();
+            }
+            return;
+        }
+
+        // Check if click is on a tab
+        foreach (var (tabX, tabWidth, tabIndex) in _tabHitRegions)
+        {
+            if (mouseX >= tabX && mouseX < tabX + tabWidth)
+            {
+                await SelectTabAsync(tabIndex);
+                return;
+            }
+        }
     }
 
     /// <summary>
@@ -400,11 +470,9 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private void EnsureSelectedTabVisible()
     {
         // Calculate visible count with current scroll offset
+        // Always reserve space for arrow buttons at the end
         var tabWidths = Tabs.Select(CalculateTabWidth).ToList();
-        var needsOverflow = tabWidths.Sum() > _tabBarBounds.Width;
-        var arrowWidth = needsOverflow ? 3 : 0;
-        var dropdownWidth = needsOverflow ? 3 : 0;
-        var availableWidth = _tabBarBounds.Width - arrowWidth * 2 - dropdownWidth;
+        var availableWidth = _tabBarBounds.Width - (ArrowButtonWidth * 2);
         var visibleCount = CalculateVisibleCount(tabWidths, availableWidth, _scrollOffset);
 
         if (SelectedIndex < _scrollOffset)

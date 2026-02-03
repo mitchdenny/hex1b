@@ -94,8 +94,33 @@ public sealed class TabBarNode : Hex1bNode
     private int _visibleTabCount;
     private List<int> _tabWidths = new();
 
+    /// <summary>
+    /// Tab hit regions for mouse click handling (x position, width, tab index).
+    /// </summary>
+    private List<(int X, int Width, int TabIndex)> _tabHitRegions = new();
+
+    /// <summary>
+    /// X position of the left arrow button.
+    /// </summary>
+    private int _leftArrowX;
+
+    /// <summary>
+    /// X position of the right arrow button.
+    /// </summary>
+    private int _rightArrowX;
+
+    /// <summary>
+    /// Y position of the tab row (for mouse hit testing).
+    /// </summary>
+    private int _tabRowY;
+
+    /// <summary>
+    /// Cached scroll state for mouse handling.
+    /// </summary>
+    private bool _canScrollLeftCached;
+    private bool _canScrollRightCached;
+
     private const int ArrowButtonWidth = 3; // " < " or " > "
-    private const int DropdownButtonWidth = 3; // " ▼ "
 
     public override Size Measure(Constraints constraints)
     {
@@ -109,9 +134,8 @@ public sealed class TabBarNode : Hex1bNode
             _totalTabsWidth += tabWidth;
         }
 
-        // Available width for tabs (excluding overflow controls if needed)
-        var overflowWidth = NeedsOverflow ? (ArrowButtonWidth * 2 + DropdownButtonWidth) : 0;
-        _availableTabsWidth = Math.Max(0, constraints.MaxWidth - overflowWidth);
+        // Always reserve space for arrow buttons at the end
+        _availableTabsWidth = Math.Max(0, constraints.MaxWidth - (ArrowButtonWidth * 2));
 
         // Calculate how many tabs are visible
         _visibleTabCount = CalculateVisibleTabCount();
@@ -160,12 +184,15 @@ public sealed class TabBarNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
+        // Clear hit regions for this render
+        _tabHitRegions.Clear();
+
         var theme = context.Theme;
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
         // In Full mode, render top separator row, then tabs, then bottom separator
         // In Compact mode, just render tabs
-        var tabRowY = RenderMode == TabBarRenderMode.Full ? Bounds.Y + 1 : Bounds.Y;
+        _tabRowY = RenderMode == TabBarRenderMode.Full ? Bounds.Y + 1 : Bounds.Y;
 
         // Render top separator row in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -177,16 +204,9 @@ public sealed class TabBarNode : Hex1bNode
 
         var x = Bounds.X;
 
-        // Render left arrow if needed
-        if (NeedsOverflow)
-        {
-            var arrowFg = CanScrollLeft 
-                ? theme.Get(TabBarTheme.ArrowForegroundColor)
-                : theme.Get(TabBarTheme.ArrowDisabledColor);
-            var arrowText = CanScrollLeft ? " ◀ " : "   ";
-            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
-            x += ArrowButtonWidth;
-        }
+        // Cache scroll state for mouse handling
+        _canScrollLeftCached = CanScrollLeft;
+        _canScrollRightCached = CanScrollRight;
 
         // Render visible tabs
         for (int i = ScrollOffset; i < ScrollOffset + _visibleTabCount && i < Tabs.Count; i++)
@@ -213,32 +233,35 @@ public sealed class TabBarNode : Hex1bNode
             // Pad to tab width
             tabText = tabText.PadRight(tabWidth);
 
-            context.WriteClipped(x, tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
+            // Track hit region for this tab
+            _tabHitRegions.Add((x, tabWidth, i));
+
+            context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
             x += tabWidth;
         }
 
-        // Fill remaining space
-        var remainingWidth = Bounds.Width - (x - Bounds.X) - (NeedsOverflow ? ArrowButtonWidth + DropdownButtonWidth : 0);
+        // Fill remaining space before arrows
+        var remainingWidth = Bounds.Width - (x - Bounds.X) - (ArrowButtonWidth * 2);
         if (remainingWidth > 0)
         {
-            context.WriteClipped(x, tabRowY, new string(' ', remainingWidth));
+            context.WriteClipped(x, _tabRowY, new string(' ', remainingWidth));
             x += remainingWidth;
         }
 
-        // Render right arrow and dropdown if needed
-        if (NeedsOverflow)
-        {
-            var arrowFg = CanScrollRight
-                ? theme.Get(TabBarTheme.ArrowForegroundColor)
-                : theme.Get(TabBarTheme.ArrowDisabledColor);
-            var arrowText = CanScrollRight ? " ▶ " : "   ";
-            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
-            x += ArrowButtonWidth;
+        // Render left arrow (always visible, grayed if can't scroll left)
+        _leftArrowX = x;
+        var leftArrowFg = CanScrollLeft
+            ? theme.Get(TabBarTheme.ArrowForegroundColor)
+            : theme.Get(TabBarTheme.ArrowDisabledColor);
+        context.WriteClipped(x, _tabRowY, $"{leftArrowFg.ToForegroundAnsi()} ◀ {resetToGlobal}");
+        x += ArrowButtonWidth;
 
-            // Dropdown button
-            var dropdownFg = theme.Get(TabBarTheme.DropdownForegroundColor);
-            context.WriteClipped(x, tabRowY, $"{dropdownFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
-        }
+        // Render right arrow (always visible, grayed if can't scroll right)
+        _rightArrowX = x;
+        var rightArrowFg = CanScrollRight
+            ? theme.Get(TabBarTheme.ArrowForegroundColor)
+            : theme.Get(TabBarTheme.ArrowDisabledColor);
+        context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
 
         // Render bottom separator row in Full mode
         if (RenderMode == TabBarRenderMode.Full)
@@ -265,6 +288,49 @@ public sealed class TabBarNode : Hex1bNode
                 ScrollOffset++;
             return Task.CompletedTask;
         }, "Scroll tabs right");
+
+        // Mouse click on tabs and arrows
+        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select tab or scroll");
+    }
+
+    private async Task HandleMouseClick(InputBindingActionContext ctx)
+    {
+        var mouseX = ctx.MouseX;
+        var mouseY = ctx.MouseY;
+
+        // Check if click is on the tab row
+        if (mouseY != _tabRowY)
+            return;
+
+        // Check if click is on left arrow
+        if (mouseX >= _leftArrowX && mouseX < _leftArrowX + ArrowButtonWidth)
+        {
+            if (_canScrollLeftCached)
+            {
+                ScrollOffset--;
+            }
+            return;
+        }
+
+        // Check if click is on right arrow
+        if (mouseX >= _rightArrowX && mouseX < _rightArrowX + ArrowButtonWidth)
+        {
+            if (_canScrollRightCached)
+            {
+                ScrollOffset++;
+            }
+            return;
+        }
+
+        // Check if click is on a tab
+        foreach (var (tabX, tabWidth, tabIndex) in _tabHitRegions)
+        {
+            if (mouseX >= tabX && mouseX < tabX + tabWidth)
+            {
+                await SelectTabAsync(tabIndex);
+                return;
+            }
+        }
     }
 
     /// <summary>
