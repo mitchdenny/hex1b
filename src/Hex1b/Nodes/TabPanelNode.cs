@@ -501,7 +501,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         // Check if click is on selector dropdown (only if enabled)
         if (ShowSelector && _selectorX >= 0 && mouseX >= _selectorX && mouseX < _selectorX + SelectorButtonWidth)
         {
-            // TODO: Show dropdown menu with all tabs
+            ShowTabSelectorDropdown(ctx);
             return;
         }
 
@@ -615,5 +615,41 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             _scrollOffset = SelectedIndex - visibleCount + 1;
             MarkDirty();
         }
+    }
+
+    /// <summary>
+    /// Shows the tab selector dropdown menu.
+    /// </summary>
+    private void ShowTabSelectorDropdown(InputBindingActionContext ctx)
+    {
+        if (Tabs.Count == 0) return;
+
+        // Build list of tab titles
+        var tabTitles = Tabs.Select(t => t.Title).ToList();
+
+        // Create a list widget with current selection
+        var list = new ListWidget(tabTitles) { InitialSelectedIndex = SelectedIndex }
+            .OnItemActivated(async e =>
+            {
+                // Dismiss the popup first
+                if (ctx.Popups.Pop(out var focusRestoreNode) && focusRestoreNode != null)
+                {
+                    var currentlyFocused = e.Context.FocusedNode;
+                    if (currentlyFocused != null)
+                    {
+                        currentlyFocused.IsFocused = false;
+                    }
+                    focusRestoreNode.IsFocused = true;
+                }
+
+                // Select the tab
+                await SelectTabAsync(e.ActivatedIndex);
+            });
+
+        // Wrap in a border for visual distinction
+        var popupContent = new BorderWidget(list);
+
+        // Push the popup anchored to this node (the tab panel)
+        ctx.Popups.PushAnchored(this, AnchorPosition.Below, popupContent, this);
     }
 }
