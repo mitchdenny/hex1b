@@ -218,6 +218,10 @@ public sealed class TabBarNode : Hex1bNode
         var x = Bounds.X;
         var tabsStartX = x;
 
+        // Track selected tab position for top separator
+        int selectedTabStartX = -1;
+        int selectedTabEndX = -1;
+
         // Cache scroll state for mouse handling
         _canScrollLeftCached = CanScrollLeft;
         _canScrollRightCached = CanScrollRight;
@@ -229,6 +233,11 @@ public sealed class TabBarNode : Hex1bNode
             var isSelected = i == SelectedIndex;
             var tabWidth = _tabWidths[i];
             var tabStartX = x;
+
+            if (isSelected)
+            {
+                selectedTabStartX = tabStartX;
+            }
 
             var fg = isSelected
                 ? theme.Get(TabBarTheme.SelectedForegroundColor)
@@ -281,11 +290,16 @@ public sealed class TabBarNode : Hex1bNode
             context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {resetToGlobal}");
             x += 1;
 
+            if (isSelected)
+            {
+                selectedTabEndX = x;
+            }
+
             // Track hit region for this tab (full width)
             _tabHitRegions.Add((tabStartX, tabWidth, i));
         }
 
-        var tabsEndX = x; // Track where tabs end for top separator
+        var tabsEndX = x; // Track where tabs end
 
         // Fill remaining space before arrows
         var remainingWidth = Bounds.Width - (x - Bounds.X) - (ArrowButtonWidth * 2);
@@ -313,12 +327,12 @@ public sealed class TabBarNode : Hex1bNode
         // Render separators in Full mode
         if (RenderMode == TabBarRenderMode.Full)
         {
-            // Top separator: thin line (▁) only above the tabs area
-            var topSeparatorWidth = tabsEndX - tabsStartX;
-            if (topSeparatorWidth > 0)
+            // Top separator: thin line (▁) only above the selected tab
+            if (selectedTabStartX >= 0 && selectedTabEndX > selectedTabStartX)
             {
+                var topSeparatorWidth = selectedTabEndX - selectedTabStartX;
                 var topSeparatorLine = new string('▁', topSeparatorWidth);
-                context.WriteClipped(tabsStartX, Bounds.Y, topSeparatorLine);
+                context.WriteClipped(selectedTabStartX, Bounds.Y, topSeparatorLine);
             }
 
             // Bottom separator: thin line (▔) across full width
