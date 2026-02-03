@@ -91,9 +91,74 @@ public sealed class TreeItemNode : Hex1bNode
     public IconNode? UserIconNode { get; set; }
     
     /// <summary>
-    /// User data associated with this item.
+    /// User data value associated with this item.
     /// </summary>
-    public object? Tag { get; set; }
+    internal object? DataValue { get; set; }
+    
+    /// <summary>
+    /// The type of the user data, for runtime validation.
+    /// </summary>
+    internal Type? DataType { get; set; }
+    
+    /// <summary>
+    /// Gets the typed data associated with this item.
+    /// </summary>
+    /// <typeparam name="T">The expected type of the data.</typeparam>
+    /// <returns>The data cast to the specified type.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no data is set.</exception>
+    /// <exception cref="InvalidCastException">Thrown if the data type doesn't match.</exception>
+    /// <example>
+    /// <code>
+    /// var server = node.GetData&lt;Server&gt;();
+    /// </code>
+    /// </example>
+    public T GetData<T>()
+    {
+        if (DataValue == null && DataType == null)
+        {
+            throw new InvalidOperationException("No data has been set on this tree item. Use Data<T>() when creating the item.");
+        }
+        
+        if (DataType != null && DataType != typeof(T))
+        {
+            throw new InvalidCastException($"Tree item data is of type '{DataType.Name}', not '{typeof(T).Name}'.");
+        }
+        
+        return (T)DataValue!;
+    }
+    
+    /// <summary>
+    /// Tries to get the typed data associated with this item.
+    /// </summary>
+    /// <typeparam name="T">The expected type of the data.</typeparam>
+    /// <param name="data">The data if successful, default otherwise.</param>
+    /// <returns>True if data exists and matches the type, false otherwise.</returns>
+    public bool TryGetData<T>([System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out T data)
+    {
+        if (DataType == typeof(T) && DataValue != null)
+        {
+            data = (T)DataValue;
+            return true;
+        }
+        
+        data = default;
+        return false;
+    }
+    
+    /// <summary>
+    /// Gets the typed data, or a default value if not set or wrong type.
+    /// </summary>
+    /// <typeparam name="T">The expected type of the data.</typeparam>
+    /// <param name="defaultValue">The default value to return if data is not available.</param>
+    /// <returns>The data or the default value.</returns>
+    public T? GetDataOrDefault<T>(T? defaultValue = default)
+    {
+        if (DataType == typeof(T) && DataValue != null)
+        {
+            return (T)DataValue;
+        }
+        return defaultValue;
+    }
     
     /// <summary>
     /// The source widget for this node.
@@ -294,5 +359,74 @@ public sealed class TreeItemNode : Hex1bNode
         {
             child.SetSelectionCascade(selected);
         }
+    }
+    
+    /// <summary>
+    /// Gets the composed child nodes (indicator, checkbox, icon) for hit testing.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (LoadingSpinnerNode != null) yield return LoadingSpinnerNode;
+        else if (ExpandIndicatorNode != null) yield return ExpandIndicatorNode;
+        if (CheckboxNode != null) yield return CheckboxNode;
+        if (UserIconNode != null) yield return UserIconNode;
+    }
+    
+    /// <summary>
+    /// Gets focusable nodes in this item's composed children.
+    /// The checkbox is focusable for click handling.
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        // TreeItemNode itself is not directly focusable by users - 
+        // TreeNode manages focus. But we expose composed children.
+        // Only expose CheckboxNode for hit testing so clicks route to it.
+        if (CheckboxNode != null)
+        {
+            yield return CheckboxNode;
+        }
+    }
+    
+    /// <summary>
+    /// Arranges the composed child nodes with real bounds.
+    /// Called by TreeNode during arrangement.
+    /// </summary>
+    /// <param name="x">Starting X position for this item's content (after guides).</param>
+    /// <param name="y">Y position for this item.</param>
+    /// <param name="theme">Theme for measuring elements.</param>
+    public void ArrangeComposedNodes(int x, int y, Theming.Hex1bTheme theme)
+    {
+        var currentX = x;
+        
+        // Indicator (spinner or expand icon)
+        if (LoadingSpinnerNode != null)
+        {
+            LoadingSpinnerNode.Arrange(new Layout.Rect(currentX, y, 2, 1));
+            currentX += 2; // spinner + space
+        }
+        else if (ExpandIndicatorNode != null)
+        {
+            ExpandIndicatorNode.Arrange(new Layout.Rect(currentX, y, 2, 1));
+            currentX += 2; // icon + space
+        }
+        // Leaf nodes have no indicator - nothing added
+        
+        // Checkbox - only the visual box (3 chars), trailing space is tree layout
+        if (CheckboxNode != null)
+        {
+            CheckboxNode.Arrange(new Layout.Rect(currentX, y, 3, 1));
+            currentX += 4; // "[x] " - space handled by tree render
+        }
+        
+        // User icon
+        if (UserIconNode != null)
+        {
+            var iconWidth = UserIconNode.Icon != null ? DisplayWidth.GetStringWidth(UserIconNode.Icon) + 1 : 0;
+            UserIconNode.Arrange(new Layout.Rect(currentX, y, iconWidth, 1));
+            currentX += iconWidth;
+        }
+        
+        // Store the label start position for potential future use
+        // (not strictly needed but useful for debugging)
     }
 }

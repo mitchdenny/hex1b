@@ -31,13 +31,9 @@ public sealed class TreeItemActivatedEventArgs : WidgetEventArgs<TreeWidget, Tre
 {
     /// <summary>
     /// The tree item node that was activated.
+    /// Use <see cref="TreeItemNode.GetData{T}"/> to retrieve typed data.
     /// </summary>
     public TreeItemNode Item { get; }
-    
-    /// <summary>
-    /// The original data object associated with this item (from Tag property).
-    /// </summary>
-    public object? Data => Item.Tag;
 
     public TreeItemActivatedEventArgs(
         TreeWidget widget,
@@ -58,13 +54,9 @@ public sealed class TreeItemExpandingEventArgs : WidgetEventArgs<TreeWidget, Tre
 {
     /// <summary>
     /// The tree item node that is expanding.
+    /// Use <see cref="TreeItemNode.GetData{T}"/> to retrieve typed data.
     /// </summary>
     public TreeItemNode Item { get; }
-    
-    /// <summary>
-    /// The original data object associated with this item (from Tag property).
-    /// </summary>
-    public object? Tag => Item.Tag;
 
     public TreeItemExpandingEventArgs(
         TreeWidget widget,

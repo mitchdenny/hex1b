@@ -11,7 +11,7 @@ public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecke
     /// <summary>
     /// Optional label displayed after the checkbox.
     /// </summary>
-    public string? Label { get; init; }
+    internal string? LabelText { get; init; }
 
     /// <summary>
     /// Event handler for when the checkbox is toggled.
@@ -36,14 +36,9 @@ public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecke
     public CheckboxWidget Indeterminate() => this with { State = CheckboxState.Indeterminate };
 
     /// <summary>
-    /// Sets the checkbox state.
-    /// </summary>
-    public CheckboxWidget WithState(CheckboxState state) => this with { State = state };
-
-    /// <summary>
     /// Sets the label displayed after the checkbox.
     /// </summary>
-    public CheckboxWidget WithLabel(string label) => this with { Label = label };
+    public CheckboxWidget Label(string label) => this with { LabelText = label };
 
     /// <summary>
     /// Sets a synchronous handler called when the checkbox is toggled.
@@ -63,13 +58,13 @@ public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecke
     {
         var node = existingNode as CheckboxNode ?? new CheckboxNode();
 
-        if (node.State != State || node.Label != Label)
+        if (node.State != State || node.Label != LabelText)
         {
             node.MarkDirty();
         }
 
         node.State = State;
-        node.Label = Label;
+        node.Label = LabelText;
         node.SourceWidget = this;
 
         if (ToggledHandler != null)

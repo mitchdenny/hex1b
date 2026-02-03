@@ -26,7 +26,7 @@ public static class CheckboxExtensions
     /// </summary>
     public static CheckboxWidget Checkbox<TParent>(this WidgetContext<TParent> ctx, string label)
         where TParent : Hex1bWidget
-        => new() { Label = label };
+        => new() { LabelText = label };
 
     /// <summary>
     /// Creates a checkbox with the specified state and label.
@@ -36,7 +36,7 @@ public static class CheckboxExtensions
         CheckboxState state,
         string label)
         where TParent : Hex1bWidget
-        => new(state) { Label = label };
+        => new(state) { LabelText = label };
 
     /// <summary>
     /// Creates a checkbox with the specified checked state and label.
@@ -46,5 +46,5 @@ public static class CheckboxExtensions
         bool isChecked,
         string? label = null)
         where TParent : Hex1bWidget
-        => new(isChecked ? CheckboxState.Checked : CheckboxState.Unchecked) { Label = label };
+        => new(isChecked ? CheckboxState.Checked : CheckboxState.Unchecked) { LabelText = label };
 }

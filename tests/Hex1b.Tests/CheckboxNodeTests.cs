@@ -82,7 +82,7 @@ public class CheckboxNodeTests
     [Fact]
     public async Task Widget_WithLabel_SetsLabel()
     {
-        var widget = new CheckboxWidget().WithLabel("Test Label");
+        var widget = new CheckboxWidget().Label("Test Label");
 
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
@@ -95,10 +95,10 @@ public class CheckboxNodeTests
     {
         var widget = new CheckboxWidget()
             .Checked()
-            .WithLabel("Option 1");
+            .Label("Option 1");
 
         Assert.Equal(CheckboxState.Checked, widget.State);
-        Assert.Equal("Option 1", widget.Label);
+        Assert.Equal("Option 1", widget.LabelText);
     }
 
     [Fact]

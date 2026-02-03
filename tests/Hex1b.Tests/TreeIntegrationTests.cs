@@ -32,9 +32,9 @@ public class TreeIntegrationTests
     private static TreeWidget CreateSimpleTree()
     {
         return new TreeWidget([
-            new TreeItemWidget("Root").Icon("📁").Expanded().WithChildren(
+            new TreeItemWidget("Root").Icon("📁").Expanded().Children(
                 new TreeItemWidget("Child 1").Icon("📄"),
-                new TreeItemWidget("Child 2").Icon("📄").WithChildren(
+                new TreeItemWidget("Child 2").Icon("📄").Children(
                     new TreeItemWidget("Grandchild")
                 ),
                 new TreeItemWidget("Child 3").Icon("📄")
@@ -45,11 +45,11 @@ public class TreeIntegrationTests
     private static TreeWidget CreateMultiRootTree()
     {
         return new TreeWidget([
-            new TreeItemWidget("Root A").Expanded().WithChildren(
+            new TreeItemWidget("Root A").Expanded().Children(
                 new TreeItemWidget("A1"),
                 new TreeItemWidget("A2")
             ),
-            new TreeItemWidget("Root B").WithChildren(
+            new TreeItemWidget("Root B").Children(
                 new TreeItemWidget("B1")
             ),
             new TreeItemWidget("Root C")
@@ -59,10 +59,10 @@ public class TreeIntegrationTests
     private static TreeWidget CreateDeepTree()
     {
         return new TreeWidget([
-            new TreeItemWidget("Level 0").Expanded().WithChildren(
-                new TreeItemWidget("Level 1").Expanded().WithChildren(
-                    new TreeItemWidget("Level 2").Expanded().WithChildren(
-                        new TreeItemWidget("Level 3").Expanded().WithChildren(
+            new TreeItemWidget("Level 0").Expanded().Children(
+                new TreeItemWidget("Level 1").Expanded().Children(
+                    new TreeItemWidget("Level 2").Expanded().Children(
+                        new TreeItemWidget("Level 3").Expanded().Children(
                             new TreeItemWidget("Level 4")
                         )
                     )
@@ -172,7 +172,7 @@ public class TreeIntegrationTests
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => new TreeWidget([
-                new TreeItemWidget("Root").WithChildren(  // Not expanded
+                new TreeItemWidget("Root").Children(  // Not expanded
                     new TreeItemWidget("Hidden Child")
                 )
             ]))
@@ -315,7 +315,7 @@ public class TreeIntegrationTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Parent").WithChildren(
+                new TreeItemWidget("Parent").Children(
                     new TreeItemWidget("Child")
                 )
             ])),
@@ -349,7 +349,7 @@ public class TreeIntegrationTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child")
                 )
             ])),
@@ -376,7 +376,7 @@ public class TreeIntegrationTests
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("First Child"),
                     new TreeItemWidget("Second Child")
                 )
@@ -404,7 +404,7 @@ public class TreeIntegrationTests
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child")
                 )
             ]))
@@ -475,7 +475,7 @@ public class TreeIntegrationTests
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2"),
                 new TreeItemWidget("Item 3")
-            ]).WithMultiSelect().OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })),
+            ]).MultiSelect().OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -513,7 +513,7 @@ public class TreeIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2")
-            ]).WithMultiSelect().OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })),
+            ]).MultiSelect().OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -539,7 +539,7 @@ public class TreeIntegrationTests
             .WithHex1bApp((app, options) => ctx => new TreeWidget([
                 new TreeItemWidget("Unchecked Item"),
                 new TreeItemWidget("Checked Item").Selected()
-            ]).WithMultiSelect())
+            ]).MultiSelect())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -604,7 +604,7 @@ public class TreeIntegrationTests
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
                 b.Tree(
-                    new TreeItemWidget("Root").Expanded().WithChildren(
+                    new TreeItemWidget("Root").Expanded().Children(
                         new TreeItemWidget("Child 1"),
                         new TreeItemWidget("Child 2")
                     )
@@ -912,7 +912,7 @@ public class TreeIntegrationTests
                     .Set(Theming.TreeTheme.LastBranch, lastBranch)
                     .Set(Theming.TreeTheme.Vertical, vertical),
                 new TreeWidget([
-                    new TreeItemWidget("Root").Expanded().WithChildren(
+                    new TreeItemWidget("Root").Expanded().Children(
                         new TreeItemWidget("Child 1"),
                         new TreeItemWidget("Child 2")
                     )
@@ -955,7 +955,7 @@ public class TreeIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
                 new TreeItemWidget("Parent")
                     .OnExpanded(e => { expandedLabel = e.Item.Label; })
-                    .WithChildren(
+                    .Children(
                         new TreeItemWidget("Child")
                     )
             ])),
@@ -990,7 +990,7 @@ public class TreeIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
                 new TreeItemWidget("Parent").Expanded()
                     .OnCollapsed(e => { collapsedLabel = e.Item.Label; })
-                    .WithChildren(
+                    .Children(
                         new TreeItemWidget("Child")
                     )
             ])),
@@ -1087,7 +1087,7 @@ public class TreeIntegrationTests
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => new TreeWidget([
-                new TreeItemWidget("Root").Expanded().WithChildren(
+                new TreeItemWidget("Root").Expanded().Children(
                     new TreeItemWidget("Visible Child")
                 )
             ]))
@@ -1130,12 +1130,12 @@ public class TreeIntegrationTests
                 v.HStack(h => [
                     h.Border(b => [
                         b.Tree(
-                            new TreeItemWidget("Root").Icon("📁").Expanded().WithChildren(
-                                new TreeItemWidget("Documents").Icon("📁").Expanded().WithChildren(
+                            new TreeItemWidget("Root").Icon("📁").Expanded().Children(
+                                new TreeItemWidget("Documents").Icon("📁").Expanded().Children(
                                     new TreeItemWidget("report.docx").Icon("📄"),
                                     new TreeItemWidget("notes.txt").Icon("📄")
                                 ),
-                                new TreeItemWidget("Pictures").Icon("📸").Expanded().WithChildren(
+                                new TreeItemWidget("Pictures").Icon("📸").Expanded().Children(
                                     new TreeItemWidget("photo.jpg").Icon("📷")
                                 )
                             )
@@ -1144,11 +1144,11 @@ public class TreeIntegrationTests
                     
                     h.Border(b => [
                         b.Tree(
-                            new TreeItemWidget("Options").Expanded().WithChildren(
+                            new TreeItemWidget("Options").Expanded().Children(
                                 new TreeItemWidget("Option A"),
                                 new TreeItemWidget("Option B")
                             )
-                        ).WithMultiSelect().FillHeight()
+                        ).MultiSelect().FillHeight()
                     ], title: "✅ Select").FillWidth().FillHeight()
                 ]).FillHeight()
             ])),

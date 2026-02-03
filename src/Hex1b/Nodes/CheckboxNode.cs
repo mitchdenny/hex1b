@@ -83,7 +83,7 @@ public sealed class CheckboxNode : Hex1bNode
 
     private async Task HandleClick(InputBindingActionContext ctx)
     {
-        // Check if click is within the checkbox bounds (first 3 characters)
+        // Only toggle on the visual checkbox box (e.g., "[x]" = 3 chars), not trailing space
         var localX = ctx.MouseX - Bounds.X;
         if (localX >= 0 && localX < 3)
         {

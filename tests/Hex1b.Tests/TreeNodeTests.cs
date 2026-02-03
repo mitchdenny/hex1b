@@ -18,10 +18,10 @@ public class TreeNodeTests
     {
         return new TreeWidget([
             new TreeItemWidget("Root 1") { 
-                Children = [
+                ChildItems = [
                     new TreeItemWidget("Child 1.1"),
                     new TreeItemWidget("Child 1.2") {
-                        Children = [
+                        ChildItems = [
                             new TreeItemWidget("Grandchild 1.2.1")
                         ],
                         HasChildren = true
@@ -122,7 +122,7 @@ public class TreeNodeTests
     {
         var widget = new TreeWidget([
             new TreeItemWidget("Root") { 
-                Children = [new TreeItemWidget("Child")],
+                ChildItems = [new TreeItemWidget("Child")],
                 HasChildren = true,
                 IsExpanded = false // Collapsed
             }
@@ -192,9 +192,9 @@ public class TreeNodeTests
     {
         var widget = new TreeWidget([
             new TreeItemWidget("Root") { 
-                Children = [
+                ChildItems = [
                     new TreeItemWidget("Child") {
-                        Children = [new TreeItemWidget("Grandchild")],
+                        ChildItems = [new TreeItemWidget("Grandchild")],
                         HasChildren = true,
                         IsExpanded = true
                     }
@@ -232,7 +232,7 @@ public class TreeNodeTests
     [Fact]
     public async Task MultiSelect_SetsToggleSelectCallback()
     {
-        var widget = CreateSimpleTree().WithMultiSelect(true);
+        var widget = CreateSimpleTree().MultiSelect();
         var node = await ReconcileTreeAsync(widget);
         
         // All items should have ToggleSelectCallback set
@@ -245,7 +245,7 @@ public class TreeNodeTests
         var widget = new TreeWidget([
             new TreeItemWidget("Selected") { IsSelected = true },
             new TreeItemWidget("Not Selected")
-        ]).WithMultiSelect(true);
+        ]).MultiSelect();
         var node = await ReconcileTreeAsync(widget);
         
         var selected = node.GetSelectedItems();
@@ -304,23 +304,72 @@ public class TreeNodeTests
             .Icon("📁")
             .Expanded(true)
             .Selected(true)
-            .WithTag("user-data");
+            .Data("user-data");
         
         Assert.Equal("Test", item.Label);
         Assert.Equal("📁", item.IconValue);
         Assert.True(item.IsExpanded);
         Assert.True(item.IsSelected);
-        Assert.Equal("user-data", item.Tag);
+        Assert.Equal("user-data", item.DataValue);
+        Assert.Equal(typeof(string), item.DataType);
+    }
+
+    [Fact]
+    public async Task TreeItemNode_GetData_ReturnsTypedData()
+    {
+        var widget = new TreeWidget([
+            new TreeItemWidget("Test").Data("my-data")
+        ]);
+        
+        var context = ReconcileContext.CreateRoot();
+        var node = await widget.ReconcileAsync(null, context) as TreeNode;
+        
+        var itemNode = node!.Items[0];
+        var data = itemNode.GetData<string>();
+        
+        Assert.Equal("my-data", data);
+    }
+
+    [Fact]
+    public async Task TreeItemNode_GetData_ThrowsOnTypeMismatch()
+    {
+        var widget = new TreeWidget([
+            new TreeItemWidget("Test").Data("string-data")
+        ]);
+        
+        var context = ReconcileContext.CreateRoot();
+        var node = await widget.ReconcileAsync(null, context) as TreeNode;
+        
+        var itemNode = node!.Items[0];
+        
+        Assert.Throws<InvalidCastException>(() => itemNode.GetData<int>());
+    }
+
+    [Fact]
+    public async Task TreeItemNode_TryGetData_ReturnsFalseOnTypeMismatch()
+    {
+        var widget = new TreeWidget([
+            new TreeItemWidget("Test").Data("string-data")
+        ]);
+        
+        var context = ReconcileContext.CreateRoot();
+        var node = await widget.ReconcileAsync(null, context) as TreeNode;
+        
+        var itemNode = node!.Items[0];
+        
+        Assert.False(itemNode.TryGetData<int>(out _));
+        Assert.True(itemNode.TryGetData<string>(out var data));
+        Assert.Equal("string-data", data);
     }
 
     [Fact]
     public void TreeItemWidget_WithChildren_SetsHasChildren()
     {
         var child = new TreeItemWidget("Child");
-        var parent = new TreeItemWidget("Parent").WithChildren(child);
+        var parent = new TreeItemWidget("Parent").Children(child);
         
         Assert.True(parent.HasChildren);
-        Assert.Single(parent.Children);
+        Assert.Single(parent.ChildItems);
     }
 
     [Fact]
@@ -379,7 +428,7 @@ public class TreeNodeTests
     public async Task TreeNode_Expand_ChangesIsExpanded()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Parent").WithChildren(
+            new TreeItemWidget("Parent").Children(
                 new TreeItemWidget("Child")
             )
         ]);
@@ -403,7 +452,7 @@ public class TreeNodeTests
     public async Task TreeNode_Collapse_ChangesIsExpanded()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Parent").Expanded().WithChildren(
+            new TreeItemWidget("Parent").Expanded().Children(
                 new TreeItemWidget("Child")
             )
         ]);

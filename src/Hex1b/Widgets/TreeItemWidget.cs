@@ -18,7 +18,7 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// <summary>
     /// Child tree items. Empty by default.
     /// </summary>
-    public IReadOnlyList<TreeItemWidget> Children { get; init; } = [];
+    internal IReadOnlyList<TreeItemWidget> ChildItems { get; init; } = [];
     
     /// <summary>
     /// Whether this item is expanded to show children. Default is false (collapsed).
@@ -43,9 +43,14 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     public bool HasChildren { get; init; } = false;
     
     /// <summary>
-    /// User data associated with this item. Passed through to event handlers.
+    /// User data value associated with this item.
     /// </summary>
-    public object? Tag { get; init; }
+    internal object? DataValue { get; init; }
+    
+    /// <summary>
+    /// The type of the user data, for runtime validation in GetData&lt;T&gt;.
+    /// </summary>
+    internal Type? DataType { get; init; }
 
     // Lazy loading callbacks
     internal Func<TreeItemExpandingEventArgs, IEnumerable<TreeItemWidget>>? ExpandingHandler { get; init; }
@@ -66,8 +71,8 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// <summary>
     /// Sets the child items. Also sets HasChildren to true if children are provided.
     /// </summary>
-    public TreeItemWidget WithChildren(params TreeItemWidget[] children)
-        => this with { Children = children, HasChildren = children.Length > 0 };
+    public TreeItemWidget Children(params TreeItemWidget[] children)
+        => this with { ChildItems = children, HasChildren = children.Length > 0 };
 
     /// <summary>
     /// Sets whether this item is initially expanded.
@@ -89,16 +94,19 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
         => this with { IsSelected = selected };
 
     /// <summary>
-    /// Sets the HasChildren hint. Use when children will be lazy-loaded.
+    /// Associates typed data with this item. Retrieve with <see cref="TreeItemNode.GetData{T}"/>.
     /// </summary>
-    public TreeItemWidget WithHasChildren(bool hasChildren = true)
-        => this with { HasChildren = hasChildren };
-
-    /// <summary>
-    /// Sets the user data tag for this item.
-    /// </summary>
-    public TreeItemWidget WithTag(object? tag)
-        => this with { Tag = tag };
+    /// <typeparam name="T">The type of the data.</typeparam>
+    /// <param name="data">The data to associate with this item.</param>
+    /// <returns>A new TreeItemWidget with the data set.</returns>
+    /// <example>
+    /// <code>
+    /// t.Item(server.Name).Data(server)
+    ///     .OnActivated(e => ConnectTo(e.Item.GetData&lt;Server&gt;()))
+    /// </code>
+    /// </example>
+    public TreeItemWidget Data<T>(T data)
+        => this with { DataValue = data, DataType = typeof(T) };
 
     /// <summary>
     /// Sets a synchronous handler for lazy loading children when the item is expanded.

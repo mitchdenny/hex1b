@@ -58,7 +58,7 @@ public readonly struct TreeContext
         var childList = children(childContext).ToList();
         return new TreeItemWidget(label)
         {
-            Children = childList,
+            ChildItems = childList,
             HasChildren = childList.Count > 0
         };
     }

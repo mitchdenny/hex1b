@@ -187,11 +187,11 @@ public class TreeCascadeSelectionTests
     public async Task ToggleSelectionAsync_WithCascade_SelectsAllChildren()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Parent").WithChildren(
+            new TreeItemWidget("Parent").Children(
                 new TreeItemWidget("Child 1"),
                 new TreeItemWidget("Child 2")
             )
-        ]).WithCascadeSelection();
+        ]).MultiSelect();
         
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as TreeNode;
@@ -215,11 +215,11 @@ public class TreeCascadeSelectionTests
     public async Task ToggleSelectionAsync_WithCascade_DeselectingChildMakesParentIndeterminate()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Parent").WithChildren(
+            new TreeItemWidget("Parent").Children(
                 new TreeItemWidget("Child 1"),
                 new TreeItemWidget("Child 2")
             )
-        ]).WithCascadeSelection();
+        ]).MultiSelect();
         
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as TreeNode;
@@ -243,14 +243,14 @@ public class TreeCascadeSelectionTests
     }
 
     [Fact]
-    public async Task ToggleSelectionAsync_WithoutCascade_OnlyTogglesClickedItem()
+    public async Task ToggleSelectionAsync_CascadesSelection()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Parent").WithChildren(
+            new TreeItemWidget("Parent").Children(
                 new TreeItemWidget("Child 1"),
                 new TreeItemWidget("Child 2")
             )
-        ]).WithMultiSelect(); // Multi-select but NOT cascade
+        ]).MultiSelect();
         
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as TreeNode;
@@ -260,10 +260,10 @@ public class TreeCascadeSelectionTests
         var ctx = new InputBindingActionContext(focusRing, null, default);
         await node!.ToggleSelectionAsync(node.Items[0], ctx);
         
-        // Only parent should be selected, not children
+        // Parent and all children should be selected (cascade)
         Assert.True(node.Items[0].IsSelected);
-        Assert.False(node.Items[0].Children[0].IsSelected);
-        Assert.False(node.Items[0].Children[1].IsSelected);
+        Assert.True(node.Items[0].Children[0].IsSelected);
+        Assert.True(node.Items[0].Children[1].IsSelected);
     }
 
     #endregion
@@ -271,21 +271,11 @@ public class TreeCascadeSelectionTests
     #region Widget API Tests
 
     [Fact]
-    public void WithCascadeSelection_EnablesMultiSelect()
+    public void MultiSelect_EnablesMultiSelectAndCascade()
     {
-        var widget = new TreeWidget([]).WithCascadeSelection();
+        var widget = new TreeWidget([]).MultiSelect();
         
-        Assert.True(widget.MultiSelect);
-        Assert.True(widget.CascadeSelection);
-    }
-
-    [Fact]
-    public void WithCascadeSelection_False_PreservesMultiSelectIfAlreadyEnabled()
-    {
-        var widget = new TreeWidget([]).WithMultiSelect().WithCascadeSelection(false);
-        
-        Assert.True(widget.MultiSelect);
-        Assert.False(widget.CascadeSelection);
+        Assert.True(widget.IsMultiSelect);
     }
 
     #endregion
@@ -304,11 +294,11 @@ public class TreeCascadeSelectionTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child 1").Selected(true), // Pre-select only one child
                     new TreeItemWidget("Child 2").Selected(false)
                 )
-            ]).WithCascadeSelection()),
+            ]).MultiSelect()),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -345,11 +335,11 @@ public class TreeCascadeSelectionTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child 1"),
                     new TreeItemWidget("Child 2")
                 )
-            ]).WithCascadeSelection()),
+            ]).MultiSelect()),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -385,15 +375,15 @@ public class TreeCascadeSelectionTests
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2")
-            ]).WithMultiSelect()),
+            ]).MultiSelect()),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        // For root items (depth 0): guide=0, indicator=2, so checkbox is at x=2-5
+        // For root leaf items (depth 0): no guide, no indicator, checkbox at x=0-2
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "tree to render")
-            .ClickAt(3, 1)  // Click on checkbox area of Item 2 (second row, x=3 is in [2,6) range)
+            .ClickAt(1, 1)  // Click on checkbox of Item 2 (second row, x=1 is on the 'x' in [x])
             .Wait(50)
             .Capture("after_click")
             .Ctrl().Key(Hex1bKey.C)
@@ -421,7 +411,7 @@ public class TreeCascadeSelectionTests
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2")
-            ]).WithMultiSelect()),
+            ]).MultiSelect()),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -456,7 +446,7 @@ public class TreeCascadeSelectionTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Parent").Expanded().WithChildren(
+                new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child 1"),
                     new TreeItemWidget("Child 2")
                 )

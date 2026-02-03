@@ -11,16 +11,10 @@ namespace Hex1b.Widgets;
 public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidget
 {
     /// <summary>
-    /// Whether multiple items can be selected. Default is false (single focus).
+    /// Whether multiple items can be selected with checkboxes. Default is false.
+    /// When enabled, selecting a parent automatically selects all children (cascade selection).
     /// </summary>
-    public bool MultiSelect { get; init; } = false;
-
-    /// <summary>
-    /// Whether selecting a parent item automatically selects all children,
-    /// and deselecting a child shows partial selection on parent.
-    /// Only applies when <see cref="MultiSelect"/> is true.
-    /// </summary>
-    public bool CascadeSelection { get; init; } = false;
+    public bool IsMultiSelect { get; init; } = false;
 
     // Container-level event handlers
     internal Func<TreeSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
@@ -53,18 +47,12 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         => this with { ItemActivatedHandler = handler };
 
     /// <summary>
-    /// Enables multi-select mode with checkboxes.
-    /// </summary>
-    public TreeWidget WithMultiSelect(bool multiSelect = true)
-        => this with { MultiSelect = multiSelect };
-
-    /// <summary>
-    /// Enables cascade selection mode where selecting a parent selects all children,
+    /// Enables multi-select mode with checkboxes and cascade selection.
+    /// Selecting a parent automatically selects all children,
     /// and partial child selection shows an indeterminate state on the parent.
-    /// Automatically enables multi-select if not already enabled.
     /// </summary>
-    public TreeWidget WithCascadeSelection(bool cascadeSelection = true)
-        => this with { CascadeSelection = cascadeSelection, MultiSelect = cascadeSelection || MultiSelect };
+    public TreeWidget MultiSelect(bool enabled = true)
+        => this with { IsMultiSelect = enabled };
 
     #endregion
 
@@ -73,8 +61,8 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         var node = existingNode as TreeNode ?? new TreeNode();
         var isNewNode = existingNode == null;
 
-        node.MultiSelect = MultiSelect;
-        node.CascadeSelection = CascadeSelection;
+        node.MultiSelect = IsMultiSelect;
+        node.CascadeSelection = IsMultiSelect; // Cascade is always on when multi-select is enabled
         node.SourceWidget = this;
         node.InvalidateCallback = context.InvalidateCallback;
 
@@ -155,8 +143,9 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
                 node.IsLoading = true;
             }
             // Don't set to false here - let the async operation complete and set it to false
-            node.HasChildren = widget.HasChildren || widget.Children.Count > 0;
-            node.Tag = widget.Tag;
+            node.HasChildren = widget.HasChildren || widget.ChildItems.Count > 0;
+            node.DataValue = widget.DataValue;
+            node.DataType = widget.DataType;
             node.SourceWidget = widget;
             node.IsLastChild = i == widgets.Count - 1;
 
@@ -181,7 +170,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
                 await parentTree.ToggleExpandAsync(node, ctx);
             };
 
-            if (MultiSelect)
+            if (IsMultiSelect)
             {
                 node.ToggleSelectCallback = async ctx =>
                 {
@@ -227,28 +216,36 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             // Recursively reconcile children FIRST
             // This must happen before checkbox reconciliation so ComputeSelectionState works
             // BUT preserve dynamically loaded children if widget has none (lazy loading case)
-            if (widget.Children.Count > 0)
+            if (widget.ChildItems.Count > 0)
             {
                 var newChildren = new List<TreeItemNode>();
-                await ReconcileItemsAsync(widget.Children, node.Children, newChildren, parentTree, context);
+                await ReconcileItemsAsync(widget.ChildItems, node.Children, newChildren, parentTree, context);
                 node.Children = newChildren;
             }
             // If widget has no children but node has dynamically loaded children, preserve them
             // (this happens with OnExpanding lazy loading)
             
             // 2. Checkbox (when multi-select) - AFTER children are reconciled
-            if (MultiSelect)
+            if (IsMultiSelect)
             {
-                var checkboxState = CascadeSelection 
-                    ? node.ComputeSelectionState() switch
+                // Always use cascade selection state
+                var checkboxState = node.ComputeSelectionState() switch
+                {
+                    TreeSelectionState.Selected => CheckboxState.Checked,
+                    TreeSelectionState.Indeterminate => CheckboxState.Indeterminate,
+                    _ => CheckboxState.Unchecked
+                };
+                
+                // Capture node for closure
+                var capturedNode = node;
+                var checkboxWidget = new CheckboxWidget(checkboxState)
+                    .OnToggled(async args =>
                     {
-                        TreeSelectionState.Selected => CheckboxState.Checked,
-                        TreeSelectionState.Indeterminate => CheckboxState.Indeterminate,
-                        _ => CheckboxState.Unchecked
-                    }
-                    : node.IsSelected ? CheckboxState.Checked : CheckboxState.Unchecked;
-                    
-                var checkboxWidget = new CheckboxWidget(checkboxState);
+                        // Update tree focus to this item
+                        parentTree.FocusItem(capturedNode);
+                        // Delegate to tree's selection logic
+                        await parentTree.ToggleSelectionAsync(capturedNode, args.Context);
+                    });
                 node.CheckboxNode = await context.ReconcileChildAsync(
                     node.CheckboxNode, checkboxWidget, node) as CheckboxNode;
             }
@@ -299,7 +296,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             {
                 return true;
             }
-            if (item.Children.Count > 0 && HasAnyLoadingItems(item.Children))
+            if (item.ChildItems.Count > 0 && HasAnyLoadingItems(item.ChildItems))
             {
                 return true;
             }

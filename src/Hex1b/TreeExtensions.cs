@@ -55,25 +55,6 @@ public static class TreeExtensions
         => new(items);
 
     /// <summary>
-    /// Creates a TreeItem with the specified label.
-    /// </summary>
-    public static TreeItemWidget TreeItem<TParent>(
-        this WidgetContext<TParent> ctx,
-        string label)
-        where TParent : Hex1bWidget
-        => new(label);
-
-    /// <summary>
-    /// Creates a TreeItem with the specified label and children.
-    /// </summary>
-    public static TreeItemWidget TreeItem<TParent>(
-        this WidgetContext<TParent> ctx,
-        string label,
-        params TreeItemWidget[] children)
-        where TParent : Hex1bWidget
-        => new(label) { Children = children, HasChildren = children.Length > 0 };
-
-    /// <summary>
     /// Creates a Tree bound to a data source with selectors for label and children.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
@@ -138,10 +119,11 @@ public static class TreeExtensions
             var widget = new TreeItemWidget(labelSelector(item))
             {
                 IconValue = iconSelector?.Invoke(item),
-                Children = childWidgets,
+                ChildItems = childWidgets,
                 HasChildren = childWidgets.Count > 0,
                 IsExpanded = isExpandedSelector?.Invoke(item) ?? false,
-                Tag = item
+                DataValue = item,
+                DataType = typeof(T)
             };
             
             result.Add(widget);
@@ -167,16 +149,17 @@ public static class TreeExtensions
             {
                 IconValue = iconSelector?.Invoke(item),
                 HasChildren = hasChildren,
-                Tag = item
+                DataValue = item,
+                DataType = typeof(T)
             };
             
             if (hasChildren)
             {
-                // Set up lazy loading handler
+                // Capture item for closure - use closure instead of retrieving from node
+                var capturedItem = item;
                 widget = widget.OnExpanding(async args =>
                 {
-                    var data = (T)args.Tag!;
-                    var children = await childrenLoader(data);
+                    var children = await childrenLoader(capturedItem);
                     return BuildLazyTreeItems(children, labelSelector, hasChildrenSelector, childrenLoader, iconSelector);
                 });
             }
@@ -186,21 +169,4 @@ public static class TreeExtensions
         
         return result;
     }
-}
-
-/// <summary>
-/// Static helper methods for creating Tree widgets without a context.
-/// </summary>
-public static class TreeItemBuilder
-{
-    /// <summary>
-    /// Creates a TreeItem with the specified label.
-    /// </summary>
-    public static TreeItemWidget TreeItem(string label) => new(label);
-
-    /// <summary>
-    /// Creates a TreeItem with the specified label and children.
-    /// </summary>
-    public static TreeItemWidget TreeItem(string label, params TreeItemWidget[] children)
-        => new(label) { Children = children, HasChildren = children.Length > 0 };
 }

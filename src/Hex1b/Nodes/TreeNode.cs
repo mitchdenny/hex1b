@@ -94,6 +94,24 @@ public sealed class TreeNode : Hex1bNode
     
     // TreeNode manages internal focus visually, but is itself the focusable unit
     public override bool ManagesChildFocus => false;
+    
+    /// <summary>
+    /// Gets focusable nodes including this tree and any composed child nodes (checkboxes).
+    /// </summary>
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        // TreeNode itself is focusable
+        yield return this;
+        
+        // Also expose checkboxes from visible tree items for hit testing
+        foreach (var entry in FlattenedItems)
+        {
+            foreach (var focusable in entry.Node.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
+    }
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -235,6 +253,24 @@ public sealed class TreeNode : Hex1bNode
         }
         MarkDirty();
     }
+    
+    /// <summary>
+    /// Sets the internal focus to a specific tree item.
+    /// </summary>
+    internal void FocusItem(TreeItemNode node)
+    {
+        for (int i = 0; i < FlattenedItems.Count; i++)
+        {
+            if (FlattenedItems[i].Node == node)
+            {
+                _focusedIndex = i;
+                UpdateFocus();
+                EnsureFocusedVisible();
+                MarkDirty();
+                return;
+            }
+        }
+    }
 
     private async Task ActivateFocused(InputBindingActionContext ctx)
     {
@@ -261,31 +297,17 @@ public sealed class TreeNode : Hex1bNode
             // Calculate click regions for this item based on actual composed nodes
             // Guide width: depth * 3 chars for guides
             var guideWidth = clickedEntry.Depth * 3;
-            var currentX = guideWidth;
             
-            // Indicator region: only present for expandable nodes (has ExpandIndicatorNode or LoadingSpinnerNode)
-            var indicatorStartX = currentX;
+            // Indicator region: only present for expandable nodes
+            var indicatorStartX = guideWidth;
             var indicatorWidth = 0;
-            if (clickedNode.LoadingSpinnerNode != null)
+            if (clickedNode.LoadingSpinnerNode != null || clickedNode.ExpandIndicatorNode != null)
             {
-                // Spinner + space: typically 2 chars
-                indicatorWidth = 2;
+                indicatorWidth = 2; // icon + space
             }
-            else if (clickedNode.ExpandIndicatorNode != null)
-            {
-                // Icon + space: typically 2 chars (▶ + space or ▼ + space)
-                indicatorWidth = 2;
-            }
-            // Leaf nodes (no indicator) have 0 width here
             var indicatorEndX = indicatorStartX + indicatorWidth;
-            currentX = indicatorEndX;
             
-            // Checkbox region (if multi-select and node has checkbox): 4 chars "[x] "
-            var checkboxStartX = currentX;
-            var checkboxWidth = clickedNode.CheckboxNode != null ? 4 : 0;
-            var checkboxEndX = checkboxStartX + checkboxWidth;
-            
-            // Update focus first
+            // Update focus
             _focusedIndex = itemIndex;
             UpdateFocus();
             
@@ -294,11 +316,7 @@ public sealed class TreeNode : Hex1bNode
             {
                 await ToggleExpandAsync(clickedNode, ctx);
             }
-            // Check if click is in checkbox area (only if checkbox exists)
-            else if (clickedNode.CheckboxNode != null && localX >= checkboxStartX && localX < checkboxEndX)
-            {
-                await ToggleSelectionAsync(clickedNode, ctx);
-            }
+            // Note: Checkbox clicks are handled by CheckboxNode via composition
             else
             {
                 MarkDirty();
@@ -411,8 +429,9 @@ public sealed class TreeNode : Hex1bNode
                 Icon = widget.IconValue,
                 IsExpanded = widget.IsExpanded,
                 IsSelected = widget.IsSelected,
-                HasChildren = widget.HasChildren || widget.Children.Count > 0,
-                Tag = widget.Tag,
+                HasChildren = widget.HasChildren || widget.ChildItems.Count > 0,
+                DataValue = widget.DataValue,
+                DataType = widget.DataType,
                 SourceWidget = widget,
                 IsLastChild = i == childList.Count - 1
             };
@@ -446,9 +465,9 @@ public sealed class TreeNode : Hex1bNode
             }
             
             // Recursively handle pre-loaded children
-            if (widget.Children.Count > 0)
+            if (widget.ChildItems.Count > 0)
             {
-                LoadChildrenAsync(node, widget.Children);
+                LoadChildrenAsync(node, widget.ChildItems);
             }
             
             children.Add(node);
@@ -658,6 +677,11 @@ public sealed class TreeNode : Hex1bNode
                 line.Append(guidePrefix);
                 line.Append(resetToGlobal);
             }
+            
+            // Arrange composed child nodes with real bounds for hit testing
+            // guideWidth is depth * 3 (each level is branch/vertical/space = 3 chars)
+            var guideWidth = entry.Depth * 3;
+            node.ArrangeComposedNodes(x + guideWidth, y, theme);
             
             // Determine item colors - only show focused style when TreeNode has focus
             string itemFg, itemBg;

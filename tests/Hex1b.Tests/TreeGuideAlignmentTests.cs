@@ -14,8 +14,8 @@ public class TreeGuideAlignmentTests
     {
         // Unit test to verify IsLastAtDepth is computed correctly
         var widget = new TreeWidget([
-            new TreeItemWidget("Root").Expanded().WithChildren(
-                new TreeItemWidget("Child 1").Expanded().WithChildren(
+            new TreeItemWidget("Root").Expanded().Children(
+                new TreeItemWidget("Child 1").Expanded().Children(
                     new TreeItemWidget("Grandchild")
                 ),
                 new TreeItemWidget("Child 2")
@@ -76,8 +76,8 @@ public class TreeGuideAlignmentTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Root").Expanded().WithChildren(
-                    new TreeItemWidget("Child 1").Expanded().WithChildren(
+                new TreeItemWidget("Root").Expanded().Children(
+                    new TreeItemWidget("Child 1").Expanded().Children(
                         new TreeItemWidget("Grandchild")
                     ),
                     new TreeItemWidget("Child 2")
@@ -150,7 +150,7 @@ public class TreeGuideAlignmentTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(new TreeWidget([
-                new TreeItemWidget("Root").Expanded().WithChildren(
+                new TreeItemWidget("Root").Expanded().Children(
                     new TreeItemWidget("Child 1"),
                     new TreeItemWidget("Child 2")
                 )
