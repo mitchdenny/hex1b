@@ -18,9 +18,11 @@ Widgets for organizing and positioning content.
 Widgets that respond to user input.
 
 - **[Button](/guide/widgets/button)** — Clickable buttons with keyboard support
+- **[Checkbox](/guide/widgets/checkbox)** — Toggleable checked/unchecked/indeterminate state
 - **[SplitButton](/guide/widgets/split-button)** — Button with dropdown for secondary actions
 - **[TextBox](/guide/widgets/textbox)** — Single and multi-line text input
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
+- **[Tree](/guide/widgets/tree)** — Hierarchical data with expand/collapse and multi-select
 - **[Table](/guide/widgets/table)** — Data tables with sorting, selection, and virtualization
 - **[Picker](/guide/widgets/picker)** — Dropdown selection menus
 - **[Slider](/guide/widgets/slider)** — Numeric value selection with keyboard and mouse
@@ -31,6 +33,7 @@ Widgets that respond to user input.
 
 Widgets for presenting information.
 
+- **[Icon](/guide/widgets/icon)** — Single character or emoji display with optional click
 - **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
 - **[Notifications](/guide/widgets/notifications)** — Floating notifications with actions and drawer
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting

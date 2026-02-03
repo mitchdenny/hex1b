@@ -161,9 +161,26 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         string topLine;
         if (!string.IsNullOrEmpty(Title) && innerWidth > 2)
         {
-            var titleToShow = Title.Length > innerWidth - 2 ? Title[..(innerWidth - 2)] : Title;
-            var leftPadding = (innerWidth - titleToShow.Length) / 2;
-            var rightPadding = innerWidth - titleToShow.Length - leftPadding;
+            // Use display width for proper emoji/wide character handling
+            var titleDisplayWidth = DisplayWidth.GetStringWidth(Title);
+            string titleToShow;
+            int titleToShowDisplayWidth;
+            
+            if (titleDisplayWidth > innerWidth - 2)
+            {
+                // Truncate title to fit
+                var (sliced, columns, _, _) = DisplayWidth.SliceByDisplayWidth(Title, 0, innerWidth - 2);
+                titleToShow = sliced;
+                titleToShowDisplayWidth = columns;
+            }
+            else
+            {
+                titleToShow = Title;
+                titleToShowDisplayWidth = titleDisplayWidth;
+            }
+            
+            var leftPadding = (innerWidth - titleToShowDisplayWidth) / 2;
+            var rightPadding = innerWidth - titleToShowDisplayWidth - leftPadding;
             
             topLine = $"{colorCode}{topLeft}" +
                       new string(horizontal[0], leftPadding) +

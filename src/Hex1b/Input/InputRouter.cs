@@ -35,12 +35,13 @@ public static class InputRouter
         InputRouterState state,
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        Action? invalidate = null)
     {
         // Dispatch based on event type
         return inputEvent switch
         {
-            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
+            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate),
             Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
             _ => InputResult.NotHandled
         };
@@ -56,10 +57,11 @@ public static class InputRouter
         InputRouterState state,
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        Action? invalidate = null)
     {
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree
@@ -294,6 +296,7 @@ public static class InputRouter
     /// <param name="requestStop">Optional callback to request application stop.</param>
     /// <param name="cancellationToken">Cancellation token for async operations.</param>
     /// <param name="copyToClipboard">Optional callback to copy text to clipboard.</param>
+    /// <param name="invalidate">Optional callback to invalidate the app and trigger re-render.</param>
     /// <returns>The result of input processing.</returns>
     public static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
@@ -301,11 +304,12 @@ public static class InputRouter
         FocusRing? focusRing = null, 
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        Action? invalidate = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();

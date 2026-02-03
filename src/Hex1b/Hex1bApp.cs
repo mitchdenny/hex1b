@@ -508,7 +508,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard);
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate);
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
@@ -525,7 +525,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     // Create context for drag events
                     var dragContext = new InputBindingActionContext(
                         _focusRing, RequestStop, cancellationToken, 
-                        mouseEvent.X, mouseEvent.Y, CopyToClipboard);
+                        mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate);
                     
                     // Handle both Move (no button) and Drag (button held) actions
                     if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
@@ -553,7 +553,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 else if (_rootNode != null)
                 {
                     await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
-                        RequestStop, cancellationToken, CopyToClipboard);
+                        RequestStop, cancellationToken, CopyToClipboard, Invalidate);
                 }
                 break;
         }
@@ -561,10 +561,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
-        // Clear any pending animation timers before reconciliation
-        // This prevents timer accumulation when multiple renders happen per loop iteration
-        // Each render will schedule fresh timers via RedrawAfter during reconciliation
-        _animationTimer.Clear();
+        // NOTE: We intentionally do NOT clear animation timers here.
+        // Clearing would reset any pending timers, and if renders happen frequently
+        // (e.g., mouse movement), the timers would never become due - they'd keep
+        // getting pushed forward. Let timers accumulate and fire naturally.
+        // The callback will mark nodes dirty, which is idempotent.
         
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
@@ -953,7 +954,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
         // Create action context for mouse bindings (includes mouse coordinates)
-        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard);
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();

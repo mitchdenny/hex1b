@@ -148,6 +148,20 @@ builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
 
+// Tree examples
+builder.Services.AddSingleton<IGalleryExample, TreeBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, TreeLazyLoadExample>();
+builder.Services.AddSingleton<IGalleryExample, TreeMultiSelectExample>();
+builder.Services.AddSingleton<IGalleryExample, TreeDataBindingExample>();
+
+// Checkbox examples
+builder.Services.AddSingleton<IGalleryExample, CheckboxBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, CheckboxStatesExample>();
+
+// Icon examples
+builder.Services.AddSingleton<IGalleryExample, IconBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, IconClickExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

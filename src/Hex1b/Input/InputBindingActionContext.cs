@@ -11,6 +11,7 @@ public sealed class InputBindingActionContext
     private readonly FocusRing _focusRing;
     private readonly Action? _requestStop;
     private readonly Action<string>? _copyToClipboard;
+    private readonly Action? _invalidate;
 
     /// <summary>
     /// Cancellation token from the application run loop.
@@ -36,11 +37,13 @@ public sealed class InputBindingActionContext
         CancellationToken cancellationToken = default,
         int mouseX = -1,
         int mouseY = -1,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        Action? invalidate = null)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
         _copyToClipboard = copyToClipboard;
+        _invalidate = invalidate;
         CancellationToken = cancellationToken;
         MouseX = mouseX;
         MouseY = mouseY;
@@ -66,6 +69,19 @@ public sealed class InputBindingActionContext
     /// kitty, tmux (with set-clipboard on), and others.
     /// </remarks>
     public void CopyToClipboard(string text) => _copyToClipboard?.Invoke(text);
+
+    /// <summary>
+    /// Signals that the UI needs to be re-rendered.
+    /// </summary>
+    /// <remarks>
+    /// Call this method after async operations complete that modify widget state.
+    /// Without calling Invalidate(), the render loop won't wake up until the next
+    /// input event, and your changes won't be visible.
+    /// 
+    /// This is automatically called by most widget event handlers, but if you're
+    /// doing async work in a callback, you should call this when your changes are ready.
+    /// </remarks>
+    public void Invalidate() => _invalidate?.Invoke();
 
     /// <summary>
     /// Moves focus to the next focusable widget in the ring.
