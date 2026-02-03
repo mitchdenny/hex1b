@@ -215,15 +215,8 @@ public sealed class TabBarNode : Hex1bNode
         // In Compact mode, just render tabs
         _tabRowY = RenderMode == TabBarRenderMode.Full ? Bounds.Y + 1 : Bounds.Y;
 
-        // Render top separator row in Full mode
-        if (RenderMode == TabBarRenderMode.Full)
-        {
-            var separatorChar = '▄'; // Upper half block for top border
-            var separatorLine = new string(separatorChar, Bounds.Width);
-            context.WriteClipped(Bounds.X, Bounds.Y, separatorLine);
-        }
-
         var x = Bounds.X;
+        var tabsStartX = x;
 
         // Cache scroll state for mouse handling
         _canScrollLeftCached = CanScrollLeft;
@@ -292,6 +285,8 @@ public sealed class TabBarNode : Hex1bNode
             _tabHitRegions.Add((tabStartX, tabWidth, i));
         }
 
+        var tabsEndX = x; // Track where tabs end for top separator
+
         // Fill remaining space before arrows
         var remainingWidth = Bounds.Width - (x - Bounds.X) - (ArrowButtonWidth * 2);
         if (remainingWidth > 0)
@@ -315,12 +310,20 @@ public sealed class TabBarNode : Hex1bNode
             : theme.Get(TabBarTheme.ArrowDisabledColor);
         context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
 
-        // Render bottom separator row in Full mode
+        // Render separators in Full mode
         if (RenderMode == TabBarRenderMode.Full)
         {
-            var separatorChar = '▔'; // Upper one eighth block (U+2594)
-            var separatorLine = new string(separatorChar, Bounds.Width);
-            context.WriteClipped(Bounds.X, Bounds.Y + 2, separatorLine);
+            // Top separator: thin line (▁) only above the tabs area
+            var topSeparatorWidth = tabsEndX - tabsStartX;
+            if (topSeparatorWidth > 0)
+            {
+                var topSeparatorLine = new string('▁', topSeparatorWidth);
+                context.WriteClipped(tabsStartX, Bounds.Y, topSeparatorLine);
+            }
+
+            // Bottom separator: thin line (▔) across full width
+            var bottomSeparatorLine = new string('▔', Bounds.Width);
+            context.WriteClipped(Bounds.X, Bounds.Y + 2, bottomSeparatorLine);
         }
     }
 

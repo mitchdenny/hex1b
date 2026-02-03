@@ -222,17 +222,10 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         _iconHitRegions.Clear();
 
         var x = _tabBarBounds.X;
+        var tabsStartX = x;
         // In Full mode: row 0 = top separator, row 1 = tabs, row 2 = bottom separator
         // In Compact mode: row 0 = tabs
         _tabRowY = RenderMode == TabBarRenderMode.Full ? _tabBarBounds.Y + 1 : _tabBarBounds.Y;
-
-        // Render top separator row in Full mode
-        if (RenderMode == TabBarRenderMode.Full)
-        {
-            var separatorChar = '▄'; // Upper half block for top border
-            var separatorLine = new string(separatorChar, _tabBarBounds.Width);
-            context.WriteClipped(_tabBarBounds.X, _tabBarBounds.Y, separatorLine);
-        }
 
         // Calculate tab widths and overflow
         var tabWidths = new List<int>();
@@ -319,6 +312,8 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             _tabHitRegions.Add((tabStartX, tabWidth, i));
         }
 
+        var tabsEndX = x; // Track where tabs end for top separator
+
         // Fill remaining space before arrows
         var remainingWidth = _tabBarBounds.Width - (x - _tabBarBounds.X) - (ArrowButtonWidth * 2);
         if (remainingWidth > 0)
@@ -342,12 +337,20 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             : theme.Get(TabBarTheme.ArrowDisabledColor);
         context.WriteClipped(x, _tabRowY, $"{rightArrowFg.ToForegroundAnsi()} ▶ {resetToGlobal}");
 
-        // Render bottom separator row in Full mode
+        // Render separators in Full mode
         if (RenderMode == TabBarRenderMode.Full)
         {
-            var separatorChar = '▔'; // Upper one eighth block (U+2594)
-            var separatorLine = new string(separatorChar, _tabBarBounds.Width);
-            context.WriteClipped(_tabBarBounds.X, _tabBarBounds.Y + 2, separatorLine);
+            // Top separator: thin line (▁) only above the tabs area
+            var topSeparatorWidth = tabsEndX - tabsStartX;
+            if (topSeparatorWidth > 0)
+            {
+                var topSeparatorLine = new string('▁', topSeparatorWidth);
+                context.WriteClipped(tabsStartX, _tabBarBounds.Y, topSeparatorLine);
+            }
+
+            // Bottom separator: thin line (▔) across full width
+            var bottomSeparatorLine = new string('▔', _tabBarBounds.Width);
+            context.WriteClipped(_tabBarBounds.X, _tabBarBounds.Y + 2, bottomSeparatorLine);
         }
     }
 
