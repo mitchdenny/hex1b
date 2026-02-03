@@ -295,25 +295,12 @@ public sealed class TreeNode : Hex1bNode
             var clickedEntry = FlattenedItems[itemIndex];
             var clickedNode = clickedEntry.Node;
             
-            // Calculate click regions for this item based on actual composed nodes
-            // Guide width: depth * 3 chars for guides
-            var guideWidth = clickedEntry.Depth * 3;
-            
-            // Indicator region: only present for expandable nodes
-            var indicatorStartX = guideWidth;
-            var indicatorWidth = 0;
-            if (clickedNode.LoadingSpinnerNode != null || clickedNode.ExpandIndicatorNode != null)
-            {
-                indicatorWidth = 2; // icon + space
-            }
-            var indicatorEndX = indicatorStartX + indicatorWidth;
-            
             // Update focus
             _focusedIndex = itemIndex;
             UpdateFocus();
             
-            // Check if click is on expand/collapse indicator (for expandable nodes)
-            if (clickedNode.CanExpand && indicatorWidth > 0 && localX >= indicatorStartX && localX < indicatorEndX)
+            // If item has children, toggle its expanded/collapsed state
+            if (clickedNode.CanExpand)
             {
                 await ToggleExpandAsync(clickedNode, ctx);
             }
