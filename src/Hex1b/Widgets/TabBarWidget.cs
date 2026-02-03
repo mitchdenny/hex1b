@@ -46,6 +46,11 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     public TabPosition Position { get; init; } = TabPosition.Auto;
 
     /// <summary>
+    /// The rendering mode for the tab bar.
+    /// </summary>
+    public TabBarRenderMode RenderMode { get; init; } = TabBarRenderMode.Full;
+
+    /// <summary>
     /// Sets the selected tab index.
     /// </summary>
     /// <param name="index">The index of the tab to select.</param>
@@ -78,6 +83,18 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     public TabBarWidget TabsOnBottom()
         => this with { Position = TabPosition.Bottom };
 
+    /// <summary>
+    /// Sets the rendering mode to full (with visual separators).
+    /// </summary>
+    public TabBarWidget Full()
+        => this with { RenderMode = TabBarRenderMode.Full };
+
+    /// <summary>
+    /// Sets the rendering mode to compact (just the tab row).
+    /// </summary>
+    public TabBarWidget Compact()
+        => this with { RenderMode = TabBarRenderMode.Compact };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TabBarNode ?? new TabBarNode();
@@ -100,6 +117,7 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
 
         // Detect position from context
         node.Position = DetectPosition(context);
+        node.RenderMode = RenderMode;
 
         return node;
     }

@@ -25,6 +25,11 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
     public TabPosition Position { get; init; } = TabPosition.Auto;
 
     /// <summary>
+    /// The rendering mode for the tab bar.
+    /// </summary>
+    public TabBarRenderMode RenderMode { get; init; } = TabBarRenderMode.Full;
+
+    /// <summary>
     /// Sets the selected tab index.
     /// </summary>
     /// <param name="index">The index of the tab to select.</param>
@@ -57,6 +62,18 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
     public TabPanelWidget TabsOnBottom()
         => this with { Position = TabPosition.Bottom };
 
+    /// <summary>
+    /// Sets the rendering mode to full (with visual separators).
+    /// </summary>
+    public TabPanelWidget Full()
+        => this with { RenderMode = TabBarRenderMode.Full };
+
+    /// <summary>
+    /// Sets the rendering mode to compact (just the tab row).
+    /// </summary>
+    public TabPanelWidget Compact()
+        => this with { RenderMode = TabBarRenderMode.Compact };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TabPanelNode ?? new TabPanelNode();
@@ -76,6 +93,7 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
         // Store handlers and settings
         node.SelectionChangedHandler = SelectionChangedHandler;
         node.Position = DetectPosition(context);
+        node.RenderMode = RenderMode;
         node.TabCount = Tabs.Count;
 
         // Store tab info for the tab bar

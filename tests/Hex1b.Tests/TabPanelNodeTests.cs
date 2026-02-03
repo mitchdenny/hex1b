@@ -148,9 +148,9 @@ public class TabPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - Tab should be on first line (top)
-        var line0 = snapshot.GetLineTrimmed(0);
-        Assert.Contains("TopTab", line0);
+        // Assert - Tab should be on second line (after top separator in Full mode)
+        var line1 = snapshot.GetLineTrimmed(1);
+        Assert.Contains("TopTab", line1);
     }
 
     [Fact]

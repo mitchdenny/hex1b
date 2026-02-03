@@ -68,6 +68,11 @@ public sealed class TabBarNode : Hex1bNode
     public TabPosition Position { get; set; } = TabPosition.Top;
 
     /// <summary>
+    /// The rendering mode (Full or Compact).
+    /// </summary>
+    public TabBarRenderMode RenderMode { get; set; } = TabBarRenderMode.Full;
+
+    /// <summary>
     /// Whether the tab bar needs overflow controls (arrows and dropdown).
     /// </summary>
     public bool NeedsOverflow => _totalTabsWidth > _availableTabsWidth;
@@ -111,9 +116,9 @@ public sealed class TabBarNode : Hex1bNode
         // Calculate how many tabs are visible
         _visibleTabCount = CalculateVisibleTabCount();
 
-        // Height is always 1 row
+        // Height depends on render mode: Full = 3 rows, Compact = 1 row
         var width = constraints.MaxWidth;
-        var height = 1;
+        var height = RenderMode == TabBarRenderMode.Full ? 3 : 1;
         return constraints.Constrain(new Size(width, height));
     }
 
@@ -157,6 +162,19 @@ public sealed class TabBarNode : Hex1bNode
     {
         var theme = context.Theme;
         var resetToGlobal = theme.GetResetToGlobalCodes();
+
+        // In Full mode, render top separator row, then tabs, then bottom separator
+        // In Compact mode, just render tabs
+        var tabRowY = RenderMode == TabBarRenderMode.Full ? Bounds.Y + 1 : Bounds.Y;
+
+        // Render top separator row in Full mode
+        if (RenderMode == TabBarRenderMode.Full)
+        {
+            var separatorChar = '▄'; // Upper half block for top border
+            var separatorLine = new string(separatorChar, Bounds.Width);
+            context.WriteClipped(Bounds.X, Bounds.Y, separatorLine);
+        }
+
         var x = Bounds.X;
 
         // Render left arrow if needed
@@ -166,7 +184,7 @@ public sealed class TabBarNode : Hex1bNode
                 ? theme.Get(TabBarTheme.ArrowForegroundColor)
                 : theme.Get(TabBarTheme.ArrowDisabledColor);
             var arrowText = CanScrollLeft ? " ◀ " : "   ";
-            context.WriteClipped(x, Bounds.Y, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
+            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
             x += ArrowButtonWidth;
         }
 
@@ -195,7 +213,7 @@ public sealed class TabBarNode : Hex1bNode
             // Pad to tab width
             tabText = tabText.PadRight(tabWidth);
 
-            context.WriteClipped(x, Bounds.Y, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
+            context.WriteClipped(x, tabRowY, $"{fgCode}{bgCode}{tabText}{resetToGlobal}");
             x += tabWidth;
         }
 
@@ -203,7 +221,7 @@ public sealed class TabBarNode : Hex1bNode
         var remainingWidth = Bounds.Width - (x - Bounds.X) - (NeedsOverflow ? ArrowButtonWidth + DropdownButtonWidth : 0);
         if (remainingWidth > 0)
         {
-            context.WriteClipped(x, Bounds.Y, new string(' ', remainingWidth));
+            context.WriteClipped(x, tabRowY, new string(' ', remainingWidth));
             x += remainingWidth;
         }
 
@@ -214,12 +232,20 @@ public sealed class TabBarNode : Hex1bNode
                 ? theme.Get(TabBarTheme.ArrowForegroundColor)
                 : theme.Get(TabBarTheme.ArrowDisabledColor);
             var arrowText = CanScrollRight ? " ▶ " : "   ";
-            context.WriteClipped(x, Bounds.Y, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
+            context.WriteClipped(x, tabRowY, $"{arrowFg.ToForegroundAnsi()}{arrowText}{resetToGlobal}");
             x += ArrowButtonWidth;
 
             // Dropdown button
             var dropdownFg = theme.Get(TabBarTheme.DropdownForegroundColor);
-            context.WriteClipped(x, Bounds.Y, $"{dropdownFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
+            context.WriteClipped(x, tabRowY, $"{dropdownFg.ToForegroundAnsi()} ▼ {resetToGlobal}");
+        }
+
+        // Render bottom separator row in Full mode
+        if (RenderMode == TabBarRenderMode.Full)
+        {
+            var separatorChar = '▀'; // Lower half block for bottom border
+            var separatorLine = new string(separatorChar, Bounds.Width);
+            context.WriteClipped(Bounds.X, Bounds.Y + 2, separatorLine);
         }
     }
 
