@@ -1,40 +1,78 @@
 using Hex1b;
-using Hex1b.Events;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 // Track the last activated item for display
 var lastActivated = "(none)";
 var selectedCount = 0;
 
-// Simulated async data source for lazy loading demo
-async Task<IEnumerable<TreeItemWidget>> LoadChildrenAsync(TreeItemExpandingEventArgs e)
+// Externalized loading state for async lazy loading demo
+// Instead of storing pre-built widgets, store flags and rebuild each render
+var serverLoading = false;
+var serverLoaded = false;
+var usersLoading = false;
+var usersLoaded = false;
+var logsLoading = false;
+var logsLoaded = false;
+var configLoading = false;
+var configLoaded = false;
+
+// Helper to build children fresh each render with current loading state
+List<TreeItemWidget> BuildServerChildren(TreeContext t, Hex1bApp app)
 {
-    // Simulate network/database delay (1.5 seconds to make loading indicator visible)
-    await Task.Delay(1500);
-    
-    return e.Item.Label switch
-    {
-        "Remote Server" => [
-            new TreeItemWidget("Users").WithIcon("👥").OnExpanding(LoadChildrenAsync),
-            new TreeItemWidget("Logs").WithIcon("📋").OnExpanding(LoadChildrenAsync),
-            new TreeItemWidget("Config").WithIcon("⚙️").OnExpanding(LoadChildrenAsync),
-        ],
-        "Users" => [
-            new TreeItemWidget("alice").WithIcon("👤"),
-            new TreeItemWidget("bob").WithIcon("👤"),
-            new TreeItemWidget("charlie").WithIcon("👤"),
-        ],
-        "Logs" => [
-            new TreeItemWidget("app.log").WithIcon("📄"),
-            new TreeItemWidget("error.log").WithIcon("📄"),
-            new TreeItemWidget("access.log").WithIcon("📄"),
-        ],
-        "Config" => [
-            new TreeItemWidget("settings.json").WithIcon("📄"),
-            new TreeItemWidget("secrets.env").WithIcon("🔒"),
-        ],
-        _ => []
-    };
+    if (!serverLoaded) return [];
+    return [
+        t.Item("Users", _ => usersLoaded ? [
+            t.Item("alice").Icon("👤"),
+            t.Item("bob").Icon("👤"),
+            t.Item("charlie").Icon("👤")
+        ] : [])
+            .Loading(usersLoading)
+            .Expanded(usersLoading || usersLoaded)
+            .Icon("👥")
+            .OnExpanding(async _ => {
+                usersLoading = true;
+                app.Invalidate();
+                await Task.Delay(1000);
+                usersLoaded = true;
+                usersLoading = false;
+                app.Invalidate();
+                return [];  // Children built via callback above
+            }),
+        t.Item("Logs", _ => logsLoaded ? [
+            t.Item("app.log").Icon("📄"),
+            t.Item("error.log").Icon("📄"),
+            t.Item("access.log").Icon("📄")
+        ] : [])
+            .Loading(logsLoading)
+            .Expanded(logsLoading || logsLoaded)
+            .Icon("📋")
+            .OnExpanding(async _ => {
+                logsLoading = true;
+                app.Invalidate();
+                await Task.Delay(1000);
+                logsLoaded = true;
+                logsLoading = false;
+                app.Invalidate();
+                return [];
+            }),
+        t.Item("Config", _ => configLoaded ? [
+            t.Item("settings.json").Icon("📄"),
+            t.Item("secrets.env").Icon("🔒")
+        ] : [])
+            .Loading(configLoading)
+            .Expanded(configLoading || configLoaded)
+            .Icon("⚙️")
+            .OnExpanding(async _ => {
+                configLoading = true;
+                app.Invalidate();
+                await Task.Delay(1000);
+                configLoaded = true;
+                configLoading = false;
+                app.Invalidate();
+                return [];
+            })
+    ];
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -44,65 +82,79 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         v.Text(""),
         
         v.HStack(h => [
-            // Left side: Static tree
+            // Left side: Static tree using new TreeContext API
             h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Root").WithIcon("📁").Expanded().WithChildren(
-                        new TreeItemWidget("Documents").WithIcon("📁").Expanded().WithChildren(
-                            new TreeItemWidget("Work").WithIcon("📁").WithChildren(
-                                new TreeItemWidget("report.docx").WithIcon("📄"),
-                                new TreeItemWidget("presentation.pptx").WithIcon("📄")
-                            ),
-                            new TreeItemWidget("Personal").WithIcon("📁").WithChildren(
-                                new TreeItemWidget("resume.pdf").WithIcon("📄"),
-                                new TreeItemWidget("notes.txt").WithIcon("📄")
-                            )
-                        ),
-                        new TreeItemWidget("Pictures").WithIcon("📸").WithChildren(
-                            new TreeItemWidget("vacation.jpg").WithIcon("📷"),
-                            new TreeItemWidget("family.png").WithIcon("📷")
-                        ),
-                        new TreeItemWidget("Downloads").WithIcon("📥").WithChildren(
-                            new TreeItemWidget("setup.exe").WithIcon("📦"),
-                            new TreeItemWidget("archive.zip").WithIcon("📦")
-                        )
-                    )
-                )
+                b.Tree(t => [
+                    t.Item("Root", root => [
+                        root.Item("Documents", docs => [
+                            docs.Item("Work", work => [
+                                work.Item("report.docx").Icon("📄"),
+                                work.Item("presentation.pptx").Icon("📄")
+                            ]).Icon("📁"),
+                            docs.Item("Personal", personal => [
+                                personal.Item("resume.pdf").Icon("📄"),
+                                personal.Item("notes.txt").Icon("📄")
+                            ]).Icon("📁")
+                        ]).Expanded().Icon("📁"),
+                        root.Item("Pictures", pics => [
+                            pics.Item("vacation.jpg").Icon("📷"),
+                            pics.Item("family.png").Icon("📷")
+                        ]).Icon("📸"),
+                        root.Item("Downloads", downloads => [
+                            downloads.Item("setup.exe").Icon("📦"),
+                            downloads.Item("archive.zip").Icon("📦")
+                        ]).Icon("📥")
+                    ]).Expanded().Icon("📁")
+                ])
                 .OnItemActivated(e => { lastActivated = e.Item.Label; })
                 .FillHeight()
             ], title: "📂 Static Tree").FillWidth().FillHeight(),
             
-            // Middle: Async lazy-loading tree
+            // Middle: Async lazy-loading tree with externalized state
+            // Children are rebuilt fresh each render to pick up current loading state
             h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Remote Server").WithIcon("🖥️")
-                        .OnExpanding(LoadChildrenAsync)  // Async lazy load with 500ms delay
-                )
+                b.Tree(t => [
+                    t.Item("Remote Server", _ => BuildServerChildren(t, app))
+                        .Loading(serverLoading)
+                        .Expanded(serverLoading || serverLoaded)
+                        .Icon("🖥️")
+                        .OnExpanding(async _ => {
+                            serverLoading = true;
+                            app.Invalidate();
+                            
+                            await Task.Delay(1500);
+                            
+                            serverLoaded = true;
+                            serverLoading = false;
+                            app.Invalidate();
+                            return [];  // Children built via callback above
+                        })
+                ])
                 .OnItemActivated(e => { lastActivated = e.Item.Label; })
                 .FillHeight()
             ], title: "🌐 Async Lazy Load").FillWidth().FillHeight(),
             
             // Right side: Multi-select tree with cascade selection
             h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Select Features").Expanded().WithChildren(
-                        new TreeItemWidget("Core Features").Expanded().WithChildren(
-                            new TreeItemWidget("Authentication"),
-                            new TreeItemWidget("Authorization"),
-                            new TreeItemWidget("Logging")
-                        ),
-                        new TreeItemWidget("Optional Features").Expanded().WithChildren(
-                            new TreeItemWidget("Caching"),
-                            new TreeItemWidget("Rate Limiting"),
-                            new TreeItemWidget("Metrics")
-                        ),
-                        new TreeItemWidget("Integrations").WithChildren(
-                            new TreeItemWidget("Database"),
-                            new TreeItemWidget("Message Queue"),
-                            new TreeItemWidget("External API")
-                        )
-                    )
-                )
+                b.Tree(t => [
+                    t.Item("Select Features", features => [
+                        features.Item("Core Features", core => [
+                            core.Item("Authentication"),
+                            core.Item("Authorization"),
+                            core.Item("Logging")
+                        ]).Expanded(),
+                        features.Item("Optional Features", optional => [
+                            optional.Item("Caching"),
+                            optional.Item("Rate Limiting"),
+                            optional.Item("Metrics")
+                        ]).Expanded(),
+                        features.Item("Integrations", integrations => [
+                            integrations.Item("Database"),
+                            integrations.Item("Message Queue"),
+                            integrations.Item("External API")
+                        ])
+                    ]).Expanded()
+                ])
                 .WithCascadeSelection()
                 .OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })
                 .FillHeight()
@@ -111,51 +163,71 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         
         v.Text(""),
         
-        // Bottom section: Different guide styles
+        // Bottom section: Different guide styles using ThemePanel
         v.HStack(h => [
-            h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Unicode").Expanded().WithChildren(
-                        new TreeItemWidget("Child 1").WithChildren(
-                            new TreeItemWidget("Grandchild")
-                        ),
-                        new TreeItemWidget("Child 2")
-                    )
-                ).WithGuideStyle(TreeGuideStyle.Unicode)
-            ], title: "Unicode").FillWidth(),
+            h.ThemePanel(
+                theme => theme,  // Unicode is default
+                h.Border(b => [
+                    b.Tree(t => [
+                        t.Item("Unicode", children => [
+                            children.Item("Child 1", grandchildren => [
+                                grandchildren.Item("Grandchild")
+                            ]),
+                            children.Item("Child 2")
+                        ]).Expanded()
+                    ])
+                ], title: "Unicode").FillWidth()),
             
-            h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("ASCII").Expanded().WithChildren(
-                        new TreeItemWidget("Child 1").WithChildren(
-                            new TreeItemWidget("Grandchild")
-                        ),
-                        new TreeItemWidget("Child 2")
-                    )
-                ).WithGuideStyle(TreeGuideStyle.Ascii)
-            ], title: "ASCII").FillWidth(),
+            h.ThemePanel(
+                theme => theme
+                    .Set(TreeTheme.Branch, "+- ")
+                    .Set(TreeTheme.LastBranch, "\\- ")
+                    .Set(TreeTheme.Vertical, "|  ")
+                    .Set(TreeTheme.Space, "   "),
+                h.Border(b => [
+                    b.Tree(t => [
+                        t.Item("ASCII", children => [
+                            children.Item("Child 1", grandchildren => [
+                                grandchildren.Item("Grandchild")
+                            ]),
+                            children.Item("Child 2")
+                        ]).Expanded()
+                    ])
+                ], title: "ASCII").FillWidth()),
             
-            h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Bold").Expanded().WithChildren(
-                        new TreeItemWidget("Child 1").WithChildren(
-                            new TreeItemWidget("Grandchild")
-                        ),
-                        new TreeItemWidget("Child 2")
-                    )
-                ).WithGuideStyle(TreeGuideStyle.Bold)
-            ], title: "Bold").FillWidth(),
+            h.ThemePanel(
+                theme => theme
+                    .Set(TreeTheme.Branch, "┣━ ")
+                    .Set(TreeTheme.LastBranch, "┗━ ")
+                    .Set(TreeTheme.Vertical, "┃  ")
+                    .Set(TreeTheme.Space, "   "),
+                h.Border(b => [
+                    b.Tree(t => [
+                        t.Item("Bold", children => [
+                            children.Item("Child 1", grandchildren => [
+                                grandchildren.Item("Grandchild")
+                            ]),
+                            children.Item("Child 2")
+                        ]).Expanded()
+                    ])
+                ], title: "Bold").FillWidth()),
             
-            h.Border(b => [
-                b.Tree(
-                    new TreeItemWidget("Double").Expanded().WithChildren(
-                        new TreeItemWidget("Child 1").WithChildren(
-                            new TreeItemWidget("Grandchild")
-                        ),
-                        new TreeItemWidget("Child 2")
-                    )
-                ).WithGuideStyle(TreeGuideStyle.Double)
-            ], title: "Double").FillWidth()
+            h.ThemePanel(
+                theme => theme
+                    .Set(TreeTheme.Branch, "╠═ ")
+                    .Set(TreeTheme.LastBranch, "╚═ ")
+                    .Set(TreeTheme.Vertical, "║  ")
+                    .Set(TreeTheme.Space, "   "),
+                h.Border(b => [
+                    b.Tree(t => [
+                        t.Item("Double", children => [
+                            children.Item("Child 1", grandchildren => [
+                                grandchildren.Item("Grandchild")
+                            ]),
+                            children.Item("Child 2")
+                        ]).Expanded()
+                    ])
+                ], title: "Double").FillWidth())
         ]),
         
         v.Text(""),
@@ -167,7 +239,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]),
         v.Text(""),
         v.Text("↑↓: Navigate | ←→: Collapse/Expand | Space: Toggle | Enter: Activate | Click ▶: Expand"),
-        v.Text("Async tree shows ◌ loading indicator during 1.5s simulated delay")
+        v.Text("Async tree shows animated spinner during loading")
     ]))
     .WithMouse()
     .Build();

@@ -8,6 +8,35 @@ namespace Hex1b;
 public static class TreeExtensions
 {
     /// <summary>
+    /// Creates a Tree using a builder callback with TreeContext.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the recommended way to create trees. The callback receives a <see cref="TreeContext"/>
+    /// that provides methods for creating tree items with children.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// ctx.Tree(t => [
+    ///     t.Item("Root", root => [
+    ///         root.Item("Child 1"),
+    ///         root.Item("Child 2")
+    ///     ]).Expanded().Icon("📁")
+    /// ])
+    /// </code>
+    /// </example>
+    public static TreeWidget Tree<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<TreeContext, IEnumerable<TreeItemWidget>> builder)
+        where TParent : Hex1bWidget
+    {
+        var treeContext = new TreeContext();
+        var items = builder(treeContext).ToList();
+        return new TreeWidget(items);
+    }
+
+    /// <summary>
     /// Creates a Tree with the specified root items.
     /// </summary>
     public static TreeWidget Tree<TParent>(
@@ -108,7 +137,7 @@ public static class TreeExtensions
             
             var widget = new TreeItemWidget(labelSelector(item))
             {
-                Icon = iconSelector?.Invoke(item),
+                IconValue = iconSelector?.Invoke(item),
                 Children = childWidgets,
                 HasChildren = childWidgets.Count > 0,
                 IsExpanded = isExpandedSelector?.Invoke(item) ?? false,
@@ -136,7 +165,7 @@ public static class TreeExtensions
             
             var widget = new TreeItemWidget(labelSelector(item))
             {
-                Icon = iconSelector?.Invoke(item),
+                IconValue = iconSelector?.Invoke(item),
                 HasChildren = hasChildren,
                 Tag = item
             };

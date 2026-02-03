@@ -36,67 +36,31 @@ public static class TreeTheme
 
     #endregion
 
-    #region Guide Characters - Unicode (default)
+    #region Guide Characters
 
-    public static readonly Hex1bThemeElement<string> UnicodeBranch =
-        new($"{nameof(TreeTheme)}.{nameof(UnicodeBranch)}", () => "├─ ");
+    /// <summary>
+    /// Branch connector for non-last items (default: "├─ ").
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> Branch =
+        new($"{nameof(TreeTheme)}.{nameof(Branch)}", () => "├─ ");
 
-    public static readonly Hex1bThemeElement<string> UnicodeLastBranch =
-        new($"{nameof(TreeTheme)}.{nameof(UnicodeLastBranch)}", () => "└─ ");
+    /// <summary>
+    /// Branch connector for last items (default: "└─ ").
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> LastBranch =
+        new($"{nameof(TreeTheme)}.{nameof(LastBranch)}", () => "└─ ");
 
-    public static readonly Hex1bThemeElement<string> UnicodeVertical =
-        new($"{nameof(TreeTheme)}.{nameof(UnicodeVertical)}", () => "│  ");
+    /// <summary>
+    /// Vertical continuation line (default: "│  ").
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> Vertical =
+        new($"{nameof(TreeTheme)}.{nameof(Vertical)}", () => "│  ");
 
-    public static readonly Hex1bThemeElement<string> UnicodeSpace =
-        new($"{nameof(TreeTheme)}.{nameof(UnicodeSpace)}", () => "   ");
-
-    #endregion
-
-    #region Guide Characters - ASCII
-
-    public static readonly Hex1bThemeElement<string> AsciiBranch =
-        new($"{nameof(TreeTheme)}.{nameof(AsciiBranch)}", () => "+- ");
-
-    public static readonly Hex1bThemeElement<string> AsciiLastBranch =
-        new($"{nameof(TreeTheme)}.{nameof(AsciiLastBranch)}", () => "\\- ");
-
-    public static readonly Hex1bThemeElement<string> AsciiVertical =
-        new($"{nameof(TreeTheme)}.{nameof(AsciiVertical)}", () => "|  ");
-
-    public static readonly Hex1bThemeElement<string> AsciiSpace =
-        new($"{nameof(TreeTheme)}.{nameof(AsciiSpace)}", () => "   ");
-
-    #endregion
-
-    #region Guide Characters - Bold
-
-    public static readonly Hex1bThemeElement<string> BoldBranch =
-        new($"{nameof(TreeTheme)}.{nameof(BoldBranch)}", () => "┣━ ");
-
-    public static readonly Hex1bThemeElement<string> BoldLastBranch =
-        new($"{nameof(TreeTheme)}.{nameof(BoldLastBranch)}", () => "┗━ ");
-
-    public static readonly Hex1bThemeElement<string> BoldVertical =
-        new($"{nameof(TreeTheme)}.{nameof(BoldVertical)}", () => "┃  ");
-
-    public static readonly Hex1bThemeElement<string> BoldSpace =
-        new($"{nameof(TreeTheme)}.{nameof(BoldSpace)}", () => "   ");
-
-    #endregion
-
-    #region Guide Characters - Double
-
-    public static readonly Hex1bThemeElement<string> DoubleBranch =
-        new($"{nameof(TreeTheme)}.{nameof(DoubleBranch)}", () => "╠═ ");
-
-    public static readonly Hex1bThemeElement<string> DoubleLastBranch =
-        new($"{nameof(TreeTheme)}.{nameof(DoubleLastBranch)}", () => "╚═ ");
-
-    public static readonly Hex1bThemeElement<string> DoubleVertical =
-        new($"{nameof(TreeTheme)}.{nameof(DoubleVertical)}", () => "║  ");
-
-    public static readonly Hex1bThemeElement<string> DoubleSpace =
-        new($"{nameof(TreeTheme)}.{nameof(DoubleSpace)}", () => "   ");
+    /// <summary>
+    /// Empty space for indentation (default: "   ").
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> Space =
+        new($"{nameof(TreeTheme)}.{nameof(Space)}", () => "   ");
 
     #endregion
 
@@ -110,9 +74,6 @@ public static class TreeTheme
 
     public static readonly Hex1bThemeElement<string> LeafIndicator =
         new($"{nameof(TreeTheme)}.{nameof(LeafIndicator)}", () => " ");
-
-    public static readonly Hex1bThemeElement<string> LoadingIndicator =
-        new($"{nameof(TreeTheme)}.{nameof(LoadingIndicator)}", () => "◌ ");
 
     public static readonly Hex1bThemeElement<string> CheckboxChecked =
         new($"{nameof(TreeTheme)}.{nameof(CheckboxChecked)}", () => "[x] ");

@@ -28,11 +28,6 @@ public sealed class TreeNode : Hex1bNode
     public bool CascadeSelection { get; set; }
 
     /// <summary>
-    /// The style of guide lines.
-    /// </summary>
-    public TreeGuideStyle GuideStyle { get; set; }
-
-    /// <summary>
     /// The source widget for this node.
     /// </summary>
     public TreeWidget? SourceWidget { get; set; }
@@ -60,6 +55,11 @@ public sealed class TreeNode : Hex1bNode
     // Event callbacks
     internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
     internal Func<InputBindingActionContext, TreeItemNode, Task>? ItemActivatedAction { get; set; }
+    
+    /// <summary>
+    /// Callback to invalidate the render loop. Set during reconciliation.
+    /// </summary>
+    internal Action? InvalidateCallback { get; set; }
 
     // Focus state - TreeNode itself is focusable
     private bool _isFocused;
@@ -258,29 +258,44 @@ public sealed class TreeNode : Hex1bNode
             var clickedEntry = FlattenedItems[itemIndex];
             var clickedNode = clickedEntry.Node;
             
-            // Calculate click regions for this item
+            // Calculate click regions for this item based on actual composed nodes
             // Guide width: depth * 3 chars for guides
             var guideWidth = clickedEntry.Depth * 3;
+            var currentX = guideWidth;
             
-            // Indicator region: 2 chars (e.g., "▼ " or "▶ " or " ")
-            var indicatorStartX = guideWidth;
-            var indicatorEndX = indicatorStartX + 2;
+            // Indicator region: only present for expandable nodes (has ExpandIndicatorNode or LoadingSpinnerNode)
+            var indicatorStartX = currentX;
+            var indicatorWidth = 0;
+            if (clickedNode.LoadingSpinnerNode != null)
+            {
+                // Spinner + space: typically 2 chars
+                indicatorWidth = 2;
+            }
+            else if (clickedNode.ExpandIndicatorNode != null)
+            {
+                // Icon + space: typically 2 chars (▶ + space or ▼ + space)
+                indicatorWidth = 2;
+            }
+            // Leaf nodes (no indicator) have 0 width here
+            var indicatorEndX = indicatorStartX + indicatorWidth;
+            currentX = indicatorEndX;
             
-            // Checkbox region (if multi-select): 4 chars "[x] "
-            var checkboxStartX = indicatorEndX;
-            var checkboxEndX = checkboxStartX + 4;
+            // Checkbox region (if multi-select and node has checkbox): 4 chars "[x] "
+            var checkboxStartX = currentX;
+            var checkboxWidth = clickedNode.CheckboxNode != null ? 4 : 0;
+            var checkboxEndX = checkboxStartX + checkboxWidth;
             
             // Update focus first
             _focusedIndex = itemIndex;
             UpdateFocus();
             
             // Check if click is on expand/collapse indicator (for expandable nodes)
-            if (clickedNode.CanExpand && localX >= indicatorStartX && localX < indicatorEndX)
+            if (clickedNode.CanExpand && indicatorWidth > 0 && localX >= indicatorStartX && localX < indicatorEndX)
             {
                 await ToggleExpandAsync(clickedNode, ctx);
             }
-            // Check if click is in checkbox area (only in multi-select mode)
-            else if (MultiSelect && localX >= checkboxStartX && localX < checkboxEndX)
+            // Check if click is in checkbox area (only if checkbox exists)
+            else if (clickedNode.CheckboxNode != null && localX >= checkboxStartX && localX < checkboxEndX)
             {
                 await ToggleSelectionAsync(clickedNode, ctx);
             }
@@ -393,7 +408,7 @@ public sealed class TreeNode : Hex1bNode
             var node = new TreeItemNode
             {
                 Label = widget.Label,
-                Icon = widget.Icon,
+                Icon = widget.IconValue,
                 IsExpanded = widget.IsExpanded,
                 IsSelected = widget.IsSelected,
                 HasChildren = widget.HasChildren || widget.Children.Count > 0,
@@ -671,43 +686,41 @@ public sealed class TreeNode : Hex1bNode
             line.Append(itemFg);
             line.Append(itemBg);
             
-            // Add expand/collapse indicator
-            if (node.IsLoading)
+            // Add expand/collapse indicator from composed node
+            if (node.LoadingSpinnerNode != null)
             {
-                line.Append(GetLoadingIndicatorString(node, theme));
+                // Get spinner frame from composed SpinnerNode
+                line.Append(GetSpinnerFrame(node.LoadingSpinnerNode, theme));
+                line.Append(' '); // Space after indicator
             }
-            else if (node.CanExpand)
+            else if (node.ExpandIndicatorNode != null)
             {
-                line.Append(node.IsExpanded ? expandedIndicator : collapsedIndicator);
+                // Get indicator from composed IconNode
+                line.Append(node.ExpandIndicatorNode.Icon ?? "");
+                line.Append(' '); // Space after indicator
             }
-            else
+            // For leaf nodes (no indicator node), nothing is added
+            
+            // Add checkbox from composed node
+            if (node.CheckboxNode != null)
             {
-                line.Append(leafIndicator);
+                line.Append(node.CheckboxNode.State switch
+                {
+                    CheckboxState.Checked => checkboxChecked,
+                    CheckboxState.Indeterminate => checkboxIndeterminate,
+                    _ => checkboxUnchecked
+                });
             }
             
-            // Add checkbox if multi-select
-            if (MultiSelect)
+            // Add user icon from composed node
+            if (node.UserIconNode != null)
             {
-                if (CascadeSelection)
-                {
-                    // Use computed selection state for cascade mode
-                    var selectionState = node.ComputeSelectionState();
-                    line.Append(selectionState switch
-                    {
-                        TreeSelectionState.Selected => checkboxChecked,
-                        TreeSelectionState.Indeterminate => checkboxIndeterminate,
-                        _ => checkboxUnchecked
-                    });
-                }
-                else
-                {
-                    // Simple boolean selection
-                    line.Append(node.IsSelected ? checkboxChecked : checkboxUnchecked);
-                }
+                line.Append(node.UserIconNode.Icon ?? "");
+                line.Append(' '); // Space after icon
             }
             
-            // Add content
-            line.Append(node.GetDisplayText());
+            // Add label
+            line.Append(node.Label);
             line.Append(resetToGlobal);
             
             // Write the line
@@ -722,60 +735,27 @@ public sealed class TreeNode : Hex1bNode
             }
         }
     }
+    
+    /// <summary>
+    /// Gets the current spinner frame from a SpinnerNode.
+    /// </summary>
+    private string GetSpinnerFrame(SpinnerNode spinnerNode, Hex1bTheme theme)
+    {
+        var style = spinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
+        var elapsed = DateTime.UtcNow - _spinnerStartTime;
+        var intervalMs = style.Interval.TotalMilliseconds;
+        if (intervalMs <= 0) intervalMs = 80;
+        var frameIndex = (int)(elapsed.TotalMilliseconds / intervalMs) % style.Frames.Count;
+        return style.GetFrame(frameIndex);
+    }
 
     private (string branch, string lastBranch, string vertical, string space) GetGuideStrings(Hex1bTheme theme)
     {
-        return GuideStyle switch
-        {
-            TreeGuideStyle.Ascii => (
-                theme.Get(TreeTheme.AsciiBranch),
-                theme.Get(TreeTheme.AsciiLastBranch),
-                theme.Get(TreeTheme.AsciiVertical),
-                theme.Get(TreeTheme.AsciiSpace)),
-            TreeGuideStyle.Bold => (
-                theme.Get(TreeTheme.BoldBranch),
-                theme.Get(TreeTheme.BoldLastBranch),
-                theme.Get(TreeTheme.BoldVertical),
-                theme.Get(TreeTheme.BoldSpace)),
-            TreeGuideStyle.Double => (
-                theme.Get(TreeTheme.DoubleBranch),
-                theme.Get(TreeTheme.DoubleLastBranch),
-                theme.Get(TreeTheme.DoubleVertical),
-                theme.Get(TreeTheme.DoubleSpace)),
-            _ => (
-                theme.Get(TreeTheme.UnicodeBranch),
-                theme.Get(TreeTheme.UnicodeLastBranch),
-                theme.Get(TreeTheme.UnicodeVertical),
-                theme.Get(TreeTheme.UnicodeSpace))
-        };
-    }
-
-    /// <summary>
-    /// Gets the loading indicator string from the item's SpinnerNode.
-    /// The SpinnerNode handles time-based animation automatically.
-    /// </summary>
-    private string GetLoadingIndicatorString(TreeItemNode item, Hex1bTheme theme)
-    {
-        if (item.LoadingSpinnerNode != null)
-        {
-            // Get the current frame from the spinner node (it handles animation timing)
-            var style = item.LoadingSpinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
-            
-            // SpinnerNode calculates frame based on elapsed time internally
-            // We need to measure it to trigger frame calculation
-            item.LoadingSpinnerNode.Measure(new Layout.Constraints(0, 10, 0, 1));
-            
-            // Get the current frame based on time
-            var elapsed = DateTime.UtcNow - _spinnerStartTime;
-            var intervalMs = style.Interval.TotalMilliseconds;
-            if (intervalMs <= 0) intervalMs = 80;
-            var frameIndex = (int)(elapsed.TotalMilliseconds / intervalMs);
-            
-            return style.GetFrame(frameIndex) + " ";
-        }
-        
-        // Fallback to static indicator if no spinner node
-        return theme.Get(TreeTheme.LoadingIndicator);
+        return (
+            theme.Get(TreeTheme.Branch),
+            theme.Get(TreeTheme.LastBranch),
+            theme.Get(TreeTheme.Vertical),
+            theme.Get(TreeTheme.Space));
     }
     
     // Track when loading started for spinner animation

@@ -13,7 +13,7 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// <summary>
     /// Optional icon/emoji prefix displayed before the label.
     /// </summary>
-    public string? Icon { get; init; }
+    internal string? IconValue { get; init; }
     
     /// <summary>
     /// Child tree items. Empty by default.
@@ -24,6 +24,12 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// Whether this item is expanded to show children. Default is false (collapsed).
     /// </summary>
     public bool IsExpanded { get; init; } = false;
+    
+    /// <summary>
+    /// Whether this item is currently loading children. Default is false.
+    /// When true, displays an animated spinner instead of the expand indicator.
+    /// </summary>
+    public bool IsLoading { get; init; } = false;
     
     /// <summary>
     /// Whether this item is selected (for multi-select mode). Default is false.
@@ -55,7 +61,7 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// <summary>
     /// Sets the icon/emoji prefix for this item.
     /// </summary>
-    public TreeItemWidget WithIcon(string icon) => this with { Icon = icon };
+    public TreeItemWidget Icon(string icon) => this with { IconValue = icon };
 
     /// <summary>
     /// Sets the child items. Also sets HasChildren to true if children are provided.
@@ -68,6 +74,13 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
     /// </summary>
     public TreeItemWidget Expanded(bool expanded = true)
         => this with { IsExpanded = expanded };
+
+    /// <summary>
+    /// Sets whether this item is currently loading children.
+    /// When true, displays an animated spinner instead of the expand indicator.
+    /// </summary>
+    public TreeItemWidget Loading(bool loading = true)
+        => this with { IsLoading = loading };
 
     /// <summary>
     /// Sets whether this item is selected (for multi-select mode).

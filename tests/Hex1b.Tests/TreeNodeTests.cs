@@ -262,7 +262,7 @@ public class TreeNodeTests
     public async Task TreeItem_WithIcon_SetsIconProperty()
     {
         var widget = new TreeWidget([
-            new TreeItemWidget("Folder").WithIcon("📁")
+            new TreeItemWidget("Folder").Icon("📁")
         ]);
         var node = await ReconcileTreeAsync(widget);
         
@@ -293,24 +293,6 @@ public class TreeNodeTests
 
     #region GuideStyle Tests
 
-    [Fact]
-    public async Task GuideStyle_DefaultsToUnicode()
-    {
-        var widget = CreateSimpleTree();
-        var node = await ReconcileTreeAsync(widget);
-        
-        Assert.Equal(TreeGuideStyle.Unicode, node.GuideStyle);
-    }
-
-    [Fact]
-    public async Task GuideStyle_CanBeSet()
-    {
-        var widget = CreateSimpleTree().WithGuideStyle(TreeGuideStyle.Ascii);
-        var node = await ReconcileTreeAsync(widget);
-        
-        Assert.Equal(TreeGuideStyle.Ascii, node.GuideStyle);
-    }
-
     #endregion
 
     #region TreeItemWidget Fluent API Tests
@@ -319,13 +301,13 @@ public class TreeNodeTests
     public void TreeItemWidget_FluentApi_ChainsCorrectly()
     {
         var item = new TreeItemWidget("Test")
-            .WithIcon("📁")
+            .Icon("📁")
             .Expanded(true)
             .Selected(true)
             .WithTag("user-data");
         
         Assert.Equal("Test", item.Label);
-        Assert.Equal("📁", item.Icon);
+        Assert.Equal("📁", item.IconValue);
         Assert.True(item.IsExpanded);
         Assert.True(item.IsSelected);
         Assert.Equal("user-data", item.Tag);

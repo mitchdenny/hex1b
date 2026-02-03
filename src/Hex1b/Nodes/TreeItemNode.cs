@@ -76,6 +76,21 @@ public sealed class TreeItemNode : Hex1bNode
     public SpinnerNode? LoadingSpinnerNode { get; set; }
     
     /// <summary>
+    /// Expand indicator node (▶/▼). Null for leaf nodes.
+    /// </summary>
+    public IconNode? ExpandIndicatorNode { get; set; }
+    
+    /// <summary>
+    /// Checkbox node for multi-select mode. Null when not in multi-select.
+    /// </summary>
+    public CheckboxNode? CheckboxNode { get; set; }
+    
+    /// <summary>
+    /// User icon node. Null if no icon specified.
+    /// </summary>
+    public IconNode? UserIconNode { get; set; }
+    
+    /// <summary>
     /// User data associated with this item.
     /// </summary>
     public object? Tag { get; set; }

@@ -32,12 +32,12 @@ public class TreeIntegrationTests
     private static TreeWidget CreateSimpleTree()
     {
         return new TreeWidget([
-            new TreeItemWidget("Root").WithIcon("📁").Expanded().WithChildren(
-                new TreeItemWidget("Child 1").WithIcon("📄"),
-                new TreeItemWidget("Child 2").WithIcon("📄").WithChildren(
+            new TreeItemWidget("Root").Icon("📁").Expanded().WithChildren(
+                new TreeItemWidget("Child 1").Icon("📄"),
+                new TreeItemWidget("Child 2").Icon("📄").WithChildren(
                     new TreeItemWidget("Grandchild")
                 ),
-                new TreeItemWidget("Child 3").WithIcon("📄")
+                new TreeItemWidget("Child 3").Icon("📄")
             )
         ]);
     }
@@ -142,7 +142,13 @@ public class TreeIntegrationTests
     public async Task Tree_RendersGuideLines_Ascii()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateMultiRootTree().WithGuideStyle(TreeGuideStyle.Ascii))
+            .WithHex1bApp((app, options) => ctx => ctx.ThemePanel(
+                theme => theme
+                    .Set(Theming.TreeTheme.Branch, "+- ")
+                    .Set(Theming.TreeTheme.LastBranch, "\\- ")
+                    .Set(Theming.TreeTheme.Vertical, "|  ")
+                    .Set(Theming.TreeTheme.Space, "   "),
+                CreateMultiRootTree()))
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -891,19 +897,26 @@ public class TreeIntegrationTests
     #region Guide Style Verification
 
     [Theory]
-    [InlineData(TreeGuideStyle.Unicode, "├─", "└─")]
-    [InlineData(TreeGuideStyle.Ascii, "+-", "\\-")]
-    [InlineData(TreeGuideStyle.Bold, "┣━", "┗━")]
-    [InlineData(TreeGuideStyle.Double, "╠═", "╚═")]
-    public async Task Tree_GuideStyle_RendersCorrectCharacters(TreeGuideStyle style, string branch, string lastBranch)
+    [InlineData("├─ ", "└─ ", "│  ", "├─", "└─")]  // Unicode (default)
+    [InlineData("+- ", "\\- ", "|  ", "+-", "\\-")]  // ASCII
+    [InlineData("┣━ ", "┗━ ", "┃  ", "┣━", "┗━")]  // Bold
+    [InlineData("╠═ ", "╚═ ", "║  ", "╠═", "╚═")]  // Double
+    public async Task Tree_GuideTheme_RendersCorrectCharacters(
+        string branch, string lastBranch, string vertical, 
+        string expectedBranch, string expectedLastBranch)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
-                new TreeItemWidget("Root").Expanded().WithChildren(
-                    new TreeItemWidget("Child 1"),
-                    new TreeItemWidget("Child 2")
-                )
-            ]).WithGuideStyle(style))
+            .WithHex1bApp((app, options) => ctx => ctx.ThemePanel(
+                theme => theme
+                    .Set(Theming.TreeTheme.Branch, branch)
+                    .Set(Theming.TreeTheme.LastBranch, lastBranch)
+                    .Set(Theming.TreeTheme.Vertical, vertical),
+                new TreeWidget([
+                    new TreeItemWidget("Root").Expanded().WithChildren(
+                        new TreeItemWidget("Child 1"),
+                        new TreeItemWidget("Child 2")
+                    )
+                ])))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -919,8 +932,8 @@ public class TreeIntegrationTests
         await runTask;
 
         // At least one of branch or lastBranch should be present
-        Assert.True(snapshot.ContainsText(branch) || snapshot.ContainsText(lastBranch),
-            $"Should contain {style} guide characters ('{branch}' or '{lastBranch}')");
+        Assert.True(snapshot.ContainsText(expectedBranch) || snapshot.ContainsText(expectedLastBranch),
+            $"Should contain guide characters ('{expectedBranch}' or '{expectedLastBranch}')");
     }
 
     #endregion
@@ -1117,13 +1130,13 @@ public class TreeIntegrationTests
                 v.HStack(h => [
                     h.Border(b => [
                         b.Tree(
-                            new TreeItemWidget("Root").WithIcon("📁").Expanded().WithChildren(
-                                new TreeItemWidget("Documents").WithIcon("📁").Expanded().WithChildren(
-                                    new TreeItemWidget("report.docx").WithIcon("📄"),
-                                    new TreeItemWidget("notes.txt").WithIcon("📄")
+                            new TreeItemWidget("Root").Icon("📁").Expanded().WithChildren(
+                                new TreeItemWidget("Documents").Icon("📁").Expanded().WithChildren(
+                                    new TreeItemWidget("report.docx").Icon("📄"),
+                                    new TreeItemWidget("notes.txt").Icon("📄")
                                 ),
-                                new TreeItemWidget("Pictures").WithIcon("📸").Expanded().WithChildren(
-                                    new TreeItemWidget("photo.jpg").WithIcon("📷")
+                                new TreeItemWidget("Pictures").Icon("📸").Expanded().WithChildren(
+                                    new TreeItemWidget("photo.jpg").Icon("📷")
                                 )
                             )
                         ).FillHeight()
@@ -1184,13 +1197,13 @@ public class TreeIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
                 v.Tree(
-                    new TreeItemWidget("Parent").WithIcon("📁")
+                    new TreeItemWidget("Parent").Icon("📁")
                         .OnExpanding(async e => {
                             loadStarted.TrySetResult(true);
                             await Task.Delay(100); // Short delay for test
                             var children = new[] {
-                                new TreeItemWidget("Child1").WithIcon("📄"),
-                                new TreeItemWidget("Child2").WithIcon("📄")
+                                new TreeItemWidget("Child1").Icon("📄"),
+                                new TreeItemWidget("Child2").Icon("📄")
                             };
                             childrenReturned = children.Length;
                             loadCompleted.TrySetResult(true);
@@ -1283,11 +1296,11 @@ public class TreeIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
                 v.Tree(
-                    new TreeItemWidget("Parent").WithIcon("📁")
+                    new TreeItemWidget("Parent").Icon("📁")
                         .OnExpanding(async e => {
                             loadStarted.TrySetResult(true);
                             await Task.Delay(500); // Delay long enough to capture spinner frames
-                            return [new TreeItemWidget("Child").WithIcon("📄")];
+                            return [new TreeItemWidget("Child").Icon("📄")];
                         })
                 ).FillHeight()
             ])),

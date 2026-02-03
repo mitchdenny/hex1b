@@ -561,10 +561,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
-        // Clear any pending animation timers before reconciliation
-        // This prevents timer accumulation when multiple renders happen per loop iteration
-        // Each render will schedule fresh timers via RedrawAfter during reconciliation
-        _animationTimer.Clear();
+        // NOTE: We intentionally do NOT clear animation timers here.
+        // Clearing would reset any pending timers, and if renders happen frequently
+        // (e.g., mouse movement), the timers would never become due - they'd keep
+        // getting pushed forward. Let timers accumulate and fire naturally.
+        // The callback will mark nodes dirty, which is idempotent.
         
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
