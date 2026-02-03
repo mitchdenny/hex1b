@@ -122,6 +122,7 @@ public sealed class TreeNode : Hex1bNode
         bindings.Key(Hex1bKey.Enter).Action(ActivateFocused, "Activate item");
         bindings.Key(Hex1bKey.Spacebar).Action(HandleSpace, "Toggle selection/expand");
         bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select item");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Activate item");
         bindings.Mouse(MouseButton.ScrollUp).Action(MoveFocusUp, "Scroll up");
         bindings.Mouse(MouseButton.ScrollDown).Action(MoveFocusDown, "Scroll down");
     }
@@ -321,6 +322,29 @@ public sealed class TreeNode : Hex1bNode
             {
                 MarkDirty();
             }
+        }
+    }
+
+    private async Task HandleMouseDoubleClick(InputBindingActionContext ctx)
+    {
+        var localY = ctx.MouseY - Bounds.Y;
+        var itemIndex = localY + _scrollOffset;
+        
+        if (itemIndex >= 0 && itemIndex < FlattenedItems.Count)
+        {
+            var clickedNode = FlattenedItems[itemIndex].Node;
+            
+            // Update focus
+            _focusedIndex = itemIndex;
+            UpdateFocus();
+            
+            // Fire OnActivated for the double-clicked item
+            if (clickedNode.ActivateCallback != null)
+            {
+                await clickedNode.ActivateCallback(ctx);
+            }
+            
+            MarkDirty();
         }
     }
 
