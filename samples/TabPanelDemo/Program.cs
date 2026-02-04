@@ -197,38 +197,86 @@ SOFTWARE.
 // Editor state
 var editorState = new EditorState();
 
-// Initialize fake file system with many files
-// Source files (.cs)
-for (int i = 1; i <= 50; i++)
-{
-    editorState.Files.Add(new SourceFile($"Class{i:D3}.cs", "📄", GenerateCSharpContent($"Class{i:D3}")));
-}
+// Initialize fake file system with realistic project structure
+// Core source files
 editorState.Files.Add(new SourceFile("Program.cs", "📄", GenerateCSharpContent("Program")));
-editorState.Files.Add(new SourceFile("Hex1bApp.cs", "📄", GenerateCSharpContent("Hex1bApp")));
+editorState.Files.Add(new SourceFile("Startup.cs", "📄", GenerateCSharpContent("Startup")));
 
-// Markdown docs (.md)
-for (int i = 1; i <= 30; i++)
-{
-    editorState.Files.Add(new SourceFile($"Doc{i:D2}.md", "📝", GenerateMarkdownContent($"Document {i}")));
-}
+// Controllers
+editorState.Files.Add(new SourceFile("HomeController.cs", "📄", GenerateCSharpContent("HomeController")));
+editorState.Files.Add(new SourceFile("UsersController.cs", "📄", GenerateCSharpContent("UsersController")));
+editorState.Files.Add(new SourceFile("ProductsController.cs", "📄", GenerateCSharpContent("ProductsController")));
+editorState.Files.Add(new SourceFile("OrdersController.cs", "📄", GenerateCSharpContent("OrdersController")));
+editorState.Files.Add(new SourceFile("AuthController.cs", "📄", GenerateCSharpContent("AuthController")));
+
+// Services
+editorState.Files.Add(new SourceFile("UserService.cs", "📄", GenerateCSharpContent("UserService")));
+editorState.Files.Add(new SourceFile("ProductService.cs", "📄", GenerateCSharpContent("ProductService")));
+editorState.Files.Add(new SourceFile("OrderService.cs", "📄", GenerateCSharpContent("OrderService")));
+editorState.Files.Add(new SourceFile("EmailService.cs", "📄", GenerateCSharpContent("EmailService")));
+editorState.Files.Add(new SourceFile("CacheService.cs", "📄", GenerateCSharpContent("CacheService")));
+
+// Models
+editorState.Files.Add(new SourceFile("User.cs", "📄", GenerateCSharpContent("User")));
+editorState.Files.Add(new SourceFile("Product.cs", "📄", GenerateCSharpContent("Product")));
+editorState.Files.Add(new SourceFile("Order.cs", "📄", GenerateCSharpContent("Order")));
+editorState.Files.Add(new SourceFile("OrderItem.cs", "📄", GenerateCSharpContent("OrderItem")));
+editorState.Files.Add(new SourceFile("Address.cs", "📄", GenerateCSharpContent("Address")));
+
+// Data access
+editorState.Files.Add(new SourceFile("AppDbContext.cs", "📄", GenerateCSharpContent("AppDbContext")));
+editorState.Files.Add(new SourceFile("UserRepository.cs", "📄", GenerateCSharpContent("UserRepository")));
+editorState.Files.Add(new SourceFile("ProductRepository.cs", "📄", GenerateCSharpContent("ProductRepository")));
+editorState.Files.Add(new SourceFile("OrderRepository.cs", "📄", GenerateCSharpContent("OrderRepository")));
+
+// Interfaces
+editorState.Files.Add(new SourceFile("IUserService.cs", "📄", GenerateCSharpContent("IUserService")));
+editorState.Files.Add(new SourceFile("IProductService.cs", "📄", GenerateCSharpContent("IProductService")));
+editorState.Files.Add(new SourceFile("IOrderService.cs", "📄", GenerateCSharpContent("IOrderService")));
+editorState.Files.Add(new SourceFile("IRepository.cs", "📄", GenerateCSharpContent("IRepository")));
+
+// Middleware & Extensions
+editorState.Files.Add(new SourceFile("AuthMiddleware.cs", "📄", GenerateCSharpContent("AuthMiddleware")));
+editorState.Files.Add(new SourceFile("LoggingMiddleware.cs", "📄", GenerateCSharpContent("LoggingMiddleware")));
+editorState.Files.Add(new SourceFile("ServiceExtensions.cs", "📄", GenerateCSharpContent("ServiceExtensions")));
+
+// DTOs
+editorState.Files.Add(new SourceFile("UserDto.cs", "📄", GenerateCSharpContent("UserDto")));
+editorState.Files.Add(new SourceFile("ProductDto.cs", "📄", GenerateCSharpContent("ProductDto")));
+editorState.Files.Add(new SourceFile("OrderDto.cs", "📄", GenerateCSharpContent("OrderDto")));
+editorState.Files.Add(new SourceFile("LoginRequest.cs", "📄", GenerateCSharpContent("LoginRequest")));
+editorState.Files.Add(new SourceFile("LoginResponse.cs", "📄", GenerateCSharpContent("LoginResponse")));
+
+// Tests
+editorState.Files.Add(new SourceFile("UserServiceTests.cs", "📄", GenerateCSharpContent("UserServiceTests")));
+editorState.Files.Add(new SourceFile("ProductServiceTests.cs", "📄", GenerateCSharpContent("ProductServiceTests")));
+editorState.Files.Add(new SourceFile("OrderServiceTests.cs", "📄", GenerateCSharpContent("OrderServiceTests")));
+editorState.Files.Add(new SourceFile("IntegrationTests.cs", "📄", GenerateCSharpContent("IntegrationTests")));
+
+// Markdown docs
 editorState.Files.Add(new SourceFile("README.md", "📝", GenerateReadmeContent()));
 editorState.Files.Add(new SourceFile("CONTRIBUTING.md", "📝", GenerateMarkdownContent("Contributing Guide")));
 editorState.Files.Add(new SourceFile("CHANGELOG.md", "📝", GenerateMarkdownContent("Changelog")));
+editorState.Files.Add(new SourceFile("API.md", "📝", GenerateMarkdownContent("API Documentation")));
+editorState.Files.Add(new SourceFile("ARCHITECTURE.md", "📝", GenerateMarkdownContent("Architecture")));
+editorState.Files.Add(new SourceFile("DEPLOYMENT.md", "📝", GenerateMarkdownContent("Deployment Guide")));
 
-// Config files (.json, .props)
-for (int i = 1; i <= 20; i++)
-{
-    editorState.Files.Add(new SourceFile($"config{i:D2}.json", "⚙️", GenerateJsonContent()));
-}
+// Config files
 editorState.Files.Add(new SourceFile("appsettings.json", "⚙️", GenerateJsonContent()));
 editorState.Files.Add(new SourceFile("appsettings.Development.json", "⚙️", GenerateJsonContent()));
+editorState.Files.Add(new SourceFile("appsettings.Production.json", "⚙️", GenerateJsonContent()));
+editorState.Files.Add(new SourceFile("launchSettings.json", "⚙️", GenerateJsonContent()));
+editorState.Files.Add(new SourceFile("package.json", "⚙️", GenerateJsonContent()));
+editorState.Files.Add(new SourceFile("tsconfig.json", "⚙️", GenerateJsonContent()));
 editorState.Files.Add(new SourceFile("Directory.Build.props", "📦", GeneratePropsContent()));
 editorState.Files.Add(new SourceFile("Directory.Packages.props", "📦", GeneratePropsContent()));
 
 // Other files
 editorState.Files.Add(new SourceFile("LICENSE", "📜", GenerateLicenseContent()));
-editorState.Files.Add(new SourceFile(".gitignore", "📄", "bin/\nobj/\n*.user\n.vs/"));
-editorState.Files.Add(new SourceFile(".editorconfig", "📄", "root = true\n\n[*]\nindent_style = space"));
+editorState.Files.Add(new SourceFile(".gitignore", "📄", "bin/\nobj/\n*.user\n.vs/\nnode_modules/"));
+editorState.Files.Add(new SourceFile(".editorconfig", "📄", "root = true\n\n[*]\nindent_style = space\nindent_size = 4"));
+editorState.Files.Add(new SourceFile("Dockerfile", "🐳", "FROM mcr.microsoft.com/dotnet/aspnet:8.0\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"MyApp.dll\"]"));
+editorState.Files.Add(new SourceFile("docker-compose.yml", "🐳", "version: '3.8'\nservices:\n  app:\n    build: .\n    ports:\n      - '8080:80'"));
 
 var statusMessage = "Ready";
 
