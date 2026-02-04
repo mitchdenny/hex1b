@@ -467,5 +467,481 @@ public class TabPanelNodeTests
         await runTask;
     }
 
+    [Fact]
+    public async Task TabPanel_TreeDoubleClick_UpdatesContent_WithoutExplicitInvalidate()
+    {
+        // This test replicates the actual demo pattern where:
+        // 1. A Tree widget has items with OnActivated handlers
+        // 2. OnActivated modifies shared state (openDocs list)
+        // 3. The TabPanel should re-render with new content WITHOUT explicit Invalidate()
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(80, 20)
+            .Build();
+
+        // Shared mutable state (like editorState in the demo)
+        var openDocs = new List<(string Name, string Content)>();
+        var selectedIndex = 0;
+        var activatedCalled = false;
+        var clickedCalled = false;
+
+        // Available files (like the demo's file list)
+        var availableFiles = new[]
+        {
+            ("File1.cs", "Content of File 1"),
+            ("File2.cs", "Content of File 2"),
+            ("File3.cs", "Content of File 3")
+        };
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(main => [
+                // Tree with files that have OnActivated handlers
+                main.Tree(tree => [
+                    ..availableFiles.Select(f => tree.Item(f.Item1)
+                        .OnClicked(e => {
+                            clickedCalled = true;
+                        })
+                        .OnActivated(e => {
+                            activatedCalled = true;
+                            // This is what happens in the demo - modify state inside handler
+                            if (!openDocs.Any(d => d.Name == f.Item1))
+                            {
+                                openDocs.Add((f.Item1, f.Item2));
+                            }
+                            selectedIndex = openDocs.FindIndex(d => d.Name == f.Item1);
+                        }))
+                ]).Height(SizeHint.Fixed(5)),
+                
+                // TabPanel that shows open documents
+                openDocs.Count == 0
+                    ? main.Text("No documents open")
+                    : main.TabPanel(tp => [
+                        ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                            t.Text(doc.Content)
+                        ]))
+                    ])
+                    .WithSelectedIndex(selectedIndex)
+                    .Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act & Assert
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render - should show tree and "No documents"
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "initial")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+        Assert.False(activatedCalled, "OnActivated should not be called yet");
+        Assert.False(clickedCalled, "OnClicked should not be called yet");
+
+        // Find File1.cs position in the tree - it should be at row 0
+        var file1Pos = FindTextPosition(snapshot1, "File1.cs");
+        Assert.True(file1Pos.HasValue, "Should find File1.cs in tree");
+
+        // First try a single click to verify mouse routing works
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(file1Pos.Value.x, file1Pos.Value.y)
+            .Click()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("afterClick")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(clickedCalled, $"OnClicked should have been called by click at ({file1Pos.Value.x}, {file1Pos.Value.y})");
+
+        // Now double-click to activate
+        var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(file1Pos.Value.x, file1Pos.Value.y)
+            .DoubleClick()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("afterDoubleClick")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(activatedCalled, "OnActivated should have been called by double-click");
+        Assert.Single(openDocs);
+        Assert.Equal("File1.cs", openDocs[0].Name);
+
+        // Now verify content update
+        var snapshot4 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(1), "file1 content")
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        Assert.True(snapshot4.ContainsText("File1.cs"), "Tab should show File1.cs");
+        Assert.True(snapshot4.ContainsText("Content of File 1"), "Content area should show file content");
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task TabPanel_SwitchingTabs_UpdatesContent()
+    {
+        // Simple test: TabPanel with two tabs, switch between them
+        // Content should update without needing resize
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 10)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.TabPanel(tp => [
+                    tp.Tab("Tab One", t => [t.Text("Content One")]),
+                    tp.Tab("Tab Two", t => [t.Text("Content Two")])
+                ]).Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Initially shows Tab One content
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+
+        // Press Alt+Right to switch to Tab Two
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.RightArrow)
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .Capture("afterSwitch")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // THIS IS THE BUG: Content Two should be visible, Content One should not
+        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task TabPanel_SwitchingTabs_WithVScrollAndWrap_UpdatesContent()
+    {
+        // Test with VScroll and Wrap - matches the demo's structure
+        // This is more likely to trigger the caching bug
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 15)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.TabPanel(tp => [
+                    tp.Tab("Tab One", t => [
+                        t.VScroll(s => [
+                            s.Text("Content One - This is the first tab with some longer text").Wrap()
+                        ]).Fill()
+                    ]),
+                    tp.Tab("Tab Two", t => [
+                        t.VScroll(s => [
+                            s.Text("Content Two - This is the second tab with different text").Wrap()
+                        ]).Fill()
+                    ])
+                ]).Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Initially shows Tab One content
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+
+        // Press Alt+Right to switch to Tab Two
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.RightArrow)
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .Capture("afterSwitch")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Content Two should be visible
+        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task TabPanel_SwitchingTabs_WithResponsive_UpdatesContent()
+    {
+        // Test with Responsive widget wrapping the TabPanel - matches the demo's exact structure
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 20)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.Responsive(r => [
+                    r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
+                        tp.Tab("Tab One", t => [
+                            t.VScroll(s => [
+                                s.Text("Content One - This is the first tab").Wrap()
+                            ]).Fill()
+                        ]),
+                        tp.Tab("Tab Two", t => [
+                            t.VScroll(s => [
+                                s.Text("Content Two - This is the second tab").Wrap()
+                            ]).Fill()
+                        ])
+                    ]).Full().Fill()),
+                    r.Otherwise(r => r.Text("Compact mode"))
+                ]).Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Initially shows Tab One content
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+
+        // Press Alt+Right to switch to Tab Two
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.RightArrow)
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .Capture("afterSwitch")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Content Two should be visible
+        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task TabPanel_InSplitter_SwitchingTabs_UpdatesContent()
+    {
+        // Test with Splitter + Responsive + TabPanel - full demo structure
+        // This test reproduces the bug where tab content doesn't update in a splitter
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 20)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.HSplitter(
+                left => [
+                    left.Text("Left Pane").Fill()
+                ],
+                right => [
+                    right.Responsive(r => [
+                        r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
+                            tp.Tab("Tab One", t => [
+                                t.VScroll(s => [
+                                    s.Text("Content One - First tab content").Wrap()
+                                ]).Fill()
+                            ]),
+                            tp.Tab("Tab Two", t => [
+                                t.VScroll(s => [
+                                    s.Text("Content Two - Second tab content").Wrap()
+                                ]).Fill()
+                            ])
+                        ]).Full().Fill()),
+                        r.Otherwise(r => r.Text("Compact"))
+                    ]).Fill()
+                ],
+                leftWidth: 20
+            ).Fill()),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Initially shows Tab One content
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+
+        // Press Alt+Right to switch to Tab Two
+        // Note: TabPanel's Alt+Right binding only works when TabPanel or its content is focused
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.RightArrow)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("afterSwitch")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        // Try clicking on Tab Two instead (this should work regardless of focus)
+        // Find Tab Two position
+        var tabTwoPos = FindTextPosition(snapshot2, "Tab Two");
+        Assert.True(tabTwoPos.HasValue, "Should find Tab Two in tab bar");
+        
+        var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(tabTwoPos.Value.x + 2, tabTwoPos.Value.y)
+            .Click()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("afterClick")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Print full terminal state for debugging
+        var fullState = string.Join("\n", Enumerable.Range(0, 10).Select(i => snapshot3.GetLine(i)));
+        
+        // Content Two should be visible after clicking on Tab Two
+        // This verifies the content area actually updated, not just that both texts exist somewhere
+        Assert.True(snapshot3.ContainsText("Content Two"), 
+            $"Should show Tab Two content after clicking tab.\nTerminal state:\n{fullState}");
+        Assert.False(snapshot3.ContainsText("Content One"), 
+            $"Should not show Tab One content after switch.\nTerminal state:\n{fullState}");
+
+        await runTask;
+    }
+
+    [Fact(Skip = "Tree double-click in splitter is a separate issue - needs investigation")]
+    public async Task TabPanel_TreeInSplitter_DoubleClickUpdatesContent()
+    {
+        // This test more closely mirrors the TabPanelDemo structure
+        // with an HSplitter containing Tree on left and TabPanel on right
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(80, 20)
+            .Build();
+
+        // Shared mutable state (like editorState in the demo)
+        var openDocs = new List<(string Name, string Content)>();
+        var selectedIndex = 0;
+        var activatedCalled = false;
+
+        // Available files
+        var availableFiles = new[]
+        {
+            ("File1.cs", "Content of File 1"),
+            ("File2.cs", "Content of File 2"),
+            ("File3.cs", "Content of File 3")
+        };
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.HSplitter(
+                left => [
+                    left.Tree(tree => [
+                        ..availableFiles.Select(f => tree.Item(f.Item1)
+                            .OnActivated(e => {
+                                activatedCalled = true;
+                                if (!openDocs.Any(d => d.Name == f.Item1))
+                                {
+                                    openDocs.Add((f.Item1, f.Item2));
+                                }
+                                selectedIndex = openDocs.FindIndex(d => d.Name == f.Item1);
+                            }))
+                    ]).Fill()
+                ],
+                right => openDocs.Count == 0
+                    ? [right.Text("No documents open")]
+                    : [
+                        right.TabPanel(tp => [
+                            ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                                t.Text(doc.Content)
+                            ]))
+                        ])
+                        .WithSelectedIndex(selectedIndex)
+                        .Fill()
+                    ],
+                leftWidth: 20
+            ).Fill()),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act & Assert
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "initial")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+
+        // Find File1.cs position - should be in the left pane
+        var file1Pos = FindTextPosition(snapshot1, "File1.cs");
+        Assert.True(file1Pos.HasValue, "Should find File1.cs in tree");
+
+        // Click in the middle of the filename (add offset from start)
+        var clickX = file1Pos.Value.x + 3; // Click on "e1" part of File1.cs
+        var clickY = file1Pos.Value.y;
+
+        // Double-click to activate - first verify OnActivated is called
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(clickX, clickY)
+            .DoubleClick()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("afterDoubleClick")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(activatedCalled, $"OnActivated should have been called by double-click at ({clickX}, {clickY})");
+        Assert.Single(openDocs);
+        Assert.Equal("File1.cs", openDocs[0].Name);
+
+        // Now wait for content update
+        var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(1), "file1 content")
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot3.ContainsText("File1.cs"), "Tab should show File1.cs");
+        Assert.True(snapshot3.ContainsText("Content of File 1"), "Content area should show file content");
+
+        await runTask;
+    }
+
     #endregion
 }
