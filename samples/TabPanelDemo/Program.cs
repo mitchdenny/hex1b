@@ -7,7 +7,7 @@ using Hex1b.Widgets;
 // =============================================================================
 
 // Content generator local functions (must be before usage in top-level statements)
-static string GenerateCSharpContent() => """
+static string GenerateCSharpContent(string className = "Program") => $$"""
 using System;
 using Hex1b;
 using Hex1b.Widgets;
@@ -15,11 +15,25 @@ using Hex1b.Widgets;
 namespace TabPanelDemo;
 
 /// <summary>
-/// Main entry point for the TabPanel demonstration application.
+/// {{className}} - Auto-generated class for demonstration purposes.
 /// This showcases the composable nature of Hex1b widgets.
 /// </summary>
-public class Program
+public class {{className}}
 {
+    private readonly string _name = "{{className}}";
+    private int _counter;
+
+    public {{className}}()
+    {
+        _counter = 0;
+    }
+
+    public void DoSomething()
+    {
+        _counter++;
+        Console.WriteLine($"{_name} counter: {_counter}");
+    }
+
     public static async Task Main(string[] args)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -31,57 +45,42 @@ public class Program
 
     private static Hex1bWidget BuildUI(Hex1bApp app)
     {
-        // Build the main user interface
         return new VStackWidget([
-            new TextBlockWidget("Hello, Hex1b!"),
+            new TextBlockWidget("Hello from {{className}}!"),
             new ButtonWidget("Click Me")
         ]);
     }
 }
 """;
 
-static string GenerateHex1bAppContent() => """
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+static string GenerateMarkdownContent(string title) => $"""
+# {title}
 
-namespace Hex1b;
+This is auto-generated documentation for **{title}**.
 
-/// <summary>
-/// The main application class that manages the widget tree,
-/// reconciliation, and render loop for a Hex1b terminal UI.
-/// </summary>
-public class Hex1bApp : IDisposable
-{
-    private readonly Func<WidgetContext, Task<Hex1bWidget>> _builder;
-    private readonly Hex1bAppOptions _options;
-    private Hex1bNode? _rootNode;
+## Overview
 
-    public Hex1bApp(
-        Func<WidgetContext, Task<Hex1bWidget>> builder,
-        Hex1bAppOptions options)
-    {
-        _builder = builder;
-        _options = options;
-    }
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod 
+tempor incididunt ut labore et dolore magna aliqua.
 
-    /// <summary>
-    /// Runs the application render loop until cancelled.
-    /// </summary>
-    public async Task RunAsync(CancellationToken ct = default)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            await RenderFrameAsync(ct);
-            await WaitForInputAsync(ct);
-        }
-    }
+## Features
 
-    public void Dispose()
-    {
-        // Cleanup resources
-    }
-}
+- Feature one with detailed description
+- Feature two that does something useful  
+- Feature three for advanced users
+
+## Usage
+
+```csharp
+var example = new {title.Replace(" ", "")}();
+example.DoSomething();
+```
+
+## See Also
+
+- Related documentation
+- API reference
+- Examples
 """;
 
 static string GenerateReadmeContent() => """
@@ -198,13 +197,38 @@ SOFTWARE.
 // Editor state
 var editorState = new EditorState();
 
-// Initialize fake file system
-editorState.Files.Add(new SourceFile("Program.cs", "📄", GenerateCSharpContent()));
-editorState.Files.Add(new SourceFile("Hex1bApp.cs", "📄", GenerateHex1bAppContent()));
+// Initialize fake file system with many files
+// Source files (.cs)
+for (int i = 1; i <= 50; i++)
+{
+    editorState.Files.Add(new SourceFile($"Class{i:D3}.cs", "📄", GenerateCSharpContent($"Class{i:D3}")));
+}
+editorState.Files.Add(new SourceFile("Program.cs", "📄", GenerateCSharpContent("Program")));
+editorState.Files.Add(new SourceFile("Hex1bApp.cs", "📄", GenerateCSharpContent("Hex1bApp")));
+
+// Markdown docs (.md)
+for (int i = 1; i <= 30; i++)
+{
+    editorState.Files.Add(new SourceFile($"Doc{i:D2}.md", "📝", GenerateMarkdownContent($"Document {i}")));
+}
 editorState.Files.Add(new SourceFile("README.md", "📝", GenerateReadmeContent()));
+editorState.Files.Add(new SourceFile("CONTRIBUTING.md", "📝", GenerateMarkdownContent("Contributing Guide")));
+editorState.Files.Add(new SourceFile("CHANGELOG.md", "📝", GenerateMarkdownContent("Changelog")));
+
+// Config files (.json, .props)
+for (int i = 1; i <= 20; i++)
+{
+    editorState.Files.Add(new SourceFile($"config{i:D2}.json", "⚙️", GenerateJsonContent()));
+}
 editorState.Files.Add(new SourceFile("appsettings.json", "⚙️", GenerateJsonContent()));
+editorState.Files.Add(new SourceFile("appsettings.Development.json", "⚙️", GenerateJsonContent()));
 editorState.Files.Add(new SourceFile("Directory.Build.props", "📦", GeneratePropsContent()));
+editorState.Files.Add(new SourceFile("Directory.Packages.props", "📦", GeneratePropsContent()));
+
+// Other files
 editorState.Files.Add(new SourceFile("LICENSE", "📜", GenerateLicenseContent()));
+editorState.Files.Add(new SourceFile(".gitignore", "📄", "bin/\nobj/\n*.user\n.vs/"));
+editorState.Files.Add(new SourceFile(".editorconfig", "📄", "root = true\n\n[*]\nindent_style = space"));
 
 var statusMessage = "Ready";
 
