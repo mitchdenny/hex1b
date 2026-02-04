@@ -33,7 +33,7 @@ public class TabPanelBasicExample(ILogger<TabPanelBasicExample> logger) : Hex1bE
                     t.Text("Welcome to Hex1b!"),
                     t.Text(""),
                     t.Text("This is the Overview tab content.")
-                ]).Selected(),
+                ]),
                 tp.Tab("Settings", t => [
                     t.Text("Application Settings"),
                     t.Text(""),

@@ -16,7 +16,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             t.Text("Welcome to Hex1b!"),
             t.Text(""),
             t.Text("This is the Overview tab content.")
-        ]).Selected(),
+        ]),
         tp.Tab("Settings", t => [
             t.Text("Application Settings"),
             t.Text(""),
@@ -85,7 +85,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     t.Text($"Created at: {tab.CreatedAt:HH:mm:ss}")
                 ])
                 .Selected(idx == state.SelectedIndex)
-                .WithRightActions(i => [
+                .RightActions(i => [
                     i.Icon("×").OnClick(_ => state.CloseTab(idx))
                 ])
             ).ToArray())
@@ -130,19 +130,19 @@ A tabbed interface for organizing content into switchable panels. TabPanel provi
 
 ## Basic Usage
 
-Create a tabbed interface using the fluent API. Mark the initially selected tab with `.Selected()`:
+Create a tabbed interface using the fluent API. By default, TabPanel manages its own selection state (the first tab is selected initially):
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="tabpanel-basic" exampleTitle="TabPanel - Basic Usage" />
 
 ## Selection with State
 
-Track tab selection changes to update your application state. Use `.Selected(condition)` to declaratively set which tab is active:
+For controlled selection, use `.Selected(condition)` to declaratively set which tab is active based on your application state:
 
 <CodeBlock lang="csharp" :code="selectionCode" command="dotnet run" example="tabpanel-selection" exampleTitle="TabPanel - Selection Tracking" />
 
 Key points:
-- `.Selected()` marks a tab as initially selected
-- `.Selected(condition)` enables dynamic selection based on state
+- Without `.Selected()`, TabPanel manages its own state (uncontrolled)
+- `.Selected(condition)` enables controlled selection based on state
 - When multiple tabs have `.Selected(true)`, the first one wins
 - Use `OnSelectionChanged` to respond to user tab switches
 
@@ -154,7 +154,7 @@ Build tab-based interfaces where tabs are added and removed at runtime. This pat
 
 Features demonstrated:
 - Adding tabs dynamically with state
-- Close button using `.WithRightActions()`
+- Close button using `.RightActions()`
 - Selection tracking with `OnSelectionChanged`
 - Conditional rendering when no tabs exist
 
@@ -223,13 +223,13 @@ tp.Tab("Settings", t => [...]).WithIcon("⚙️")
 
 ## Tab Actions
 
-Add interactive action icons to tabs using `.WithLeftActions()` and `.WithRightActions()`:
+Add interactive action icons to tabs using `.LeftActions()` and `.RightActions()`:
 
 ### Close Button (Right Action)
 
 ```csharp
 tp.Tab("Document.cs", t => [...])
-  .WithRightActions(a => [
+  .RightActions(a => [
       a.Icon("×").OnClick(_ => CloseDocument())
   ])
 ```
@@ -238,7 +238,7 @@ tp.Tab("Document.cs", t => [...])
 
 ```csharp
 tp.Tab("Important.cs", t => [...])
-  .WithLeftActions(a => [
+  .LeftActions(a => [
       a.Icon("📌").OnClick(_ => TogglePin())
   ])
 ```
@@ -247,10 +247,10 @@ tp.Tab("Important.cs", t => [...])
 
 ```csharp
 tp.Tab("Document.cs", t => [...])
-  .WithLeftActions(a => [
+  .LeftActions(a => [
       a.Icon("📌").OnClick(_ => TogglePin())
   ])
-  .WithRightActions(a => [
+  .RightActions(a => [
       a.Icon("💾").OnClick(_ => Save()),
       a.Icon("×").OnClick(_ => Close())
   ])

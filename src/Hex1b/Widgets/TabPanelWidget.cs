@@ -141,8 +141,8 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
             t.Icon, 
             t.IsDisabled,
             i == node.SelectedIndex,
-            t.LeftActions,
-            t.RightActions)).ToList();
+            t.LeftActionIcons,
+            t.RightActionIcons)).ToList();
 
         // Build and reconcile the selected tab's content
         if (Tabs.Count > 0 && node.SelectedIndex >= 0 && node.SelectedIndex < Tabs.Count)

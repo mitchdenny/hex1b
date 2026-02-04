@@ -47,7 +47,7 @@ public class TabPanelDynamicExample(ILogger<TabPanelDynamicExample> logger) : He
                             t.Text($"Created at: {tab.CreatedAt:HH:mm:ss}")
                         ])
                         .Selected(idx == _selectedIndex)
-                        .WithRightActions(i => [
+                        .RightActions(i => [
                             i.Icon("×").OnClick(_ => CloseTab(idx))
                         ])
                     ).ToArray())

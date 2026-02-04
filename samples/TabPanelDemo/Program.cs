@@ -443,7 +443,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     ]).Fill()
                                 ])
                                 .Selected(idx == editorState.SelectedTabIndex)
-                                .WithRightActions(i => [
+                                .RightActions(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
                                         statusMessage = $"Closed: {doc.File.Name}";
@@ -467,7 +467,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     ]).Fill()
                                 ])
                                 .Selected(idx == editorState.SelectedTabIndex)
-                                .WithRightActions(i => [
+                                .RightActions(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
                                         statusMessage = $"Closed: {doc.File.Name}";

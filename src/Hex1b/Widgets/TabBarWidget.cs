@@ -154,8 +154,8 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
             t.Icon, 
             t.IsDisabled,
             i == node.SelectedIndex,
-            t.LeftActions,
-            t.RightActions)).ToList();
+            t.LeftActionIcons,
+            t.RightActionIcons)).ToList();
         node.SelectionChangedHandler = SelectionChangedHandler;
 
         // Detect position from context
