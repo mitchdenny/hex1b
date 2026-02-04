@@ -216,6 +216,7 @@ public sealed class TreeItemNode : Hex1bNode
 
     // Callbacks set by the parent TreeNode
     internal Func<InputBindingActionContext, Task>? ActivateCallback { get; set; }
+    internal Func<InputBindingActionContext, Task>? ClickCallback { get; set; }
     internal Func<InputBindingActionContext, Task>? ToggleExpandCallback { get; set; }
     internal Func<InputBindingActionContext, Task>? ToggleSelectCallback { get; set; }
 

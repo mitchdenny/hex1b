@@ -165,6 +165,16 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
                 }
             };
 
+            node.ClickCallback = async ctx =>
+            {
+                // Call item-level clicked handler
+                if (widget.ClickedHandler != null)
+                {
+                    var args = new TreeItemClickedEventArgs(this, parentTree, ctx, node);
+                    await widget.ClickedHandler(args);
+                }
+            };
+
             node.ToggleExpandCallback = async ctx =>
             {
                 await parentTree.ToggleExpandAsync(node, ctx);

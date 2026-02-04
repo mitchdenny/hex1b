@@ -20,6 +20,7 @@ Widgets that respond to user input.
 - **[Button](/guide/widgets/button)** — Clickable buttons with keyboard support
 - **[Checkbox](/guide/widgets/checkbox)** — Toggleable checked/unchecked/indeterminate state
 - **[SplitButton](/guide/widgets/split-button)** — Button with dropdown for secondary actions
+- **[TabPanel](/guide/widgets/tabpanel)** — Tabbed interface for organizing content into switchable panels
 - **[TextBox](/guide/widgets/textbox)** — Single and multi-line text input
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
 - **[Tree](/guide/widgets/tree)** — Hierarchical data with expand/collapse and multi-select

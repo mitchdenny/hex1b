@@ -58,6 +58,7 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
 
     // Item-level event handlers
     internal Func<TreeItemActivatedEventArgs, Task>? ActivatedHandler { get; init; }
+    internal Func<TreeItemClickedEventArgs, Task>? ClickedHandler { get; init; }
     internal Func<TreeItemExpandedEventArgs, Task>? ExpandedHandler { get; init; }
     internal Func<TreeItemCollapsedEventArgs, Task>? CollapsedHandler { get; init; }
 
@@ -129,10 +130,22 @@ public sealed record TreeItemWidget(string Label) : Hex1bWidget
         => this with { ActivatedHandler = args => { handler(args); return Task.CompletedTask; } };
 
     /// <summary>
-    /// Sets an asynchronous handler called when this item is activated (Enter key).
+    /// Sets an asynchronous handler called when this item is activated (Enter key or double-click).
     /// </summary>
     public TreeItemWidget OnActivated(Func<TreeItemActivatedEventArgs, Task> handler)
         => this with { ActivatedHandler = handler };
+
+    /// <summary>
+    /// Sets a synchronous handler called when this item is clicked (single-click).
+    /// </summary>
+    public TreeItemWidget OnClicked(Action<TreeItemClickedEventArgs> handler)
+        => this with { ClickedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler called when this item is clicked (single-click).
+    /// </summary>
+    public TreeItemWidget OnClicked(Func<TreeItemClickedEventArgs, Task> handler)
+        => this with { ClickedHandler = handler };
 
     /// <summary>
     /// Sets a synchronous handler called after this item is expanded.

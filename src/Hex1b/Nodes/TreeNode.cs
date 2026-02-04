@@ -122,6 +122,7 @@ public sealed class TreeNode : Hex1bNode
         bindings.Key(Hex1bKey.Enter).Action(ActivateFocused, "Activate item");
         bindings.Key(Hex1bKey.Spacebar).Action(HandleSpace, "Toggle selection/expand");
         bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select item");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Activate item");
         bindings.Mouse(MouseButton.ScrollUp).Action(MoveFocusUp, "Scroll up");
         bindings.Mouse(MouseButton.ScrollDown).Action(MoveFocusDown, "Scroll down");
     }
@@ -294,33 +295,47 @@ public sealed class TreeNode : Hex1bNode
             var clickedEntry = FlattenedItems[itemIndex];
             var clickedNode = clickedEntry.Node;
             
-            // Calculate click regions for this item based on actual composed nodes
-            // Guide width: depth * 3 chars for guides
-            var guideWidth = clickedEntry.Depth * 3;
+            // Update focus
+            _focusedIndex = itemIndex;
+            UpdateFocus();
             
-            // Indicator region: only present for expandable nodes
-            var indicatorStartX = guideWidth;
-            var indicatorWidth = 0;
-            if (clickedNode.LoadingSpinnerNode != null || clickedNode.ExpandIndicatorNode != null)
+            // If item has children, toggle its expanded/collapsed state
+            if (clickedNode.CanExpand)
             {
-                indicatorWidth = 2; // icon + space
+                await ToggleExpandAsync(clickedNode, ctx);
             }
-            var indicatorEndX = indicatorStartX + indicatorWidth;
+            else
+            {
+                // Fire OnClicked for leaf items
+                if (clickedNode.ClickCallback != null)
+                {
+                    await clickedNode.ClickCallback(ctx);
+                }
+                MarkDirty();
+            }
+        }
+    }
+
+    private async Task HandleMouseDoubleClick(InputBindingActionContext ctx)
+    {
+        var localY = ctx.MouseY - Bounds.Y;
+        var itemIndex = localY + _scrollOffset;
+        
+        if (itemIndex >= 0 && itemIndex < FlattenedItems.Count)
+        {
+            var clickedNode = FlattenedItems[itemIndex].Node;
             
             // Update focus
             _focusedIndex = itemIndex;
             UpdateFocus();
             
-            // Check if click is on expand/collapse indicator (for expandable nodes)
-            if (clickedNode.CanExpand && indicatorWidth > 0 && localX >= indicatorStartX && localX < indicatorEndX)
+            // Fire OnActivated for the double-clicked item
+            if (clickedNode.ActivateCallback != null)
             {
-                await ToggleExpandAsync(clickedNode, ctx);
+                await clickedNode.ActivateCallback(ctx);
             }
-            // Note: Checkbox clicks are handled by CheckboxNode via composition
-            else
-            {
-                MarkDirty();
-            }
+            
+            MarkDirty();
         }
     }
 

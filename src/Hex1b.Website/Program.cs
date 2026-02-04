@@ -162,6 +162,11 @@ builder.Services.AddSingleton<IGalleryExample, CheckboxStatesExample>();
 builder.Services.AddSingleton<IGalleryExample, IconBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, IconClickExample>();
 
+// TabPanel examples
+builder.Services.AddSingleton<IGalleryExample, TabPanelBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, TabPanelSelectionExample>();
+builder.Services.AddSingleton<IGalleryExample, TabPanelDynamicExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
