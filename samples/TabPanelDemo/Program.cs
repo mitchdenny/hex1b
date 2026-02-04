@@ -307,10 +307,53 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             left => [
                 left.Text(" EXPLORER"),
                 left.Separator(),
-                left.Tree(t => [
-                    t.Item("src", items => [
+                left.VScroll(scroll => [
+                    scroll.Tree(t => [
+                        t.Item("src", items => [
+                            ..editorState.Files
+                                .Where(f => f.Name.EndsWith(".cs"))
+                                .Select(f => t.Item(f.Name)
+                                    .Icon(f.Icon)
+                                    .OnClicked(e => {
+                                        editorState.OpenDocument(f, keepOpen: false);
+                                        statusMessage = $"Preview: {f.Name}";
+                                    })
+                                    .OnActivated(e => {
+                                        editorState.OpenDocument(f, keepOpen: true);
+                                        statusMessage = $"Opened: {f.Name}";
+                                    }))
+                        ]).Icon("📁").Expanded(),
+                        t.Item("docs", items => [
+                            ..editorState.Files
+                                .Where(f => f.Name.EndsWith(".md"))
+                                .Select(f => t.Item(f.Name)
+                                    .Icon(f.Icon)
+                                    .OnClicked(e => {
+                                        editorState.OpenDocument(f, keepOpen: false);
+                                        statusMessage = $"Preview: {f.Name}";
+                                    })
+                                    .OnActivated(e => {
+                                        editorState.OpenDocument(f, keepOpen: true);
+                                        statusMessage = $"Opened: {f.Name}";
+                                    }))
+                        ]).Icon("📁"),
+                        t.Item("config", items => [
+                            ..editorState.Files
+                                .Where(f => f.Name.EndsWith(".json") || f.Name.EndsWith(".props"))
+                                .Select(f => t.Item(f.Name)
+                                    .Icon(f.Icon)
+                                    .OnClicked(e => {
+                                        editorState.OpenDocument(f, keepOpen: false);
+                                        statusMessage = $"Preview: {f.Name}";
+                                    })
+                                    .OnActivated(e => {
+                                        editorState.OpenDocument(f, keepOpen: true);
+                                        statusMessage = $"Opened: {f.Name}";
+                                    }))
+                        ]).Icon("📁"),
                         ..editorState.Files
-                            .Where(f => f.Name.EndsWith(".cs"))
+                            .Where(f => !f.Name.EndsWith(".cs") && !f.Name.EndsWith(".md") && 
+                                       !f.Name.EndsWith(".json") && !f.Name.EndsWith(".props"))
                             .Select(f => t.Item(f.Name)
                                 .Icon(f.Icon)
                                 .OnClicked(e => {
@@ -321,48 +364,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     editorState.OpenDocument(f, keepOpen: true);
                                     statusMessage = $"Opened: {f.Name}";
                                 }))
-                    ]).Icon("📁").Expanded(),
-                    t.Item("docs", items => [
-                        ..editorState.Files
-                            .Where(f => f.Name.EndsWith(".md"))
-                            .Select(f => t.Item(f.Name)
-                                .Icon(f.Icon)
-                                .OnClicked(e => {
-                                    editorState.OpenDocument(f, keepOpen: false);
-                                    statusMessage = $"Preview: {f.Name}";
-                                })
-                                .OnActivated(e => {
-                                    editorState.OpenDocument(f, keepOpen: true);
-                                    statusMessage = $"Opened: {f.Name}";
-                                }))
-                    ]).Icon("📁"),
-                    t.Item("config", items => [
-                        ..editorState.Files
-                            .Where(f => f.Name.EndsWith(".json") || f.Name.EndsWith(".props"))
-                            .Select(f => t.Item(f.Name)
-                                .Icon(f.Icon)
-                                .OnClicked(e => {
-                                    editorState.OpenDocument(f, keepOpen: false);
-                                    statusMessage = $"Preview: {f.Name}";
-                                })
-                                .OnActivated(e => {
-                                    editorState.OpenDocument(f, keepOpen: true);
-                                    statusMessage = $"Opened: {f.Name}";
-                                }))
-                    ]).Icon("📁"),
-                    ..editorState.Files
-                        .Where(f => !f.Name.EndsWith(".cs") && !f.Name.EndsWith(".md") && 
-                                   !f.Name.EndsWith(".json") && !f.Name.EndsWith(".props"))
-                        .Select(f => t.Item(f.Name)
-                            .Icon(f.Icon)
-                            .OnClicked(e => {
-                                editorState.OpenDocument(f, keepOpen: false);
-                                statusMessage = $"Preview: {f.Name}";
-                            })
-                            .OnActivated(e => {
-                                editorState.OpenDocument(f, keepOpen: true);
-                                statusMessage = $"Opened: {f.Name}";
-                            }))
+                    ])
                 ]).Fill()
             ],
             // RIGHT PANE - Tab Panel with Editor Content
