@@ -14,17 +14,18 @@ public sealed class TabBarNode : Hex1bNode
     /// <summary>
     /// Information about a tab for rendering purposes.
     /// </summary>
-    public record TabInfo(
+    internal record TabInfo(
         string Title, 
         string? Icon, 
         bool IsDisabled,
+        bool IsSelected,
         IReadOnlyList<IconWidget> LeftIcons,
         IReadOnlyList<IconWidget> RightIcons);
 
     /// <summary>
     /// The tabs to display.
     /// </summary>
-    public IReadOnlyList<TabInfo> Tabs { get; set; } = [];
+    internal IReadOnlyList<TabInfo> Tabs { get; set; } = [];
 
     /// <summary>
     /// The currently selected tab index.

@@ -22,7 +22,7 @@ public static class TabPanelExtensions
     ///     ]),
     ///     tp.Tab("Settings", t => [
     ///         t.Text("Settings content")
-    ///     ])
+    ///     ]).Selected()
     /// ])
     /// </code>
     /// </example>
@@ -50,13 +50,4 @@ public static class TabPanelExtensions
     {
         return new TabPanelWidget(tabs.ToList());
     }
-
-    /// <summary>
-    /// Sets the selected tab index.
-    /// </summary>
-    /// <param name="widget">The TabPanel widget.</param>
-    /// <param name="index">The index of the tab to select.</param>
-    /// <returns>A new TabPanelWidget with the selected index set.</returns>
-    public static TabPanelWidget SelectedIndex(this TabPanelWidget widget, int index)
-        => widget.WithSelectedIndex(index);
 }

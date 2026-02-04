@@ -7,13 +7,17 @@ namespace Hex1b.Widgets;
 /// Supports composable tab content with automatic tab switching.
 /// </summary>
 /// <param name="Tabs">The list of tabs to display.</param>
+/// <example>
+/// <code>
+/// ctx.TabPanel(tp => [
+///     tp.Tab("Overview", t => [t.Text("Overview content")]),
+///     tp.Tab("Settings", t => [t.Text("Settings content")]).Selected(),
+///     tp.Tab("Advanced", t => [t.Text("Advanced content")])
+/// ])
+/// </code>
+/// </example>
 public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidget
 {
-    /// <summary>
-    /// The currently selected tab index. When null, the node manages its own state.
-    /// </summary>
-    public int? SelectedIndex { get; init; }
-
     /// <summary>
     /// Handler called when the selected tab changes.
     /// </summary>
@@ -38,13 +42,6 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
     /// Whether to show the dropdown selector for quick tab navigation.
     /// </summary>
     public bool ShowSelector { get; init; } = false;
-
-    /// <summary>
-    /// Sets the selected tab index.
-    /// </summary>
-    /// <param name="index">The index of the tab to select.</param>
-    public TabPanelWidget WithSelectedIndex(int index)
-        => this with { SelectedIndex = index };
 
     /// <summary>
     /// Sets the handler for selection changes.
@@ -96,14 +93,32 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
     public TabPanelWidget Selector(bool enabled = true)
         => this with { ShowSelector = enabled };
 
+    /// <summary>
+    /// Gets the index of the selected tab based on IsSelected flags.
+    /// Returns the index of the first tab with IsSelected=true, or 0 if none.
+    /// </summary>
+    private int GetSelectedIndex()
+    {
+        for (int i = 0; i < Tabs.Count; i++)
+        {
+            if (Tabs[i].IsSelected)
+                return i;
+        }
+        return 0; // Default to first tab
+    }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TabPanelNode ?? new TabPanelNode();
 
-        // Sync state from widget if user is controlling it
-        if (SelectedIndex.HasValue)
+        // Determine selected index from tab widgets
+        var selectedIndex = GetSelectedIndex();
+        
+        // Check if any tab has explicit selection - if so, this is a controlled component
+        var hasExplicitSelection = Tabs.Any(t => t.IsSelected);
+        if (hasExplicitSelection)
         {
-            node.SelectedIndex = SelectedIndex.Value;
+            node.SelectedIndex = selectedIndex;
         }
 
         // Ensure selected index is valid
@@ -120,11 +135,12 @@ public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWi
         node.ShowSelector = ShowSelector;
         node.TabCount = Tabs.Count;
 
-        // Store tab info for the tab bar
-        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(
+        // Store tab info for the tab bar (include IsSelected for rendering)
+        node.Tabs = Tabs.Select((t, i) => new TabBarNode.TabInfo(
             t.Title, 
             t.Icon, 
             t.IsDisabled,
+            i == node.SelectedIndex,
             t.LeftIcons,
             t.RightIcons)).ToList();
 

@@ -16,7 +16,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     private IReadOnlyList<TabBarNode.TabInfo> _tabs = [];
     private int _previousTabCount;
     
-    public IReadOnlyList<TabBarNode.TabInfo> Tabs 
+    internal IReadOnlyList<TabBarNode.TabInfo> Tabs 
     { 
         get => _tabs;
         set
@@ -56,7 +56,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Handler for selection changes.
     /// </summary>
-    public Func<TabSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; set; }
+    internal Func<TabSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; set; }
 
     /// <summary>
     /// The position of tabs (top or bottom).
@@ -81,7 +81,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The total number of tabs.
     /// </summary>
-    public int TabCount { get; set; }
+    internal int TabCount { get; set; }
 
     /// <summary>
     /// The content node for the selected tab.

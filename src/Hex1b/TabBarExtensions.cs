@@ -17,7 +17,7 @@ public static class TabBarExtensions
     /// <example>
     /// <code>
     /// ctx.TabBar(tp => [
-    ///     tp.Tab("Tab 1", null),
+    ///     tp.Tab("Tab 1", null).Selected(),
     ///     tp.Tab("Tab 2", null),
     ///     tp.Tab("Tab 3", null)
     /// ])
@@ -48,13 +48,4 @@ public static class TabBarExtensions
         var tabs = titles.Select(t => new TabItemWidget(t, null)).ToList();
         return new TabBarWidget(tabs);
     }
-
-    /// <summary>
-    /// Sets the selected tab index.
-    /// </summary>
-    /// <param name="widget">The TabBar widget.</param>
-    /// <param name="index">The index of the tab to select.</param>
-    /// <returns>A new TabBarWidget with the selected index set.</returns>
-    public static TabBarWidget SelectedIndex(this TabBarWidget widget, int index)
-        => widget.WithSelectedIndex(index);
 }

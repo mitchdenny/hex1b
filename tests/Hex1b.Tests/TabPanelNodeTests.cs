@@ -416,11 +416,10 @@ public class TabPanelNodeTests
                 openDocs.Count == 0
                     ? ctx.Text("No documents open")
                     : ctx.TabPanel(tp => [
-                        ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                        ..openDocs.Select((doc, idx) => tp.Tab(doc.Name, t => [
                             t.Text(doc.Content)
-                        ]))
+                        ]).Selected(idx == selectedIndex))
                     ])
-                    .WithSelectedIndex(selectedIndex)
                     .Fill()
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -520,11 +519,10 @@ public class TabPanelNodeTests
                 openDocs.Count == 0
                     ? main.Text("No documents open")
                     : main.TabPanel(tp => [
-                        ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                        ..openDocs.Select((doc, idx) => tp.Tab(doc.Name, t => [
                             t.Text(doc.Content)
-                        ]))
+                        ]).Selected(idx == selectedIndex))
                     ])
-                    .WithSelectedIndex(selectedIndex)
                     .Fill()
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -885,11 +883,10 @@ public class TabPanelNodeTests
                     ? [right.Text("No documents open")]
                     : [
                         right.TabPanel(tp => [
-                            ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                            ..openDocs.Select((doc, idx) => tp.Tab(doc.Name, t => [
                                 t.Text(doc.Content)
-                            ]))
+                            ]).Selected(idx == selectedIndex))
                         ])
-                        .WithSelectedIndex(selectedIndex)
                         .Fill()
                     ],
                 leftWidth: 20
@@ -1075,10 +1072,10 @@ public class TabPanelNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
-                v.TabPanel(tp => tabs.Select(tabName => 
+                v.TabPanel(tp => tabs.Select((tabName, idx) => 
                     tp.Tab(tabName, t => [t.Text($"Content of {tabName}")])
+                      .Selected(idx == selectedIndex)
                 ).ToArray())
-                .SelectedIndex(selectedIndex)
                 .Fill()
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }

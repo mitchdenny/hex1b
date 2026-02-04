@@ -23,6 +23,12 @@ public sealed record TabItemWidget(
     public bool IsDisabled { get; init; }
 
     /// <summary>
+    /// Whether this tab is selected.
+    /// When multiple tabs have IsSelected=true, the first one wins.
+    /// </summary>
+    public bool IsSelected { get; init; }
+
+    /// <summary>
     /// Icons displayed on the left side of the tab, in order.
     /// These are composable IconWidgets that can have click handlers.
     /// </summary>
@@ -47,6 +53,23 @@ public sealed record TabItemWidget(
     /// <param name="disabled">True to disable the tab.</param>
     public TabItemWidget Disabled(bool disabled = true)
         => this with { IsDisabled = disabled };
+
+    /// <summary>
+    /// Marks this tab as selected.
+    /// When multiple tabs are marked as selected, the first one wins.
+    /// </summary>
+    /// <param name="selected">True to select this tab, false otherwise.</param>
+    /// <example>
+    /// <code>
+    /// // Static selection
+    /// tp.Tab("Settings", t => [...]).Selected()
+    /// 
+    /// // Conditional selection based on state
+    /// tp.Tab(doc.Name, t => [...]).Selected(doc.Id == currentDocId)
+    /// </code>
+    /// </example>
+    public TabItemWidget Selected(bool selected = true)
+        => this with { IsSelected = selected };
 
     /// <summary>
     /// Adds icons to the left side of the tab using a builder.

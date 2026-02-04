@@ -442,6 +442,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                         s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])
+                                .Selected(idx == editorState.SelectedTabIndex)
                                 .WithRightIcons(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
@@ -450,7 +451,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 ])
                             )
                         ])
-                        .WithSelectedIndex(editorState.SelectedTabIndex)
                         .OnSelectionChanged(e => {
                             editorState.SelectedTabIndex = e.SelectedIndex;
                             statusMessage = $"Viewing: {e.SelectedTitle}";
@@ -466,6 +466,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                         s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])
+                                .Selected(idx == editorState.SelectedTabIndex)
                                 .WithRightIcons(i => [
                                     i.Icon("×").OnClick(e => {
                                         editorState.CloseDocument(idx);
@@ -474,7 +475,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 ])
                             )
                         ])
-                        .WithSelectedIndex(editorState.SelectedTabIndex)
                         .OnSelectionChanged(e => {
                             editorState.SelectedTabIndex = e.SelectedIndex;
                             statusMessage = $"Viewing: {e.SelectedTitle}";

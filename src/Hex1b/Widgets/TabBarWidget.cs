@@ -28,13 +28,17 @@ public sealed class TabSelectionChangedEventArgs : EventArgs
 /// Can be used standalone or as part of a TabPanel.
 /// </summary>
 /// <param name="Tabs">The list of tabs to display.</param>
+/// <example>
+/// <code>
+/// ctx.TabBar(tb => [
+///     tb.Tab("Overview").Selected(),
+///     tb.Tab("Settings"),
+///     tb.Tab("Advanced")
+/// ])
+/// </code>
+/// </example>
 public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidget
 {
-    /// <summary>
-    /// The currently selected tab index. When null, the node manages its own state.
-    /// </summary>
-    public int? SelectedIndex { get; init; }
-
     /// <summary>
     /// Handler called when the selected tab changes.
     /// </summary>
@@ -59,13 +63,6 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     /// Whether to show the dropdown selector for quick tab navigation.
     /// </summary>
     public bool ShowSelector { get; init; } = false;
-
-    /// <summary>
-    /// Sets the selected tab index.
-    /// </summary>
-    /// <param name="index">The index of the tab to select.</param>
-    public TabBarWidget WithSelectedIndex(int index)
-        => this with { SelectedIndex = index };
 
     /// <summary>
     /// Sets the handler for selection changes.
@@ -117,14 +114,32 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
     public TabBarWidget Selector(bool enabled = true)
         => this with { ShowSelector = enabled };
 
-    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
+    /// <summary>
+    /// Gets the index of the selected tab based on IsSelected flags.
+    /// Returns the index of the first tab with IsSelected=true, or 0 if none.
+    /// </summary>
+    private int GetSelectedIndex()
+    {
+        for (int i = 0; i < Tabs.Count; i++)
+        {
+            if (Tabs[i].IsSelected)
+                return i;
+        }
+        return 0; // Default to first tab
+    }
+
+    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TabBarNode ?? new TabBarNode();
 
-        // Sync state from widget if user is controlling it
-        if (SelectedIndex.HasValue)
+        // Determine selected index from tab widgets
+        var selectedIndex = GetSelectedIndex();
+        
+        // Check if any tab has explicit selection - if so, this is a controlled component
+        var hasExplicitSelection = Tabs.Any(t => t.IsSelected);
+        if (hasExplicitSelection)
         {
-            node.SelectedIndex = SelectedIndex.Value;
+            node.SelectedIndex = selectedIndex;
         }
 
         // Ensure selected index is valid
@@ -133,11 +148,12 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
             node.SelectedIndex = Math.Max(0, Tabs.Count - 1);
         }
 
-        // Store tab info
-        node.Tabs = Tabs.Select(t => new TabBarNode.TabInfo(
+        // Store tab info (include IsSelected for rendering)
+        node.Tabs = Tabs.Select((t, i) => new TabBarNode.TabInfo(
             t.Title, 
             t.Icon, 
             t.IsDisabled,
+            i == node.SelectedIndex,
             t.LeftIcons,
             t.RightIcons)).ToList();
         node.SelectionChangedHandler = SelectionChangedHandler;
@@ -148,7 +164,7 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
         node.ShowPaging = ShowPaging;
         node.ShowSelector = ShowSelector;
 
-        return node;
+        return Task.FromResult<Hex1bNode>(node);
     }
 
     private TabPosition DetectPosition(ReconcileContext context)
