@@ -14,12 +14,21 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// The tabs to display in the tab bar.
     /// </summary>
     private IReadOnlyList<TabBarNode.TabInfo> _tabs = [];
+    private int _previousTabCount;
+    
     public IReadOnlyList<TabBarNode.TabInfo> Tabs 
     { 
         get => _tabs;
         set
         {
+            var tabCountChanged = _tabs.Count != value.Count;
             _tabs = value;
+            // When tabs are added, scroll to show the selected tab
+            if (tabCountChanged && value.Count > _previousTabCount)
+            {
+                _needsScrollToSelection = true;
+            }
+            _previousTabCount = value.Count;
             MarkDirty();
         }
     }
@@ -28,6 +37,8 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// The currently selected tab index.
     /// </summary>
     private int _selectedIndex;
+    private bool _needsScrollToSelection;
+    
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -36,6 +47,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             if (_selectedIndex != value)
             {
                 _selectedIndex = value;
+                _needsScrollToSelection = true;
                 MarkDirty();
             }
         }
@@ -248,6 +260,14 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
     public override void Render(Hex1bRenderContext context)
     {
+        // Only scroll to selected tab when selection changes, not on every render
+        // This allows mouse wheel scrolling to work without being reset
+        if (_needsScrollToSelection)
+        {
+            _needsScrollToSelection = false;
+            EnsureSelectedTabVisible();
+        }
+        
         var theme = context.Theme;
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
@@ -492,6 +512,32 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
         // Mouse click on tabs and arrows
         bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select tab or scroll");
+        
+        // Mouse wheel on tab bar scrolls through tabs (doesn't switch selection)
+        bindings.Mouse(MouseButton.ScrollUp).Action(HandleMouseWheelUp, "Scroll tabs left");
+        bindings.Mouse(MouseButton.ScrollDown).Action(HandleMouseWheelDown, "Scroll tabs right");
+    }
+
+    private Task HandleMouseWheelUp(InputBindingActionContext ctx)
+    {
+        // Only scroll if mouse is on the tab bar row
+        if (ctx.MouseY == _tabRowY && _canScrollLeft)
+        {
+            _scrollOffset--;
+            MarkDirty();
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task HandleMouseWheelDown(InputBindingActionContext ctx)
+    {
+        // Only scroll if mouse is on the tab bar row
+        if (ctx.MouseY == _tabRowY && _canScrollRight)
+        {
+            _scrollOffset++;
+            MarkDirty();
+        }
+        return Task.CompletedTask;
     }
 
     private async Task HandleMouseClick(InputBindingActionContext ctx)
