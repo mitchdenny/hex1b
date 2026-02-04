@@ -240,34 +240,20 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         }
         
         var scrollbarHeight = _viewportRect.Height;
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarHeight - 2)));
-        var scrollRange = scrollbarHeight - 2 - thumbSize;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * scrollbarHeight));
+        var scrollRange = scrollbarHeight - thumbSize;
         var thumbPosition = scrollRange > 0 
             ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
-        // Check which part of the scrollbar was clicked
-        if (localY == 0)
+        // Check which part of the scrollbar was clicked (no arrows)
+        if (localY >= 0 && localY < scrollbarHeight)
         {
-            // Up arrow clicked
-            ScrollByAmount(-1);
-            return new DragHandler(); // No drag
-        }
-        else if (localY == scrollbarHeight - 1)
-        {
-            // Down arrow clicked
-            ScrollByAmount(1);
-            return new DragHandler(); // No drag
-        }
-        else if (localY > 0 && localY < scrollbarHeight - 1)
-        {
-            var trackY = localY - 1; // Offset by 1 for the up arrow
-            
-            if (trackY >= thumbPosition && trackY < thumbPosition + thumbSize)
+            if (localY >= thumbPosition && localY < thumbPosition + thumbSize)
             {
                 // Clicked on thumb - start drag
                 var startOffset = Offset;
-                var trackHeight = scrollbarHeight - 2; // Exclude arrows
+                var trackHeight = scrollbarHeight;
                 var contentPerPixel = MaxOffset > 0 && trackHeight > thumbSize
                     ? (double)MaxOffset / (trackHeight - thumbSize)
                     : 0;
@@ -283,7 +269,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                     }
                 );
             }
-            else if (trackY < thumbPosition)
+            else if (localY < thumbPosition)
             {
                 // Clicked above thumb - page up
                 ScrollByPage(-1);
@@ -310,34 +296,20 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
         }
         
         var scrollbarWidth = _viewportRect.Width;
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarWidth - 2)));
-        var scrollRange = scrollbarWidth - 2 - thumbSize;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * scrollbarWidth));
+        var scrollRange = scrollbarWidth - thumbSize;
         var thumbPosition = scrollRange > 0 
             ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
         
-        // Check which part of the scrollbar was clicked
-        if (localX == 0)
+        // Check which part of the scrollbar was clicked (no arrows)
+        if (localX >= 0 && localX < scrollbarWidth)
         {
-            // Left arrow clicked
-            ScrollByAmount(-1);
-            return new DragHandler(); // No drag
-        }
-        else if (localX == scrollbarWidth - 1)
-        {
-            // Right arrow clicked
-            ScrollByAmount(1);
-            return new DragHandler(); // No drag
-        }
-        else if (localX > 0 && localX < scrollbarWidth - 1)
-        {
-            var trackX = localX - 1; // Offset by 1 for the left arrow
-            
-            if (trackX >= thumbPosition && trackX < thumbPosition + thumbSize)
+            if (localX >= thumbPosition && localX < thumbPosition + thumbSize)
             {
                 // Clicked on thumb - start drag
                 var startOffset = Offset;
-                var trackWidth = scrollbarWidth - 2; // Exclude arrows
+                var trackWidth = scrollbarWidth;
                 var contentPerPixel = MaxOffset > 0 && trackWidth > thumbSize
                     ? (double)MaxOffset / (trackWidth - thumbSize)
                     : 0;
@@ -353,7 +325,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
                     }
                 );
             }
-            else if (trackX < thumbPosition)
+            else if (localX < thumbPosition)
             {
                 // Clicked left of thumb - page left
                 ScrollByPage(-1);
@@ -625,16 +597,13 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     {
         var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
-        var upArrow = theme.Get(ScrollTheme.UpArrowCharacter);
-        var downArrow = theme.Get(ScrollTheme.DownArrowCharacter);
         
         var scrollbarX = Bounds.X + Bounds.Width - ScrollbarSize;
         var scrollbarHeight = _viewportRect.Height;
         
-        // Calculate thumb position and size
-        // Use a minimum thumb size of 1
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarHeight - 2)));
-        var scrollRange = scrollbarHeight - 2 - thumbSize;
+        // Calculate thumb position and size (no arrows, use full height)
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * scrollbarHeight));
+        var scrollRange = scrollbarHeight - thumbSize;
         var thumbPosition = scrollRange > 0 
             ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
@@ -647,19 +616,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             string charToRender;
             Hex1bColor color;
             
-            if (row == 0)
-            {
-                // Up arrow
-                charToRender = upArrow;
-                color = thumbColor;
-            }
-            else if (row == scrollbarHeight - 1)
-            {
-                // Down arrow
-                charToRender = downArrow;
-                color = thumbColor;
-            }
-            else if (row - 1 >= thumbPosition && row - 1 < thumbPosition + thumbSize)
+            if (row >= thumbPosition && row < thumbPosition + thumbSize)
             {
                 // Thumb
                 charToRender = thumbChar;
@@ -680,15 +637,13 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     {
         var trackChar = theme.Get(ScrollTheme.HorizontalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.HorizontalThumbCharacter);
-        var leftArrow = theme.Get(ScrollTheme.LeftArrowCharacter);
-        var rightArrow = theme.Get(ScrollTheme.RightArrowCharacter);
         
         var scrollbarY = Bounds.Y + Bounds.Height - ScrollbarSize;
         var scrollbarWidth = _viewportRect.Width;
         
-        // Calculate thumb position and size
-        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * (scrollbarWidth - 2)));
-        var scrollRange = scrollbarWidth - 2 - thumbSize;
+        // Calculate thumb position and size (no arrows, use full width)
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)ViewportSize / ContentSize * scrollbarWidth));
+        var scrollRange = scrollbarWidth - thumbSize;
         var thumbPosition = scrollRange > 0 
             ? (int)Math.Round((double)Offset / MaxOffset * scrollRange) 
             : 0;
@@ -701,19 +656,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
             string charToRender;
             Hex1bColor color;
             
-            if (col == 0)
-            {
-                // Left arrow
-                charToRender = leftArrow;
-                color = thumbColor;
-            }
-            else if (col == scrollbarWidth - 1)
-            {
-                // Right arrow
-                charToRender = rightArrow;
-                color = thumbColor;
-            }
-            else if (col - 1 >= thumbPosition && col - 1 < thumbPosition + thumbSize)
+            if (col >= thumbPosition && col < thumbPosition + thumbSize)
             {
                 // Thumb
                 charToRender = thumbChar;

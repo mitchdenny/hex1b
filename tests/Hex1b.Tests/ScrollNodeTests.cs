@@ -323,16 +323,16 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "scrollbar to render")
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2), "scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
-        // Should contain scrollbar characters
-        Assert.Contains("█", terminal.CreateSnapshot().GetText());
+        // Should contain scrollbar thumb character
+        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
-    public async Task Render_Vertical_ShowsArrows()
+    public async Task Render_Vertical_ShowsThumbAndTrack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -349,13 +349,16 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▲") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "vertical arrows to render")
+            .WaitUntil(s => s.ContainsText("│") && s.ContainsText("▉"), TimeSpan.FromSeconds(2), "vertical scrollbar to render")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(snapshot.ContainsText("▲"), "Should show up arrow");
-        Assert.True(snapshot.ContainsText("▼"), "Should show down arrow");
+        Assert.True(snapshot.ContainsText("│"), "Should show track");
+        Assert.True(snapshot.ContainsText("▉"), "Should show thumb");
+        // No arrows in the new minimal style
+        Assert.DoesNotContain("▲", snapshot.GetText());
+        Assert.DoesNotContain("▼", snapshot.GetText());
     }
 
     [Fact]
@@ -376,15 +379,14 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 40, 20));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▲") && !s.ContainsText("▼"),
-                TimeSpan.FromSeconds(1), "content fits without scrollbar arrows")
+            .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▉"),
+                TimeSpan.FromSeconds(1), "content fits without scrollbar")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content fits, so no scrollbar needed
-        Assert.DoesNotContain("▲", snapshot.GetText());
-        Assert.DoesNotContain("▼", snapshot.GetText());
+        Assert.DoesNotContain("▉", snapshot.GetText());
     }
 
     [Fact]
@@ -499,16 +501,16 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
-        // Should contain scrollbar characters
-        Assert.Contains("█", terminal.CreateSnapshot().GetText());
+        // Should contain scrollbar thumb character
+        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
-    public async Task Render_Horizontal_ShowsArrows()
+    public async Task Render_Horizontal_ShowsThumbAndTrack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -525,12 +527,15 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("◀") && s.ContainsText("▶"), TimeSpan.FromSeconds(2), "horizontal arrows to render")
+            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Contains("◀", terminal.CreateSnapshot().GetText());
-        Assert.Contains("▶", terminal.CreateSnapshot().GetText());
+        Assert.Contains("─", terminal.CreateSnapshot().GetText());
+        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
+        // No arrows in the new minimal style
+        Assert.DoesNotContain("◀", terminal.CreateSnapshot().GetText());
+        Assert.DoesNotContain("▶", terminal.CreateSnapshot().GetText());
     }
 
     #endregion
@@ -1040,8 +1045,9 @@ public class ScrollNodeTests
         await runTask;
 
         Assert.Contains("Line 1", snapshot.GetText());
-        Assert.Contains("▲", snapshot.GetText());
-        Assert.Contains("▼", snapshot.GetText());
+        // Should have scrollbar with thin track and thumb (no arrows)
+        Assert.Contains("│", snapshot.GetText());
+        Assert.Contains("▉", snapshot.GetText());
     }
 
     [Fact]
@@ -1074,7 +1080,7 @@ public class ScrollNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼"), TimeSpan.FromSeconds(2)) // Wait for down scroll indicator
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2)) // Wait for scrollbar thumb
             .Down().Down().Down()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1186,15 +1192,16 @@ public class ScrollNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("◀"), TimeSpan.FromSeconds(2)) // Wait for scroll indicator
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2)) // Wait for scroll thumb
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Contains("◀", snapshot.GetText());
-        Assert.Contains("▶", snapshot.GetText());
+        // Should have scrollbar with thin track and thumb (no arrows)
+        Assert.Contains("─", snapshot.GetText());
+        Assert.Contains("▉", snapshot.GetText());
     }
 
     [Fact]

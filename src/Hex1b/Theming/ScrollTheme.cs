@@ -6,28 +6,28 @@ namespace Hex1b.Theming;
 public static class ScrollTheme
 {
     /// <summary>
-    /// The track character for vertical scrollbars.
+    /// The track character for vertical scrollbars (thin vertical line).
     /// </summary>
     public static readonly Hex1bThemeElement<string> VerticalTrackCharacter = 
-        new($"{nameof(ScrollTheme)}.{nameof(VerticalTrackCharacter)}", () => "░");
+        new($"{nameof(ScrollTheme)}.{nameof(VerticalTrackCharacter)}", () => "│");
     
     /// <summary>
-    /// The thumb character for vertical scrollbars.
+    /// The thumb character for vertical scrollbars (7/8 block for visibility over thin track).
     /// </summary>
     public static readonly Hex1bThemeElement<string> VerticalThumbCharacter = 
-        new($"{nameof(ScrollTheme)}.{nameof(VerticalThumbCharacter)}", () => "█");
+        new($"{nameof(ScrollTheme)}.{nameof(VerticalThumbCharacter)}", () => "▉");
     
     /// <summary>
-    /// The track character for horizontal scrollbars.
+    /// The track character for horizontal scrollbars (thin horizontal line).
     /// </summary>
     public static readonly Hex1bThemeElement<string> HorizontalTrackCharacter = 
-        new($"{nameof(ScrollTheme)}.{nameof(HorizontalTrackCharacter)}", () => "░");
+        new($"{nameof(ScrollTheme)}.{nameof(HorizontalTrackCharacter)}", () => "─");
     
     /// <summary>
-    /// The thumb character for horizontal scrollbars.
+    /// The thumb character for horizontal scrollbars (7/8 block for visibility over thin track).
     /// </summary>
     public static readonly Hex1bThemeElement<string> HorizontalThumbCharacter = 
-        new($"{nameof(ScrollTheme)}.{nameof(HorizontalThumbCharacter)}", () => "█");
+        new($"{nameof(ScrollTheme)}.{nameof(HorizontalThumbCharacter)}", () => "▉");
     
     /// <summary>
     /// The color of the scrollbar track.
@@ -48,25 +48,25 @@ public static class ScrollTheme
         new($"{nameof(ScrollTheme)}.{nameof(FocusedThumbColor)}", () => Hex1bColor.White);
     
     /// <summary>
-    /// The up arrow character for vertical scrollbars.
+    /// The up arrow character for vertical scrollbars (not rendered by default).
     /// </summary>
     public static readonly Hex1bThemeElement<string> UpArrowCharacter = 
         new($"{nameof(ScrollTheme)}.{nameof(UpArrowCharacter)}", () => "▲");
     
     /// <summary>
-    /// The down arrow character for vertical scrollbars.
+    /// The down arrow character for vertical scrollbars (not rendered by default).
     /// </summary>
     public static readonly Hex1bThemeElement<string> DownArrowCharacter = 
         new($"{nameof(ScrollTheme)}.{nameof(DownArrowCharacter)}", () => "▼");
     
     /// <summary>
-    /// The left arrow character for horizontal scrollbars.
+    /// The left arrow character for horizontal scrollbars (not rendered by default).
     /// </summary>
     public static readonly Hex1bThemeElement<string> LeftArrowCharacter = 
         new($"{nameof(ScrollTheme)}.{nameof(LeftArrowCharacter)}", () => "◀");
     
     /// <summary>
-    /// The right arrow character for horizontal scrollbars.
+    /// The right arrow character for horizontal scrollbars (not rendered by default).
     /// </summary>
     public static readonly Hex1bThemeElement<string> RightArrowCharacter = 
         new($"{nameof(ScrollTheme)}.{nameof(RightArrowCharacter)}", () => "▶");
