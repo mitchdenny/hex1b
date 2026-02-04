@@ -19,8 +19,8 @@ public sealed class TabBarNode : Hex1bNode
         string? Icon, 
         bool IsDisabled,
         bool IsSelected,
-        IReadOnlyList<IconWidget> LeftIcons,
-        IReadOnlyList<IconWidget> RightIcons);
+        IReadOnlyList<IconWidget> LeftActions,
+        IReadOnlyList<IconWidget> RightActions);
 
     /// <summary>
     /// The tabs to display.
@@ -192,12 +192,12 @@ public sealed class TabBarNode : Hex1bNode
             textWidth += tab.Icon.Length + 1;
         }
         // Add space for left icons (each icon + space)
-        foreach (var icon in tab.LeftIcons)
+        foreach (var icon in tab.LeftActions)
         {
             textWidth += icon.Icon.Length + 1;
         }
         // Add space for right icons (space + each icon)
-        foreach (var icon in tab.RightIcons)
+        foreach (var icon in tab.RightActions)
         {
             textWidth += icon.Icon.Length + 1;
         }
@@ -283,9 +283,9 @@ public sealed class TabBarNode : Hex1bNode
             x += 1; // left padding
 
             // Render left icons
-            for (int iconIdx = 0; iconIdx < tab.LeftIcons.Count; iconIdx++)
+            for (int iconIdx = 0; iconIdx < tab.LeftActions.Count; iconIdx++)
             {
-                var icon = tab.LeftIcons[iconIdx];
+                var icon = tab.LeftActions[iconIdx];
                 var iconWidth = icon.Icon.Length;
                 _iconHitRegions.Add((x, iconWidth, i, iconIdx, true, icon));
                 context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{icon.Icon} {resetToGlobal}");
@@ -304,9 +304,9 @@ public sealed class TabBarNode : Hex1bNode
             x += tab.Title.Length;
 
             // Render right icons
-            for (int iconIdx = 0; iconIdx < tab.RightIcons.Count; iconIdx++)
+            for (int iconIdx = 0; iconIdx < tab.RightActions.Count; iconIdx++)
             {
-                var icon = tab.RightIcons[iconIdx];
+                var icon = tab.RightActions[iconIdx];
                 var iconWidth = icon.Icon.Length;
                 context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {icon.Icon}{resetToGlobal}");
                 x += 1; // space before icon

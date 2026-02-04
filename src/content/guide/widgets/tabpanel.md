@@ -85,7 +85,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     t.Text($"Created at: {tab.CreatedAt:HH:mm:ss}")
                 ])
                 .Selected(idx == state.SelectedIndex)
-                .WithRightIcons(i => [
+                .WithRightActions(i => [
                     i.Icon("×").OnClick(_ => state.CloseTab(idx))
                 ])
             ).ToArray())
@@ -154,7 +154,7 @@ Build tab-based interfaces where tabs are added and removed at runtime. This pat
 
 Features demonstrated:
 - Adding tabs dynamically with state
-- Close button using `.WithRightIcons()`
+- Close button using `.WithRightActions()`
 - Selection tracking with `OnSelectionChanged`
 - Conditional rendering when no tabs exist
 
@@ -221,14 +221,38 @@ Add icons to tabs for visual identification:
 tp.Tab("Settings", t => [...]).WithIcon("⚙️")
 ```
 
-### Clickable Icons
+## Tab Actions
 
-Add interactive icons to tabs using `.WithLeftIcons()` and `.WithRightIcons()`:
+Add interactive action icons to tabs using `.WithLeftActions()` and `.WithRightActions()`:
+
+### Close Button (Right Action)
 
 ```csharp
 tp.Tab("Document.cs", t => [...])
-  .WithRightIcons(i => [
-      i.Icon("×").OnClick(_ => CloseDocument())
+  .WithRightActions(a => [
+      a.Icon("×").OnClick(_ => CloseDocument())
+  ])
+```
+
+### Pin Button (Left Action)
+
+```csharp
+tp.Tab("Important.cs", t => [...])
+  .WithLeftActions(a => [
+      a.Icon("📌").OnClick(_ => TogglePin())
+  ])
+```
+
+### Multiple Actions
+
+```csharp
+tp.Tab("Document.cs", t => [...])
+  .WithLeftActions(a => [
+      a.Icon("📌").OnClick(_ => TogglePin())
+  ])
+  .WithRightActions(a => [
+      a.Icon("💾").OnClick(_ => Save()),
+      a.Icon("×").OnClick(_ => Close())
   ])
 ```
 

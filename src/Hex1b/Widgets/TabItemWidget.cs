@@ -29,16 +29,16 @@ public sealed record TabItemWidget(
     public bool IsSelected { get; init; }
 
     /// <summary>
-    /// Icons displayed on the left side of the tab, in order.
+    /// Action icons displayed on the left side of the tab, in order.
     /// These are composable IconWidgets that can have click handlers.
     /// </summary>
-    public IReadOnlyList<IconWidget> LeftIcons { get; init; } = [];
+    public IReadOnlyList<IconWidget> LeftActions { get; init; } = [];
 
     /// <summary>
-    /// Icons displayed on the right side of the tab, in order.
+    /// Action icons displayed on the right side of the tab, in order.
     /// These are composable IconWidgets that can have click handlers.
     /// </summary>
-    public IReadOnlyList<IconWidget> RightIcons { get; init; } = [];
+    public IReadOnlyList<IconWidget> RightActions { get; init; } = [];
 
     /// <summary>
     /// Sets the icon for this tab.
@@ -72,27 +72,39 @@ public sealed record TabItemWidget(
         => this with { IsSelected = selected };
 
     /// <summary>
-    /// Adds icons to the left side of the tab using a builder.
-    /// Icons are displayed in the order they are added.
+    /// Adds action icons to the left side of the tab using a builder.
+    /// Actions are displayed in the order they are added.
     /// </summary>
     /// <param name="builder">A function that returns the icons to add.</param>
-    public TabItemWidget WithLeftIcons(Func<WidgetContext<TabItemWidget>, IEnumerable<IconWidget>> builder)
+    /// <example>
+    /// <code>
+    /// tp.Tab("Document", t => [...])
+    ///   .WithLeftActions(a => [a.Icon("📌").OnClick(_ => Pin())])
+    /// </code>
+    /// </example>
+    public TabItemWidget WithLeftActions(Func<WidgetContext<TabItemWidget>, IEnumerable<IconWidget>> builder)
     {
         var ctx = new WidgetContext<TabItemWidget>();
         var icons = builder(ctx).ToList();
-        return this with { LeftIcons = icons };
+        return this with { LeftActions = icons };
     }
 
     /// <summary>
-    /// Adds icons to the right side of the tab using a builder.
-    /// Icons are displayed in the order they are added.
+    /// Adds action icons to the right side of the tab using a builder.
+    /// Actions are displayed in the order they are added.
     /// </summary>
     /// <param name="builder">A function that returns the icons to add.</param>
-    public TabItemWidget WithRightIcons(Func<WidgetContext<TabItemWidget>, IEnumerable<IconWidget>> builder)
+    /// <example>
+    /// <code>
+    /// tp.Tab("Document.cs", t => [...])
+    ///   .WithRightActions(a => [a.Icon("×").OnClick(_ => Close())])
+    /// </code>
+    /// </example>
+    public TabItemWidget WithRightActions(Func<WidgetContext<TabItemWidget>, IEnumerable<IconWidget>> builder)
     {
         var ctx = new WidgetContext<TabItemWidget>();
         var icons = builder(ctx).ToList();
-        return this with { RightIcons = icons };
+        return this with { RightActions = icons };
     }
 
     /// <summary>
