@@ -944,4 +944,174 @@ public class TabPanelNodeTests
     }
 
     #endregion
+
+    #region Tab Bar Scrolling Tests
+
+    [Fact]
+    public async Task TabPanel_ManyTabs_NewlySelectedTab_ScrollsIntoView()
+    {
+        // Arrange - Create many tabs so they overflow the tab bar
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.TabPanel(tp => [
+                    tp.Tab("Tab1", t => [t.Text("Content 1")]),
+                    tp.Tab("Tab2", t => [t.Text("Content 2")]),
+                    tp.Tab("Tab3", t => [t.Text("Content 3")]),
+                    tp.Tab("Tab4", t => [t.Text("Content 4")]),
+                    tp.Tab("Tab5", t => [t.Text("Content 5")]),
+                    tp.Tab("Tab6", t => [t.Text("Content 6")]),
+                    tp.Tab("Tab7", t => [t.Text("Content 7")]),
+                    tp.Tab("Tab8", t => [t.Text("Content 8")]),
+                    tp.Tab("Tab9", t => [t.Text("Content 9")]),
+                    tp.Tab("Tab10", t => [t.Text("Content 10")])
+                ])
+                .Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Wait for initial render, then navigate to a later tab
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // First verify Tab1 is visible
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(1), "initial render")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(snapshot1.ContainsText("Tab1"), "Tab1 should be visible initially");
+        
+        // Navigate right multiple times to get to Tab8 (which should scroll into view)
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.RightArrow) // Tab2
+            .Alt().Key(Hex1bKey.RightArrow) // Tab3
+            .Alt().Key(Hex1bKey.RightArrow) // Tab4
+            .Alt().Key(Hex1bKey.RightArrow) // Tab5
+            .Alt().Key(Hex1bKey.RightArrow) // Tab6
+            .Alt().Key(Hex1bKey.RightArrow) // Tab7
+            .Alt().Key(Hex1bKey.RightArrow) // Tab8
+            .Wait(TimeSpan.FromMilliseconds(200)) // Give time for render cycle
+            .Capture("tab8")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Tab8 should be visible in the tab bar (scrolled into view) and its content shown
+        Assert.True(snapshot2.ContainsText("Tab8"), "Tab8 should be visible in tab bar after selection");
+        Assert.True(snapshot2.ContainsText("Content 8"), "Tab8 content should be displayed");
+    }
+
+    [Fact]
+    public async Task TabPanel_MouseWheelOnTabBar_ScrollsTabs()
+    {
+        // Arrange - Create many tabs so they overflow the tab bar
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.TabPanel(tp => [
+                    tp.Tab("FirstTab", t => [t.Text("Content First")]),
+                    tp.Tab("SecondTab", t => [t.Text("Content Second")]),
+                    tp.Tab("ThirdTab", t => [t.Text("Content Third")]),
+                    tp.Tab("FourthTab", t => [t.Text("Content Fourth")]),
+                    tp.Tab("FifthTab", t => [t.Text("Content Fifth")]),
+                    tp.Tab("SixthTab", t => [t.Text("Content Sixth")]),
+                    tp.Tab("SeventhTab", t => [t.Text("Content Seventh")]),
+                    tp.Tab("EighthTab", t => [t.Text("Content Eighth")])
+                ])
+                .Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act - Wait for initial render
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("FirstTab"), TimeSpan.FromSeconds(1), "initial render")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Verify FirstTab visible, later tabs likely not visible due to narrow width
+        Assert.True(snapshot1.ContainsText("FirstTab"), "FirstTab should be visible initially");
+        
+        // Mouse wheel down (scroll right) on the tab bar (row 0)
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(25, 0) // Position mouse on tab bar at row 0
+            .ScrollDown(3) // Scroll down to scroll tabs right
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Capture("afterScroll")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - Later tabs should now be visible (scrolled into view)
+        // The content should still show FirstTab's content (we didn't change selection)
+        Assert.True(snapshot2.ContainsText("Content First"), "Content should still show first tab (selection unchanged)");
+        
+        // At least one of the later tabs should be visible after scrolling
+        var laterTabsVisible = snapshot2.ContainsText("FourthTab") || 
+                               snapshot2.ContainsText("FifthTab") || 
+                               snapshot2.ContainsText("SixthTab");
+        Assert.True(laterTabsVisible, "Later tabs should be visible after mouse wheel scroll");
+    }
+
+    [Fact]
+    public async Task TabPanel_AddingNewTab_ScrollsToShowIt()
+    {
+        // Arrange - Start with many tabs, then add one more
+        var tabs = new List<string> { "Tab1", "Tab2", "Tab3", "Tab4", "Tab5", "Tab6" };
+        var selectedIndex = 0;
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(50, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
+                v.TabPanel(tp => tabs.Select(tabName => 
+                    tp.Tab(tabName, t => [t.Text($"Content of {tabName}")])
+                ).ToArray())
+                .SelectedIndex(selectedIndex)
+                .Fill()
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        // Wait for initial render
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(1), "initial render")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Add a new tab and select it
+        tabs.Add("NewTab");
+        selectedIndex = tabs.Count - 1; // Select the new tab
+        
+        // Trigger re-render by pressing a key that causes refresh
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.None) // Trigger event loop
+            .WaitUntil(s => s.ContainsText("NewTab"), TimeSpan.FromSeconds(1), "new tab added")
+            .Capture("afterAdd")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - The new tab should be visible and selected
+        Assert.True(snapshot2.ContainsText("NewTab"), "Newly added tab should be visible");
+        Assert.True(snapshot2.ContainsText("Content of NewTab"), "Newly added tab content should be displayed");
+    }
+
+    #endregion
 }
