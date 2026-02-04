@@ -393,4 +393,79 @@ public class TabPanelNodeTests
     }
 
     #endregion
+
+    #region Dynamic Tab Content Tests
+
+    [Fact]
+    public async Task TabPanel_DynamicallyAddingTab_UpdatesContent()
+    {
+        // Arrange - Simulate the demo pattern with external state
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 15)
+            .Build();
+
+        // Mutable state that changes during the test
+        var openDocs = new List<(string Name, string Content)>();
+        var selectedIndex = 0;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                openDocs.Count == 0
+                    ? ctx.Text("No documents open")
+                    : ctx.TabPanel(tp => [
+                        ..openDocs.Select(doc => tp.Tab(doc.Name, t => [
+                            t.Text(doc.Content)
+                        ]))
+                    ])
+                    .WithSelectedIndex(selectedIndex)
+                    .Fill()
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act & Assert
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Initially no documents
+        var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "empty state")
+            .Capture("initial")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+
+        // Add a document (simulate what happens when user clicks in tree)
+        openDocs.Add(("File1.cs", "Content of File1"));
+        selectedIndex = 0;
+        app.Invalidate(); // Force re-render
+
+        var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content of File1"), TimeSpan.FromSeconds(1), "first file content")
+            .Capture("afterAdd1")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot2.ContainsText("File1.cs"), "Should show first tab");
+        Assert.True(snapshot2.ContainsText("Content of File1"), "Should show first file content");
+
+        // Add another document and select it
+        openDocs.Add(("File2.cs", "Content of File2"));
+        selectedIndex = 1;
+        app.Invalidate();
+
+        var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Content of File2"), TimeSpan.FromSeconds(1), "second file content")
+            .Capture("afterAdd2")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        Assert.True(snapshot3.ContainsText("File2.cs"), "Should show second tab");
+        Assert.True(snapshot3.ContainsText("Content of File2"), "Should show second file content");
+
+        await runTask;
+    }
+
+    #endregion
 }

@@ -15,7 +15,19 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The child node to scroll.
     /// </summary>
-    public Hex1bNode? Child { get; set; }
+    private Hex1bNode? _child;
+    public Hex1bNode? Child 
+    { 
+        get => _child;
+        set
+        {
+            if (_child != value)
+            {
+                _child = value;
+                MarkDirty();
+            }
+        }
+    }
     
     /// <summary>
     /// The source widget that created this node.
