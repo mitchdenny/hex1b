@@ -13,7 +13,16 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The tabs to display in the tab bar.
     /// </summary>
-    public IReadOnlyList<TabBarNode.TabInfo> Tabs { get; set; } = [];
+    private IReadOnlyList<TabBarNode.TabInfo> _tabs = [];
+    public IReadOnlyList<TabBarNode.TabInfo> Tabs 
+    { 
+        get => _tabs;
+        set
+        {
+            _tabs = value;
+            MarkDirty();
+        }
+    }
 
     /// <summary>
     /// The currently selected tab index.
@@ -65,7 +74,19 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The content node for the selected tab.
     /// </summary>
-    public Hex1bNode? Content { get; set; }
+    private Hex1bNode? _content;
+    public Hex1bNode? Content 
+    { 
+        get => _content;
+        set
+        {
+            if (_content != value)
+            {
+                _content = value;
+                MarkDirty();
+            }
+        }
+    }
 
     /// <summary>
     /// Height of the tab bar: 3 rows in Full mode, 1 row in Compact mode.
