@@ -37,7 +37,10 @@ public sealed class TextBlockNode : Hex1bNode
         {
             if (_text != value)
             {
-                _text = value;
+                _text = value!;
+                // Invalidate cached wrapped lines - they need to be recomputed
+                _wrappedLines = null;
+                _lastWrapWidth = -1;
                 MarkDirty();
             }
         }
