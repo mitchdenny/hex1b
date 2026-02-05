@@ -1,0 +1,60 @@
+namespace Hex1b;
+
+using Hex1b.Widgets;
+
+/// <summary>
+/// Extension methods for creating <see cref="WindowPanelWidget"/>.
+/// </summary>
+public static class WindowPanelExtensions
+{
+    /// <summary>
+    /// Creates a WindowPanel that can host floating windows.
+    /// Windows are rendered on top of the main content.
+    /// </summary>
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="content">The main content widget displayed behind windows.</param>
+    /// <returns>A new WindowPanelWidget.</returns>
+    /// <example>
+    /// <code>
+    /// ctx.WindowPanel(
+    ///     ctx.VStack(v => [
+    ///         v.Text("Main content"),
+    ///         v.Button("Open Window").OnClick(e => {
+    ///             e.Context.Windows.Open(
+    ///                 id: "settings",
+    ///                 title: "Settings",
+    ///                 content: () => e.Context.VStack(v => [
+    ///                     v.Text("Window content")
+    ///                 ])
+    ///             );
+    ///         })
+    ///     ])
+    /// )
+    /// </code>
+    /// </example>
+    public static WindowPanelWidget WindowPanel<TParent>(
+        this WidgetContext<TParent> ctx,
+        Hex1bWidget content)
+        where TParent : Hex1bWidget
+    {
+        return new WindowPanelWidget(content);
+    }
+
+    /// <summary>
+    /// Creates a WindowPanel with content built from a context.
+    /// </summary>
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="contentBuilder">A function that builds the content widget.</param>
+    /// <returns>A new WindowPanelWidget.</returns>
+    public static WindowPanelWidget WindowPanel<TParent>(
+        this WidgetContext<TParent> ctx,
+        Func<WidgetContext<WindowPanelWidget>, Hex1bWidget> contentBuilder)
+        where TParent : Hex1bWidget
+    {
+        var childContext = new WidgetContext<WindowPanelWidget>();
+        var content = contentBuilder(childContext);
+        return new WindowPanelWidget(content);
+    }
+}

@@ -83,6 +83,10 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
 var treeDemo = builder.AddCSharpApp("tree-demo", "./samples/TreeDemo")
     .ExcludeFromManifest();
 
+// Window widget demo
+var windowingDemo = builder.AddCSharpApp("windowing-demo", "./samples/WindowingDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

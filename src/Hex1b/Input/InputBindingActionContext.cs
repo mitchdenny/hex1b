@@ -186,4 +186,43 @@ public sealed class InputBindingActionContext
         }
         return null;
     }
+
+    /// <summary>
+    /// Gets the window manager for the nearest window host (typically a WindowPanel) in the focused node's ancestry.
+    /// Use this to open, close, and manage floating windows from event handlers.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.Button("Settings")
+    ///    .OnClick(e => e.Windows.Open(
+    ///        id: "settings",
+    ///        title: "Settings",
+    ///        content: () => BuildSettingsContent()
+    ///    ));
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">Thrown if no window host is found in the tree.</exception>
+    public WindowManager Windows => FindNearestWindowHost()?.Windows
+        ?? throw new InvalidOperationException("No window host found. Add a WindowPanel to your widget tree.");
+
+    /// <summary>
+    /// Tries to get the window manager, returning null if no window host is found.
+    /// Use this when windows are optional and you don't want an exception.
+    /// </summary>
+    public WindowManager? TryGetWindows() => FindNearestWindowHost()?.Windows;
+
+    private IWindowHost? FindNearestWindowHost()
+    {
+        // Walk from the focused node up the parent chain to find the nearest window host
+        Hex1bNode? current = FocusedNode;
+        while (current != null)
+        {
+            if (current is IWindowHost host)
+            {
+                return host;
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
 }
