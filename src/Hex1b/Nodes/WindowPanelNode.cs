@@ -69,10 +69,14 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     /// <summary>
     /// The content origin - minimum X/Y of all windows.
-    /// Used to detect when content origin shifts and compensate scroll offset.
     /// </summary>
     private int _contentOriginX;
     private int _contentOriginY;
+
+    /// <summary>
+    /// Scroll limits calculated during arrange. Used by scrollbars and scroll methods.
+    /// </summary>
+    private int _minScrollX, _minScrollY, _maxScrollX, _maxScrollY;
 
     /// <summary>
     /// Vertical scrollbar node (created lazily when needed).
@@ -301,25 +305,22 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             }
         }
 
-        // Calculate virtual bounds (this may adjust scroll offset for origin shifts)
+        // Calculate virtual bounds
         CalculateVirtualBounds(bounds);
 
-        // Scroll offset is relative to panel origin, not content origin
-        // This means ScrollX/ScrollY can be negative (viewing left/above panel)
-        // Calculate valid scroll range based on virtual bounds
-        var minScrollX = _virtualBounds.X - bounds.X;  // Can scroll left to see content left of panel
-        var minScrollY = _virtualBounds.Y - bounds.Y;  // Can scroll up to see content above panel
-        var maxScrollX = _virtualBounds.X + _virtualBounds.Width - bounds.X - bounds.Width;  // Scroll right
-        var maxScrollY = _virtualBounds.Y + _virtualBounds.Height - bounds.Y - bounds.Height;  // Scroll down
+        // NOTE: We intentionally do NOT clamp scroll offset here.
+        // Clamping during arrange causes viewport shifts when content bounds change
+        // (e.g., when a window moves back toward center, other windows would appear to move).
+        // Scroll offset is only clamped when user actively scrolls (ScrollByAmount, scrollbar drag).
         
-        // Clamp to valid range (min can be negative if content extends left/up of panel)
-        ScrollX = Math.Clamp(ScrollX, Math.Min(0, minScrollX), Math.Max(0, maxScrollX));
-        ScrollY = Math.Clamp(ScrollY, Math.Min(0, minScrollY), Math.Max(0, maxScrollY));
+        // Store scroll limits for use by scrollbars and scroll methods
+        _minScrollX = _virtualBounds.X - bounds.X;
+        _minScrollY = _virtualBounds.Y - bounds.Y;
+        _maxScrollX = Math.Max(0, _virtualBounds.X + _virtualBounds.Width - bounds.X - bounds.Width);
+        _maxScrollY = Math.Max(0, _virtualBounds.Y + _virtualBounds.Height - bounds.Y - bounds.Height);
 
         // Second pass: arrange windows with scroll offset applied
         // Render position = world position - scroll offset
-        // Since window positions are in world coords and scroll is panel-relative:
-        // renderX = entryX - scrollX (both relative to panel origin)
         foreach (var windowNode in WindowNodes)
         {
             if (windowNode.Entry == null) continue;
@@ -368,15 +369,14 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             _verticalScrollbar.ViewportSize = bounds.Height;
             
             // Convert panel-relative scroll to content-relative offset for scrollbar
-            // ScrollY can be negative (viewing above panel origin)
-            // Scrollbar offset is 0 when viewing content origin, max when viewing end
-            var minScrollY = _virtualBounds.Y - bounds.Y;
-            _verticalScrollbar.Offset = ScrollY - minScrollY;
+            // Clamp the offset for display purposes (thumb position)
+            var clampedScrollY = Math.Clamp(ScrollY, _minScrollY, _maxScrollY);
+            _verticalScrollbar.Offset = clampedScrollY - _minScrollY;
             
             _verticalScrollbar.ScrollHandler = offset =>
             {
                 // Convert back from scrollbar offset to panel-relative scroll
-                ScrollY = offset + minScrollY;
+                ScrollY = offset + _minScrollY;
                 MarkDirty();
                 return Task.CompletedTask;
             };
@@ -399,13 +399,14 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             _horizontalScrollbar.ViewportSize = bounds.Width;
             
             // Convert panel-relative scroll to content-relative offset for scrollbar
-            var minScrollX = _virtualBounds.X - bounds.X;
-            _horizontalScrollbar.Offset = ScrollX - minScrollX;
+            // Clamp the offset for display purposes (thumb position)
+            var clampedScrollX = Math.Clamp(ScrollX, _minScrollX, _maxScrollX);
+            _horizontalScrollbar.Offset = clampedScrollX - _minScrollX;
             
             _horizontalScrollbar.ScrollHandler = offset =>
             {
                 // Convert back from scrollbar offset to panel-relative scroll
-                ScrollX = offset + minScrollX;
+                ScrollX = offset + _minScrollX;
                 MarkDirty();
                 return Task.CompletedTask;
             };
@@ -507,17 +508,15 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     {
         if (NeedsHorizontalScroll && deltaX != 0)
         {
-            var minScrollX = _virtualBounds.X - Bounds.X;
-            var maxScrollX = _virtualBounds.X + _virtualBounds.Width - Bounds.X - Bounds.Width;
-            ScrollX = Math.Clamp(ScrollX + deltaX, Math.Min(0, minScrollX), Math.Max(0, maxScrollX));
+            // Use stored limits, clamp on user scroll action
+            ScrollX = Math.Clamp(ScrollX + deltaX, _minScrollX, _maxScrollX);
             MarkDirty();
         }
         
         if (NeedsVerticalScroll && deltaY != 0)
         {
-            var minScrollY = _virtualBounds.Y - Bounds.Y;
-            var maxScrollY = _virtualBounds.Y + _virtualBounds.Height - Bounds.Y - Bounds.Height;
-            ScrollY = Math.Clamp(ScrollY + deltaY, Math.Min(0, minScrollY), Math.Max(0, maxScrollY));
+            // Use stored limits, clamp on user scroll action
+            ScrollY = Math.Clamp(ScrollY + deltaY, _minScrollY, _maxScrollY);
             MarkDirty();
         }
     }
