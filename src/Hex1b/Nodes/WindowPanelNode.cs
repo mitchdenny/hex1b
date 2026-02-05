@@ -304,23 +304,31 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         // Calculate virtual bounds (this may adjust scroll offset for origin shifts)
         CalculateVirtualBounds(bounds);
 
-        // Clamp scroll offset to valid range after virtual bounds calculation
-        var maxScrollX = Math.Max(0, _virtualBounds.Width - bounds.Width);
-        var maxScrollY = Math.Max(0, _virtualBounds.Height - bounds.Height);
-        ScrollX = Math.Clamp(ScrollX, 0, maxScrollX);
-        ScrollY = Math.Clamp(ScrollY, 0, maxScrollY);
+        // Scroll offset is relative to panel origin, not content origin
+        // This means ScrollX/ScrollY can be negative (viewing left/above panel)
+        // Calculate valid scroll range based on virtual bounds
+        var minScrollX = _virtualBounds.X - bounds.X;  // Can scroll left to see content left of panel
+        var minScrollY = _virtualBounds.Y - bounds.Y;  // Can scroll up to see content above panel
+        var maxScrollX = _virtualBounds.X + _virtualBounds.Width - bounds.X - bounds.Width;  // Scroll right
+        var maxScrollY = _virtualBounds.Y + _virtualBounds.Height - bounds.Y - bounds.Height;  // Scroll down
+        
+        // Clamp to valid range (min can be negative if content extends left/up of panel)
+        ScrollX = Math.Clamp(ScrollX, Math.Min(0, minScrollX), Math.Max(0, maxScrollX));
+        ScrollY = Math.Clamp(ScrollY, Math.Min(0, minScrollY), Math.Max(0, maxScrollY));
 
         // Second pass: arrange windows with scroll offset applied
+        // Render position = world position - scroll offset
+        // Since window positions are in world coords and scroll is panel-relative:
+        // renderX = entryX - scrollX (both relative to panel origin)
         foreach (var windowNode in WindowNodes)
         {
             if (windowNode.Entry == null) continue;
 
             var entry = windowNode.Entry;
             
-            // Calculate render position relative to content origin
-            // ScrollX/ScrollY is the offset from content origin to viewport
-            var renderX = entry.X!.Value - _contentOriginX - ScrollX + bounds.X;
-            var renderY = entry.Y!.Value - _contentOriginY - ScrollY + bounds.Y;
+            // Simple: screen position = world position - scroll offset
+            var renderX = entry.X!.Value - ScrollX;
+            var renderY = entry.Y!.Value - ScrollY;
 
             var windowBounds = new Rect(renderX, renderY, entry.Width, entry.Height);
             windowNode.Arrange(windowBounds);
@@ -358,10 +366,17 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             _verticalScrollbar.Orientation = ScrollOrientation.Vertical;
             _verticalScrollbar.ContentSize = _virtualBounds.Height;
             _verticalScrollbar.ViewportSize = bounds.Height;
-            _verticalScrollbar.Offset = ScrollY;
+            
+            // Convert panel-relative scroll to content-relative offset for scrollbar
+            // ScrollY can be negative (viewing above panel origin)
+            // Scrollbar offset is 0 when viewing content origin, max when viewing end
+            var minScrollY = _virtualBounds.Y - bounds.Y;
+            _verticalScrollbar.Offset = ScrollY - minScrollY;
+            
             _verticalScrollbar.ScrollHandler = offset =>
             {
-                ScrollY = offset;
+                // Convert back from scrollbar offset to panel-relative scroll
+                ScrollY = offset + minScrollY;
                 MarkDirty();
                 return Task.CompletedTask;
             };
@@ -382,10 +397,15 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             _horizontalScrollbar.Orientation = ScrollOrientation.Horizontal;
             _horizontalScrollbar.ContentSize = _virtualBounds.Width;
             _horizontalScrollbar.ViewportSize = bounds.Width;
-            _horizontalScrollbar.Offset = ScrollX;
+            
+            // Convert panel-relative scroll to content-relative offset for scrollbar
+            var minScrollX = _virtualBounds.X - bounds.X;
+            _horizontalScrollbar.Offset = ScrollX - minScrollX;
+            
             _horizontalScrollbar.ScrollHandler = offset =>
             {
-                ScrollX = offset;
+                // Convert back from scrollbar offset to panel-relative scroll
+                ScrollX = offset + minScrollX;
                 MarkDirty();
                 return Task.CompletedTask;
             };
@@ -402,7 +422,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     /// <summary>
     /// Calculates the virtual bounds that encompass all windows.
-    /// Tracks content origin shift and adjusts scroll offset to compensate.
     /// </summary>
     private void CalculateVirtualBounds(Rect panelBounds)
     {
@@ -431,18 +450,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                 maxX = Math.Max(maxX, entryX + windowNode.Entry.Width);
                 maxY = Math.Max(maxY, entryY + windowNode.Entry.Height);
             }
-        }
-
-        // Detect if content origin has shifted and compensate scroll offset
-        // This prevents jitter when windows move back toward the origin
-        var originDeltaX = minX - _contentOriginX;
-        var originDeltaY = minY - _contentOriginY;
-        
-        if (originDeltaX != 0 || originDeltaY != 0)
-        {
-            // Adjust scroll to maintain the same viewport position
-            ScrollX = Math.Max(0, ScrollX + originDeltaX);
-            ScrollY = Math.Max(0, ScrollY + originDeltaY);
         }
 
         _contentOriginX = minX;
@@ -500,15 +507,17 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     {
         if (NeedsHorizontalScroll && deltaX != 0)
         {
-            var maxScrollX = _virtualBounds.Width - Bounds.Width;
-            ScrollX = Math.Clamp(ScrollX + deltaX, 0, Math.Max(0, maxScrollX));
+            var minScrollX = _virtualBounds.X - Bounds.X;
+            var maxScrollX = _virtualBounds.X + _virtualBounds.Width - Bounds.X - Bounds.Width;
+            ScrollX = Math.Clamp(ScrollX + deltaX, Math.Min(0, minScrollX), Math.Max(0, maxScrollX));
             MarkDirty();
         }
         
         if (NeedsVerticalScroll && deltaY != 0)
         {
-            var maxScrollY = _virtualBounds.Height - Bounds.Height;
-            ScrollY = Math.Clamp(ScrollY + deltaY, 0, Math.Max(0, maxScrollY));
+            var minScrollY = _virtualBounds.Y - Bounds.Y;
+            var maxScrollY = _virtualBounds.Y + _virtualBounds.Height - Bounds.Y - Bounds.Height;
+            ScrollY = Math.Clamp(ScrollY + deltaY, Math.Min(0, minScrollY), Math.Max(0, maxScrollY));
             MarkDirty();
         }
     }
