@@ -143,6 +143,23 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }
     }
 
+    private bool _isHovered;
+    /// <summary>
+    /// Whether the mouse is currently over this window.
+    /// </summary>
+    public override bool IsHovered
+    {
+        get => _isHovered;
+        set
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
+                MarkDirty();
+            }
+        }
+    }
+
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
         // Return WindowNode first, then children
@@ -288,6 +305,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
                 switch (edge)
                 {
+                    case ResizeEdge.Top:
+                        // Dragging top edge: height changes opposite to deltaY, position moves with it
+                        newHeight = startHeight - deltaY;
+                        newY = startY + deltaY;
+                        break;
+
                     case ResizeEdge.Left:
                         // Dragging left edge: width changes opposite to deltaX, position moves with it
                         newWidth = startWidth - deltaX;
@@ -302,6 +325,21 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                     case ResizeEdge.Bottom:
                         // Dragging bottom edge: height increases with deltaY
                         newHeight = startHeight + deltaY;
+                        break;
+
+                    case ResizeEdge.TopLeft:
+                        // Combined top and left
+                        newWidth = startWidth - deltaX;
+                        newX = startX + deltaX;
+                        newHeight = startHeight - deltaY;
+                        newY = startY + deltaY;
+                        break;
+
+                    case ResizeEdge.TopRight:
+                        // Combined top and right
+                        newWidth = startWidth + deltaX;
+                        newHeight = startHeight - deltaY;
+                        newY = startY + deltaY;
                         break;
 
                     case ResizeEdge.BottomLeft:
@@ -328,11 +366,17 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                     constrainedHeight = Math.Min(Entry.MaxHeight.Value, constrainedHeight);
 
                 // For left edge resize, adjust position to account for size constraints
-                if (edge == ResizeEdge.Left || edge == ResizeEdge.BottomLeft)
+                if (edge == ResizeEdge.Left || edge == ResizeEdge.BottomLeft || edge == ResizeEdge.TopLeft)
                 {
-                    // If width was constrained, position should not move as much
                     var actualWidthDelta = startWidth - constrainedWidth;
                     newX = startX + actualWidthDelta;
+                }
+
+                // For top edge resize, adjust position to account for size constraints
+                if (edge == ResizeEdge.Top || edge == ResizeEdge.TopLeft || edge == ResizeEdge.TopRight)
+                {
+                    var actualHeightDelta = startHeight - constrainedHeight;
+                    newY = startY + actualHeightDelta;
                 }
 
                 Entry.Manager.UpdatePosition(Entry, newX, newY);
@@ -349,9 +393,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     private enum ResizeEdge
     {
         None,
+        Top,
         Left,
         Right,
         Bottom,
+        TopLeft,
+        TopRight,
         BottomLeft,
         BottomRight
     }
@@ -444,19 +491,31 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var width = Bounds.Width;
         var height = Bounds.Height;
 
-        // Bottom-left corner (intersection of bottom and left borders)
+        // Top-left corner
+        if (localX == 0 && localY == 0)
+            return ResizeEdge.TopLeft;
+
+        // Top-right corner
+        if (localX == width - 1 && localY == 0)
+            return ResizeEdge.TopRight;
+
+        // Bottom-left corner
         if (localX == 0 && localY == height - 1)
             return ResizeEdge.BottomLeft;
 
-        // Bottom-right corner (intersection of bottom and right borders)
+        // Bottom-right corner
         if (localX == width - 1 && localY == height - 1)
             return ResizeEdge.BottomRight;
 
-        // Left edge (excluding top border - that's not resizable, and corners)
+        // Top edge (excluding corners)
+        if (localY == 0 && localX > 0 && localX < width - 1)
+            return ResizeEdge.Top;
+
+        // Left edge (excluding corners)
         if (localX == 0 && localY > 0 && localY < height - 1)
             return ResizeEdge.Left;
 
-        // Right edge (excluding top border and corners)
+        // Right edge (excluding corners)
         if (localX == width - 1 && localY > 0 && localY < height - 1)
             return ResizeEdge.Right;
 
@@ -494,28 +553,46 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var bottomRight = theme.Get(WindowTheme.BottomRightCorner);
         var horizontal = theme.Get(WindowTheme.HorizontalLine);
         var vertical = theme.Get(WindowTheme.VerticalLine);
-        var topBorderFill = theme.Get(WindowTheme.TopBorderFill);
+
+        // Resize thumb characters
+        var thumbHorizontal = theme.Get(WindowTheme.ResizeThumbHorizontal);
+        var thumbVertical = theme.Get(WindowTheme.ResizeThumbVertical);
+        var thumbTopLeft = theme.Get(WindowTheme.ResizeThumbTopLeft);
+        var thumbTopRight = theme.Get(WindowTheme.ResizeThumbTopRight);
+        var thumbBottomLeft = theme.Get(WindowTheme.ResizeThumbBottomLeft);
+        var thumbBottomRight = theme.Get(WindowTheme.ResizeThumbBottomRight);
+        var thumbColor = theme.Get(WindowTheme.ResizeThumbColor);
 
         var resetToGlobal = theme.GetResetToGlobalCodes();
         var innerWidth = Math.Max(0, width - 2);
+        var innerHeight = Math.Max(0, height - 2);
 
-        // Draw top border
+        // Calculate proportional thumb sizes (roughly 1/3 of edge length, minimum 3)
+        var hThumbSize = Math.Max(3, Math.Min(innerWidth / 3, 7));
+        var vThumbSize = Math.Max(3, Math.Min(innerHeight / 3, 5));
+
+        // Detect hovered resize edge if resizable and hovered
+        var hoveredEdge = ResizeEdge.None;
+        if (IsResizable && IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
+        {
+            var localMouseX = context.MouseX - x;
+            var localMouseY = context.MouseY - y;
+            hoveredEdge = GetResizeEdge(localMouseX, localMouseY);
+        }
+
+        // Show all thumbs when any resize edge is hovered
+        var showAllThumbs = hoveredEdge != ResizeEdge.None;
+
         var borderFg = borderColor.ToForegroundAnsi();
+        var thumbFg = thumbColor.ToForegroundAnsi();
+
+        // Draw top border with potential thumbs
         context.SetCursorPosition(x, y);
-        
-        if (ChromeStyle != WindowChromeStyle.None)
-        {
-            // Title bar style: lower half blocks that appear as title bar extending upward
-            // The foreground is title bar color, background matches what's above (or transparent)
-            var titleBgCode = titleBg.ToBackgroundAnsi();
-            var titleFgCode = titleBg.ToForegroundAnsi(); // Use title bg as foreground for the block
-            context.Write($"{titleFgCode}{topLeft}{new string(topBorderFill[0], innerWidth)}{topRight}{resetToGlobal}");
-        }
-        else
-        {
-            // No title bar - use standard border
-            context.Write($"{borderFg}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}");
-        }
+        RenderHorizontalEdge(context, innerWidth, showAllThumbs, hoveredEdge,
+            ResizeEdge.Top, ResizeEdge.TopLeft, ResizeEdge.TopRight,
+            topLeft, topRight, horizontal,
+            thumbTopLeft, thumbTopRight, thumbHorizontal,
+            borderFg, thumbFg, resetToGlobal, hThumbSize);
 
         // Draw title bar (row below top border) based on chrome style
         if (height > 1 && ChromeStyle != WindowChromeStyle.None)
@@ -523,32 +600,53 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             RenderTitleBar(context, theme, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
         }
 
-        // Draw content area rows
+        // Draw content area rows with resize thumbs on hover
         var contentBgCode = contentBg.ToBackgroundAnsi();
         var contentStartRow = ChromeStyle == WindowChromeStyle.None ? 1 : 2;
+
+        // Calculate vertical thumb range (centered on edge)
+        var vThumbStart = contentStartRow + (innerHeight - vThumbSize) / 2;
+        var vThumbEnd = vThumbStart + vThumbSize;
+
         for (int row = contentStartRow; row < height - 1; row++)
         {
             context.SetCursorPosition(x, y + row);
-            context.Write($"{borderFg}{vertical}{resetToGlobal}");
-            context.Write($"{contentBgCode}{new string(' ', innerWidth)}{resetToGlobal}");
-            context.SetCursorPosition(x + width - 1, y + row);
-            context.Write($"{borderFg}{vertical}{resetToGlobal}");
-        }
-
-        // Draw bottom border (with resize grip if resizable)
-        if (height > 1)
-        {
-            context.SetCursorPosition(x, y + height - 1);
-            if (IsResizable && innerWidth > 0)
+            
+            // Left border - show thumb when any edge hovered and in thumb range
+            var inLeftThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
+            if (inLeftThumb)
             {
-                // Show resize grip in bottom-right corner
-                var resizeGrip = theme.Get(WindowTheme.ResizeGrip);
-                context.Write($"{borderFg}{bottomLeft}{new string(horizontal[0], innerWidth - 1)}{resizeGrip}{bottomRight}{resetToGlobal}");
+                context.Write($"{thumbFg}{thumbVertical}{resetToGlobal}");
             }
             else
             {
-                context.Write($"{borderFg}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToGlobal}");
+                context.Write($"{borderFg}{vertical}{resetToGlobal}");
             }
+            
+            context.Write($"{contentBgCode}{new string(' ', innerWidth)}{resetToGlobal}");
+            context.SetCursorPosition(x + width - 1, y + row);
+            
+            // Right border - show thumb when any edge hovered and in thumb range
+            var inRightThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
+            if (inRightThumb)
+            {
+                context.Write($"{thumbFg}{thumbVertical}{resetToGlobal}");
+            }
+            else
+            {
+                context.Write($"{borderFg}{vertical}{resetToGlobal}");
+            }
+        }
+
+        // Draw bottom border with potential thumbs
+        if (height > 1)
+        {
+            context.SetCursorPosition(x, y + height - 1);
+            RenderHorizontalEdge(context, innerWidth, showAllThumbs, hoveredEdge,
+                ResizeEdge.Bottom, ResizeEdge.BottomLeft, ResizeEdge.BottomRight,
+                bottomLeft, bottomRight, horizontal,
+                thumbBottomLeft, thumbBottomRight, thumbHorizontal,
+                borderFg, thumbFg, resetToGlobal, hThumbSize);
         }
 
         // Render child content with this window as the layout provider for clipping
@@ -565,6 +663,68 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }
     }
 
+    /// <summary>
+    /// Renders a horizontal edge (top or bottom) with potential resize thumbs.
+    /// </summary>
+    private void RenderHorizontalEdge(
+        Hex1bRenderContext context,
+        int innerWidth,
+        bool showAllThumbs,
+        ResizeEdge hoveredEdge,
+        ResizeEdge edgeType,
+        ResizeEdge leftCornerType,
+        ResizeEdge rightCornerType,
+        string leftCorner,
+        string rightCorner,
+        string horizontal,
+        string thumbLeftCorner,
+        string thumbRightCorner,
+        string thumbHorizontal,
+        string borderFg,
+        string thumbFg,
+        string resetToGlobal,
+        int thumbSize)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // Left corner - show thumb when any edge is hovered
+        if (showAllThumbs)
+        {
+            sb.Append($"{thumbFg}{thumbLeftCorner}{resetToGlobal}");
+        }
+        else
+        {
+            sb.Append($"{borderFg}{leftCorner}{resetToGlobal}");
+        }
+
+        // Edge content - show thumb when any edge is hovered
+        if (showAllThumbs && innerWidth > 0)
+        {
+            // Show thumb in center of edge
+            var leftPad = (innerWidth - thumbSize) / 2;
+            var rightPad = innerWidth - thumbSize - leftPad;
+            sb.Append($"{borderFg}{new string(horizontal[0], Math.Max(0, leftPad))}");
+            sb.Append($"{thumbFg}{new string(thumbHorizontal[0], thumbSize)}{resetToGlobal}");
+            sb.Append($"{borderFg}{new string(horizontal[0], Math.Max(0, rightPad))}{resetToGlobal}");
+        }
+        else
+        {
+            sb.Append($"{borderFg}{new string(horizontal[0], innerWidth)}{resetToGlobal}");
+        }
+
+        // Right corner - show thumb when any edge is hovered
+        if (showAllThumbs)
+        {
+            sb.Append($"{thumbFg}{thumbRightCorner}{resetToGlobal}");
+        }
+        else
+        {
+            sb.Append($"{borderFg}{rightCorner}{resetToGlobal}");
+        }
+
+        context.Write(sb.ToString());
+    }
+
     private void RenderTitleBar(
         Hex1bRenderContext context,
         Hex1bTheme theme,
@@ -577,10 +737,6 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string vertical,
         string resetToGlobal)
     {
-        // Get title bar edge characters
-        var leftEdge = theme.Get(WindowTheme.TitleBarLeftEdge);
-        var rightEdge = theme.Get(WindowTheme.TitleBarRightEdge);
-        
         // Calculate buttons width based on chrome style
         var buttonsBuilder = new System.Text.StringBuilder();
         var buttonsWidth = 0;
@@ -633,16 +789,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var padding = availableTitleWidth - titleDisplayWidth;
         var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
 
-        var titleBgCode = titleBg.ToBackgroundAnsi();
-        var titleFgCode = titleFg.ToForegroundAnsi();
-
-        // Render title bar: thin edge + title + buttons + thin edge
-        // The thin edges use title bar background as their foreground color
+        // Render title bar: border + title + buttons + border
         context.SetCursorPosition(x, titleBarY);
-        context.Write($"{titleBg.ToForegroundAnsi()}{leftEdge}{resetToGlobal}");
-        context.Write($"{titleFgCode}{titleBgCode}{paddedTitle}");
+        context.Write($"{borderFg}{vertical}{resetToGlobal}");
+        context.Write($"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}");
         context.Write(buttonsBuilder.ToString());
-        context.Write($"{resetToGlobal}{titleBg.ToForegroundAnsi()}{rightEdge}{resetToGlobal}");
+        context.Write($"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}");
     }
 
     /// <summary>
