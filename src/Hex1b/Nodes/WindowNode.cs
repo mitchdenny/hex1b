@@ -534,6 +534,13 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var width = Bounds.Width;
         var height = Bounds.Height;
 
+        // Get the parent's clip rect for clipping window chrome
+        var clipRect = context.CurrentLayoutProvider?.ClipRect;
+
+        // Helper to check if a row is visible
+        bool IsRowVisible(int row) => clipRect == null || 
+            (row >= clipRect.Value.Y && row < clipRect.Value.Y + clipRect.Value.Height);
+
         // Get theme colors based on active state
         var borderColor = IsActive
             ? theme.Get(WindowTheme.BorderActiveColor)
@@ -587,15 +594,17 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var thumbFg = thumbColor.ToForegroundAnsi();
 
         // Draw top border with potential thumbs
-        context.SetCursorPosition(x, y);
-        RenderHorizontalEdge(context, innerWidth, showAllThumbs, hoveredEdge,
-            ResizeEdge.Top, ResizeEdge.TopLeft, ResizeEdge.TopRight,
-            topLeft, topRight, horizontal,
-            thumbTopLeft, thumbTopRight, thumbHorizontal,
-            borderFg, thumbFg, resetToGlobal, hThumbSize);
+        if (IsRowVisible(y))
+        {
+            RenderHorizontalEdge(context, x, y, innerWidth, showAllThumbs, hoveredEdge,
+                ResizeEdge.Top, ResizeEdge.TopLeft, ResizeEdge.TopRight,
+                topLeft, topRight, horizontal,
+                thumbTopLeft, thumbTopRight, thumbHorizontal,
+                borderFg, thumbFg, resetToGlobal, hThumbSize);
+        }
 
         // Draw title bar (row below top border) based on chrome style
-        if (height > 1 && ChromeStyle != WindowChromeStyle.None)
+        if (height > 1 && ChromeStyle != WindowChromeStyle.None && IsRowVisible(y + 1))
         {
             RenderTitleBar(context, theme, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
         }
@@ -610,39 +619,42 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
         for (int row = contentStartRow; row < height - 1; row++)
         {
-            context.SetCursorPosition(x, y + row);
+            if (!IsRowVisible(y + row)) continue;
+            
+            // Build the entire row content
+            var rowContent = new System.Text.StringBuilder();
             
             // Left border - show thumb when any edge hovered and in thumb range
             var inLeftThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
             if (inLeftThumb)
             {
-                context.Write($"{thumbFg}{thumbVertical}{resetToGlobal}");
+                rowContent.Append($"{thumbFg}{thumbVertical}{resetToGlobal}");
             }
             else
             {
-                context.Write($"{borderFg}{vertical}{resetToGlobal}");
+                rowContent.Append($"{borderFg}{vertical}{resetToGlobal}");
             }
             
-            context.Write($"{contentBgCode}{new string(' ', innerWidth)}{resetToGlobal}");
-            context.SetCursorPosition(x + width - 1, y + row);
+            rowContent.Append($"{contentBgCode}{new string(' ', innerWidth)}{resetToGlobal}");
             
             // Right border - show thumb when any edge hovered and in thumb range
             var inRightThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
             if (inRightThumb)
             {
-                context.Write($"{thumbFg}{thumbVertical}{resetToGlobal}");
+                rowContent.Append($"{thumbFg}{thumbVertical}{resetToGlobal}");
             }
             else
             {
-                context.Write($"{borderFg}{vertical}{resetToGlobal}");
+                rowContent.Append($"{borderFg}{vertical}{resetToGlobal}");
             }
+            
+            context.WriteClipped(x, y + row, rowContent.ToString());
         }
 
         // Draw bottom border with potential thumbs
-        if (height > 1)
+        if (height > 1 && IsRowVisible(y + height - 1))
         {
-            context.SetCursorPosition(x, y + height - 1);
-            RenderHorizontalEdge(context, innerWidth, showAllThumbs, hoveredEdge,
+            RenderHorizontalEdge(context, x, y + height - 1, innerWidth, showAllThumbs, hoveredEdge,
                 ResizeEdge.Bottom, ResizeEdge.BottomLeft, ResizeEdge.BottomRight,
                 bottomLeft, bottomRight, horizontal,
                 thumbBottomLeft, thumbBottomRight, thumbHorizontal,
@@ -668,6 +680,8 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     /// </summary>
     private void RenderHorizontalEdge(
         Hex1bRenderContext context,
+        int x,
+        int y,
         int innerWidth,
         bool showAllThumbs,
         ResizeEdge hoveredEdge,
@@ -722,7 +736,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             sb.Append($"{borderFg}{rightCorner}{resetToGlobal}");
         }
 
-        context.Write(sb.ToString());
+        context.WriteClipped(x, y, sb.ToString());
     }
 
     private void RenderTitleBar(
@@ -790,11 +804,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
 
         // Render title bar: border + title + buttons + border
-        context.SetCursorPosition(x, titleBarY);
-        context.Write($"{borderFg}{vertical}{resetToGlobal}");
-        context.Write($"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}");
-        context.Write(buttonsBuilder.ToString());
-        context.Write($"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}");
+        // Use WriteClipped to respect parent's clipping bounds
+        var titleContent = $"{borderFg}{vertical}{resetToGlobal}" +
+            $"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}" +
+            buttonsBuilder.ToString() +
+            $"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}";
+        context.WriteClipped(x, titleBarY, titleContent);
     }
 
     /// <summary>

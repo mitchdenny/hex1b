@@ -520,7 +520,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate);
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
@@ -565,7 +565,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 else if (_rootNode != null)
                 {
                     await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
-                        RequestStop, cancellationToken, CopyToClipboard, Invalidate);
+                        RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
                 }
                 break;
         }

@@ -264,10 +264,8 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     {
         base.Arrange(bounds);
 
-        // Resolve the clip scope
-        var parentClip = ParentLayoutProvider?.ClipRect;
-        var screenBounds = new Rect(0, 0, 1000, 1000);
-        _resolvedClipRect = ClipScopeValue.Resolve(bounds, parentClip, screenBounds, widgetNodeResolver: null);
+        // Clip to our own bounds - windows should not render outside the panel
+        _resolvedClipRect = bounds;
 
         // Arrange content to fill bounds
         Content?.Arrange(bounds);
@@ -359,6 +357,11 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     {
         var needsVScroll = NeedsVerticalScroll;
         var needsHScroll = NeedsHorizontalScroll;
+        
+        // Update clip rect to exclude scrollbar areas
+        var clipWidth = bounds.Width - (needsVScroll ? 1 : 0);
+        var clipHeight = bounds.Height - (needsHScroll ? 1 : 0);
+        _resolvedClipRect = new Rect(bounds.X, bounds.Y, clipWidth, clipHeight);
 
         // Vertical scrollbar
         if (needsVScroll)
@@ -484,6 +487,15 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         if (_horizontalScrollbar != null)
         {
             context.RenderChild(_horizontalScrollbar);
+        }
+        
+        // Render corner cell when both scrollbars present
+        if (_verticalScrollbar != null && _horizontalScrollbar != null)
+        {
+            var cornerX = Bounds.X + Bounds.Width - 1;
+            var cornerY = Bounds.Y + Bounds.Height - 1;
+            context.SetCursorPosition(cornerX, cornerY);
+            context.Write(" ");
         }
 
         context.CurrentLayoutProvider = previousLayout;
