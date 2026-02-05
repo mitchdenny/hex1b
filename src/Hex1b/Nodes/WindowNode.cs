@@ -32,6 +32,16 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     public bool IsResizable { get; set; }
 
     /// <summary>
+    /// The chrome style for this window.
+    /// </summary>
+    public WindowChromeStyle ChromeStyle { get; set; } = WindowChromeStyle.TitleAndClose;
+
+    /// <summary>
+    /// How Escape key is handled for this window.
+    /// </summary>
+    public WindowEscapeBehavior EscapeBehavior { get; set; } = WindowEscapeBehavior.Close;
+
+    /// <summary>
     /// Whether this is a modal window.
     /// </summary>
     public bool IsModal { get; set; }
@@ -50,13 +60,23 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     #region ILayoutProvider Implementation
 
     /// <summary>
+    /// Gets the vertical offset for content (border + optional title bar).
+    /// </summary>
+    private int ContentYOffset => ChromeStyle == WindowChromeStyle.None ? 1 : 2;
+
+    /// <summary>
+    /// Gets the height taken by chrome (borders + optional title bar).
+    /// </summary>
+    private int ChromeHeight => ChromeStyle == WindowChromeStyle.None ? 2 : 3;
+
+    /// <summary>
     /// The clip rectangle for child content (inner area excluding border and title bar).
     /// </summary>
     public Rect ClipRect => new(
         Bounds.X + 1,
-        Bounds.Y + 2, // +1 for border, +1 for title bar
+        Bounds.Y + ContentYOffset,
         Math.Max(0, Bounds.Width - 2),
-        Math.Max(0, Bounds.Height - 3) // -2 for borders, -1 for title bar
+        Math.Max(0, Bounds.Height - ChromeHeight)
     );
 
     /// <inheritdoc />
@@ -77,7 +97,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
         // Ensure minimum size for border + title bar
         width = Math.Max(width, 10);
-        height = Math.Max(height, 5);
+        height = Math.Max(height, ChromeStyle == WindowChromeStyle.None ? 3 : 5);
 
         return constraints.Constrain(new Size(width, height));
     }
@@ -86,14 +106,14 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     {
         base.Arrange(bounds);
 
-        // Content gets the inner area (minus border and title bar)
+        // Content gets the inner area (minus border and optional title bar)
         if (Content != null)
         {
             var innerBounds = new Rect(
                 bounds.X + 1,
-                bounds.Y + 2, // +1 for top border, +1 for title bar
+                bounds.Y + ContentYOffset,
                 Math.Max(0, bounds.Width - 2),
-                Math.Max(0, bounds.Height - 3) // -2 for borders, -1 for title bar
+                Math.Max(0, bounds.Height - ChromeHeight)
             );
             Content.Arrange(innerBounds);
         }
@@ -160,10 +180,21 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Escape closes the window (unless modal with different behavior)
+        // Escape behavior based on configuration
         bindings.Key(Hex1bKey.Escape).Action(_ =>
         {
-            Entry?.Close();
+            var shouldClose = EscapeBehavior switch
+            {
+                WindowEscapeBehavior.Close => true,
+                WindowEscapeBehavior.CloseNonModal => !IsModal,
+                WindowEscapeBehavior.Ignore => false,
+                _ => true
+            };
+
+            if (shouldClose)
+            {
+                Entry?.Close();
+            }
             return Task.CompletedTask;
         }, "Close window");
 
@@ -204,8 +235,6 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var bottomRight = theme.Get(WindowTheme.BottomRightCorner);
         var horizontal = theme.Get(WindowTheme.HorizontalLine);
         var vertical = theme.Get(WindowTheme.VerticalLine);
-        var closeGlyph = theme.Get(WindowTheme.CloseButtonGlyph);
-        var closeFg = theme.Get(WindowTheme.CloseButtonForeground);
 
         var resetToGlobal = theme.GetResetToGlobalCodes();
         var innerWidth = Math.Max(0, width - 2);
@@ -215,37 +244,16 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         context.SetCursorPosition(x, y);
         context.Write($"{borderFg}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}");
 
-        // Draw title bar (row below top border)
-        if (height > 1)
+        // Draw title bar (row below top border) based on chrome style
+        if (height > 1 && ChromeStyle != WindowChromeStyle.None)
         {
-            var titleBarY = y + 1;
-            var closeButtonWidth = 3; // " × "
-            var availableTitleWidth = Math.Max(0, innerWidth - closeButtonWidth);
-
-            // Truncate title if needed
-            var displayTitle = Title;
-            if (DisplayWidth.GetStringWidth(displayTitle) > availableTitleWidth)
-            {
-                var (sliced, _, _, _) = DisplayWidth.SliceByDisplayWidth(displayTitle, 0, availableTitleWidth - 1);
-                displayTitle = sliced + "…";
-            }
-
-            // Pad title to fill available space
-            var titleDisplayWidth = DisplayWidth.GetStringWidth(displayTitle);
-            var padding = availableTitleWidth - titleDisplayWidth;
-            var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
-
-            // Render title bar: border + title + close button + border
-            context.SetCursorPosition(x, titleBarY);
-            context.Write($"{borderFg}{vertical}{resetToGlobal}");
-            context.Write($"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}");
-            context.Write($" {closeFg.ToForegroundAnsi()}{closeGlyph} ");
-            context.Write($"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}");
+            RenderTitleBar(context, theme, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
         }
 
         // Draw content area rows
         var contentBgCode = contentBg.ToBackgroundAnsi();
-        for (int row = 2; row < height - 1; row++)
+        var contentStartRow = ChromeStyle == WindowChromeStyle.None ? 1 : 2;
+        for (int row = contentStartRow; row < height - 1; row++)
         {
             context.SetCursorPosition(x, y + row);
             context.Write($"{borderFg}{vertical}{resetToGlobal}");
@@ -273,6 +281,78 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             context.CurrentLayoutProvider = previousLayout;
             ParentLayoutProvider = null;
         }
+    }
+
+    private void RenderTitleBar(
+        Hex1bRenderContext context,
+        Hex1bTheme theme,
+        int x,
+        int titleBarY,
+        int innerWidth,
+        string borderFg,
+        Hex1bColor titleFg,
+        Hex1bColor titleBg,
+        string vertical,
+        string resetToGlobal)
+    {
+        // Calculate buttons width based on chrome style
+        var buttonsBuilder = new System.Text.StringBuilder();
+        var buttonsWidth = 0;
+
+        if (ChromeStyle == WindowChromeStyle.Full)
+        {
+            // Minimize button
+            var minGlyph = theme.Get(WindowTheme.MinimizeButtonGlyph);
+            var minFg = theme.Get(WindowTheme.MinimizeButtonForeground);
+            buttonsBuilder.Append($" {minFg.ToForegroundAnsi()}{minGlyph}");
+            buttonsWidth += 2;
+
+            // Maximize/Restore button
+            var maxGlyph = Entry?.State == WindowState.Maximized
+                ? theme.Get(WindowTheme.RestoreButtonGlyph)
+                : theme.Get(WindowTheme.MaximizeButtonGlyph);
+            var maxFg = theme.Get(WindowTheme.MaximizeButtonForeground);
+            buttonsBuilder.Append($" {maxFg.ToForegroundAnsi()}{maxGlyph}");
+            buttonsWidth += 2;
+        }
+
+        if (ChromeStyle is WindowChromeStyle.TitleAndClose or WindowChromeStyle.Full)
+        {
+            // Close button
+            var closeGlyph = theme.Get(WindowTheme.CloseButtonGlyph);
+            var closeFg = theme.Get(WindowTheme.CloseButtonForeground);
+            buttonsBuilder.Append($" {closeFg.ToForegroundAnsi()}{closeGlyph}");
+            buttonsWidth += 2;
+        }
+
+        // Add trailing space if we have buttons
+        if (buttonsWidth > 0)
+        {
+            buttonsBuilder.Append(' ');
+            buttonsWidth += 1;
+        }
+
+        var availableTitleWidth = Math.Max(0, innerWidth - buttonsWidth);
+
+        // Truncate title if needed
+        var displayTitle = Title;
+        if (DisplayWidth.GetStringWidth(displayTitle) > availableTitleWidth)
+        {
+            var (sliced, _, _, _) = DisplayWidth.SliceByDisplayWidth(displayTitle, 0, availableTitleWidth - 1);
+            displayTitle = sliced + "…";
+        }
+
+        // Pad title to fill available space
+        var titleDisplayWidth = DisplayWidth.GetStringWidth(displayTitle);
+        var padding = availableTitleWidth - titleDisplayWidth;
+        var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
+
+        // Render title bar: border + title + buttons + border
+        context.SetCursorPosition(x, titleBarY);
+        context.Write($"{borderFg}{vertical}{resetToGlobal}");
+        context.Write($"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}");
+        context.Write(buttonsBuilder.ToString());
+        context.Write($"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}");
     }
 
     /// <summary>

@@ -352,4 +352,212 @@ public class WindowManagerTests
 
         Assert.Equal(0, activatedCount);
     }
+
+    #region Phase 3: Chrome Style and Window State Tests
+
+    [Fact]
+    public void Open_WithChromeStyle_SetsCorrectly()
+    {
+        var manager = new WindowManager();
+
+        var entry = manager.Open(
+            id: "styled",
+            title: "Styled Window",
+            content: () => new TextBlockWidget("Content"),
+            chromeStyle: WindowChromeStyle.Full
+        );
+
+        Assert.Equal(WindowChromeStyle.Full, entry.ChromeStyle);
+    }
+
+    [Fact]
+    public void Open_WithEscapeBehavior_SetsCorrectly()
+    {
+        var manager = new WindowManager();
+
+        var entry = manager.Open(
+            id: "modal-like",
+            title: "Modal Window",
+            content: () => new TextBlockWidget("Content"),
+            escapeBehavior: WindowEscapeBehavior.Ignore
+        );
+
+        Assert.Equal(WindowEscapeBehavior.Ignore, entry.EscapeBehavior);
+    }
+
+    [Fact]
+    public void SetWindowState_ToMinimized_ChangesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        manager.SetWindowState(entry, WindowState.Minimized);
+
+        Assert.Equal(WindowState.Minimized, entry.State);
+    }
+
+    [Fact]
+    public void SetWindowState_ToMaximized_ChangesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+
+        Assert.Equal(WindowState.Maximized, entry.State);
+    }
+
+    [Fact]
+    public void SetWindowState_ToMaximized_SavesPreviousSize()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"), 
+            width: 50, height: 25);
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+
+        Assert.NotNull(entry.PreMaximizeSize);
+        Assert.Equal((50, 25), entry.PreMaximizeSize.Value);
+    }
+
+    [Fact]
+    public void SetWindowState_ToNormal_RestoresPreviousSize()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"), 
+            width: 50, height: 25, x: 10, y: 5);
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+        // Simulate maximized size change
+        entry.Width = 100;
+        entry.Height = 50;
+        entry.X = 0;
+        entry.Y = 0;
+
+        manager.SetWindowState(entry, WindowState.Normal);
+
+        Assert.Equal(WindowState.Normal, entry.State);
+        Assert.Equal(50, entry.Width);
+        Assert.Equal(25, entry.Height);
+        Assert.Equal(10, entry.X);
+        Assert.Equal(5, entry.Y);
+    }
+
+    [Fact]
+    public void SetWindowState_InvokesOnMinimizeCallback()
+    {
+        var manager = new WindowManager();
+        var minimized = false;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
+            onMinimize: () => minimized = true);
+
+        manager.SetWindowState(entry, WindowState.Minimized);
+
+        Assert.True(minimized);
+    }
+
+    [Fact]
+    public void SetWindowState_InvokesOnMaximizeCallback()
+    {
+        var manager = new WindowManager();
+        var maximized = false;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
+            onMaximize: () => maximized = true);
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+
+        Assert.True(maximized);
+    }
+
+    [Fact]
+    public void SetWindowState_InvokesOnRestoreCallback()
+    {
+        var manager = new WindowManager();
+        var restored = false;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
+            onRestore: () => restored = true);
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+        manager.SetWindowState(entry, WindowState.Normal);
+
+        Assert.True(restored);
+    }
+
+    [Fact]
+    public void SetWindowState_DoesNotInvokeCallback_WhenStateUnchanged()
+    {
+        var manager = new WindowManager();
+        var maximizeCount = 0;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
+            onMaximize: () => maximizeCount++);
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+        manager.SetWindowState(entry, WindowState.Maximized);
+        manager.SetWindowState(entry, WindowState.Maximized);
+
+        Assert.Equal(1, maximizeCount);
+    }
+
+    [Fact]
+    public void WindowEntry_Minimize_ChangesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        entry.Minimize();
+
+        Assert.Equal(WindowState.Minimized, entry.State);
+    }
+
+    [Fact]
+    public void WindowEntry_Maximize_ChangesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        entry.Maximize();
+
+        Assert.Equal(WindowState.Maximized, entry.State);
+    }
+
+    [Fact]
+    public void WindowEntry_Restore_ChangesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        entry.Maximize();
+
+        entry.Restore();
+
+        Assert.Equal(WindowState.Normal, entry.State);
+    }
+
+    [Fact]
+    public void WindowEntry_ToggleMaximize_TogglesState()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        entry.ToggleMaximize();
+        Assert.Equal(WindowState.Maximized, entry.State);
+
+        entry.ToggleMaximize();
+        Assert.Equal(WindowState.Normal, entry.State);
+    }
+
+    [Fact]
+    public void SetWindowState_RaisesChangedEvent()
+    {
+        var manager = new WindowManager();
+        var changedCount = 0;
+        manager.Changed += () => changedCount++;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        changedCount = 0;
+
+        manager.SetWindowState(entry, WindowState.Maximized);
+
+        Assert.Equal(1, changedCount);
+    }
+
+    #endregion
 }

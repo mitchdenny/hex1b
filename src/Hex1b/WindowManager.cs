@@ -116,6 +116,11 @@ public sealed class WindowManager
     /// <param name="onClose">Callback when the window is closed.</param>
     /// <param name="onActivated">Callback when the window becomes active (brought to front).</param>
     /// <param name="onDeactivated">Callback when the window loses active status.</param>
+    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
+    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close.</param>
+    /// <param name="onMinimize">Callback when the window is minimized.</param>
+    /// <param name="onMaximize">Callback when the window is maximized.</param>
+    /// <param name="onRestore">Callback when the window is restored from minimized/maximized.</param>
     /// <returns>The window entry.</returns>
     public WindowEntry Open(
         string id,
@@ -130,7 +135,12 @@ public sealed class WindowManager
         bool isResizable = false,
         Action? onClose = null,
         Action? onActivated = null,
-        Action? onDeactivated = null)
+        Action? onDeactivated = null,
+        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
+        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close,
+        Action? onMinimize = null,
+        Action? onMaximize = null,
+        Action? onRestore = null)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(title);
@@ -161,6 +171,11 @@ public sealed class WindowManager
                 onClose: onClose,
                 onActivated: onActivated,
                 onDeactivated: onDeactivated,
+                chromeStyle: chromeStyle,
+                escapeBehavior: escapeBehavior,
+                onMinimize: onMinimize,
+                onMaximize: onMaximize,
+                onRestore: onRestore,
                 zIndex: _nextZIndex++
             );
 
@@ -353,6 +368,68 @@ public sealed class WindowManager
         entry.Height = height;
         Changed?.Invoke();
     }
+
+    /// <summary>
+    /// Sets the window state (Normal, Minimized, Maximized).
+    /// </summary>
+    /// <param name="entry">The window entry.</param>
+    /// <param name="newState">The new state.</param>
+    public void SetWindowState(WindowEntry entry, WindowState newState)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        lock (_lock)
+        {
+            if (!_entries.Contains(entry))
+                return;
+
+            var oldState = entry.State;
+            if (oldState == newState)
+                return;
+
+            // Handle state transition
+            switch (newState)
+            {
+                case WindowState.Minimized:
+                    entry.State = WindowState.Minimized;
+                    entry.OnMinimize?.Invoke();
+                    break;
+
+                case WindowState.Maximized:
+                    // Save current size/position for restore
+                    if (oldState == WindowState.Normal)
+                    {
+                        entry.PreMaximizeSize = (entry.Width, entry.Height);
+                        entry.PreMaximizePosition = entry.X.HasValue && entry.Y.HasValue
+                            ? (entry.X.Value, entry.Y.Value)
+                            : null;
+                    }
+                    entry.State = WindowState.Maximized;
+                    entry.OnMaximize?.Invoke();
+                    break;
+
+                case WindowState.Normal:
+                    // Restore previous size/position if available
+                    if (oldState == WindowState.Maximized && entry.PreMaximizeSize.HasValue)
+                    {
+                        entry.Width = entry.PreMaximizeSize.Value.Width;
+                        entry.Height = entry.PreMaximizeSize.Value.Height;
+                        if (entry.PreMaximizePosition.HasValue)
+                        {
+                            entry.X = entry.PreMaximizePosition.Value.X;
+                            entry.Y = entry.PreMaximizePosition.Value.Y;
+                        }
+                        entry.PreMaximizeSize = null;
+                        entry.PreMaximizePosition = null;
+                    }
+                    entry.State = WindowState.Normal;
+                    entry.OnRestore?.Invoke();
+                    break;
+            }
+        }
+
+        Changed?.Invoke();
+    }
 }
 
 /// <summary>
@@ -375,6 +452,11 @@ public sealed class WindowEntry
         Action? onClose,
         Action? onActivated,
         Action? onDeactivated,
+        WindowChromeStyle chromeStyle,
+        WindowEscapeBehavior escapeBehavior,
+        Action? onMinimize,
+        Action? onMaximize,
+        Action? onRestore,
         int zIndex)
     {
         Manager = manager;
@@ -391,6 +473,11 @@ public sealed class WindowEntry
         OnClose = onClose;
         OnActivated = onActivated;
         OnDeactivated = onDeactivated;
+        ChromeStyle = chromeStyle;
+        EscapeBehavior = escapeBehavior;
+        OnMinimize = onMinimize;
+        OnMaximize = onMaximize;
+        OnRestore = onRestore;
         ZIndex = zIndex;
     }
 
@@ -463,6 +550,31 @@ public sealed class WindowEntry
     internal Action? OnDeactivated { get; }
 
     /// <summary>
+    /// The chrome style for this window.
+    /// </summary>
+    public WindowChromeStyle ChromeStyle { get; }
+
+    /// <summary>
+    /// How Escape key is handled for this window.
+    /// </summary>
+    public WindowEscapeBehavior EscapeBehavior { get; }
+
+    /// <summary>
+    /// Callback invoked when the window is minimized.
+    /// </summary>
+    internal Action? OnMinimize { get; }
+
+    /// <summary>
+    /// Callback invoked when the window is maximized.
+    /// </summary>
+    internal Action? OnMaximize { get; }
+
+    /// <summary>
+    /// Callback invoked when the window is restored from minimized/maximized.
+    /// </summary>
+    internal Action? OnRestore { get; }
+
+    /// <summary>
     /// Z-order index (higher = on top).
     /// </summary>
     public int ZIndex { get; internal set; }
@@ -471,6 +583,16 @@ public sealed class WindowEntry
     /// The current window state.
     /// </summary>
     public WindowState State { get; internal set; } = WindowState.Normal;
+
+    /// <summary>
+    /// Stored size before maximizing, for restore.
+    /// </summary>
+    internal (int Width, int Height)? PreMaximizeSize { get; set; }
+
+    /// <summary>
+    /// Stored position before maximizing, for restore.
+    /// </summary>
+    internal (int X, int Y)? PreMaximizePosition { get; set; }
 
     /// <summary>
     /// The reconciled window node. Set by WindowPanelNode during reconciliation.
@@ -486,6 +608,32 @@ public sealed class WindowEntry
     /// Brings this window to the front.
     /// </summary>
     public void BringToFront() => Manager.BringToFront(this);
+
+    /// <summary>
+    /// Minimizes this window.
+    /// </summary>
+    public void Minimize() => Manager.SetWindowState(this, WindowState.Minimized);
+
+    /// <summary>
+    /// Maximizes this window.
+    /// </summary>
+    public void Maximize() => Manager.SetWindowState(this, WindowState.Maximized);
+
+    /// <summary>
+    /// Restores this window to normal state.
+    /// </summary>
+    public void Restore() => Manager.SetWindowState(this, WindowState.Normal);
+
+    /// <summary>
+    /// Toggles between maximized and normal state.
+    /// </summary>
+    public void ToggleMaximize()
+    {
+        if (State == WindowState.Maximized)
+            Restore();
+        else
+            Maximize();
+    }
 }
 
 /// <summary>
@@ -507,4 +655,51 @@ public enum WindowState
     /// Window is maximized to fill the panel.
     /// </summary>
     Maximized
+}
+
+/// <summary>
+/// Controls which chrome elements (title bar, buttons) are displayed on a window.
+/// </summary>
+public enum WindowChromeStyle
+{
+    /// <summary>
+    /// No window chrome - just content with border.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// Title bar only, no buttons.
+    /// </summary>
+    TitleOnly,
+
+    /// <summary>
+    /// Title bar with close button.
+    /// </summary>
+    TitleAndClose,
+
+    /// <summary>
+    /// Title bar with close, minimize, and maximize buttons.
+    /// </summary>
+    Full
+}
+
+/// <summary>
+/// Controls how the Escape key behaves for a window.
+/// </summary>
+public enum WindowEscapeBehavior
+{
+    /// <summary>
+    /// Escape closes the window (default).
+    /// </summary>
+    Close,
+
+    /// <summary>
+    /// Escape is ignored - window stays open.
+    /// </summary>
+    Ignore,
+
+    /// <summary>
+    /// Escape only closes non-modal windows.
+    /// </summary>
+    CloseNonModal
 }

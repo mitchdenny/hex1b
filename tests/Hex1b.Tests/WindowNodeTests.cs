@@ -274,4 +274,79 @@ public class WindowNodeTests
     }
 
     #endregion
+
+    #region Phase 3: Chrome Style Tests
+
+    [Fact]
+    public void ChromeStyle_DefaultsToTitleAndClose()
+    {
+        var node = new WindowNode();
+
+        Assert.Equal(WindowChromeStyle.TitleAndClose, node.ChromeStyle);
+    }
+
+    [Fact]
+    public void EscapeBehavior_DefaultsToClose()
+    {
+        var node = new WindowNode();
+
+        Assert.Equal(WindowEscapeBehavior.Close, node.EscapeBehavior);
+    }
+
+    [Fact]
+    public void Measure_WithChromeStyleNone_HasSmallerMinimumHeight()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
+            width: 10, height: 3, chromeStyle: WindowChromeStyle.None);
+        
+        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.None };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // Minimum height without title bar is 3 (top border, content, bottom border)
+        Assert.Equal(10, size.Width);
+        Assert.True(size.Height >= 3);
+    }
+
+    [Fact]
+    public void ClipRect_WithChromeStyleNone_StartsAtY1()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
+            width: 40, height: 10, chromeStyle: WindowChromeStyle.None);
+        
+        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.None };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        var clipRect = node.ClipRect;
+
+        // Without title bar: Y is bounds.Y + 1 (just border)
+        Assert.Equal(1, clipRect.Y);
+        Assert.Equal(38, clipRect.Width);
+        Assert.Equal(8, clipRect.Height); // 10 - 2 (borders only)
+    }
+
+    [Fact]
+    public void ClipRect_WithChromeStyleFull_MatchesTitleAndClose()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
+            width: 40, height: 15, chromeStyle: WindowChromeStyle.Full);
+        
+        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.Full };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(10, 5, 40, 15));
+
+        var clipRect = node.ClipRect;
+
+        // Same as default - title bar + border
+        Assert.Equal(11, clipRect.X);
+        Assert.Equal(7, clipRect.Y);
+        Assert.Equal(38, clipRect.Width);
+        Assert.Equal(12, clipRect.Height);
+    }
+
+    #endregion
 }

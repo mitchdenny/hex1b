@@ -18,6 +18,8 @@ internal sealed record WindowWidget(WindowEntry Entry) : Hex1bWidget
         node.Title = Entry.Title;
         node.IsResizable = Entry.IsResizable;
         node.IsModal = Entry.IsModal;
+        node.ChromeStyle = Entry.ChromeStyle;
+        node.EscapeBehavior = Entry.EscapeBehavior;
 
         // Build and reconcile the content
         var contentWidget = Entry.ContentBuilder();

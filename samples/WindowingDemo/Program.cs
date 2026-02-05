@@ -47,6 +47,48 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         lastAction = $"Opened Window {windowNum}";
                     }),
                     buttons.Text(" "),
+                    buttons.Button("Full Chrome").OnClick(e =>
+                    {
+                        windowCounter++;
+                        var windowId = $"full-{windowCounter}";
+                        var windowNum = windowCounter;
+
+                        e.Windows.Open(
+                            id: windowId,
+                            title: $"Full Chrome Window {windowNum}",
+                            content: () => BuildWindowContent(windowNum, windowId),
+                            width: 45,
+                            height: 12,
+                            chromeStyle: WindowChromeStyle.Full,
+                            onMinimize: () => lastAction = $"Minimized Window {windowNum}",
+                            onMaximize: () => lastAction = $"Maximized Window {windowNum}",
+                            onRestore: () => lastAction = $"Restored Window {windowNum}"
+                        );
+
+                        lastAction = $"Opened Full Chrome Window {windowNum}";
+                    }),
+                    buttons.Text(" "),
+                    buttons.Button("No Chrome").OnClick(e =>
+                    {
+                        windowCounter++;
+                        var windowId = $"nochrome-{windowCounter}";
+                        var windowNum = windowCounter;
+
+                        e.Windows.Open(
+                            id: windowId,
+                            title: $"No Chrome {windowNum}",
+                            content: () => BuildNoChromeContent(windowNum),
+                            width: 30,
+                            height: 8,
+                            chromeStyle: WindowChromeStyle.None
+                        );
+
+                        lastAction = $"Opened No-Chrome Window {windowNum}";
+                    })
+                ]).FixedHeight(1),
+                main.Text(""),
+                main.HStack(buttons => [
+                    buttons.Text("  "),
                     buttons.Button("Open Modal").OnClick(e =>
                     {
                         windowCounter++;
@@ -59,7 +101,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             content: () => BuildModalContent(windowId),
                             width: 50,
                             height: 10,
-                            isModal: true
+                            isModal: true,
+                            escapeBehavior: WindowEscapeBehavior.CloseNonModal
                         );
 
                         lastAction = $"Opened Modal {windowNum}";
@@ -69,11 +112,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     {
                         e.Windows.CloseAll();
                         lastAction = "Closed all windows";
-                    })
-                ]).FixedHeight(1),
-                main.Text(""),
-                main.HStack(buttons => [
-                    buttons.Text("  "),
+                    }),
+                    buttons.Text(" "),
                     buttons.Button("Exit").OnClick(e => e.Context.RequestStop())
                 ]).FixedHeight(1),
                 main.Text(""),
@@ -104,6 +144,20 @@ static Hex1bWidget BuildWindowContent(int windowNum, string windowId)
         new HStackWidget([
             new TextBlockWidget("  "),
             new ButtonWidget("OK")
+        ])
+    ]);
+}
+
+static Hex1bWidget BuildNoChromeContent(int windowNum)
+{
+    return new VStackWidget([
+        new TextBlockWidget($"  No-Chrome Window #{windowNum}"),
+        new TextBlockWidget(""),
+        new TextBlockWidget("  No title bar, just borders."),
+        new TextBlockWidget(""),
+        new HStackWidget([
+            new TextBlockWidget("  "),
+            new ButtonWidget("Close")
         ])
     ]);
 }
