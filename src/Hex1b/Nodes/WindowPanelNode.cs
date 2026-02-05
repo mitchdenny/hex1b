@@ -68,6 +68,13 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     private Rect _virtualBounds;
 
     /// <summary>
+    /// The content origin - minimum X/Y of all windows.
+    /// Used to detect when content origin shifts and compensate scroll offset.
+    /// </summary>
+    private int _contentOriginX;
+    private int _contentOriginY;
+
+    /// <summary>
     /// Vertical scrollbar node (created lazily when needed).
     /// </summary>
     private ScrollbarNode? _verticalScrollbar;
@@ -261,7 +268,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         // Arrange content to fill bounds
         Content?.Arrange(bounds);
 
-        // Arrange windows at their positions
+        // First pass: resolve window positions and calculate virtual bounds
         foreach (var windowNode in WindowNodes)
         {
             if (windowNode.Entry == null) continue;
@@ -271,16 +278,10 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             var windowHeight = entry.Height;
 
             // Calculate position (center if not specified)
-            int windowX, windowY;
-            if (entry.X.HasValue && entry.Y.HasValue)
-            {
-                windowX = entry.X.Value;
-                windowY = entry.Y.Value;
-            }
-            else
+            if (!entry.X.HasValue || !entry.Y.HasValue)
             {
                 // Use position spec to calculate initial position
-                (windowX, windowY) = entry.PositionSpec.Calculate(
+                var (calcX, calcY) = entry.PositionSpec.Calculate(
                     bounds, 
                     windowWidth, 
                     windowHeight,
@@ -288,26 +289,19 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                     entry.Y);
 
                 // Store calculated position so subsequent renders use the same position
-                entry.X = windowX;
-                entry.Y = windowY;
+                entry.X = calcX;
+                entry.Y = calcY;
             }
 
             // Clamp to panel bounds unless panel allows out-of-bounds windows
             if (!AllowOutOfBounds)
             {
-                windowX = Math.Max(bounds.X, Math.Min(windowX, bounds.X + bounds.Width - windowWidth));
-                windowY = Math.Max(bounds.Y, Math.Min(windowY, bounds.Y + bounds.Height - windowHeight));
+                entry.X = Math.Max(bounds.X, Math.Min(entry.X!.Value, bounds.X + bounds.Width - windowWidth));
+                entry.Y = Math.Max(bounds.Y, Math.Min(entry.Y!.Value, bounds.Y + bounds.Height - windowHeight));
             }
-
-            // Apply scroll offset for rendering position
-            var renderX = windowX - ScrollX;
-            var renderY = windowY - ScrollY;
-
-            var windowBounds = new Rect(renderX, renderY, windowWidth, windowHeight);
-            windowNode.Arrange(windowBounds);
         }
 
-        // Calculate virtual bounds encompassing all windows
+        // Calculate virtual bounds (this may adjust scroll offset for origin shifts)
         CalculateVirtualBounds(bounds);
 
         // Clamp scroll offset to valid range after virtual bounds calculation
@@ -315,6 +309,22 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         var maxScrollY = Math.Max(0, _virtualBounds.Height - bounds.Height);
         ScrollX = Math.Clamp(ScrollX, 0, maxScrollX);
         ScrollY = Math.Clamp(ScrollY, 0, maxScrollY);
+
+        // Second pass: arrange windows with scroll offset applied
+        foreach (var windowNode in WindowNodes)
+        {
+            if (windowNode.Entry == null) continue;
+
+            var entry = windowNode.Entry;
+            
+            // Calculate render position relative to content origin
+            // ScrollX/ScrollY is the offset from content origin to viewport
+            var renderX = entry.X!.Value - _contentOriginX - ScrollX + bounds.X;
+            var renderY = entry.Y!.Value - _contentOriginY - ScrollY + bounds.Y;
+
+            var windowBounds = new Rect(renderX, renderY, entry.Width, entry.Height);
+            windowNode.Arrange(windowBounds);
+        }
 
         // Arrange scrollbar nodes if needed
         ArrangeScrollbars(bounds);
@@ -392,12 +402,15 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     /// <summary>
     /// Calculates the virtual bounds that encompass all windows.
+    /// Tracks content origin shift and adjusts scroll offset to compensate.
     /// </summary>
     private void CalculateVirtualBounds(Rect panelBounds)
     {
         if (WindowNodes.Count == 0 || !AllowOutOfBounds)
         {
             _virtualBounds = panelBounds;
+            _contentOriginX = panelBounds.X;
+            _contentOriginY = panelBounds.Y;
             return;
         }
 
@@ -420,6 +433,20 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             }
         }
 
+        // Detect if content origin has shifted and compensate scroll offset
+        // This prevents jitter when windows move back toward the origin
+        var originDeltaX = minX - _contentOriginX;
+        var originDeltaY = minY - _contentOriginY;
+        
+        if (originDeltaX != 0 || originDeltaY != 0)
+        {
+            // Adjust scroll to maintain the same viewport position
+            ScrollX = Math.Max(0, ScrollX + originDeltaX);
+            ScrollY = Math.Max(0, ScrollY + originDeltaY);
+        }
+
+        _contentOriginX = minX;
+        _contentOriginY = minY;
         _virtualBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
