@@ -24,10 +24,10 @@ public static class ScrollTheme
         new($"{nameof(ScrollTheme)}.{nameof(HorizontalTrackCharacter)}", () => "─");
     
     /// <summary>
-    /// The thumb character for horizontal scrollbars (7/8 block for visibility over thin track).
+    /// The thumb character for horizontal scrollbars (centered square for visual balance).
     /// </summary>
     public static readonly Hex1bThemeElement<string> HorizontalThumbCharacter = 
-        new($"{nameof(ScrollTheme)}.{nameof(HorizontalThumbCharacter)}", () => "▉");
+        new($"{nameof(ScrollTheme)}.{nameof(HorizontalThumbCharacter)}", () => "■");
     
     /// <summary>
     /// The color of the scrollbar track.
