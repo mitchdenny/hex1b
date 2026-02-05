@@ -560,4 +560,48 @@ public class WindowManagerTests
     }
 
     #endregion
+
+    #region Phase 4: Drag/Position Update Tests
+
+    [Fact]
+    public void UpdatePosition_ChangesEntryPosition()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
+            x: 10, y: 5);
+
+        manager.UpdatePosition(entry, 20, 15);
+
+        Assert.Equal(20, entry.X);
+        Assert.Equal(15, entry.Y);
+    }
+
+    [Fact]
+    public void UpdatePosition_RaisesChangedEvent()
+    {
+        var manager = new WindowManager();
+        var changedCount = 0;
+        manager.Changed += () => changedCount++;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        changedCount = 0;
+
+        manager.UpdatePosition(entry, 50, 25);
+
+        Assert.Equal(1, changedCount);
+    }
+
+    [Fact]
+    public void UpdatePosition_AllowsNegativeValues()
+    {
+        // Negative values might be valid during drag before clamping
+        var manager = new WindowManager();
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+
+        manager.UpdatePosition(entry, -5, -3);
+
+        Assert.Equal(-5, entry.X);
+        Assert.Equal(-3, entry.Y);
+    }
+
+    #endregion
 }

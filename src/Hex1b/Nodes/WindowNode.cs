@@ -200,6 +200,72 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
         // Any mouse click on the window brings it to front
         bindings.Mouse(Input.MouseButton.Left).Action(BringToFront, "Activate window");
+
+        // Drag to move window (only from title bar)
+        bindings.Drag(Input.MouseButton.Left).Action((startX, startY) =>
+        {
+            // Only allow drag from title bar area (row 1, excluding close button area)
+            // Title bar is at Y = Bounds.Y + 1 (row below top border)
+            if (!IsInTitleBar(startX, startY))
+            {
+                return new Input.DragHandler(); // Empty handler = reject drag
+            }
+
+            // Bring window to front when starting drag
+            Entry?.BringToFront();
+
+            var startWindowX = Entry?.X ?? Bounds.X;
+            var startWindowY = Entry?.Y ?? Bounds.Y;
+
+            return Input.DragHandler.Simple(
+                onMove: (deltaX, deltaY) =>
+                {
+                    if (Entry != null)
+                    {
+                        var newX = startWindowX + deltaX;
+                        var newY = startWindowY + deltaY;
+                        Entry.Manager.UpdatePosition(Entry, newX, newY);
+                    }
+                }
+            );
+        }, "Drag to move window");
+    }
+
+    /// <summary>
+    /// Checks if the given local coordinates are in the title bar area.
+    /// </summary>
+    private bool IsInTitleBar(int localX, int localY)
+    {
+        // No title bar if chrome style is None
+        if (ChromeStyle == WindowChromeStyle.None)
+            return false;
+
+        // Title bar is at Y = 1 (row below top border, relative to window bounds)
+        // localX/localY are global coordinates, convert to window-relative
+        var relativeX = localX - Bounds.X;
+        var relativeY = localY - Bounds.Y;
+
+        // Title bar is row 1
+        if (relativeY != 1)
+            return false;
+
+        // Must be within window bounds (excluding border columns)
+        if (relativeX < 1 || relativeX >= Bounds.Width - 1)
+            return false;
+
+        // Exclude button area on the right side
+        var buttonsWidth = ChromeStyle switch
+        {
+            WindowChromeStyle.Full => 7, // " − □ × "
+            WindowChromeStyle.TitleAndClose => 3, // " × "
+            _ => 0
+        };
+
+        var buttonStartX = Bounds.Width - 1 - buttonsWidth;
+        if (relativeX >= buttonStartX)
+            return false;
+
+        return true;
     }
 
     private Task BringToFront(Input.InputBindingActionContext ctx)
