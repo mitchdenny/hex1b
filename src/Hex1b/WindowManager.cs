@@ -125,6 +125,7 @@ public sealed class WindowManager
     /// <param name="onMinimize">Callback when the window is minimized.</param>
     /// <param name="onMaximize">Callback when the window is maximized.</param>
     /// <param name="onRestore">Callback when the window is restored from minimized/maximized.</param>
+    /// <param name="allowOutOfBounds">Whether this window can be moved outside the panel bounds.</param>
     /// <returns>The window entry.</returns>
     public WindowEntry Open(
         string id,
@@ -148,7 +149,8 @@ public sealed class WindowManager
         WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close,
         Action? onMinimize = null,
         Action? onMaximize = null,
-        Action? onRestore = null)
+        Action? onRestore = null,
+        bool allowOutOfBounds = false)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(title);
@@ -188,7 +190,8 @@ public sealed class WindowManager
                 onMinimize: onMinimize,
                 onMaximize: onMaximize,
                 onRestore: onRestore,
-                zIndex: _nextZIndex++
+                zIndex: _nextZIndex++,
+                allowOutOfBounds: allowOutOfBounds
             );
 
             _entries.Add(entry);
@@ -597,7 +600,8 @@ public sealed class WindowEntry
         Action? onMinimize,
         Action? onMaximize,
         Action? onRestore,
-        int zIndex)
+        int zIndex,
+        bool allowOutOfBounds)
     {
         Manager = manager;
         Id = id;
@@ -623,6 +627,7 @@ public sealed class WindowEntry
         OnMaximize = onMaximize;
         OnRestore = onRestore;
         ZIndex = zIndex;
+        AllowOutOfBounds = allowOutOfBounds;
     }
 
     internal WindowManager Manager { get; }
@@ -697,6 +702,11 @@ public sealed class WindowEntry
     /// Maximum height for resize operations. Null means unbounded.
     /// </summary>
     public int? MaxHeight { get; }
+
+    /// <summary>
+    /// Whether this window can be moved outside the panel bounds.
+    /// </summary>
+    public bool AllowOutOfBounds { get; }
 
     /// <summary>
     /// Callback invoked when the window is closed.

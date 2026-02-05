@@ -87,4 +87,13 @@ public static class WindowPanelExtensions
         var content = contentBuilder(childContext);
         return new WindowPanelWidget(content, name);
     }
+
+    /// <summary>
+    /// Allows windows to be dragged outside the panel bounds.
+    /// Scrollbars appear when windows extend beyond the visible area.
+    /// </summary>
+    /// <param name="widget">The WindowPanelWidget to configure.</param>
+    /// <returns>A new WindowPanelWidget with AllowOutOfBounds enabled.</returns>
+    public static WindowPanelWidget Unbounded(this WindowPanelWidget widget)
+        => widget with { AllowOutOfBounds = true };
 }

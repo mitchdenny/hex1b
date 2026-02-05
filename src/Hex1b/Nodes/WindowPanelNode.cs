@@ -31,6 +31,12 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     public WindowManager Windows { get; } = new();
 
     /// <summary>
+    /// Whether windows can be moved outside the panel bounds.
+    /// When true, scrollbars appear to allow panning to out-of-bounds windows.
+    /// </summary>
+    public bool AllowOutOfBounds { get; set; }
+
+    /// <summary>
     /// The clip mode for the panel's content. Defaults to Clip.
     /// </summary>
     public ClipMode ClipMode { get; set; } = ClipMode.Clip;
@@ -45,6 +51,31 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     /// Computed during Arrange.
     /// </summary>
     private Rect _resolvedClipRect;
+
+    /// <summary>
+    /// Current horizontal scroll offset (for panning to out-of-bounds windows).
+    /// </summary>
+    public int ScrollX { get; private set; }
+
+    /// <summary>
+    /// Current vertical scroll offset (for panning to out-of-bounds windows).
+    /// </summary>
+    public int ScrollY { get; private set; }
+
+    /// <summary>
+    /// The virtual bounds encompassing all windows (may extend beyond panel bounds).
+    /// </summary>
+    private Rect _virtualBounds;
+
+    /// <summary>
+    /// Whether horizontal scrollbar is needed.
+    /// </summary>
+    public bool NeedsHorizontalScroll => _virtualBounds.Width > Bounds.Width;
+
+    /// <summary>
+    /// Whether vertical scrollbar is needed.
+    /// </summary>
+    public bool NeedsVerticalScroll => _virtualBounds.Height > Bounds.Height;
 
     #region ILayoutProvider Implementation
 
@@ -240,13 +271,29 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                 entry.Y = windowY;
             }
 
-            // Clamp to panel bounds (in case of resize or explicit out-of-bounds position)
-            windowX = Math.Max(bounds.X, Math.Min(windowX, bounds.X + bounds.Width - windowWidth));
-            windowY = Math.Max(bounds.Y, Math.Min(windowY, bounds.Y + bounds.Height - windowHeight));
+            // Clamp to panel bounds unless panel allows out-of-bounds windows
+            if (!AllowOutOfBounds)
+            {
+                windowX = Math.Max(bounds.X, Math.Min(windowX, bounds.X + bounds.Width - windowWidth));
+                windowY = Math.Max(bounds.Y, Math.Min(windowY, bounds.Y + bounds.Height - windowHeight));
+            }
 
-            var windowBounds = new Rect(windowX, windowY, windowWidth, windowHeight);
+            // Apply scroll offset for rendering position
+            var renderX = windowX - ScrollX;
+            var renderY = windowY - ScrollY;
+
+            var windowBounds = new Rect(renderX, renderY, windowWidth, windowHeight);
             windowNode.Arrange(windowBounds);
         }
+
+        // Calculate virtual bounds encompassing all windows
+        CalculateVirtualBounds(bounds);
+
+        // Clamp scroll offset to valid range after virtual bounds calculation
+        var maxScrollX = Math.Max(0, _virtualBounds.Width - bounds.Width);
+        var maxScrollY = Math.Max(0, _virtualBounds.Height - bounds.Height);
+        ScrollX = Math.Clamp(ScrollX, 0, maxScrollX);
+        ScrollY = Math.Clamp(ScrollY, 0, maxScrollY);
 
         // Mark dirty if any window is dirty (z-order maintenance)
         if (WindowNodes.Count > 1)
@@ -260,6 +307,39 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Calculates the virtual bounds that encompass all windows.
+    /// </summary>
+    private void CalculateVirtualBounds(Rect panelBounds)
+    {
+        if (WindowNodes.Count == 0 || !AllowOutOfBounds)
+        {
+            _virtualBounds = panelBounds;
+            return;
+        }
+
+        int minX = panelBounds.X;
+        int minY = panelBounds.Y;
+        int maxX = panelBounds.X + panelBounds.Width;
+        int maxY = panelBounds.Y + panelBounds.Height;
+
+        foreach (var windowNode in WindowNodes)
+        {
+            if (windowNode.Entry != null)
+            {
+                // Use the logical position (Entry.X/Y) not the render position (Bounds)
+                var entryX = windowNode.Entry.X ?? panelBounds.X;
+                var entryY = windowNode.Entry.Y ?? panelBounds.Y;
+                minX = Math.Min(minX, entryX);
+                minY = Math.Min(minY, entryY);
+                maxX = Math.Max(maxX, entryX + windowNode.Entry.Width);
+                maxY = Math.Max(maxY, entryY + windowNode.Entry.Height);
+            }
+        }
+
+        _virtualBounds = new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -280,8 +360,105 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             context.RenderChild(windowNode);
         }
 
+        // Render scrollbars if needed
+        var theme = context.Theme;
+        if (NeedsVerticalScroll)
+        {
+            RenderVerticalScrollbar(context, theme);
+        }
+        if (NeedsHorizontalScroll)
+        {
+            RenderHorizontalScrollbar(context, theme);
+        }
+
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;
+    }
+
+    private void RenderVerticalScrollbar(Hex1bRenderContext context, Theming.Hex1bTheme theme)
+    {
+        var trackColor = theme.Get(Theming.ScrollTheme.TrackColor);
+        var thumbColor = theme.Get(Theming.ScrollTheme.ThumbColor);
+        var trackChar = theme.Get(Theming.ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(Theming.ScrollTheme.VerticalThumbCharacter);
+
+        var scrollbarX = Bounds.X + Bounds.Width - 1;
+        var scrollbarHeight = Bounds.Height - (NeedsHorizontalScroll ? 1 : 0);
+
+        // Calculate thumb size and position based on virtual bounds
+        var contentHeight = _virtualBounds.Height;
+        var viewportHeight = Bounds.Height;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)viewportHeight / contentHeight * scrollbarHeight));
+        
+        // Calculate thumb position based on current scroll offset
+        var maxScrollOffset = Math.Max(0, contentHeight - viewportHeight);
+        var scrollRange = scrollbarHeight - thumbSize;
+        var thumbPosition = maxScrollOffset > 0 
+            ? (int)Math.Round((double)ScrollY / maxScrollOffset * scrollRange) 
+            : 0;
+
+        for (int row = 0; row < scrollbarHeight; row++)
+        {
+            string charToRender;
+            Theming.Hex1bColor color;
+            
+            if (row >= thumbPosition && row < thumbPosition + thumbSize)
+            {
+                charToRender = thumbChar;
+                color = thumbColor;
+            }
+            else
+            {
+                charToRender = trackChar;
+                color = trackColor;
+            }
+            
+            context.SetCursorPosition(scrollbarX, Bounds.Y + row);
+            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
+        }
+    }
+
+    private void RenderHorizontalScrollbar(Hex1bRenderContext context, Theming.Hex1bTheme theme)
+    {
+        var trackColor = theme.Get(Theming.ScrollTheme.TrackColor);
+        var thumbColor = theme.Get(Theming.ScrollTheme.ThumbColor);
+        var trackChar = theme.Get(Theming.ScrollTheme.HorizontalTrackCharacter);
+        var thumbChar = theme.Get(Theming.ScrollTheme.HorizontalThumbCharacter);
+
+        var scrollbarY = Bounds.Y + Bounds.Height - 1;
+        var scrollbarWidth = Bounds.Width - (NeedsVerticalScroll ? 1 : 0);
+
+        // Calculate thumb size and position based on virtual bounds
+        var contentWidth = _virtualBounds.Width;
+        var viewportWidth = Bounds.Width;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)viewportWidth / contentWidth * scrollbarWidth));
+        
+        // Calculate thumb position based on current scroll offset
+        var maxScrollOffset = Math.Max(0, contentWidth - viewportWidth);
+        var scrollRange = scrollbarWidth - thumbSize;
+        var thumbPosition = maxScrollOffset > 0 
+            ? (int)Math.Round((double)ScrollX / maxScrollOffset * scrollRange) 
+            : 0;
+
+        for (int col = 0; col < scrollbarWidth; col++)
+        {
+            string charToRender;
+            Theming.Hex1bColor color;
+            
+            if (col >= thumbPosition && col < thumbPosition + thumbSize)
+            {
+                charToRender = thumbChar;
+                color = thumbColor;
+            }
+            else
+            {
+                charToRender = trackChar;
+                color = trackColor;
+            }
+            
+            context.SetCursorPosition(Bounds.X + col, scrollbarY);
+            context.Write($"{color.ToForegroundAnsi()}{charToRender}\x1b[0m");
+        }
     }
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
@@ -289,6 +466,150 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         // Tab navigation through focusables
         bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
         bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        
+        // Mouse wheel scrolling for panel panning
+        bindings.Mouse(Input.MouseButton.ScrollUp).Action(_ => ScrollByAmount(0, -3), "Pan up");
+        bindings.Mouse(Input.MouseButton.ScrollDown).Action(_ => ScrollByAmount(0, 3), "Pan down");
+        
+        // Scrollbar drag
+        bindings.Drag(Input.MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
+    }
+
+    /// <summary>
+    /// Scrolls the panel view by the specified amount.
+    /// </summary>
+    public void ScrollByAmount(int deltaX, int deltaY)
+    {
+        if (NeedsHorizontalScroll && deltaX != 0)
+        {
+            var maxScrollX = _virtualBounds.Width - Bounds.Width;
+            ScrollX = Math.Clamp(ScrollX + deltaX, 0, Math.Max(0, maxScrollX));
+            MarkDirty();
+        }
+        
+        if (NeedsVerticalScroll && deltaY != 0)
+        {
+            var maxScrollY = _virtualBounds.Height - Bounds.Height;
+            ScrollY = Math.Clamp(ScrollY + deltaY, 0, Math.Max(0, maxScrollY));
+            MarkDirty();
+        }
+    }
+
+    private Input.DragHandler HandleScrollbarDrag(int localX, int localY)
+    {
+        // Check vertical scrollbar
+        if (NeedsVerticalScroll)
+        {
+            var scrollbarX = Bounds.Width - 1;
+            if (localX >= scrollbarX)
+            {
+                return HandleVerticalScrollbarDrag(localY);
+            }
+        }
+        
+        // Check horizontal scrollbar
+        if (NeedsHorizontalScroll)
+        {
+            var scrollbarY = Bounds.Height - 1;
+            if (localY >= scrollbarY)
+            {
+                return HandleHorizontalScrollbarDrag(localX);
+            }
+        }
+        
+        return new Input.DragHandler();
+    }
+
+    private Input.DragHandler HandleVerticalScrollbarDrag(int localY)
+    {
+        var scrollbarHeight = Bounds.Height - (NeedsHorizontalScroll ? 1 : 0);
+        var contentHeight = _virtualBounds.Height;
+        var viewportHeight = Bounds.Height;
+        var maxScrollY = Math.Max(0, contentHeight - viewportHeight);
+        
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)viewportHeight / contentHeight * scrollbarHeight));
+        var scrollRange = scrollbarHeight - thumbSize;
+        var thumbPosition = scrollRange > 0 
+            ? (int)Math.Round((double)ScrollY / maxScrollY * scrollRange) 
+            : 0;
+
+        if (localY >= thumbPosition && localY < thumbPosition + thumbSize)
+        {
+            // Drag thumb
+            var startScrollY = ScrollY;
+            var contentPerPixel = maxScrollY > 0 && scrollRange > 0
+                ? (double)maxScrollY / scrollRange
+                : 0;
+            
+            return Input.DragHandler.Simple(
+                onMove: (deltaX, deltaY) =>
+                {
+                    if (contentPerPixel > 0)
+                    {
+                        ScrollY = Math.Clamp((int)Math.Round(startScrollY + deltaY * contentPerPixel), 0, maxScrollY);
+                        MarkDirty();
+                    }
+                }
+            );
+        }
+        else if (localY < thumbPosition)
+        {
+            // Page up
+            ScrollByAmount(0, -viewportHeight / 2);
+        }
+        else
+        {
+            // Page down
+            ScrollByAmount(0, viewportHeight / 2);
+        }
+        
+        return new Input.DragHandler();
+    }
+
+    private Input.DragHandler HandleHorizontalScrollbarDrag(int localX)
+    {
+        var scrollbarWidth = Bounds.Width - (NeedsVerticalScroll ? 1 : 0);
+        var contentWidth = _virtualBounds.Width;
+        var viewportWidth = Bounds.Width;
+        var maxScrollX = Math.Max(0, contentWidth - viewportWidth);
+        
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)viewportWidth / contentWidth * scrollbarWidth));
+        var scrollRange = scrollbarWidth - thumbSize;
+        var thumbPosition = scrollRange > 0 
+            ? (int)Math.Round((double)ScrollX / maxScrollX * scrollRange) 
+            : 0;
+
+        if (localX >= thumbPosition && localX < thumbPosition + thumbSize)
+        {
+            // Drag thumb
+            var startScrollX = ScrollX;
+            var contentPerPixel = maxScrollX > 0 && scrollRange > 0
+                ? (double)maxScrollX / scrollRange
+                : 0;
+            
+            return Input.DragHandler.Simple(
+                onMove: (deltaX, deltaY) =>
+                {
+                    if (contentPerPixel > 0)
+                    {
+                        ScrollX = Math.Clamp((int)Math.Round(startScrollX + deltaX * contentPerPixel), 0, maxScrollX);
+                        MarkDirty();
+                    }
+                }
+            );
+        }
+        else if (localX < thumbPosition)
+        {
+            // Page left
+            ScrollByAmount(-viewportWidth / 2, 0);
+        }
+        else
+        {
+            // Page right
+            ScrollByAmount(viewportWidth / 2, 0);
+        }
+        
+        return new Input.DragHandler();
     }
 
     /// <summary>
@@ -301,5 +622,38 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         {
             yield return windowNode;
         }
+    }
+
+    /// <summary>
+    /// Handles mouse clicks, intercepting scrollbar clicks before routing to children.
+    /// </summary>
+    public override Input.InputResult HandleMouseClick(int localX, int localY, Input.Hex1bMouseEvent mouseEvent)
+    {
+        // Check if click is on scrollbar areas
+        if (mouseEvent.Button == Input.MouseButton.Left)
+        {
+            // Check vertical scrollbar
+            if (NeedsVerticalScroll && localX >= Bounds.Width - 1)
+            {
+                var handler = HandleVerticalScrollbarDrag(localY);
+                if (handler.OnMove != null || handler.OnEnd != null)
+                {
+                    // Start drag - this is handled by the binding system
+                    return Input.InputResult.Handled;
+                }
+            }
+            
+            // Check horizontal scrollbar
+            if (NeedsHorizontalScroll && localY >= Bounds.Height - 1)
+            {
+                var handler = HandleHorizontalScrollbarDrag(localX);
+                if (handler.OnMove != null || handler.OnEnd != null)
+                {
+                    return Input.InputResult.Handled;
+                }
+            }
+        }
+        
+        return Input.InputResult.NotHandled;
     }
 }

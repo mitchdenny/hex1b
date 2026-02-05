@@ -11,7 +11,8 @@ namespace Hex1b.Widgets;
 /// <remarks>
 /// <para>
 /// WindowPanel provides the bounded area within which floating windows can be positioned and dragged.
-/// Windows cannot extend beyond the panel's bounds (they are clamped to fit).
+/// By default, windows are clamped to the panel bounds. Set <see cref="AllowOutOfBounds"/> to true
+/// to allow windows to be dragged outside the panel, with scrollbars appearing for navigation.
 /// </para>
 /// <para>
 /// Access the window manager from event handlers via <c>e.Context.Windows</c>:
@@ -33,6 +34,12 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record WindowPanelWidget(Hex1bWidget Content, string? Name = null) : Hex1bWidget
 {
+    /// <summary>
+    /// Whether windows can be moved outside the panel bounds.
+    /// When true, scrollbars appear to allow panning to out-of-bounds windows.
+    /// </summary>
+    public bool AllowOutOfBounds { get; init; }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var isNew = existingNode is not WindowPanelNode;
@@ -44,6 +51,9 @@ public sealed record WindowPanelWidget(Hex1bWidget Content, string? Name = null)
             node.Name = Name;
             context.WindowManagerRegistry.Register(node.Windows, Name);
         }
+
+        // Update panel properties
+        node.AllowOutOfBounds = AllowOutOfBounds;
 
         // Reconcile main content
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);

@@ -427,7 +427,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
 
             // ─────────────────────────────────────────────────────────────────
-            // WINDOW PANEL (MDI area)
+            // WINDOW PANEL (MDI area) - Unbounded allows windows to go outside
             // ─────────────────────────────────────────────────────────────────
             main.WindowPanel(w =>
                 w.VStack(center => [
@@ -439,10 +439,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     center.Text("║                                       ║"),
                     center.Text("║  Use File menu to open windows        ║"),
                     center.Text("║  Drag title bar to move               ║"),
-                    center.Text("║  Click buttons to min/max/close       ║"),
+                    center.Text("║  Windows can be dragged off-screen    ║"),
                     center.Text("╚═══════════════════════════════════════╝")
                 ])
-            ).Fill(),
+            ).Unbounded().Fill(),
 
             // ─────────────────────────────────────────────────────────────────
             // STATUS BAR
@@ -515,3 +515,5 @@ static Hex1bWidget BuildResizableContent(int windowNum)
         ])
     ]).Fill();
 }
+
+
