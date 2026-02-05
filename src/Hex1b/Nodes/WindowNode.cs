@@ -110,6 +110,25 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }
     }
 
+    /// <summary>
+    /// When any child of this window receives focus, bring the window to front.
+    /// </summary>
+    public override void SyncFocusIndex()
+    {
+        // Check if any child is now focused
+        if (Content != null)
+        {
+            foreach (var focusable in Content.GetFocusableNodes())
+            {
+                if (focusable.IsFocused)
+                {
+                    Entry?.BringToFront();
+                    return;
+                }
+            }
+        }
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Escape closes the window (unless modal with different behavior)

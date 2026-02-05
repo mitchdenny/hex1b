@@ -214,4 +214,60 @@ public class WindowNodeTests
     }
 
     #endregion
+
+    #region SyncFocusIndex Tests
+
+    [Fact]
+    public void SyncFocusIndex_BringsWindowToFront_WhenChildIsFocused()
+    {
+        var manager = new WindowManager();
+        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+
+        // Set up window nodes with focusable content
+        var button1 = new ButtonNode { Label = "Button 1" };
+        var content1 = new VStackNode { Children = [button1] };
+        content1.Parent = new WindowNode { Entry = entry1, Content = content1 };
+        var node1 = (WindowNode)content1.Parent;
+        node1.Content = content1;
+
+        var button2 = new ButtonNode { Label = "Button 2" };
+        var content2 = new VStackNode { Children = [button2] };
+        content2.Parent = new WindowNode { Entry = entry2, Content = content2 };
+        var node2 = (WindowNode)content2.Parent;
+        node2.Content = content2;
+
+        // Initially, window 2 should have higher z-index
+        Assert.True(entry2.ZIndex > entry1.ZIndex);
+
+        // Simulate focusing a child of window 1 - this triggers SyncFocusIndex
+        button1.IsFocused = true;
+        node1.SyncFocusIndex();
+
+        // Now window 1 should have higher z-index
+        Assert.True(entry1.ZIndex > entry2.ZIndex);
+    }
+
+    [Fact]
+    public void SyncFocusIndex_DoesNothing_WhenNoChildIsFocused()
+    {
+        var manager = new WindowManager();
+        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+
+        var button = new ButtonNode { Label = "Button" };
+        var content = new VStackNode { Children = [button] };
+        var node = new WindowNode { Entry = entry1, Content = content };
+
+        var initialZ1 = entry1.ZIndex;
+        var initialZ2 = entry2.ZIndex;
+
+        // SyncFocusIndex with no focused child should not change z-order
+        node.SyncFocusIndex();
+
+        Assert.Equal(initialZ1, entry1.ZIndex);
+        Assert.Equal(initialZ2, entry2.ZIndex);
+    }
+
+    #endregion
 }
