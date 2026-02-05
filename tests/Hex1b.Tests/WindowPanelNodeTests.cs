@@ -250,4 +250,71 @@ public class WindowPanelNodeTests
     }
 
     #endregion
+
+    #region Phase 6: Modal Dialog Tests
+
+    [Fact]
+    public void GetFocusableNodes_WithNestedModals_ReturnsOnlyTopmostModalFocusables()
+    {
+        var contentButton = new ButtonNode { Label = "Content Button" };
+        var content = new VStackNode { Children = [contentButton] };
+        var node = new WindowPanelNode { Content = content };
+
+        // Add first modal
+        var modal1Button = new ButtonNode { Label = "Modal 1 Button" };
+        var modal1Content = new VStackNode { Children = [modal1Button] };
+        var entry1 = node.Windows.Open("modal1", "Modal 1", () => new TextBlockWidget("Hello"), isModal: true);
+        var modal1Node = new WindowNode { Entry = entry1, Content = modal1Content, IsModal = true };
+        node.WindowNodes.Add(modal1Node);
+
+        // Add second modal (nested on top of first)
+        var modal2Button = new ButtonNode { Label = "Modal 2 Button" };
+        var modal2Content = new VStackNode { Children = [modal2Button] };
+        var entry2 = node.Windows.Open("modal2", "Modal 2", () => new TextBlockWidget("Hello"), isModal: true);
+        var modal2Node = new WindowNode { Entry = entry2, Content = modal2Content, IsModal = true };
+        node.WindowNodes.Add(modal2Node);
+
+        var focusables = node.GetFocusableNodes().ToList();
+
+        // Should contain only the topmost (last) modal's focusables
+        Assert.Equal(2, focusables.Count);
+        Assert.Contains(modal2Node, focusables);
+        Assert.Contains(modal2Button, focusables);
+        Assert.DoesNotContain(modal1Node, focusables);
+        Assert.DoesNotContain(modal1Button, focusables);
+        Assert.DoesNotContain(contentButton, focusables);
+    }
+
+    [Fact]
+    public void GetFocusableNodes_ClosingTopModal_ExposesModalBelow()
+    {
+        var node = new WindowPanelNode();
+
+        // Add first modal
+        var modal1Button = new ButtonNode { Label = "Modal 1 Button" };
+        var modal1Content = new VStackNode { Children = [modal1Button] };
+        var entry1 = node.Windows.Open("modal1", "Modal 1", () => new TextBlockWidget("Hello"), isModal: true);
+        var modal1Node = new WindowNode { Entry = entry1, Content = modal1Content, IsModal = true };
+        node.WindowNodes.Add(modal1Node);
+
+        // Add second modal
+        var modal2Button = new ButtonNode { Label = "Modal 2 Button" };
+        var modal2Content = new VStackNode { Children = [modal2Button] };
+        var entry2 = node.Windows.Open("modal2", "Modal 2", () => new TextBlockWidget("Hello"), isModal: true);
+        var modal2Node = new WindowNode { Entry = entry2, Content = modal2Content, IsModal = true };
+        node.WindowNodes.Add(modal2Node);
+
+        // Close the top modal
+        node.WindowNodes.Remove(modal2Node);
+        node.Windows.Close(entry2);
+
+        var focusables = node.GetFocusableNodes().ToList();
+
+        // Now modal 1 should be accessible
+        Assert.Equal(2, focusables.Count);
+        Assert.Contains(modal1Node, focusables);
+        Assert.Contains(modal1Button, focusables);
+    }
+
+    #endregion
 }

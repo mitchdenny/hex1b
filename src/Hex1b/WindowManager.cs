@@ -199,6 +199,107 @@ public sealed class WindowManager
     }
 
     /// <summary>
+    /// Opens a modal dialog and waits for it to be closed with a result.
+    /// Use <see cref="WindowEntry.CloseWithResult"/> to close the dialog and return a value.
+    /// </summary>
+    /// <typeparam name="TResult">The type of result expected from the dialog.</typeparam>
+    /// <param name="id">Unique identifier for the window.</param>
+    /// <param name="title">The window title.</param>
+    /// <param name="content">Builder function for window content.</param>
+    /// <param name="width">Initial width of the window.</param>
+    /// <param name="height">Initial height of the window.</param>
+    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
+    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close (which will return default(TResult)).</param>
+    /// <returns>A task that completes when the modal is closed, containing the result.</returns>
+    /// <example>
+    /// <code>
+    /// var result = await e.Windows.OpenModalAsync&lt;bool&gt;(
+    ///     "confirm", "Confirm",
+    ///     () => ctx.VStack(v => [
+    ///         v.Text("Are you sure?"),
+    ///         v.HStack(h => [
+    ///             h.Button("Yes").OnClick(e => e.Windows.Get("confirm")?.CloseWithResult(true)),
+    ///             h.Button("No").OnClick(e => e.Windows.Get("confirm")?.CloseWithResult(false))
+    ///         ])
+    ///     ]),
+    ///     width: 30, height: 8
+    /// );
+    /// if (result) { /* user confirmed */ }
+    /// </code>
+    /// </example>
+    public Task<TResult?> OpenModalAsync<TResult>(
+        string id,
+        string title,
+        Func<Hex1bWidget> content,
+        int width = 40,
+        int height = 15,
+        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
+        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        
+        var entry = Open(
+            id: id,
+            title: title,
+            content: content,
+            width: width,
+            height: height,
+            isModal: true,
+            chromeStyle: chromeStyle,
+            escapeBehavior: escapeBehavior,
+            onClose: () =>
+            {
+                // If closed without result (e.g., by Escape), complete with default
+                tcs.TrySetResult(default);
+            }
+        );
+        
+        entry.ResultSource = tcs;
+        
+        return tcs.Task.ContinueWith(t => t.Result is TResult r ? r : default);
+    }
+
+    /// <summary>
+    /// Opens a modal dialog and waits for it to be closed.
+    /// This overload doesn't expect a specific result type.
+    /// </summary>
+    /// <param name="id">Unique identifier for the window.</param>
+    /// <param name="title">The window title.</param>
+    /// <param name="content">Builder function for window content.</param>
+    /// <param name="width">Initial width of the window.</param>
+    /// <param name="height">Initial height of the window.</param>
+    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
+    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close.</param>
+    /// <returns>A task that completes when the modal is closed.</returns>
+    public Task OpenModalAsync(
+        string id,
+        string title,
+        Func<Hex1bWidget> content,
+        int width = 40,
+        int height = 15,
+        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
+        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        
+        var entry = Open(
+            id: id,
+            title: title,
+            content: content,
+            width: width,
+            height: height,
+            isModal: true,
+            chromeStyle: chromeStyle,
+            escapeBehavior: escapeBehavior,
+            onClose: () => tcs.TrySetResult(null)
+        );
+        
+        entry.ResultSource = tcs;
+        
+        return tcs.Task;
+    }
+
+    /// <summary>
     /// Closes a window by its entry.
     /// </summary>
     /// <param name="entry">The window entry to close.</param>
@@ -650,9 +751,37 @@ public sealed class WindowEntry
     internal WindowNode? Node { get; set; }
 
     /// <summary>
+    /// Task completion source for modal result pattern.
+    /// </summary>
+    internal TaskCompletionSource<object?>? ResultSource { get; set; }
+
+    /// <summary>
     /// Closes this window.
     /// </summary>
     public void Close() => Manager.Close(this);
+
+    /// <summary>
+    /// Closes this modal window with a result value.
+    /// If this window was opened with OpenModalAsync, the awaiting task will complete with this result.
+    /// </summary>
+    /// <param name="result">The result value to return.</param>
+    public void CloseWithResult(object? result)
+    {
+        ResultSource?.TrySetResult(result);
+        Manager.Close(this);
+    }
+
+    /// <summary>
+    /// Closes this modal window with a typed result value.
+    /// If this window was opened with OpenModalAsync&lt;TResult&gt;, the awaiting task will complete with this result.
+    /// </summary>
+    /// <typeparam name="TResult">The type of the result.</typeparam>
+    /// <param name="result">The result value to return.</param>
+    public void CloseWithResult<TResult>(TResult result)
+    {
+        ResultSource?.TrySetResult(result);
+        Manager.Close(this);
+    }
 
     /// <summary>
     /// Brings this window to the front.

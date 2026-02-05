@@ -604,4 +604,115 @@ public class WindowManagerTests
     }
 
     #endregion
+
+    #region Phase 6: Modal Result Tests
+
+    [Fact]
+    public async Task OpenModalAsync_CompletesWhenClosed()
+    {
+        var manager = new WindowManager();
+        
+        var task = manager.OpenModalAsync(
+            "modal", "Modal", () => new TextBlockWidget("Hello"),
+            width: 30, height: 10
+        );
+
+        // Task should not be complete yet
+        Assert.False(task.IsCompleted);
+
+        // Close the modal
+        manager.Close("modal");
+
+        // Now task should complete
+        await task;
+        Assert.True(task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task OpenModalAsync_WithResult_ReturnsResult()
+    {
+        var manager = new WindowManager();
+        
+        var task = manager.OpenModalAsync<string>(
+            "modal", "Modal", () => new TextBlockWidget("Hello"),
+            width: 30, height: 10
+        );
+
+        // Get the entry and close with result
+        var entry = manager.Get("modal");
+        entry?.CloseWithResult("success");
+
+        var result = await task;
+        Assert.Equal("success", result);
+    }
+
+    [Fact]
+    public async Task OpenModalAsync_WithResult_ClosedWithoutResult_ReturnsDefault()
+    {
+        var manager = new WindowManager();
+        
+        var task = manager.OpenModalAsync<int>(
+            "modal", "Modal", () => new TextBlockWidget("Hello"),
+            width: 30, height: 10
+        );
+
+        // Close without result (simulates Escape key)
+        manager.Close("modal");
+
+        var result = await task;
+        Assert.Equal(0, result); // Default for int
+    }
+
+    [Fact]
+    public async Task OpenModalAsync_WithBoolResult()
+    {
+        var manager = new WindowManager();
+        
+        var task = manager.OpenModalAsync<bool>(
+            "confirm", "Confirm", () => new TextBlockWidget("Are you sure?"),
+            width: 30, height: 10
+        );
+
+        var entry = manager.Get("confirm");
+        entry?.CloseWithResult(true);
+
+        var result = await task;
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void CloseWithResult_CompletesResultSource()
+    {
+        var manager = new WindowManager();
+        var tcs = new TaskCompletionSource<object?>();
+        
+        var entry = manager.Open(
+            "modal", "Modal", () => new TextBlockWidget("Hello"),
+            isModal: true
+        );
+        entry.ResultSource = tcs;
+
+        entry.CloseWithResult("test result");
+
+        Assert.True(tcs.Task.IsCompleted);
+        Assert.Equal("test result", tcs.Task.Result);
+    }
+
+    [Fact]
+    public void CloseWithResult_AlsoClosesWindow()
+    {
+        var manager = new WindowManager();
+        
+        var entry = manager.Open(
+            "modal", "Modal", () => new TextBlockWidget("Hello"),
+            isModal: true
+        );
+
+        entry.CloseWithResult("done");
+
+        Assert.Null(manager.Get("modal"));
+        Assert.Equal(0, manager.Count);
+    }
+
+    #endregion
 }
