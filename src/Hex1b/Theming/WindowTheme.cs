@@ -69,6 +69,12 @@ public static class WindowTheme
     public static readonly Hex1bThemeElement<string> BottomRightCorner = 
         new($"{nameof(WindowTheme)}.{nameof(BottomRightCorner)}", () => "┘");
     
+    /// <summary>
+    /// Glyph shown in bottom-right corner of resizable windows.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> ResizeGrip = 
+        new($"{nameof(WindowTheme)}.{nameof(ResizeGrip)}", () => "◢");
+    
     public static readonly Hex1bThemeElement<string> HorizontalLine = 
         new($"{nameof(WindowTheme)}.{nameof(HorizontalLine)}", () => "─");
     

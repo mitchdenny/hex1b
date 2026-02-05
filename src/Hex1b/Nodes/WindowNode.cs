@@ -224,17 +224,23 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             return Task.CompletedTask;
         }, "Window interaction");
 
-        // Drag to move window (only from title bar)
+        // Drag to move/resize window based on where drag starts
         bindings.Drag(Input.MouseButton.Left).Action((startX, startY) =>
         {
-            // Only allow drag from title bar area (row 1, excluding close button area)
-            // Title bar is at Y = Bounds.Y + 1 (row below top border)
+            // Check if this is a resize drag (on an edge/corner)
+            var resizeEdge = GetResizeEdge(startX, startY);
+            if (resizeEdge != ResizeEdge.None)
+            {
+                return CreateResizeHandler(resizeEdge);
+            }
+
+            // Check if this is a title bar drag (for moving)
             if (!IsInTitleBar(startX, startY))
             {
                 return new Input.DragHandler(); // Empty handler = reject drag
             }
 
-            // Bring window to front when starting drag
+            // Title bar drag - move the window
             Entry?.BringToFront();
 
             var startWindowX = Entry?.X ?? Bounds.X;
@@ -251,10 +257,104 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                     }
                 }
             );
-        }, "Drag to move window");
+        }, "Drag to move/resize window");
+    }
+
+    /// <summary>
+    /// Creates a drag handler for resizing the window from a specific edge.
+    /// </summary>
+    private Input.DragHandler CreateResizeHandler(ResizeEdge edge)
+    {
+        if (Entry == null)
+            return new Input.DragHandler();
+
+        Entry.BringToFront();
+
+        var startWidth = Entry.Width;
+        var startHeight = Entry.Height;
+        var startX = Entry.X ?? Bounds.X;
+        var startY = Entry.Y ?? Bounds.Y;
+
+        return Input.DragHandler.Simple(
+            onMove: (deltaX, deltaY) =>
+            {
+                if (Entry == null)
+                    return;
+
+                var newWidth = startWidth;
+                var newHeight = startHeight;
+                var newX = startX;
+                var newY = startY;
+
+                switch (edge)
+                {
+                    case ResizeEdge.Left:
+                        // Dragging left edge: width changes opposite to deltaX, position moves with it
+                        newWidth = startWidth - deltaX;
+                        newX = startX + deltaX;
+                        break;
+
+                    case ResizeEdge.Right:
+                        // Dragging right edge: width increases with deltaX
+                        newWidth = startWidth + deltaX;
+                        break;
+
+                    case ResizeEdge.Bottom:
+                        // Dragging bottom edge: height increases with deltaY
+                        newHeight = startHeight + deltaY;
+                        break;
+
+                    case ResizeEdge.BottomLeft:
+                        // Combined left and bottom
+                        newWidth = startWidth - deltaX;
+                        newX = startX + deltaX;
+                        newHeight = startHeight + deltaY;
+                        break;
+
+                    case ResizeEdge.BottomRight:
+                        // Combined right and bottom
+                        newWidth = startWidth + deltaX;
+                        newHeight = startHeight + deltaY;
+                        break;
+                }
+
+                // Apply constraints first to determine actual size change
+                var constrainedWidth = Math.Max(Entry.MinWidth, newWidth);
+                var constrainedHeight = Math.Max(Entry.MinHeight, newHeight);
+                
+                if (Entry.MaxWidth.HasValue)
+                    constrainedWidth = Math.Min(Entry.MaxWidth.Value, constrainedWidth);
+                if (Entry.MaxHeight.HasValue)
+                    constrainedHeight = Math.Min(Entry.MaxHeight.Value, constrainedHeight);
+
+                // For left edge resize, adjust position to account for size constraints
+                if (edge == ResizeEdge.Left || edge == ResizeEdge.BottomLeft)
+                {
+                    // If width was constrained, position should not move as much
+                    var actualWidthDelta = startWidth - constrainedWidth;
+                    newX = startX + actualWidthDelta;
+                }
+
+                Entry.Manager.UpdatePosition(Entry, newX, newY);
+                Entry.Manager.UpdateSize(Entry, constrainedWidth, constrainedHeight);
+            }
+        );
     }
 
     private enum TitleBarButton { None, Close, Minimize, Maximize }
+
+    /// <summary>
+    /// Represents a resize edge or corner of the window.
+    /// </summary>
+    private enum ResizeEdge
+    {
+        None,
+        Left,
+        Right,
+        Bottom,
+        BottomLeft,
+        BottomRight
+    }
 
     /// <summary>
     /// Determines which title bar button (if any) was clicked at the given local coordinates.
@@ -332,6 +432,41 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         return true;
     }
 
+    /// <summary>
+    /// Determines which resize edge (if any) is at the given local coordinates.
+    /// Only applies when IsResizable is true.
+    /// </summary>
+    private ResizeEdge GetResizeEdge(int localX, int localY)
+    {
+        if (!IsResizable)
+            return ResizeEdge.None;
+
+        var width = Bounds.Width;
+        var height = Bounds.Height;
+
+        // Bottom-left corner (intersection of bottom and left borders)
+        if (localX == 0 && localY == height - 1)
+            return ResizeEdge.BottomLeft;
+
+        // Bottom-right corner (intersection of bottom and right borders)
+        if (localX == width - 1 && localY == height - 1)
+            return ResizeEdge.BottomRight;
+
+        // Left edge (excluding top border - that's not resizable, and corners)
+        if (localX == 0 && localY > 0 && localY < height - 1)
+            return ResizeEdge.Left;
+
+        // Right edge (excluding top border and corners)
+        if (localX == width - 1 && localY > 0 && localY < height - 1)
+            return ResizeEdge.Right;
+
+        // Bottom edge (excluding corners)
+        if (localY == height - 1 && localX > 0 && localX < width - 1)
+            return ResizeEdge.Bottom;
+
+        return ResizeEdge.None;
+    }
+
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
@@ -386,11 +521,20 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             context.Write($"{borderFg}{vertical}{resetToGlobal}");
         }
 
-        // Draw bottom border
+        // Draw bottom border (with resize grip if resizable)
         if (height > 1)
         {
             context.SetCursorPosition(x, y + height - 1);
-            context.Write($"{borderFg}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToGlobal}");
+            if (IsResizable && innerWidth > 0)
+            {
+                // Show resize grip in bottom-right corner
+                var resizeGrip = theme.Get(WindowTheme.ResizeGrip);
+                context.Write($"{borderFg}{bottomLeft}{new string(horizontal[0], innerWidth - 1)}{resizeGrip}{bottomRight}{resetToGlobal}");
+            }
+            else
+            {
+                context.Write($"{borderFg}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToGlobal}");
+            }
         }
 
         // Render child content with this window as the layout provider for clipping

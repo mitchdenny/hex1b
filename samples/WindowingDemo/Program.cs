@@ -61,6 +61,26 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         );
                         statusMessage = $"Opened: Frameless {num}";
                     }),
+                    m.MenuItem("New Resizable Window").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"resizable-{num}",
+                            title: $"Resizable {num}",
+                            content: () => BuildResizableContent(num),
+                            width: 50,
+                            height: 15,
+                            chromeStyle: WindowChromeStyle.Full,
+                            isResizable: true,
+                            minWidth: 30,
+                            minHeight: 10,
+                            maxWidth: 80,
+                            maxHeight: 30,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Resizable {num}"; }
+                        );
+                        statusMessage = $"Opened: Resizable {num}";
+                    }),
                     m.Separator(),
                     m.MenuItem("Close All Windows").OnActivated(e => {
                         e.Windows.CloseAll();
@@ -200,4 +220,26 @@ static Hex1bWidget BuildFramelessContent(int windowNum)
             new ButtonWidget("Close")
         ])
     ]);
+}
+
+static Hex1bWidget BuildResizableContent(int windowNum)
+{
+    return new VStackWidget([
+        new TextBlockWidget(""),
+        new TextBlockWidget($"  Resizable Window #{windowNum}"),
+        new TextBlockWidget(""),
+        new TextBlockWidget("  🖱️  Resize Handles:"),
+        new TextBlockWidget("  • Drag left/right edges"),
+        new TextBlockWidget("  • Drag bottom edge"),
+        new TextBlockWidget("  • Drag corners (◢)"),
+        new TextBlockWidget(""),
+        new TextBlockWidget("  📏 Constraints:"),
+        new TextBlockWidget("  • Min: 30×10"),
+        new TextBlockWidget("  • Max: 80×30"),
+        new TextBlockWidget(""),
+        new HStackWidget([
+            new TextBlockWidget("  "),
+            new ButtonWidget("Close")
+        ])
+    ]).Fill();
 }

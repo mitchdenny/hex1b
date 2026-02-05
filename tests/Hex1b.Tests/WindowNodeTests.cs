@@ -388,4 +388,123 @@ public class WindowNodeTests
     }
 
     #endregion
+
+    #region Phase 5: Resize Tests
+
+    [Fact]
+    public void IsResizable_CanBeSetToTrue()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), isResizable: true);
+        
+        var node = new WindowNode { Entry = entry, IsResizable = true };
+
+        Assert.True(node.IsResizable);
+    }
+
+    [Fact]
+    public void Entry_HasMinMaxConstraints()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open(
+            "test", "Test", () => new TextBlockWidget("Hello"),
+            minWidth: 20,
+            minHeight: 10,
+            maxWidth: 100,
+            maxHeight: 50
+        );
+
+        Assert.Equal(20, entry.MinWidth);
+        Assert.Equal(10, entry.MinHeight);
+        Assert.Equal(100, entry.MaxWidth);
+        Assert.Equal(50, entry.MaxHeight);
+    }
+
+    [Fact]
+    public void Entry_MinConstraints_HaveDefaults()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+
+        // Default min values
+        Assert.Equal(10, entry.MinWidth);
+        Assert.Equal(5, entry.MinHeight);
+        // Max values default to null (unbounded)
+        Assert.Null(entry.MaxWidth);
+        Assert.Null(entry.MaxHeight);
+    }
+
+    [Fact]
+    public void WindowManager_UpdateSize_AppliesMinConstraints()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open(
+            "test", "Test", () => new TextBlockWidget("Hello"),
+            width: 50, height: 30,
+            minWidth: 20,
+            minHeight: 15
+        );
+
+        // Try to resize smaller than minimum
+        manager.UpdateSize(entry, 10, 5);
+
+        // Should be constrained to minimum
+        Assert.Equal(20, entry.Width);
+        Assert.Equal(15, entry.Height);
+    }
+
+    [Fact]
+    public void WindowManager_UpdateSize_AppliesMaxConstraints()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open(
+            "test", "Test", () => new TextBlockWidget("Hello"),
+            width: 50, height: 30,
+            maxWidth: 60,
+            maxHeight: 40
+        );
+
+        // Try to resize larger than maximum
+        manager.UpdateSize(entry, 100, 80);
+
+        // Should be constrained to maximum
+        Assert.Equal(60, entry.Width);
+        Assert.Equal(40, entry.Height);
+    }
+
+    [Fact]
+    public void WindowManager_UpdateSize_AllowsSizeWithinConstraints()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open(
+            "test", "Test", () => new TextBlockWidget("Hello"),
+            width: 50, height: 30,
+            minWidth: 20,
+            minHeight: 15,
+            maxWidth: 80,
+            maxHeight: 60
+        );
+
+        // Resize within allowed range
+        manager.UpdateSize(entry, 40, 25);
+
+        Assert.Equal(40, entry.Width);
+        Assert.Equal(25, entry.Height);
+    }
+
+    [Fact]
+    public void WindowManager_UpdateSize_RaisesChangedEvent()
+    {
+        var manager = new WindowManager();
+        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+
+        var changedCount = 0;
+        manager.Changed += () => changedCount++;
+
+        manager.UpdateSize(entry, 60, 40);
+
+        Assert.Equal(1, changedCount);
+    }
+
+    #endregion
 }

@@ -113,6 +113,10 @@ public sealed class WindowManager
     /// <param name="position">Positioning strategy when x/y are null. Defaults to Center.</param>
     /// <param name="isModal">Whether this is a modal window.</param>
     /// <param name="isResizable">Whether the window can be resized.</param>
+    /// <param name="minWidth">Minimum width for resize operations.</param>
+    /// <param name="minHeight">Minimum height for resize operations.</param>
+    /// <param name="maxWidth">Maximum width for resize operations (null = unbounded).</param>
+    /// <param name="maxHeight">Maximum height for resize operations (null = unbounded).</param>
     /// <param name="onClose">Callback when the window is closed.</param>
     /// <param name="onActivated">Callback when the window becomes active (brought to front).</param>
     /// <param name="onDeactivated">Callback when the window loses active status.</param>
@@ -133,6 +137,10 @@ public sealed class WindowManager
         WindowPositionSpec position = default,
         bool isModal = false,
         bool isResizable = false,
+        int minWidth = 10,
+        int minHeight = 5,
+        int? maxWidth = null,
+        int? maxHeight = null,
         Action? onClose = null,
         Action? onActivated = null,
         Action? onDeactivated = null,
@@ -168,6 +176,10 @@ public sealed class WindowManager
                 positionSpec: position,
                 isModal: isModal,
                 isResizable: isResizable,
+                minWidth: minWidth,
+                minHeight: minHeight,
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
                 onClose: onClose,
                 onActivated: onActivated,
                 onDeactivated: onDeactivated,
@@ -361,9 +373,19 @@ public sealed class WindowManager
 
     /// <summary>
     /// Internal method to update window size. Called by WindowNode during resize.
+    /// Applies min/max constraints.
     /// </summary>
     internal void UpdateSize(WindowEntry entry, int width, int height)
     {
+        // Apply min/max constraints
+        width = Math.Max(entry.MinWidth, width);
+        height = Math.Max(entry.MinHeight, height);
+        
+        if (entry.MaxWidth.HasValue)
+            width = Math.Min(entry.MaxWidth.Value, width);
+        if (entry.MaxHeight.HasValue)
+            height = Math.Min(entry.MaxHeight.Value, height);
+        
         entry.Width = width;
         entry.Height = height;
         Changed?.Invoke();
@@ -449,6 +471,10 @@ public sealed class WindowEntry
         WindowPositionSpec positionSpec,
         bool isModal,
         bool isResizable,
+        int minWidth,
+        int minHeight,
+        int? maxWidth,
+        int? maxHeight,
         Action? onClose,
         Action? onActivated,
         Action? onDeactivated,
@@ -470,6 +496,10 @@ public sealed class WindowEntry
         PositionSpec = positionSpec;
         IsModal = isModal;
         IsResizable = isResizable;
+        MinWidth = minWidth;
+        MinHeight = minHeight;
+        MaxWidth = maxWidth;
+        MaxHeight = maxHeight;
         OnClose = onClose;
         OnActivated = onActivated;
         OnDeactivated = onDeactivated;
@@ -533,6 +563,26 @@ public sealed class WindowEntry
     /// Whether this window can be resized.
     /// </summary>
     public bool IsResizable { get; }
+
+    /// <summary>
+    /// Minimum width for resize operations.
+    /// </summary>
+    public int MinWidth { get; }
+
+    /// <summary>
+    /// Minimum height for resize operations.
+    /// </summary>
+    public int MinHeight { get; }
+
+    /// <summary>
+    /// Maximum width for resize operations. Null means unbounded.
+    /// </summary>
+    public int? MaxWidth { get; }
+
+    /// <summary>
+    /// Maximum height for resize operations. Null means unbounded.
+    /// </summary>
+    public int? MaxHeight { get; }
 
     /// <summary>
     /// Callback invoked when the window is closed.
