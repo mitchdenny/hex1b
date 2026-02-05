@@ -163,9 +163,10 @@ public class WindowPanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        // Should only contain the modal window's button
-        Assert.Single(focusables);
-        Assert.Same(windowButton, focusables[0]);
+        // Should contain modal window node and its button only
+        Assert.Equal(2, focusables.Count);
+        Assert.Contains(windowNode, focusables);
+        Assert.Contains(windowButton, focusables);
     }
 
     [Fact]
@@ -184,9 +185,10 @@ public class WindowPanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        // Should contain both buttons
-        Assert.Equal(2, focusables.Count);
+        // Should contain content button, window node itself, and window button
+        Assert.Equal(3, focusables.Count);
         Assert.Contains(contentButton, focusables);
+        Assert.Contains(windowNode, focusables);
         Assert.Contains(windowButton, focusables);
     }
 

@@ -296,4 +296,60 @@ public class WindowManagerTests
 
         Assert.True(entry1.ZIndex > entry2.ZIndex);
     }
+
+    [Fact]
+    public void BringToFront_InvokesOnActivatedCallback()
+    {
+        var manager = new WindowManager();
+        var activated = false;
+        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"), 
+            onActivated: () => activated = true);
+
+        // entry2 should already be active since it was just opened
+        // Now bring entry1 to front, then entry2 again
+        entry1.BringToFront();
+        activated = false;
+        entry2.BringToFront();
+
+        Assert.True(activated);
+    }
+
+    [Fact]
+    public void BringToFront_InvokesOnDeactivatedCallback()
+    {
+        var manager = new WindowManager();
+        var deactivated = false;
+        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"), 
+            onDeactivated: () => deactivated = true);
+        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+
+        // entry2 is now active, entry1 is not
+        // Bring entry1 to front - this should deactivate entry2
+        deactivated = false;
+        entry1.BringToFront();
+
+        // entry2 doesn't have deactivated callback, but entry1 was previously active
+        // Let's check by bringing entry2 to front
+        deactivated = false;
+        entry2.BringToFront();
+
+        Assert.True(deactivated);
+    }
+
+    [Fact]
+    public void BringToFront_DoesNotInvokeCallbacks_WhenAlreadyActive()
+    {
+        var manager = new WindowManager();
+        var activatedCount = 0;
+        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Hello"),
+            onActivated: () => activatedCount++);
+
+        // Calling BringToFront on already-active window should not trigger callback
+        entry.BringToFront();
+        entry.BringToFront();
+        entry.BringToFront();
+
+        Assert.Equal(0, activatedCount);
+    }
 }

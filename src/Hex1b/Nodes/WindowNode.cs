@@ -99,8 +99,37 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }
     }
 
+    /// <summary>
+    /// WindowNode is focusable to receive clicks on non-content areas (title bar, borders, empty space).
+    /// </summary>
+    public override bool IsFocusable => true;
+
+    private bool _isFocused;
+    public override bool IsFocused
+    {
+        get => _isFocused;
+        set
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                if (value)
+                {
+                    // When window itself gets focus (click on non-focusable area), bring to front
+                    Entry?.BringToFront();
+                }
+                MarkDirty();
+            }
+        }
+    }
+
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
+        // Return WindowNode first, then children
+        // Hit testing returns the LAST match, so children take precedence when clicked directly
+        // When clicking on non-focusable areas within window bounds, WindowNode is the match
+        yield return this;
+        
         if (Content != null)
         {
             foreach (var focusable in Content.GetFocusableNodes())
@@ -115,7 +144,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public override void SyncFocusIndex()
     {
-        // Check if any child is now focused
+        // Check if any child is now focused (not WindowNode itself)
         if (Content != null)
         {
             foreach (var focusable in Content.GetFocusableNodes())

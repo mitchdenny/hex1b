@@ -98,7 +98,7 @@ public class WindowNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_ReturnsContentFocusables()
+    public void GetFocusableNodes_ReturnsWindowNodeAndContentFocusables()
     {
         var button = new ButtonNode { Label = "Click Me" };
         var content = new VStackNode { Children = [button] };
@@ -109,12 +109,14 @@ public class WindowNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        // WindowNode itself is focusable (first) plus the button (second)
+        Assert.Equal(2, focusables.Count);
+        Assert.Same(node, focusables[0]);
+        Assert.Same(button, focusables[1]);
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNoContent_ReturnsEmpty()
+    public void GetFocusableNodes_WithNoContent_ReturnsWindowNodeOnly()
     {
         var manager = new WindowManager();
         var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
@@ -123,7 +125,9 @@ public class WindowNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        // WindowNode itself is focusable
+        Assert.Single(focusables);
+        Assert.Same(node, focusables[0]);
     }
 
     #endregion

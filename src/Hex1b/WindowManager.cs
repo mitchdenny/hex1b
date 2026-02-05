@@ -114,6 +114,8 @@ public sealed class WindowManager
     /// <param name="isModal">Whether this is a modal window.</param>
     /// <param name="isResizable">Whether the window can be resized.</param>
     /// <param name="onClose">Callback when the window is closed.</param>
+    /// <param name="onActivated">Callback when the window becomes active (brought to front).</param>
+    /// <param name="onDeactivated">Callback when the window loses active status.</param>
     /// <returns>The window entry.</returns>
     public WindowEntry Open(
         string id,
@@ -126,7 +128,9 @@ public sealed class WindowManager
         WindowPositionSpec position = default,
         bool isModal = false,
         bool isResizable = false,
-        Action? onClose = null)
+        Action? onClose = null,
+        Action? onActivated = null,
+        Action? onDeactivated = null)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(title);
@@ -155,6 +159,8 @@ public sealed class WindowManager
                 isModal: isModal,
                 isResizable: isResizable,
                 onClose: onClose,
+                onActivated: onActivated,
+                onDeactivated: onDeactivated,
                 zIndex: _nextZIndex++
             );
 
@@ -311,7 +317,21 @@ public sealed class WindowManager
 
     private void BringToFrontInternal(WindowEntry entry)
     {
+        // Find current active window before changing z-order
+        var previousActive = _entries.OrderByDescending(e => e.ZIndex).FirstOrDefault();
+        
+        // Don't do anything if already at front
+        if (ReferenceEquals(previousActive, entry))
+            return;
+        
+        // Update z-index
         entry.ZIndex = _nextZIndex++;
+        
+        // Fire deactivation on previous active window
+        previousActive?.OnDeactivated?.Invoke();
+        
+        // Fire activation on new active window
+        entry.OnActivated?.Invoke();
     }
 
     /// <summary>
@@ -353,6 +373,8 @@ public sealed class WindowEntry
         bool isModal,
         bool isResizable,
         Action? onClose,
+        Action? onActivated,
+        Action? onDeactivated,
         int zIndex)
     {
         Manager = manager;
@@ -367,6 +389,8 @@ public sealed class WindowEntry
         IsModal = isModal;
         IsResizable = isResizable;
         OnClose = onClose;
+        OnActivated = onActivated;
+        OnDeactivated = onDeactivated;
         ZIndex = zIndex;
     }
 
@@ -427,6 +451,16 @@ public sealed class WindowEntry
     /// Callback invoked when the window is closed.
     /// </summary>
     internal Action? OnClose { get; }
+
+    /// <summary>
+    /// Callback invoked when the window becomes active (brought to front).
+    /// </summary>
+    internal Action? OnActivated { get; }
+
+    /// <summary>
+    /// Callback invoked when the window loses active status.
+    /// </summary>
+    internal Action? OnDeactivated { get; }
 
     /// <summary>
     /// Z-order index (higher = on top).
