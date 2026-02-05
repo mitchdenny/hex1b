@@ -211,22 +211,29 @@ public sealed class WindowManager
     /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
     /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close (which will return default(TResult)).</param>
     /// <returns>A task that completes when the modal is closed, containing the result.</returns>
-    /// <example>
+    /// <remarks>
+    /// <para>
+    /// <b>Warning:</b> Do not await this method directly in UI event handlers (such as button click
+    /// or menu item handlers). Awaiting in a handler blocks the UI from processing input, which means
+    /// the modal cannot receive clicks to close it, causing a deadlock.
+    /// </para>
+    /// <para>
+    /// Instead, use the regular <see cref="Open"/> method with <c>isModal: true</c> and handle the
+    /// result in button click handlers or the <c>onClose</c> callback:
+    /// </para>
     /// <code>
-    /// var result = await e.Windows.OpenModalAsync&lt;bool&gt;(
-    ///     "confirm", "Confirm",
-    ///     () => ctx.VStack(v => [
-    ///         v.Text("Are you sure?"),
-    ///         v.HStack(h => [
-    ///             h.Button("Yes").OnClick(e => e.Windows.Get("confirm")?.CloseWithResult(true)),
-    ///             h.Button("No").OnClick(e => e.Windows.Get("confirm")?.CloseWithResult(false))
-    ///         ])
-    ///     ]),
-    ///     width: 30, height: 8
-    /// );
-    /// if (result) { /* user confirmed */ }
+    /// // ✓ Correct: Use Open with callbacks
+    /// e.Windows.Open("confirm", "Confirm", () => ..., isModal: true,
+    ///     onClose: () => { /* handle close */ });
+    /// 
+    /// // ✗ Wrong: Don't await in event handlers
+    /// var result = await e.Windows.OpenModalAsync&lt;bool&gt;(...); // DEADLOCK!
     /// </code>
-    /// </example>
+    /// <para>
+    /// This method is suitable for use in background tasks or when you have full control of the
+    /// execution context (e.g., in tests or non-UI code that can yield to the UI thread).
+    /// </para>
+    /// </remarks>
     public Task<TResult?> OpenModalAsync<TResult>(
         string id,
         string title,
@@ -271,6 +278,12 @@ public sealed class WindowManager
     /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
     /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close.</param>
     /// <returns>A task that completes when the modal is closed.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Warning:</b> Do not await this method directly in UI event handlers. See 
+    /// <see cref="OpenModalAsync{TResult}"/> for details on proper usage.
+    /// </para>
+    /// </remarks>
     public Task OpenModalAsync(
         string id,
         string title,

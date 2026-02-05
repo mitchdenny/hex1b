@@ -120,9 +120,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         );
                         statusMessage = "Opened modal dialog";
                     }),
-                    m.MenuItem("Confirm Delete (Async)").OnActivated(async e => {
+                    m.MenuItem("Confirm Delete").OnActivated(e => {
                         openWindowCount++;
-                        var result = await e.Windows.OpenModalAsync<bool>(
+                        e.Windows.Open(
                             id: "confirm-delete",
                             title: "Confirm Delete",
                             content: () => new VStackWidget([
@@ -133,18 +133,23 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 new TextBlockWidget(""),
                                 new HStackWidget([
                                     new TextBlockWidget("  "),
-                                    new ButtonWidget("Delete").OnClick(ev => 
-                                        ev.Context.Windows.Get("confirm-delete")?.CloseWithResult(true)),
+                                    new ButtonWidget("Delete").OnClick(ev => {
+                                        statusMessage = "Delete confirmed!";
+                                        ev.Context.Windows.Get("confirm-delete")?.Close();
+                                    }),
                                     new TextBlockWidget(" "),
-                                    new ButtonWidget("Cancel").OnClick(ev => 
-                                        ev.Context.Windows.Get("confirm-delete")?.CloseWithResult(false))
+                                    new ButtonWidget("Cancel").OnClick(ev => {
+                                        statusMessage = "Delete cancelled";
+                                        ev.Context.Windows.Get("confirm-delete")?.Close();
+                                    })
                                 ])
                             ]),
                             width: 45,
-                            height: 10
+                            height: 10,
+                            isModal: true,
+                            onClose: () => openWindowCount--
                         );
-                        openWindowCount--;
-                        statusMessage = result ? "Delete confirmed!" : "Delete cancelled";
+                        statusMessage = "Confirm before deleting";
                     }),
                     m.Separator(),
                     m.MenuItem("Tile Windows").OnActivated(e => statusMessage = "Tile not yet implemented"),
