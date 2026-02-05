@@ -7,16 +7,16 @@ public static class WindowTheme
 {
     // Title bar colors - monochrome theme
     public static readonly Hex1bThemeElement<Hex1bColor> TitleBarForeground = 
-        new($"{nameof(WindowTheme)}.{nameof(TitleBarForeground)}", () => Hex1bColor.Black);
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarForeground)}", () => Hex1bColor.Gray);
     
     public static readonly Hex1bThemeElement<Hex1bColor> TitleBarBackground = 
-        new($"{nameof(WindowTheme)}.{nameof(TitleBarBackground)}", () => Hex1bColor.Gray);
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarBackground)}", () => Hex1bColor.FromRgb(50, 50, 50));
     
     public static readonly Hex1bThemeElement<Hex1bColor> TitleBarActiveForeground = 
-        new($"{nameof(WindowTheme)}.{nameof(TitleBarActiveForeground)}", () => Hex1bColor.Black);
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarActiveForeground)}", () => Hex1bColor.White);
     
     public static readonly Hex1bThemeElement<Hex1bColor> TitleBarActiveBackground = 
-        new($"{nameof(WindowTheme)}.{nameof(TitleBarActiveBackground)}", () => Hex1bColor.White);
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarActiveBackground)}", () => Hex1bColor.FromRgb(100, 100, 100));
     
     // Border colors - monochrome
     public static readonly Hex1bThemeElement<Hex1bColor> BorderColor = 

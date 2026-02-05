@@ -1,15 +1,28 @@
 using Hex1b;
+using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using WindowingDemo;
 
 // Demo state
 var windowCounter = 0;
 var openWindowCount = 0;
 var statusMessage = "Ready";
 
+// Track terminal instances for cleanup
+var terminalInstances = new Dictionary<string, (Hex1bTerminal Terminal, CancellationTokenSource Cts)>();
+
+// Surface demo state (shared across windows of same type)
+var fireflies = FirefliesDemo.CreateFireflies();
+var demoRandom = new Random();
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
-        ctx.VStack(main => [
+    {
+        // Update fireflies each frame
+        FirefliesDemo.Update(fireflies, demoRandom);
+        
+        return ctx.VStack(main => [
             // ─────────────────────────────────────────────────────────────────
             // MENU BAR
             // ─────────────────────────────────────────────────────────────────
@@ -30,6 +43,50 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             onClose: () => { openWindowCount--; statusMessage = $"Closed: Window {num}"; }
                         );
                         statusMessage = $"Opened: Window {num}";
+                    }),
+                    m.MenuItem("New Terminal").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        var windowId = $"terminal-{num}";
+                        
+                        // Create terminal with PTY process
+                        var cts = new CancellationTokenSource();
+                        var bashTerminal = Hex1bTerminal.CreateBuilder()
+                            .WithPtyProcess("bash")
+                            .WithTerminalWidget(out var bashHandle)
+                            .Build();
+                        
+                        // Track for cleanup
+                        terminalInstances[windowId] = (bashTerminal, cts);
+                        
+                        // Start the terminal in the background
+                        _ = bashTerminal.RunAsync(cts.Token);
+                        
+                        e.Windows.Open(
+                            id: windowId,
+                            title: $"Terminal {num}",
+                            content: () => new TerminalWidget(bashHandle),
+                            width: 80,
+                            height: 24,
+                            position: new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 2, OffsetY: (num - 1)),
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            minWidth: 40,
+                            minHeight: 12,
+                            onClose: () => {
+                                openWindowCount--;
+                                statusMessage = $"Closed: Terminal {num}";
+                                // Clean up terminal
+                                if (terminalInstances.TryGetValue(windowId, out var instance))
+                                {
+                                    instance.Cts.Cancel();
+                                    instance.Terminal.Dispose();
+                                    terminalInstances.Remove(windowId);
+                                }
+                            }
+                        );
+                        statusMessage = $"Opened: Terminal {num}";
                     }),
                     m.MenuItem("New Full Chrome Window").OnActivated(e => {
                         windowCounter++;
@@ -85,6 +142,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     m.MenuItem("Close All Windows").OnActivated(e => {
                         e.Windows.CloseAll();
                         openWindowCount = 0;
+                        // Clean up all terminal instances
+                        foreach (var (_, instance) in terminalInstances)
+                        {
+                            instance.Cts.Cancel();
+                            instance.Terminal.Dispose();
+                        }
+                        terminalInstances.Clear();
                         statusMessage = "Closed all windows";
                     }),
                     m.Separator(),
@@ -155,6 +219,179 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     m.MenuItem("Tile Windows").OnActivated(e => statusMessage = "Tile not yet implemented"),
                     m.MenuItem("Cascade Windows").OnActivated(e => statusMessage = "Cascade not yet implemented")
                 ]),
+                m.Menu("Samples", m => [
+                    m.MenuItem("Fireflies").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"fireflies-{num}",
+                            title: $"Fireflies {num}",
+                            content: () => new SurfaceWidget(s => FirefliesDemo.BuildLayers(s, fireflies))
+                                .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
+                                .Height(SizeHint.Fixed(FirefliesDemo.HeightCells))
+                                .RedrawAfter(50),
+                            width: FirefliesDemo.RequiredWidth,
+                            height: FirefliesDemo.RequiredHeight,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Fireflies {num}"; }
+                        );
+                        statusMessage = $"Opened: Fireflies {num}";
+                    }),
+                    m.MenuItem("Radar").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"radar-{num}",
+                            title: $"Radar {num}",
+                            content: () => new SurfaceWidget(s => RadarDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Radar {num}"; }
+                        );
+                        statusMessage = $"Opened: Radar {num}";
+                    }),
+                    m.MenuItem("Gravity").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"gravity-{num}",
+                            title: $"Gravity {num}",
+                            content: () => new SurfaceWidget(s => GravityDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Gravity {num}"; }
+                        );
+                        statusMessage = $"Opened: Gravity {num}";
+                    }),
+                    m.MenuItem("Snow").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"snow-{num}",
+                            title: $"Snow {num}",
+                            content: () => new SurfaceWidget(s => SnowDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Snow {num}"; }
+                        );
+                        statusMessage = $"Opened: Snow {num}";
+                    }),
+                    m.MenuItem("Noise").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"noise-{num}",
+                            title: $"Noise {num}",
+                            content: () => new SurfaceWidget(s => NoiseDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Noise {num}"; }
+                        );
+                        statusMessage = $"Opened: Noise {num}";
+                    }),
+                    m.MenuItem("Shadows").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"shadows-{num}",
+                            title: $"Shadows {num}",
+                            content: () => new SurfaceWidget(s => ShadowDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Shadows {num}"; }
+                        );
+                        statusMessage = $"Opened: Shadows {num}";
+                    }),
+                    m.MenuItem("Fluid").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"fluid-{num}",
+                            title: $"Fluid {num}",
+                            content: () => new SurfaceWidget(s => FluidDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Fluid {num}"; }
+                        );
+                        statusMessage = $"Opened: Fluid {num}";
+                    }),
+                    m.MenuItem("Smart Matter").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"smartmatter-{num}",
+                            title: $"Smart Matter {num}",
+                            content: () => new SurfaceWidget(s => SmartMatterDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Smart Matter {num}"; }
+                        );
+                        statusMessage = $"Opened: Smart Matter {num}";
+                    }),
+                    m.MenuItem("Slime Mold").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"slimemold-{num}",
+                            title: $"Slime Mold {num}",
+                            content: () => new SurfaceWidget(s => SlimeMoldDemo.BuildLayers(s, demoRandom))
+                                .Width(SizeHint.Fixed(60))
+                                .Height(SizeHint.Fixed(20))
+                                .RedrawAfter(50),
+                            width: 62,
+                            height: 22,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Slime Mold {num}"; }
+                        );
+                        statusMessage = $"Opened: Slime Mold {num}";
+                    })
+                ]),
                 m.Menu("Help", m => [
                     m.MenuItem("About").OnActivated(e => {
                         if (e.Windows.IsOpen("about")) {
@@ -214,8 +451,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 "Status", statusMessage,
                 "Windows", $"{openWindowCount} open"
             ])
-        ])
-    )
+        ]);
+    })
     .WithMouse()
     .Build();
 
