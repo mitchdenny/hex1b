@@ -7,6 +7,7 @@ namespace Hex1b.Widgets;
 /// Windows are managed through the <see cref="WindowManager"/> and rendered on top of the main content.
 /// </summary>
 /// <param name="Content">The main content widget displayed behind windows.</param>
+/// <param name="Name">Optional name for this panel. Required when using multiple WindowPanels.</param>
 /// <remarks>
 /// <para>
 /// WindowPanel provides the bounded area within which floating windows can be positioned and dragged.
@@ -21,12 +22,28 @@ namespace Hex1b.Widgets;
 /// });
 /// </code>
 /// </para>
+/// <para>
+/// When using multiple WindowPanels, each must have a unique name:
+/// <code>
+/// ctx.WindowPanel("editor", content => ...);
+/// ctx.WindowPanel("preview", content => ...);
+/// // Access via: e.Windows["editor"].Open(...)
+/// </code>
+/// </para>
 /// </remarks>
-public sealed record WindowPanelWidget(Hex1bWidget Content) : Hex1bWidget
+public sealed record WindowPanelWidget(Hex1bWidget Content, string? Name = null) : Hex1bWidget
 {
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
+        var isNew = existingNode is not WindowPanelNode;
         var node = existingNode as WindowPanelNode ?? new WindowPanelNode();
+
+        // Register with the app-level registry on first creation
+        if (isNew && context.WindowManagerRegistry != null)
+        {
+            node.Name = Name;
+            context.WindowManagerRegistry.Register(node.Windows, Name);
+        }
 
         // Reconcile main content
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);

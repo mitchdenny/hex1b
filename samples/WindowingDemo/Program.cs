@@ -150,7 +150,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     center.Text("║  Click buttons to min/max/close       ║"),
                     center.Text("╚═══════════════════════════════════════╝")
                 ])
-            ),
+            ).Fill(),
 
             // ─────────────────────────────────────────────────────────────────
             // STATUS BAR

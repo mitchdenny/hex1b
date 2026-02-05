@@ -36,13 +36,14 @@ public static class InputRouter
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Dispatch based on event type
         return inputEvent switch
         {
-            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate),
-            Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
+            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate, windowManagerRegistry),
+            Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, windowManagerRegistry),
             _ => InputResult.NotHandled
         };
     }
@@ -58,10 +59,11 @@ public static class InputRouter
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree
@@ -257,7 +259,8 @@ public static class InputRouter
         InputRouterState state,
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Check if a node has captured input
         var capturedNode = focusRing.CapturedNode;
@@ -297,6 +300,7 @@ public static class InputRouter
     /// <param name="cancellationToken">Cancellation token for async operations.</param>
     /// <param name="copyToClipboard">Optional callback to copy text to clipboard.</param>
     /// <param name="invalidate">Optional callback to invalidate the app and trigger re-render.</param>
+    /// <param name="windowManagerRegistry">Optional registry for window managers.</param>
     /// <returns>The result of input processing.</returns>
     public static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
@@ -305,11 +309,12 @@ public static class InputRouter
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();

@@ -11,6 +11,11 @@ namespace Hex1b.Nodes;
 public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 {
     /// <summary>
+    /// Optional name for this panel. Used when multiple WindowPanels exist.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// The main content node displayed behind windows.
     /// </summary>
     public Hex1bNode? Content { get; set; }

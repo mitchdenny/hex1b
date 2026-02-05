@@ -90,7 +90,8 @@ public sealed class ReconcileContext
         Action? invalidateCallback = null,
         Action<Hex1bNode>? captureInputCallback = null,
         Action? releaseCaptureCallback = null,
-        Action<TimeSpan, Action>? scheduleTimerCallback = null)
+        Action<TimeSpan, Action>? scheduleTimerCallback = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
@@ -101,7 +102,13 @@ public sealed class ReconcileContext
         CaptureInputCallback = captureInputCallback;
         ReleaseCaptureCallback = releaseCaptureCallback;
         ScheduleTimerCallback = scheduleTimerCallback;
+        WindowManagerRegistry = windowManagerRegistry;
     }
+
+    /// <summary>
+    /// The window manager registry for registering WindowPanels.
+    /// </summary>
+    internal WindowManagerRegistry? WindowManagerRegistry { get; }
 
     /// <summary>
     /// Creates a root reconcile context (no parent).
@@ -112,10 +119,11 @@ public sealed class ReconcileContext
         Action? invalidateCallback = null,
         Action<Hex1bNode>? captureInputCallback = null,
         Action? releaseCaptureCallback = null,
-        Action<TimeSpan, Action>? scheduleTimerCallback = null) 
+        Action<TimeSpan, Action>? scheduleTimerCallback = null,
+        WindowManagerRegistry? windowManagerRegistry = null) 
         => new(null, focusRing ?? new FocusRing(), cancellationToken, invalidateCallback: invalidateCallback, 
             captureInputCallback: captureInputCallback, releaseCaptureCallback: releaseCaptureCallback,
-            scheduleTimerCallback: scheduleTimerCallback);
+            scheduleTimerCallback: scheduleTimerCallback, windowManagerRegistry: windowManagerRegistry);
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -127,7 +135,7 @@ public sealed class ReconcileContext
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
         return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback, 
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback);
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry);
     }
     
     /// <summary>
@@ -137,7 +145,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback) { IsNew = IsNew };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew };
     }
     
     /// <summary>
@@ -147,7 +155,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
     }
 
     /// <summary>
