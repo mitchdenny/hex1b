@@ -1917,21 +1917,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Render top border of scrollbar column (outer edge)
         int y = 0;
-        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
+        context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
         y++;
         
         // Render header row(s) - empty scrollbar area with track
         if (_headerRowNode is not null)
         {
             // Header row - empty cell + border (outer edge)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
             y++;
             
             // Header separator - connects to table's horizontal line (outer edge)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
         }
         
@@ -1939,15 +1936,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // The track runs continuously - no breaks for row separators in Full mode
         for (int row = 0; row < scrollbarHeight; row++)
         {
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
             char trackChar = isThumb ? _scrollbarThumb : _scrollbarTrack;
             // Track uses EffectiveBorderColor (same as other internal elements)
             var trackColor = isThumb ? focusedBorderColor : EffectiveBorderColor;
             
             // Track uses inner color, right edge uses outer color
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
@@ -1955,19 +1950,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (_footerRowNode is not null)
         {
             // Footer separator - outer edge
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
             
             // Footer row - track uses EffectiveBorderColor + border (outer)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{EffectiveBorderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{EffectiveBorderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
         // Render bottom border (outer edge)
-        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
+        context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
     }
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null, bool isOuterBorder = false)

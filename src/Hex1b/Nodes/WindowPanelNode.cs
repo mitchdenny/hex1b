@@ -170,7 +170,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             var focusables = activeWindow.Node.GetFocusableNodes().ToList();
             if (focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
             {
-                // Clear focus from other nodes first
+                // Clear focus from content
                 if (Content != null)
                 {
                     foreach (var focusable in Content.GetFocusableNodes())
@@ -178,6 +178,21 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                         if (focusable.IsFocused)
                         {
                             ReconcileContext.SetNodeFocus(focusable, false);
+                        }
+                    }
+                }
+
+                // Clear focus from other windows (not the active one)
+                foreach (var windowNode in WindowNodes)
+                {
+                    if (!ReferenceEquals(windowNode, activeWindow.Node))
+                    {
+                        foreach (var focusable in windowNode.GetFocusableNodes())
+                        {
+                            if (focusable.IsFocused)
+                            {
+                                ReconcileContext.SetNodeFocus(focusable, false);
+                            }
                         }
                     }
                 }
