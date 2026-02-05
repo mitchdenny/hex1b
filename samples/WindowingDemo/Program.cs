@@ -16,13 +16,29 @@ var terminalInstances = new Dictionary<string, (Hex1bTerminal Terminal, Cancella
 var fireflies = FirefliesDemo.CreateFireflies();
 var demoRandom = new Random();
 
+// Sample table data
+var tableData = new List<(string Name, string Role, int Age, string Status)>
+{
+    ("Alice Johnson", "Engineer", 32, "Active"),
+    ("Bob Smith", "Designer", 28, "Active"),
+    ("Carol Williams", "Manager", 45, "On Leave"),
+    ("David Brown", "Developer", 35, "Active"),
+    ("Eve Davis", "Analyst", 29, "Active"),
+    ("Frank Miller", "Engineer", 41, "Inactive"),
+    ("Grace Wilson", "Designer", 33, "Active"),
+    ("Henry Taylor", "Developer", 27, "Active"),
+    ("Iris Anderson", "Manager", 52, "Active"),
+    ("Jack Thomas", "Analyst", 31, "On Leave"),
+};
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     {
         // Update fireflies each frame
         FirefliesDemo.Update(fireflies, demoRandom);
         
-        return ctx.VStack(main => [
+        return ctx.VStack(outer => [
+            outer.NotificationPanel(outer.VStack(main => [
             // ─────────────────────────────────────────────────────────────────
             // MENU BAR
             // ─────────────────────────────────────────────────────────────────
@@ -138,6 +154,24 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         );
                         statusMessage = $"Opened: Resizable {num}";
                     }),
+                    m.MenuItem("New Table Window").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        e.Windows.Open(
+                            id: $"table-{num}",
+                            title: $"Employee Table {num}",
+                            content: () => BuildTableContent(tableData),
+                            width: 65,
+                            height: 18,
+                            chromeStyle: WindowChromeStyle.TitleAndClose,
+                            isResizable: true,
+                            minWidth: 50,
+                            minHeight: 10,
+                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                        );
+                        statusMessage = $"Opened: Table {num}";
+                    }),
                     m.Separator(),
                     m.MenuItem("Close All Windows").OnActivated(e => {
                         e.Windows.CloseAll();
@@ -214,6 +248,33 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             onClose: () => openWindowCount--
                         );
                         statusMessage = "Confirm before deleting";
+                    }),
+                    m.Separator(),
+                    m.MenuItem("Show Notification").OnActivated(e => {
+                        e.Context.Notifications.Post(
+                            new Notification("New Data Available", "Employee records have been updated.")
+                                .Timeout(TimeSpan.FromSeconds(10))
+                                .PrimaryAction("View Table", async ctx => {
+                                    windowCounter++;
+                                    openWindowCount++;
+                                    var num = windowCounter;
+                                    ctx.InputTrigger.Windows.Open(
+                                        id: $"table-notif-{num}",
+                                        title: $"Employee Table {num}",
+                                        content: () => BuildTableContent(tableData),
+                                        width: 65,
+                                        height: 18,
+                                        chromeStyle: WindowChromeStyle.TitleAndClose,
+                                        isResizable: true,
+                                        minWidth: 50,
+                                        minHeight: 10,
+                                        onClose: () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                                    );
+                                    statusMessage = $"Opened table from notification";
+                                    ctx.Dismiss();
+                                })
+                        );
+                        statusMessage = "Notification posted";
                     }),
                     m.Separator(),
                     m.MenuItem("Tile Windows").OnActivated(e => statusMessage = "Tile not yet implemented"),
@@ -451,6 +512,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 "Status", statusMessage,
                 "Windows", $"{openWindowCount} open"
             ])
+        ])).Fill()
         ]);
     })
     .WithMouse()
@@ -514,6 +576,24 @@ static Hex1bWidget BuildResizableContent(int windowNum)
             new ButtonWidget("Close")
         ])
     ]).Fill();
+}
+
+static Hex1bWidget BuildTableContent(IReadOnlyList<(string Name, string Role, int Age, string Status)> data)
+{
+    return new TableWidget<(string Name, string Role, int Age, string Status)> { Data = data }
+        .Header(h => [
+            h.Cell("Name").Width(SizeHint.Fixed(18)),
+            h.Cell("Role").Width(SizeHint.Fixed(12)),
+            h.Cell("Age").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
+            h.Cell("Status").Width(SizeHint.Fixed(10))
+        ])
+        .Row((r, row, state) => [
+            r.Cell(row.Name),
+            r.Cell(row.Role),
+            r.Cell(row.Age.ToString()),
+            r.Cell(row.Status)
+        ])
+        .FillHeight();
 }
 
 
