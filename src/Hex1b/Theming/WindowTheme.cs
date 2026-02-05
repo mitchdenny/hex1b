@@ -58,16 +58,34 @@ public static class WindowTheme
     
     // Border characters
     public static readonly Hex1bThemeElement<string> TopLeftCorner = 
-        new($"{nameof(WindowTheme)}.{nameof(TopLeftCorner)}", () => "┌");
+        new($"{nameof(WindowTheme)}.{nameof(TopLeftCorner)}", () => "▄");
     
     public static readonly Hex1bThemeElement<string> TopRightCorner = 
-        new($"{nameof(WindowTheme)}.{nameof(TopRightCorner)}", () => "┐");
+        new($"{nameof(WindowTheme)}.{nameof(TopRightCorner)}", () => "▄");
     
     public static readonly Hex1bThemeElement<string> BottomLeftCorner = 
         new($"{nameof(WindowTheme)}.{nameof(BottomLeftCorner)}", () => "└");
     
     public static readonly Hex1bThemeElement<string> BottomRightCorner = 
         new($"{nameof(WindowTheme)}.{nameof(BottomRightCorner)}", () => "┘");
+    
+    /// <summary>
+    /// Left edge of title bar row - thin block aligned right for seamless appearance.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> TitleBarLeftEdge = 
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarLeftEdge)}", () => "▐");
+    
+    /// <summary>
+    /// Right edge of title bar row - thin block aligned left for seamless appearance.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> TitleBarRightEdge = 
+        new($"{nameof(WindowTheme)}.{nameof(TitleBarRightEdge)}", () => "▌");
+    
+    /// <summary>
+    /// Top border fill character - lower half block for title bar to extend upward.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> TopBorderFill = 
+        new($"{nameof(WindowTheme)}.{nameof(TopBorderFill)}", () => "▄");
     
     /// <summary>
     /// Glyph shown in bottom-right corner of resizable windows.

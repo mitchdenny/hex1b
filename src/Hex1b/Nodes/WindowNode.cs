@@ -494,6 +494,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var bottomRight = theme.Get(WindowTheme.BottomRightCorner);
         var horizontal = theme.Get(WindowTheme.HorizontalLine);
         var vertical = theme.Get(WindowTheme.VerticalLine);
+        var topBorderFill = theme.Get(WindowTheme.TopBorderFill);
 
         var resetToGlobal = theme.GetResetToGlobalCodes();
         var innerWidth = Math.Max(0, width - 2);
@@ -501,7 +502,20 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         // Draw top border
         var borderFg = borderColor.ToForegroundAnsi();
         context.SetCursorPosition(x, y);
-        context.Write($"{borderFg}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}");
+        
+        if (ChromeStyle != WindowChromeStyle.None)
+        {
+            // Title bar style: lower half blocks that appear as title bar extending upward
+            // The foreground is title bar color, background matches what's above (or transparent)
+            var titleBgCode = titleBg.ToBackgroundAnsi();
+            var titleFgCode = titleBg.ToForegroundAnsi(); // Use title bg as foreground for the block
+            context.Write($"{titleFgCode}{topLeft}{new string(topBorderFill[0], innerWidth)}{topRight}{resetToGlobal}");
+        }
+        else
+        {
+            // No title bar - use standard border
+            context.Write($"{borderFg}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}");
+        }
 
         // Draw title bar (row below top border) based on chrome style
         if (height > 1 && ChromeStyle != WindowChromeStyle.None)
@@ -563,6 +577,10 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string vertical,
         string resetToGlobal)
     {
+        // Get title bar edge characters
+        var leftEdge = theme.Get(WindowTheme.TitleBarLeftEdge);
+        var rightEdge = theme.Get(WindowTheme.TitleBarRightEdge);
+        
         // Calculate buttons width based on chrome style
         var buttonsBuilder = new System.Text.StringBuilder();
         var buttonsWidth = 0;
@@ -615,12 +633,16 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         var padding = availableTitleWidth - titleDisplayWidth;
         var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
 
-        // Render title bar: border + title + buttons + border
+        var titleBgCode = titleBg.ToBackgroundAnsi();
+        var titleFgCode = titleFg.ToForegroundAnsi();
+
+        // Render title bar: thin edge + title + buttons + thin edge
+        // The thin edges use title bar background as their foreground color
         context.SetCursorPosition(x, titleBarY);
-        context.Write($"{borderFg}{vertical}{resetToGlobal}");
-        context.Write($"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}");
+        context.Write($"{titleBg.ToForegroundAnsi()}{leftEdge}{resetToGlobal}");
+        context.Write($"{titleFgCode}{titleBgCode}{paddedTitle}");
         context.Write(buttonsBuilder.ToString());
-        context.Write($"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}");
+        context.Write($"{resetToGlobal}{titleBg.ToForegroundAnsi()}{rightEdge}{resetToGlobal}");
     }
 
     /// <summary>
