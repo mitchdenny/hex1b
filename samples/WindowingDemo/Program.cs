@@ -17,18 +17,18 @@ var fireflies = FirefliesDemo.CreateFireflies();
 var demoRandom = new Random();
 
 // Sample table data
-var tableData = new List<(string Name, string Role, int Age, string Status)>
+var tableData = new List<Employee>
 {
-    ("Alice Johnson", "Engineer", 32, "Active"),
-    ("Bob Smith", "Designer", 28, "Active"),
-    ("Carol Williams", "Manager", 45, "On Leave"),
-    ("David Brown", "Developer", 35, "Active"),
-    ("Eve Davis", "Analyst", 29, "Active"),
-    ("Frank Miller", "Engineer", 41, "Inactive"),
-    ("Grace Wilson", "Designer", 33, "Active"),
-    ("Henry Taylor", "Developer", 27, "Active"),
-    ("Iris Anderson", "Manager", 52, "Active"),
-    ("Jack Thomas", "Analyst", 31, "On Leave"),
+    new("Alice Johnson", "Engineer", 32, "Active"),
+    new("Bob Smith", "Designer", 28, "Active"),
+    new("Carol Williams", "Manager", 45, "On Leave"),
+    new("David Brown", "Developer", 35, "Active"),
+    new("Eve Davis", "Analyst", 29, "Active"),
+    new("Frank Miller", "Engineer", 41, "Inactive"),
+    new("Grace Wilson", "Designer", 33, "Active"),
+    new("Henry Taylor", "Developer", 27, "Active"),
+    new("Iris Anderson", "Manager", 52, "Active"),
+    new("Jack Thomas", "Analyst", 31, "On Leave"),
 };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -578,9 +578,9 @@ static Hex1bWidget BuildResizableContent(int windowNum)
     ]).Fill();
 }
 
-static Hex1bWidget BuildTableContent(IReadOnlyList<(string Name, string Role, int Age, string Status)> data)
+static Hex1bWidget BuildTableContent(IReadOnlyList<Employee> data)
 {
-    return new TableWidget<(string Name, string Role, int Age, string Status)> { Data = data }
+    return new TableWidget<Employee> { Data = data }
         .Header(h => [
             h.Cell("Name").Width(SizeHint.Fixed(18)),
             h.Cell("Role").Width(SizeHint.Fixed(12)),
@@ -593,7 +593,9 @@ static Hex1bWidget BuildTableContent(IReadOnlyList<(string Name, string Role, in
             r.Cell(row.Age.ToString()),
             r.Cell(row.Status)
         ])
-        .FillHeight();
+        .Fill();
 }
 
+// Employee record for table data
+record Employee(string Name, string Role, int Age, string Status);
 
