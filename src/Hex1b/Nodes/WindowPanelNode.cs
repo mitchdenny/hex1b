@@ -222,6 +222,17 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
                 }
             }
         }
+
+        // Scrollbar nodes are focusable and need to be hit-testable
+        // They are yielded LAST so they are hit-tested FIRST (FocusRing searches in reverse)
+        if (_horizontalScrollbar != null && _horizontalScrollbar.IsFocusable)
+        {
+            yield return _horizontalScrollbar;
+        }
+        if (_verticalScrollbar != null && _verticalScrollbar.IsFocusable)
+        {
+            yield return _verticalScrollbar;
+        }
     }
 
     public override Size Measure(Constraints constraints)
