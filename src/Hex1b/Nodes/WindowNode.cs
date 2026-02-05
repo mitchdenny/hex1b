@@ -118,6 +118,15 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             Entry?.Close();
             return Task.CompletedTask;
         }, "Close window");
+
+        // Any mouse click on the window brings it to front
+        bindings.Mouse(Input.MouseButton.Left).Action(BringToFront, "Activate window");
+    }
+
+    private Task BringToFront(Input.InputBindingActionContext ctx)
+    {
+        Entry?.BringToFront();
+        return Task.CompletedTask;
     }
 
     public override void Render(Hex1bRenderContext context)

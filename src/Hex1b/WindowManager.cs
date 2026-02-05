@@ -108,8 +108,9 @@ public sealed class WindowManager
     /// <param name="content">Builder function for window content. Called each reconciliation to build the widget.</param>
     /// <param name="width">Initial width of the window.</param>
     /// <param name="height">Initial height of the window.</param>
-    /// <param name="x">Initial X position (null for auto-center).</param>
-    /// <param name="y">Initial Y position (null for auto-center).</param>
+    /// <param name="x">Initial X position (null to use position parameter).</param>
+    /// <param name="y">Initial Y position (null to use position parameter).</param>
+    /// <param name="position">Positioning strategy when x/y are null. Defaults to Center.</param>
     /// <param name="isModal">Whether this is a modal window.</param>
     /// <param name="isResizable">Whether the window can be resized.</param>
     /// <param name="onClose">Callback when the window is closed.</param>
@@ -122,6 +123,7 @@ public sealed class WindowManager
         int height = 15,
         int? x = null,
         int? y = null,
+        WindowPositionSpec position = default,
         bool isModal = false,
         bool isResizable = false,
         Action? onClose = null)
@@ -149,6 +151,7 @@ public sealed class WindowManager
                 height: height,
                 x: x,
                 y: y,
+                positionSpec: position,
                 isModal: isModal,
                 isResizable: isResizable,
                 onClose: onClose,
@@ -346,6 +349,7 @@ public sealed class WindowEntry
         int height,
         int? x,
         int? y,
+        WindowPositionSpec positionSpec,
         bool isModal,
         bool isResizable,
         Action? onClose,
@@ -359,6 +363,7 @@ public sealed class WindowEntry
         Height = height;
         X = x;
         Y = y;
+        PositionSpec = positionSpec;
         IsModal = isModal;
         IsResizable = isResizable;
         OnClose = onClose;
@@ -393,14 +398,20 @@ public sealed class WindowEntry
     public int Height { get; internal set; }
 
     /// <summary>
-    /// Current X position (null = auto-center).
+    /// Current X position (null = use PositionSpec).
     /// </summary>
     public int? X { get; internal set; }
 
     /// <summary>
-    /// Current Y position (null = auto-center).
+    /// Current Y position (null = use PositionSpec).
     /// </summary>
     public int? Y { get; internal set; }
+
+    /// <summary>
+    /// The positioning specification for initial placement.
+    /// Used when X and Y are null.
+    /// </summary>
+    public WindowPositionSpec PositionSpec { get; }
 
     /// <summary>
     /// Whether this is a modal window.

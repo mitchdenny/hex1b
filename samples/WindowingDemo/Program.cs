@@ -25,14 +25,23 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         var windowId = $"window-{windowCounter}";
                         var windowNum = windowCounter;
 
+                        // Cycle through different positions for each window
+                        var positions = new[] {
+                            WindowPositionSpec.Center,
+                            WindowPositionSpec.TopLeft,
+                            WindowPositionSpec.TopRight,
+                            WindowPositionSpec.BottomLeft,
+                            WindowPositionSpec.BottomRight
+                        };
+                        var positionSpec = positions[(windowCounter - 1) % positions.Length];
+
                         e.Windows.Open(
                             id: windowId,
                             title: $"Window {windowNum}",
                             content: () => BuildWindowContent(windowNum, windowId),
                             width: 40,
                             height: 12,
-                            x: 10 + (windowCounter % 5) * 3,
-                            y: 3 + (windowCounter % 5) * 2
+                            position: positionSpec
                         );
 
                         lastAction = $"Opened Window {windowNum}";

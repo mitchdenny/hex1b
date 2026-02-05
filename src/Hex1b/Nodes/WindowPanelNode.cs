@@ -222,16 +222,20 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             }
             else
             {
-                // Center in panel
-                windowX = bounds.X + (bounds.Width - windowWidth) / 2;
-                windowY = bounds.Y + (bounds.Height - windowHeight) / 2;
+                // Use position spec to calculate initial position
+                (windowX, windowY) = entry.PositionSpec.Calculate(
+                    bounds, 
+                    windowWidth, 
+                    windowHeight,
+                    entry.X,
+                    entry.Y);
 
-                // Store calculated position
+                // Store calculated position so subsequent renders use the same position
                 entry.X = windowX;
                 entry.Y = windowY;
             }
 
-            // Clamp to panel bounds
+            // Clamp to panel bounds (in case of resize or explicit out-of-bounds position)
             windowX = Math.Max(bounds.X, Math.Min(windowX, bounds.X + bounds.Width - windowWidth));
             windowY = Math.Max(bounds.Y, Math.Min(windowY, bounds.Y + bounds.Height - windowHeight));
 
