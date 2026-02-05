@@ -198,8 +198,31 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             return Task.CompletedTask;
         }, "Close window");
 
-        // Any mouse click on the window brings it to front
-        bindings.Mouse(Input.MouseButton.Left).Action(BringToFront, "Activate window");
+        // Mouse click handles button clicks and brings window to front
+        bindings.Mouse(Input.MouseButton.Left).Action(ctx =>
+        {
+            // Check for button clicks first
+            var localX = ctx.MouseX - Bounds.X;
+            var localY = ctx.MouseY - Bounds.Y;
+
+            var clickedButton = GetClickedButton(localX, localY);
+            switch (clickedButton)
+            {
+                case TitleBarButton.Close:
+                    Entry?.Close();
+                    return Task.CompletedTask;
+                case TitleBarButton.Minimize:
+                    Entry?.Minimize();
+                    return Task.CompletedTask;
+                case TitleBarButton.Maximize:
+                    Entry?.ToggleMaximize();
+                    return Task.CompletedTask;
+            }
+
+            // Not a button click - just bring to front
+            Entry?.BringToFront();
+            return Task.CompletedTask;
+        }, "Window interaction");
 
         // Drag to move window (only from title bar)
         bindings.Drag(Input.MouseButton.Left).Action((startX, startY) =>
@@ -231,6 +254,51 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }, "Drag to move window");
     }
 
+    private enum TitleBarButton { None, Close, Minimize, Maximize }
+
+    /// <summary>
+    /// Determines which title bar button (if any) was clicked at the given local coordinates.
+    /// </summary>
+    private TitleBarButton GetClickedButton(int localX, int localY)
+    {
+        // Buttons are only on the title bar (row 1)
+        if (localY != 1)
+            return TitleBarButton.None;
+
+        // No buttons if chrome style doesn't include them
+        if (ChromeStyle == WindowChromeStyle.None || ChromeStyle == WindowChromeStyle.TitleOnly)
+            return TitleBarButton.None;
+
+        // Button layout from right to left: " × " for close, " □ " for max, " − " for min
+        // Each button is 2 chars wide (space + glyph), with trailing space
+        var innerWidth = Bounds.Width - 2; // Exclude border columns
+
+        if (ChromeStyle == WindowChromeStyle.TitleAndClose)
+        {
+            // Close button: positions innerWidth-3 to innerWidth-1 (relative to inner area)
+            // In local coords (including left border): Bounds.Width - 4 to Bounds.Width - 2
+            if (localX >= Bounds.Width - 4 && localX < Bounds.Width - 1)
+                return TitleBarButton.Close;
+        }
+        else if (ChromeStyle == WindowChromeStyle.Full)
+        {
+            // Buttons from right: " − □ × " = 7 chars total
+            // Close: last 2 chars before border
+            // Maximize: 2 chars before close
+            // Minimize: 2 chars before maximize
+            var buttonAreaStart = Bounds.Width - 1 - 7; // Start of button area
+
+            if (localX >= Bounds.Width - 4 && localX < Bounds.Width - 1)
+                return TitleBarButton.Close;
+            if (localX >= Bounds.Width - 6 && localX < Bounds.Width - 4)
+                return TitleBarButton.Maximize;
+            if (localX >= Bounds.Width - 8 && localX < Bounds.Width - 6)
+                return TitleBarButton.Minimize;
+        }
+
+        return TitleBarButton.None;
+    }
+
     /// <summary>
     /// Checks if the given local coordinates are in the title bar area.
     /// </summary>
@@ -240,17 +308,13 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         if (ChromeStyle == WindowChromeStyle.None)
             return false;
 
-        // Title bar is at Y = 1 (row below top border, relative to window bounds)
-        // localX/localY are global coordinates, convert to window-relative
-        var relativeX = localX - Bounds.X;
-        var relativeY = localY - Bounds.Y;
-
-        // Title bar is row 1
-        if (relativeY != 1)
+        // localX/localY are already relative to window bounds (0,0 is top-left of window)
+        // Title bar is row 1 (row 0 is top border)
+        if (localY != 1)
             return false;
 
         // Must be within window bounds (excluding border columns)
-        if (relativeX < 1 || relativeX >= Bounds.Width - 1)
+        if (localX < 1 || localX >= Bounds.Width - 1)
             return false;
 
         // Exclude button area on the right side
@@ -262,16 +326,10 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         };
 
         var buttonStartX = Bounds.Width - 1 - buttonsWidth;
-        if (relativeX >= buttonStartX)
+        if (localX >= buttonStartX)
             return false;
 
         return true;
-    }
-
-    private Task BringToFront(Input.InputBindingActionContext ctx)
-    {
-        Entry?.BringToFront();
-        return Task.CompletedTask;
     }
 
     public override void Render(Hex1bRenderContext context)

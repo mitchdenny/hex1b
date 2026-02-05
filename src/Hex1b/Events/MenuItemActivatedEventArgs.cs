@@ -30,6 +30,11 @@ public sealed class MenuItemActivatedEventArgs
     /// </summary>
     public PopupStack Popups => Context.Popups;
 
+    /// <summary>
+    /// The window manager for managing floating windows.
+    /// </summary>
+    public WindowManager Windows => Context.Windows;
+
     internal MenuItemActivatedEventArgs(MenuItemWidget widget, MenuItemNode node, InputBindingActionContext context)
     {
         Widget = widget;
