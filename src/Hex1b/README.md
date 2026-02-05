@@ -111,7 +111,7 @@ new VStackWidget(
 | `HStackWidget` | Horizontal layout container |
 | `SplitterWidget` | Resizable split pane layout |
 | `BorderWidget` | Container with border and optional title |
-| `ScrollWidget` | Scrollable content area |
+| `ScrollPanelWidget` | Scrollable content area |
 
 ## Input Bindings
 

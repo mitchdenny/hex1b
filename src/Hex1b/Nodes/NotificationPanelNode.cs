@@ -108,7 +108,7 @@ public sealed class NotificationPanelNode : Hex1bNode
     /// <summary>
     /// Scroll node for the drawer content when there are many notifications.
     /// </summary>
-    public ScrollNode? DrawerScroll { get; set; }
+    public ScrollPanelNode? DrawerScroll { get; set; }
 
     /// <summary>
     /// VStack node to hold drawer cards inside the scroll.

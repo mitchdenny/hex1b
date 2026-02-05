@@ -355,7 +355,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             left => [
                 left.Text(" EXPLORER"),
                 left.Separator(),
-                left.VScroll(scroll => [
+                left.VScrollPanel(scroll => [
                     scroll.Tree(t => [
                         t.Item("src", items => [
                             ..editorState.Files
@@ -438,7 +438,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
                             ..editorState.OpenDocuments.Select((doc, idx) =>
                                 tp.Tab(doc.KeepOpen ? doc.File.Name : $"[{doc.File.Name}]", t => [
-                                    t.VScroll(s => [
+                                    t.VScrollPanel(s => [
                                         s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])
@@ -462,7 +462,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         r.Otherwise(r => r.TabPanel(tp => [
                             ..editorState.OpenDocuments.Select((doc, idx) =>
                                 tp.Tab(doc.KeepOpen ? doc.File.Name : $"[{doc.File.Name}]", t => [
-                                    t.VScroll(s => [
+                                    t.VScrollPanel(s => [
                                         s.Text(doc.File.Content).Wrap()
                                     ]).Fill()
                                 ])

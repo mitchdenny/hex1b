@@ -153,7 +153,7 @@ Use `<see>` and `<seealso>` to link to related types:
 /// <summary>
 /// Theme elements for Scroll widgets.
 /// </summary>
-/// <seealso cref="ScrollWidget"/>
+/// <seealso cref="ScrollPanelWidget"/>
 /// <seealso cref="Hex1bTheme"/>
 public static class ScrollTheme
 ```

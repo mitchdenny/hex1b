@@ -4,10 +4,10 @@ using Hex1b.Nodes;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A scroll widget that provides scrolling capability for content that exceeds the available space.
+/// A scroll panel that provides scrolling capability for content that exceeds the available space.
 /// Only supports one direction at a time (vertical or horizontal).
 /// </summary>
-public sealed record ScrollWidget : Hex1bWidget
+public sealed record ScrollPanelWidget : Hex1bWidget
 {
     /// <summary>
     /// The child widget to scroll.
@@ -30,12 +30,12 @@ public sealed record ScrollWidget : Hex1bWidget
     internal Func<ScrollChangedEventArgs, Task>? ScrollHandler { get; init; }
 
     /// <summary>
-    /// Creates a new ScrollWidget.
+    /// Creates a new ScrollPanelWidget.
     /// </summary>
     /// <param name="child">The child widget to scroll.</param>
     /// <param name="orientation">The scroll orientation. Defaults to Vertical.</param>
     /// <param name="showScrollbar">Whether to show the scrollbar. Defaults to true.</param>
-    public ScrollWidget(
+    public ScrollPanelWidget(
         Hex1bWidget child,
         ScrollOrientation orientation = ScrollOrientation.Vertical,
         bool showScrollbar = true)
@@ -49,21 +49,21 @@ public sealed record ScrollWidget : Hex1bWidget
     /// Sets a synchronous scroll handler. Called when the scroll position changes.
     /// </summary>
     /// <param name="handler">The handler to call when scrolling occurs.</param>
-    /// <returns>A new ScrollWidget with the handler set.</returns>
-    public ScrollWidget OnScroll(Action<ScrollChangedEventArgs> handler)
+    /// <returns>A new ScrollPanelWidget with the handler set.</returns>
+    public ScrollPanelWidget OnScroll(Action<ScrollChangedEventArgs> handler)
         => this with { ScrollHandler = args => { handler(args); return Task.CompletedTask; } };
     
     /// <summary>
     /// Sets an asynchronous scroll handler. Called when the scroll position changes.
     /// </summary>
     /// <param name="handler">The handler to call when scrolling occurs.</param>
-    /// <returns>A new ScrollWidget with the handler set.</returns>
-    public ScrollWidget OnScroll(Func<ScrollChangedEventArgs, Task> handler)
+    /// <returns>A new ScrollPanelWidget with the handler set.</returns>
+    public ScrollPanelWidget OnScroll(Func<ScrollChangedEventArgs, Task> handler)
         => this with { ScrollHandler = handler };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
-        var node = existingNode as ScrollNode ?? new ScrollNode();
+        var node = existingNode as ScrollPanelNode ?? new ScrollPanelNode();
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         node.SourceWidget = this;
         node.Orientation = Orientation;
@@ -95,5 +95,5 @@ public sealed record ScrollWidget : Hex1bWidget
         return node;
     }
 
-    internal override Type GetExpectedNodeType() => typeof(ScrollNode);
+    internal override Type GetExpectedNodeType() => typeof(ScrollPanelNode);
 }

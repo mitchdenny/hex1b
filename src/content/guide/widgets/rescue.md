@@ -396,4 +396,4 @@ ctx.Rescue(
 
 - [ThemePanelWidget](/guide/widgets/themepanel) - Used internally to apply rescue theming
 - [BorderWidget](/guide/widgets/border) - Used in the default fallback UI
-- [ScrollWidget](/guide/widgets/scroll) - Used to display scrollable stack traces
+- [ScrollPanelWidget](/guide/widgets/scroll) - Used to display scrollable stack traces

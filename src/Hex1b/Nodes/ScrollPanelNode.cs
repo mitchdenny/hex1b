@@ -10,7 +10,7 @@ namespace Hex1b.Nodes;
 /// Only supports one direction at a time (vertical or horizontal).
 /// Implements ILayoutProvider to clip content that exceeds the visible viewport.
 /// </summary>
-public sealed class ScrollNode : Hex1bNode, ILayoutProvider
+public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
 {
     /// <summary>
     /// The child node to scroll.
@@ -33,7 +33,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     /// The source widget that created this node.
     /// Used to create event arguments for scroll events.
     /// </summary>
-    public ScrollWidget? SourceWidget { get; set; }
+    public ScrollPanelWidget? SourceWidget { get; set; }
     
     /// <summary>
     /// The current scroll offset (in characters).
@@ -66,7 +66,7 @@ public sealed class ScrollNode : Hex1bNode, ILayoutProvider
     
     /// <summary>
     /// The scroll action to invoke when scrolling occurs.
-    /// Set during reconciliation from the ScrollWidget's ScrollHandler.
+    /// Set during reconciliation from the ScrollPanelWidget's ScrollHandler.
     /// </summary>
     internal Func<InputBindingActionContext, int, int, int, int, Task>? ScrollAction { get; set; }
     

@@ -8,7 +8,7 @@ namespace Hex1b.Events;
 /// Event arguments for scroll position changes.
 /// Provides information about the current scroll state when scrolling occurs.
 /// </summary>
-public sealed class ScrollChangedEventArgs : WidgetEventArgs<ScrollWidget, ScrollNode>
+public sealed class ScrollChangedEventArgs : WidgetEventArgs<ScrollPanelWidget, ScrollPanelNode>
 {
     /// <summary>
     /// The current scroll offset (in characters).
@@ -66,8 +66,8 @@ public sealed class ScrollChangedEventArgs : WidgetEventArgs<ScrollWidget, Scrol
     /// Creates a new ScrollChangedEventArgs.
     /// </summary>
     public ScrollChangedEventArgs(
-        ScrollWidget widget,
-        ScrollNode node,
+        ScrollPanelWidget widget,
+        ScrollPanelNode node,
         InputBindingActionContext context,
         int offset,
         int previousOffset,
