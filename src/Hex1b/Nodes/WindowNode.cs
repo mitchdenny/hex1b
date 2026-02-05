@@ -99,6 +99,14 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         width = Math.Max(width, 10);
         height = Math.Max(height, ChromeStyle == WindowChromeStyle.None ? 3 : 5);
 
+        // Measure content with inner constraints so it knows its available space
+        if (Content != null)
+        {
+            var innerWidth = Math.Max(0, width - 2);
+            var innerHeight = Math.Max(0, height - ChromeHeight);
+            Content.Measure(new Constraints(0, innerWidth, 0, innerHeight));
+        }
+
         return constraints.Constrain(new Size(width, height));
     }
 

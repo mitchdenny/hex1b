@@ -580,20 +580,22 @@ static Hex1bWidget BuildResizableContent(int windowNum)
 
 static Hex1bWidget BuildTableContent(IReadOnlyList<Employee> data)
 {
-    return new TableWidget<Employee> { Data = data }
-        .Header(h => [
-            h.Cell("Name").Width(SizeHint.Fixed(18)),
-            h.Cell("Role").Width(SizeHint.Fixed(12)),
-            h.Cell("Age").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
-            h.Cell("Status").Width(SizeHint.Fixed(10))
-        ])
-        .Row((r, row, state) => [
-            r.Cell(row.Name),
-            r.Cell(row.Role),
-            r.Cell(row.Age.ToString()),
-            r.Cell(row.Status)
-        ])
-        .Fill();
+    return new VStackWidget([
+        new TableWidget<Employee> { Data = data }
+            .Header(h => [
+                h.Cell("Name").Width(SizeHint.Fixed(18)),
+                h.Cell("Role").Width(SizeHint.Fixed(12)),
+                h.Cell("Age").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
+                h.Cell("Status").Width(SizeHint.Fixed(10))
+            ])
+            .Row((r, row, state) => [
+                r.Cell(row.Name),
+                r.Cell(row.Role),
+                r.Cell(row.Age.ToString()),
+                r.Cell(row.Status)
+            ])
+            .Fill()
+    ]);
 }
 
 // Employee record for table data
