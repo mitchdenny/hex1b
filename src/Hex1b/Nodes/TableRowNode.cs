@@ -257,6 +257,22 @@ internal sealed class TableRowNode : Hex1bNode
             ? tableFocusedBorderColor 
             : borderColor;
         
+        // Determine row background color for focused or selected rows
+        string rowBgAnsi = "";
+        if (IsHighlighted || IsSelected == true)
+        {
+            var bg = IsHighlighted 
+                ? theme.Get(TableTheme.FocusedRowBackground) 
+                : theme.Get(TableTheme.SelectedRowBackground);
+            if (!bg.IsDefault)
+            {
+                rowBgAnsi = bg.ToBackgroundAnsi();
+                // Fill entire row with background color first
+                var spaces = new string(' ', Bounds.Width);
+                context.WriteClipped(Bounds.X, Bounds.Y, $"{rowBgAnsi}{spaces}\x1b[0m");
+            }
+        }
+        
         // Find the indices of vertical bar children to identify first/last (outer edges)
         var verticalBarIndices = new List<int>();
         for (int i = 0; i < Children.Count; i++)
@@ -264,6 +280,19 @@ internal sealed class TableRowNode : Hex1bNode
             if (Children[i] is TextBlockNode textNode && textNode.Text == "│")
             {
                 verticalBarIndices.Add(i);
+            }
+        }
+        
+        // Set ambient background so child cells inherit the row background
+        var previousAmbient = context.AmbientBackground;
+        if (!string.IsNullOrEmpty(rowBgAnsi))
+        {
+            var effectiveBg = IsHighlighted 
+                ? theme.Get(TableTheme.FocusedRowBackground) 
+                : theme.Get(TableTheme.SelectedRowBackground);
+            if (!effectiveBg.IsDefault)
+            {
+                context.AmbientBackground = effectiveBg;
             }
         }
         
@@ -277,7 +306,8 @@ internal sealed class TableRowNode : Hex1bNode
             // Check if this is a vertical border
             if (child is TextBlockNode textNode && textNode.Text == "│")
             {
-                context.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                string borderChar;
+                Hex1bColor cellBorderColor;
                 
                 // Check if this is the selection column separator (second vertical bar when HasSelectionColumn)
                 bool isSelectionColumnSeparator = HasSelectionColumn && verticalBarIndices.Count >= 2 && 
@@ -286,23 +316,27 @@ internal sealed class TableRowNode : Hex1bNode
                 if (IsHighlighted)
                 {
                     // Render a thicker border with focused color
-                    context.Write(focusedBorderColor.ToForegroundAnsi());
-                    context.Write("┃"); // Heavy vertical line as focus indicator
+                    cellBorderColor = focusedBorderColor;
+                    borderChar = "┃"; // Heavy vertical line as focus indicator
                 }
                 else
                 {
                     // All borders (outer, inner, selection separator) use effective color
-                    context.Write(effectiveBorderColor.ToForegroundAnsi());
-                    context.Write(isSelectionColumnSeparator ? selectionColumnVertical.ToString() : "│");
+                    cellBorderColor = effectiveBorderColor;
+                    borderChar = isSelectionColumnSeparator ? selectionColumnVertical.ToString() : "│";
                 }
                 
-                context.Write("\x1b[0m"); // Reset
+                // Include row background so border chars also show the highlight
+                context.WriteClipped(child.Bounds.X, child.Bounds.Y, $"{rowBgAnsi}{cellBorderColor.ToForegroundAnsi()}{borderChar}\x1b[0m");
             }
             else
             {
                 context.RenderChild(child);
             }
         }
+        
+        // Restore previous ambient background
+        context.AmbientBackground = previousAmbient;
     }
 
     public override IEnumerable<Hex1bNode> GetChildren() => Children;

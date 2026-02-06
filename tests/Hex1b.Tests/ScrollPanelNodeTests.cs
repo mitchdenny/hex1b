@@ -501,12 +501,12 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
-        // Should contain scrollbar thumb character
-        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
+        // Should contain scrollbar thumb character (horizontal uses ■, not ▉)
+        Assert.Contains("■", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -527,12 +527,12 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("■"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
         Assert.Contains("─", terminal.CreateSnapshot().GetText());
-        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
+        Assert.Contains("■", terminal.CreateSnapshot().GetText());  // Horizontal uses ■, not ▉
         // No arrows in the new minimal style
         Assert.DoesNotContain("◀", terminal.CreateSnapshot().GetText());
         Assert.DoesNotContain("▶", terminal.CreateSnapshot().GetText());
@@ -1190,9 +1190,9 @@ public class ScrollPanelNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting
+        // Capture snapshot BEFORE exiting (horizontal scrollbar uses ■, not ▉)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2)) // Wait for scroll thumb
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(2)) // Wait for scroll thumb
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1201,7 +1201,7 @@ public class ScrollPanelNodeTests
 
         // Should have scrollbar with thin track and thumb (no arrows)
         Assert.Contains("─", snapshot.GetText());
-        Assert.Contains("▉", snapshot.GetText());
+        Assert.Contains("■", snapshot.GetText());  // Horizontal uses ■
     }
 
     [Fact]

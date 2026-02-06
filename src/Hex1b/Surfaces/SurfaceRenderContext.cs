@@ -311,7 +311,20 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // Cache hit - composite cached surface at RELATIVE position
             // (child.Bounds are absolute, but _surface may have its own offset)
             CacheHits++;
-            _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY);
+            // If there's a layout provider, clip to its bounds
+            Rect? clipRect = null;
+            if (CurrentLayoutProvider != null)
+            {
+                // Convert ClipRect to surface-relative coordinates
+                var providerClip = CurrentLayoutProvider.ClipRect;
+                clipRect = new Rect(
+                    providerClip.X - _offsetX,
+                    providerClip.Y - _offsetY,
+                    providerClip.Width,
+                    providerClip.Height
+                );
+            }
+            _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
         }
         else
         {
@@ -353,7 +366,20 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 
                 // Composite onto our surface at RELATIVE position
                 // (child.Bounds are absolute, but _surface may have its own offset)
-                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY);
+                // If there's a layout provider, clip to its bounds
+                Rect? clipRect = null;
+                if (CurrentLayoutProvider != null)
+                {
+                    // Convert ClipRect to surface-relative coordinates
+                    var providerClip = CurrentLayoutProvider.ClipRect;
+                    clipRect = new Rect(
+                        providerClip.X - _offsetX,
+                        providerClip.Y - _offsetY,
+                        providerClip.Width,
+                        providerClip.Height
+                    );
+                }
+                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
             }
             else
             {

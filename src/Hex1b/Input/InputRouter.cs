@@ -8,12 +8,12 @@ public static class InputRouter
     /// <summary>
     /// Debug: The last path that was built during input routing.
     /// </summary>
-    public static string? LastPathDebug { get; private set; }
+    public static string? LastPathDebug { get; set; }
     
     /// <summary>
     /// Debug: The key that was last routed and whether a match was found.
     /// </summary>
-    public static string? LastRouteDebug { get; private set; }
+    public static string? LastRouteDebug { get; set; }
     
     /// <summary>
     /// Routes a key event through the node tree using layered chord tries.
@@ -126,11 +126,14 @@ public static class InputRouter
 
         // Build layers: focused first (index 0), root last
         // Search from focused toward root - first match wins
+        var bindingSearchDebug = new List<string>();
         for (int i = path.Count - 1; i >= 0; i--)
         {
             var node = path[i];
             var builder = node.BuildBindings();
             var bindings = builder.Build();
+            
+            bindingSearchDebug.Add($"{node.GetType().Name}:{bindings.Count}");
             
             if (bindings.Count > 0)
             {
@@ -139,6 +142,7 @@ public static class InputRouter
                 
                 if (!result.IsNoMatch)
                 {
+                    LastRouteDebug = $"Key {keyEvent.Key}: MATCHED at {node.GetType().Name}, IsLeaf={result.IsLeaf}";
                     // Found a match at this layer
                     if (result.IsLeaf)
                     {
@@ -167,6 +171,8 @@ public static class InputRouter
                 return InputResult.Handled;
             }
         }
+        
+        LastRouteDebug = $"Key {keyEvent.Key}: NO MATCH. Searched: [{string.Join(", ", bindingSearchDebug)}]";
 
         // No binding matched, let the focused node handle the input directly
         // Only call HandleInput on nodes that are actually focused
@@ -471,6 +477,7 @@ public static class InputRouter
             if (result.IsLeaf)
             {
                 // Global binding matched - execute and done
+                LastRouteDebug = $"Key {keyEvent.Key}: GLOBAL match, executing";
                 await result.ExecuteAsync(actionContext);
                 state.Reset();
                 return InputResult.Handled;
@@ -481,6 +488,7 @@ public static class InputRouter
                 // Global chord started - but we don't support global chords yet
                 // For now, treat as handled to prevent the key from being processed elsewhere
                 // TODO: Add support for global chords if needed
+                LastRouteDebug = $"Key {keyEvent.Key}: GLOBAL chord started";
                 return InputResult.Handled;
             }
         }

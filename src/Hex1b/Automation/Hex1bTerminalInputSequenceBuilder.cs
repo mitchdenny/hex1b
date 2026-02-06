@@ -293,6 +293,9 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         _mouseY = fromY;
         _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers));
         
+        // Small wait to allow the app to process the Down event and set up drag handler
+        _steps.Add(new WaitStep(TimeSpan.FromMilliseconds(10)));
+        
         _mouseX = toX;
         _mouseY = toY;
         _steps.Add(new MouseInputStep(button, MouseAction.Drag, _mouseX, _mouseY, _pendingModifiers));

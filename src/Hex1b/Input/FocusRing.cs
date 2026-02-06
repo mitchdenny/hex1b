@@ -116,6 +116,7 @@ public sealed class FocusRing
         
         // DEBUG: Log the focus change
         LastFocusChange = $"FocusNext: from index {currentIndex} to {nextIndex}, from {fromNode?.GetType().Name} to {toNode.GetType().Name}";
+        LastFocusChangeGlobal = LastFocusChange + $" (total focusables: {_focusables.Count})";
         
         return true;
     }
@@ -124,6 +125,11 @@ public sealed class FocusRing
     /// Debug log of the last focus change. Useful for testing.
     /// </summary>
     public string? LastFocusChange { get; private set; }
+    
+    /// <summary>
+    /// Global debug log of the last focus change across all FocusRing instances.
+    /// </summary>
+    public static string? LastFocusChangeGlobal { get; set; }
 
     /// <summary>
     /// Moves focus to the previous focusable node in the ring.

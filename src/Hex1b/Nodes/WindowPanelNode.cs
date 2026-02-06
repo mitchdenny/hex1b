@@ -165,7 +165,8 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         WindowNodes.AddRange(newWindowNodes);
 
         // Focus management: if windows exist, focus the active window's first focusable
-        if (activeWindow?.Node != null)
+        // But ONLY if parent is not managing focus (e.g., when popups are open, ZStack manages focus)
+        if (activeWindow?.Node != null && !context.ParentManagesFocus())
         {
             var focusables = activeWindow.Node.GetFocusableNodes().ToList();
             if (focusables.Count > 0 && !focusables.Any(f => f.IsFocused))

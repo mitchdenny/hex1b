@@ -1,4 +1,5 @@
 using Hex1b.Input;
+using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
 
@@ -9,6 +10,219 @@ namespace Hex1b.Tests;
 /// </summary>
 public class WindowFocusIntegrationTests
 {
+    /// <summary>
+    /// Tests the real scenario: MenuBar + WindowPanel + StatusBar layout.
+    /// Opens a window via menu, then verifies ALT-F opens the menu again.
+    /// </summary>
+    [Fact]
+    public async Task MenuBar_KeyboardShortcuts_WorkAfterWindowOpened()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowOpened = false;
+        var menuItemActivatedCount = 0;
+        var statusText = "Ready";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    // MenuBar at top
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New Window").OnActivated(e =>
+                            {
+                                menuItemActivatedCount++;
+                                statusText = $"Menu activated {menuItemActivatedCount} times";
+                                e.Windows.Open(
+                                    id: "test-window",
+                                    title: "Test Window",
+                                    content: () => ctx.Button("Window Content").OnClick(_ => {}),
+                                    width: 30,
+                                    height: 10,
+                                    position: new WindowPositionSpec(WindowPosition.Center),
+                                    onClose: () => { windowOpened = false; statusText = "Window closed"; }
+                                );
+                                windowOpened = true;
+                            }),
+                            menu.MenuItem("Exit").OnActivated(e =>
+                            {
+                                menuItemActivatedCount++;
+                                statusText = "Exit clicked";
+                            })
+                        ]),
+                        m.Menu("Edit", menu => [
+                            menu.MenuItem("Copy").OnActivated(e =>
+                            {
+                                menuItemActivatedCount++;
+                                statusText = "Copy clicked";
+                            })
+                        ])
+                    ]),
+                    // WindowPanel in middle (fills remaining space)
+                    outer.WindowPanel(
+                        outer.Text("Main content area")
+                    ).Height(SizeHint.Fill),
+                    // StatusBar at bottom
+                    outer.HStack(status => [
+                        status.Text("Status: ").Width(SizeHint.Content),
+                        status.Text(statusText).Width(SizeHint.Fill)
+                    ])
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Step 1: Use ALT-F to open File menu via keyboard shortcut
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
+            .Alt().Key(Hex1bKey.F)  // ALT-F to open File menu
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Verify: Menu opened (New Window is visible)
+        Assert.Equal(0, menuItemActivatedCount); // Menu just opened, nothing activated yet
+        
+        // Step 2: Press Enter to activate New Window (first item is focused)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Enter)  // Activate "New Window"
+            .WaitUntil(s => s.ContainsText("Test Window"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Verify: Window opened and menu item was activated
+        Assert.True(windowOpened, "Window should have been opened");
+        Assert.Equal(1, menuItemActivatedCount); // One menu item activated
+        
+        // Step 3: NOW THE KEY TEST - Can we still use ALT-F to open menu while window is open?
+        string? step3State = null;
+        try
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Alt().Key(Hex1bKey.F)  // ALT-F to open File menu again
+                .WaitUntil(s => 
+                {
+                    step3State = s.ToString();
+                    return s.ContainsText("New Window") && s.ContainsText("Exit");
+                }, TimeSpan.FromSeconds(1))
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        }
+        catch (TimeoutException ex)
+        {
+            Assert.Fail($"ALT-F failed to open menu after window was opened. State: {step3State}. Exception: {ex.Message}");
+        }
+
+        // Step 4: Navigate to Exit and activate it
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.DownArrow)  // Move to Exit
+            .WaitUntil(s => s.ContainsText("Exit"), TimeSpan.FromSeconds(1), "Waiting for Exit to be visible")
+            .Key(Hex1bKey.Enter)  // Activate Exit
+            .WaitUntil(_ => menuItemActivatedCount == 2, TimeSpan.FromSeconds(1), "Waiting for Exit activation")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Step 5: Verify Exit was activated (proves keyboard navigation worked)
+        Assert.Equal(2, menuItemActivatedCount);
+        Assert.Equal("Exit clicked", statusText);
+
+        // Cleanup
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    /// <summary>
+    /// Tests that arrow key navigation works in menu popups when a window is open.
+    /// </summary>
+    [Fact]
+    public async Task MenuBar_ArrowNavigation_WorksWithWindowOpen()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var activatedItems = new List<string>();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("Item 1").OnActivated(e => { activatedItems.Add("Item 1"); }),
+                            menu.MenuItem("Item 2").OnActivated(e => { activatedItems.Add("Item 2"); }),
+                            menu.MenuItem("Item 3").OnActivated(e => { activatedItems.Add("Item 3"); })
+                        ])
+                    ]),
+                    outer.WindowPanel(
+                        outer.Button("Open Window").OnClick(e =>
+                        {
+                            e.Windows.Open(
+                                id: "w1",
+                                title: "Window",
+                                content: () => ctx.Text("Content"),
+                                width: 20,
+                                height: 5
+                            );
+                        })
+                    ).Height(SizeHint.Fill),
+                    outer.Text("Status bar")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // First, open a window
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open Window"), TimeSpan.FromSeconds(2))
+            .Key(Hex1bKey.Enter)  // Click button to open window
+            .WaitUntil(s => s.ContainsText("Window"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Now try to use ALT-F to open menu
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.F)
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Empty(activatedItems); // Menu opened but nothing activated yet
+
+        // Navigate down twice (to Item 3) and activate
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(100))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Verify: Item 3 was activated (proves arrow navigation worked)
+        Assert.Single(activatedItems);
+        Assert.Equal("Item 3", activatedItems[0]);
+    }
+
+
+
     [Fact]
     public async Task OpeningSecondWindow_FocusesSecondWindow()
     {

@@ -31,7 +31,14 @@ var tableData = new List<Employee>
     new("Jack Thomas", "Analyst", 31, "On Leave"),
 };
 
+// Table option toggles
+var tableCompactMode = true;
+var tableFillWidth = true;
+var tableShowSelection = false;
+object? tableFocusedKey = tableData[0].Name;
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMcpDiagnostics("WindowingDemo", forceEnable: true)
     .WithHex1bApp((app, options) => ctx =>
     {
         // Update fireflies each frame
@@ -161,7 +168,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         e.Windows.Open(
                             id: $"table-{num}",
                             title: $"Employee Table {num}",
-                            content: () => BuildTableContent(tableData),
+                            content: () => BuildTableContent(tableData, tableCompactMode, tableFillWidth, tableShowSelection,
+                                tableFocusedKey, key => tableFocusedKey = key,
+                                isCompact => tableCompactMode = isCompact,
+                                isFill => tableFillWidth = isFill,
+                                showSel => tableShowSelection = showSel),
                             width: 65,
                             height: 18,
                             chromeStyle: WindowChromeStyle.TitleAndClose,
@@ -261,7 +272,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     ctx.InputTrigger.Windows.Open(
                                         id: $"table-notif-{num}",
                                         title: $"Employee Table {num}",
-                                        content: () => BuildTableContent(tableData),
+                                        content: () => BuildTableContent(tableData, tableCompactMode, tableFillWidth, tableShowSelection,
+                                            tableFocusedKey, key => tableFocusedKey = key,
+                                            isCompact => tableCompactMode = isCompact,
+                                            isFill => tableFillWidth = isFill,
+                                            showSel => tableShowSelection = showSel),
                                         width: 65,
                                         height: 18,
                                         chromeStyle: WindowChromeStyle.TitleAndClose,
@@ -578,26 +593,71 @@ static Hex1bWidget BuildResizableContent(int windowNum)
     ]).Fill();
 }
 
-static Hex1bWidget BuildTableContent(IReadOnlyList<Employee> data)
+static Hex1bWidget BuildTableContent(
+    IReadOnlyList<Employee> data,
+    bool isCompact,
+    bool isFillWidth,
+    bool showSelection,
+    object? focusedKey,
+    Action<object?> onFocusChanged,
+    Action<bool> onCompactChanged,
+    Action<bool> onFillWidthChanged,
+    Action<bool> onSelectionChanged)
 {
+    var table = new TableWidget<Employee> { Data = data }
+        .RowKey(e => e.Name)
+        .Header(h => [
+            h.Cell("Name").Width(SizeHint.Fill),
+            h.Cell("Role").Width(SizeHint.Fixed(12)),
+            h.Cell("Age").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
+            h.Cell("Status").Width(SizeHint.Fixed(10))
+        ])
+        .Row((r, row, state) => [
+            r.Cell(row.Name),
+            r.Cell(row.Role),
+            r.Cell(row.Age.ToString()),
+            r.Cell(row.Status)
+        ])
+        .Focus(focusedKey)
+        .OnFocusChanged(key => onFocusChanged(key))
+        .FillHeight();
+
+    if (!isCompact)
+        table = table.Full();
+
+    if (isFillWidth)
+        table = table.FillWidth();
+
+    if (showSelection)
+        table = table.SelectionColumn(
+            e => e.IsSelected,
+            (e, selected) => e.IsSelected = selected);
+
+    var onOff = new[] { "On", "Off" };
+
     return new VStackWidget([
-        new TableWidget<Employee> { Data = data }
-            .Header(h => [
-                h.Cell("Name").Width(SizeHint.Fixed(18)),
-                h.Cell("Role").Width(SizeHint.Fixed(12)),
-                h.Cell("Age").Width(SizeHint.Fixed(6)).Align(Alignment.Right),
-                h.Cell("Status").Width(SizeHint.Fixed(10))
-            ])
-            .Row((r, row, state) => [
-                r.Cell(row.Name),
-                r.Cell(row.Role),
-                r.Cell(row.Age.ToString()),
-                r.Cell(row.Status)
-            ])
-            .Fill()
+        new HStackWidget([
+            new TextBlockWidget(" Compact "),
+            new ToggleSwitchWidget(onOff, isCompact ? 0 : 1)
+                .OnSelectionChanged(e => onCompactChanged(e.SelectedIndex == 0)),
+            new TextBlockWidget("  Fill Width "),
+            new ToggleSwitchWidget(onOff, isFillWidth ? 0 : 1)
+                .OnSelectionChanged(e => onFillWidthChanged(e.SelectedIndex == 0)),
+            new TextBlockWidget("  Selection "),
+            new ToggleSwitchWidget(onOff, showSelection ? 0 : 1)
+                .OnSelectionChanged(e => onSelectionChanged(e.SelectedIndex == 0)),
+        ]),
+        table
     ]);
 }
 
 // Employee record for table data
-record Employee(string Name, string Role, int Age, string Status);
+class Employee(string name, string role, int age, string status)
+{
+    public string Name { get; } = name;
+    public string Role { get; } = role;
+    public int Age { get; } = age;
+    public string Status { get; } = status;
+    public bool IsSelected { get; set; }
+}
 

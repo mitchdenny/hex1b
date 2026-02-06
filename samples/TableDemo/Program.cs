@@ -442,6 +442,7 @@ Hex1bWidget BuildThemedScenario<TParent>(WidgetContext<TParent> ctx) where TPare
 
 using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
+    .WithMcpDiagnostics("TableDemo", forceEnable: true)
     .WithHex1bApp((app, options) => ctx =>
     {
         return ctx.VStack(v => [

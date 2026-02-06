@@ -55,6 +55,23 @@ public sealed class NotificationPanelNode : Hex1bNode
                 "No notification host found. Ensure NotificationPanel is inside a ZStack.");
         }
     }
+    
+    /// <summary>
+    /// Returns true if a notification host exists in the parent chain.
+    /// Safe to call during reconciliation when parent chain may not be fully set up.
+    /// </summary>
+    private bool HasNotificationHost()
+    {
+        if (_cachedStack != null) return true;
+        
+        var current = Parent;
+        while (current != null)
+        {
+            if (current is INotificationHost) return true;
+            current = current.Parent;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Clears the cached notification stack reference.
@@ -266,6 +283,19 @@ public sealed class NotificationPanelNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
+        // If no host is available yet (during reconciliation), just return content focusables
+        if (!HasNotificationHost())
+        {
+            if (Content != null)
+            {
+                foreach (var focusable in Content.GetFocusableNodes())
+                {
+                    yield return focusable;
+                }
+            }
+            yield break;
+        }
+        
         if (IsDrawerExpanded)
         {
             // When drawer is expanded, content focusables should be yielded FIRST

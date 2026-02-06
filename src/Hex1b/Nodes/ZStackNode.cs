@@ -50,9 +50,11 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     private Rect _resolvedClipRect;
 
     /// <summary>
-    /// ZStack manages focus for its descendants, so nested containers don't independently set focus.
+    /// ZStack only manages child focus when popups are open.
+    /// This allows nested containers (like WindowPanelNode) to set focus normally
+    /// when no popups are present, but defers to ZStack when popups take focus.
     /// </summary>
-    public override bool ManagesChildFocus => true;
+    public override bool ManagesChildFocus => Popups.Entries.Count > 0;
 
     #region ILayoutProvider Implementation
     

@@ -11,11 +11,6 @@ namespace Hex1b.Widgets;
 public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
 {
     /// <summary>
-    /// Debug: Last focus management state. Used for testing.
-    /// </summary>
-    public static string? LastFocusDebug { get; internal set; }
-    
-    /// <summary>
     /// The clipping scope for this ZStack's content.
     /// Defaults to parent bounds.
     /// </summary>
@@ -122,53 +117,46 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
             newPopupsAdded ||
             topmostPopupReplaced;
         
-        // Debug: Track focus management state - only update when shouldFocusTopmost is true
-        // to capture the moment focus is supposed to be set
-        var debugInfo = $"shouldFocusTopmost={shouldFocusTopmost}, context.IsNew={context.IsNew}, newPopupsAdded={newPopupsAdded}, topmostPopupReplaced={topmostPopupReplaced}, previousPopupCount={previousPopupCount}, currentPopupCount={currentPopupCount}";
         if (shouldFocusTopmost)
         {
-            LastFocusDebug = debugInfo + " [FOCUS TRIGGERED]";
-        }
-        else
-        {
-            // Only update if we haven't captured a trigger yet
-            LastFocusDebug ??= debugInfo;
-        }
-            
-        if (shouldFocusTopmost)
-        {
-            // First, clear focus on ALL focusables in the tree
+            // First, clear focus on ALL nodes in the tree (recursively)
             // This ensures only the new popup content has focus
-            var clearedNodes = new List<string>();
             foreach (var child in node.Children)
             {
-                foreach (var focusable in child.GetFocusableNodes())
-                {
-                    if (focusable.IsFocused)
-                    {
-                        clearedNodes.Add(focusable.GetType().Name);
-                        ReconcileContext.SetNodeFocus(focusable, false);
-                    }
-                }
+                ClearFocusRecursive(child);
             }
             
-            // Iterate children in reverse (topmost first) to find focusables
-            string? focusedNodeType = null;
+            // Set focus on first focusable in topmost layer
             for (int i = node.Children.Count - 1; i >= 0; i--)
             {
                 var focusables = node.Children[i].GetFocusableNodes().ToList();
                 if (focusables.Count > 0)
                 {
-                    focusedNodeType = focusables[0].GetType().Name;
                     ReconcileContext.SetNodeFocus(focusables[0], true);
                     break;
                 }
             }
-            
-            LastFocusDebug = debugInfo + $" [FOCUS TRIGGERED: cleared=[{string.Join(",", clearedNodes)}], focused={focusedNodeType}]";
         }
         
         return node;
+    }
+    
+    /// <summary>
+    /// Recursively clears IsFocused on all focusable nodes in the subtree.
+    /// </summary>
+    private static void ClearFocusRecursive(Hex1bNode node)
+    {
+        // Clear this node's focus if it's focusable
+        if (node.IsFocusable && node.IsFocused)
+        {
+            ReconcileContext.SetNodeFocus(node, false);
+        }
+        
+        // Recursively process children
+        foreach (var child in node.GetChildren())
+        {
+            ClearFocusRecursive(child);
+        }
     }
 
     internal override Type GetExpectedNodeType() => typeof(ZStackNode);

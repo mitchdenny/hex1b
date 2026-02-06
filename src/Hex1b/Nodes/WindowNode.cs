@@ -676,8 +676,16 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             ParentLayoutProvider = previousLayout;
             context.CurrentLayoutProvider = this;
 
+            // Propagate content background so children inherit the window's background
+            var previousAmbient = context.AmbientBackground;
+            if (!contentBg.IsDefault)
+            {
+                context.AmbientBackground = contentBg;
+            }
+
             context.RenderChild(Content);
 
+            context.AmbientBackground = previousAmbient;
             context.CurrentLayoutProvider = previousLayout;
             ParentLayoutProvider = null;
         }
