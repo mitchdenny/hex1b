@@ -33,7 +33,7 @@ public class ScrollTrackingExample(ILogger<ScrollTrackingExample> logger) : Hex1
                 v.Text($"Viewing: {scrollPosition + 1} - {endVisible} of {totalContent}"),
                 v.Text(""),
                 v.Border(
-                    v.VScroll(
+                    v.VScrollPanel(
                         inner => items.Select(item => inner.Text(item)).ToArray()
                     ).OnScroll(args => {
                         scrollPosition = args.Offset;

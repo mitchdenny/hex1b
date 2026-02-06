@@ -32,7 +32,7 @@ public class ScrollInfiniteExample(ILogger<ScrollInfiniteExample> logger) : Hex1
                 v.Text(status),
                 v.Text(""),
                 v.Border(
-                    v.VScroll(
+                    v.VScrollPanel(
                         inner => loadedItems.Select(item => inner.Text(item)).ToArray()
                     ).OnScroll(args => {
                         // Load more when scrolled past 80%

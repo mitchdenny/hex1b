@@ -24,7 +24,7 @@ public class ScrollBasicExample(ILogger<ScrollBasicExample> logger) : Hex1bExamp
             var ctx = new RootContext();
 
             return ctx.Border(
-                ctx.VScroll(
+                ctx.VScrollPanel(
                     v => [
                         v.Text("═══ Scrollable Content ═══"),
                         v.Text(""),
