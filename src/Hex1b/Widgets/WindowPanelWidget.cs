@@ -19,7 +19,7 @@ namespace Hex1b.Widgets;
 /// <code>
 /// ctx.Button("Open").OnClick(e =&gt; {
 ///     e.Context.Windows.Open("settings", "Settings", 
-///         content: c =&gt; c.Text("Hello"));
+///         () =&gt; c.Text("Hello"));
 /// });
 /// </code>
 /// </para>

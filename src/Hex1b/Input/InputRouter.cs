@@ -28,7 +28,7 @@ public static class InputRouter
     /// 7. If leaf matched, execute action
     /// 8. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
-    public static async Task<InputResult> RouteInputAsync(
+    internal static async Task<InputResult> RouteInputAsync(
         Hex1bNode root, 
         Hex1bEvent inputEvent, 
         FocusRing focusRing,
@@ -308,7 +308,7 @@ public static class InputRouter
     /// <param name="invalidate">Optional callback to invalidate the app and trigger re-render.</param>
     /// <param name="windowManagerRegistry">Optional registry for window managers.</param>
     /// <returns>The result of input processing.</returns>
-    public static async Task<InputResult> RouteInputToNodeAsync(
+    internal static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
         Hex1bKeyEvent keyEvent, 
         FocusRing? focusRing = null, 

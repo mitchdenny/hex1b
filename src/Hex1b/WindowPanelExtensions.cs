@@ -22,9 +22,9 @@ public static class WindowPanelExtensions
     ///         v.Text("Main content"),
     ///         v.Button("Open Window").OnClick(e => {
     ///             e.Context.Windows.Open(
-    ///                 id: "settings",
-    ///                 title: "Settings",
-    ///                 content: () => e.Context.VStack(v => [
+    ///                 "settings",
+    ///                 "Settings",
+    ///                 () => e.Context.VStack(v => [
     ///                     v.Text("Window content")
     ///                 ])
     ///             );

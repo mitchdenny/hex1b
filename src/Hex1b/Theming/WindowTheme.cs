@@ -39,23 +39,6 @@ public static class WindowTheme
     public static readonly Hex1bThemeElement<Hex1bColor> CloseButtonHoverBackground = 
         new($"{nameof(WindowTheme)}.{nameof(CloseButtonHoverBackground)}", () => Hex1bColor.FromRgb(200, 50, 50));
     
-    // Minimize button
-    public static readonly Hex1bThemeElement<string> MinimizeButtonGlyph = 
-        new($"{nameof(WindowTheme)}.{nameof(MinimizeButtonGlyph)}", () => "−");
-    
-    public static readonly Hex1bThemeElement<Hex1bColor> MinimizeButtonForeground = 
-        new($"{nameof(WindowTheme)}.{nameof(MinimizeButtonForeground)}", () => Hex1bColor.White);
-    
-    // Maximize button
-    public static readonly Hex1bThemeElement<string> MaximizeButtonGlyph = 
-        new($"{nameof(WindowTheme)}.{nameof(MaximizeButtonGlyph)}", () => "□");
-    
-    public static readonly Hex1bThemeElement<string> RestoreButtonGlyph = 
-        new($"{nameof(WindowTheme)}.{nameof(RestoreButtonGlyph)}", () => "◱");
-    
-    public static readonly Hex1bThemeElement<Hex1bColor> MaximizeButtonForeground = 
-        new($"{nameof(WindowTheme)}.{nameof(MaximizeButtonForeground)}", () => Hex1bColor.White);
-    
     // Border characters
     public static readonly Hex1bThemeElement<string> TopLeftCorner = 
         new($"{nameof(WindowTheme)}.{nameof(TopLeftCorner)}", () => "┌");

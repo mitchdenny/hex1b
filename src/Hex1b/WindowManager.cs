@@ -27,13 +27,12 @@ namespace Hex1b;
 /// <code>
 /// ctx.Button("Open Settings").OnClick(e =&gt; {
 ///     e.Context.Windows.Open(
-///         id: "settings",
-///         title: "Settings",
-///         width: 60,
-///         height: 20,
-///         content: ctx =&gt; ctx.VStack(v =&gt; [
+///         "settings",
+///         "Settings",
+///         () =&gt; ctx.VStack(v =&gt; [
 ///             v.Text("Settings content here")
-///         ])
+///         ]),
+///         new WindowOptions { Width = 60, Height = 20 }
 ///     );
 /// });
 /// </code>
@@ -105,56 +104,37 @@ public sealed class WindowManager
     /// </summary>
     /// <param name="id">Unique identifier for the window. If a window with this ID exists, it is brought to front instead.</param>
     /// <param name="title">The window title.</param>
-    /// <param name="content">Builder function for window content. Called each reconciliation to build the widget.</param>
-    /// <param name="width">Initial width of the window.</param>
-    /// <param name="height">Initial height of the window.</param>
-    /// <param name="x">Initial X position (null to use position parameter).</param>
-    /// <param name="y">Initial Y position (null to use position parameter).</param>
-    /// <param name="position">Positioning strategy when x/y are null. Defaults to Center.</param>
-    /// <param name="isModal">Whether this is a modal window.</param>
-    /// <param name="isResizable">Whether the window can be resized.</param>
-    /// <param name="minWidth">Minimum width for resize operations.</param>
-    /// <param name="minHeight">Minimum height for resize operations.</param>
-    /// <param name="maxWidth">Maximum width for resize operations (null = unbounded).</param>
-    /// <param name="maxHeight">Maximum height for resize operations (null = unbounded).</param>
-    /// <param name="onClose">Callback when the window is closed.</param>
-    /// <param name="onActivated">Callback when the window becomes active (brought to front).</param>
-    /// <param name="onDeactivated">Callback when the window loses active status.</param>
-    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
-    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close.</param>
-    /// <param name="onMinimize">Callback when the window is minimized.</param>
-    /// <param name="onMaximize">Callback when the window is maximized.</param>
-    /// <param name="onRestore">Callback when the window is restored from minimized/maximized.</param>
-    /// <param name="allowOutOfBounds">Whether this window can be moved outside the panel bounds.</param>
+    /// <param name="content">Builder function for window content. Receives a context for fluent widget construction.</param>
+    /// <param name="options">Configuration options for the window. If null, uses <see cref="WindowOptions.Default"/>.</param>
     /// <returns>The window entry.</returns>
+    /// <example>
+    /// <code>
+    /// // Simple window with fluent content
+    /// e.Windows.Open("my-window", "My Window", w => w.Text("Hello!"));
+    /// 
+    /// // Window with custom options
+    /// e.Windows.Open("settings", "Settings", w => w.VStack(v => [
+    ///     v.Text("Settings content")
+    /// ]), new WindowOptions
+    /// {
+    ///     Width = 60,
+    ///     Height = 20,
+    ///     IsResizable = true,
+    ///     Position = new WindowPositionSpec(WindowPosition.TopRight)
+    /// });
+    /// </code>
+    /// </example>
     public WindowEntry Open(
         string id,
         string title,
-        Func<Hex1bWidget> content,
-        int width = 40,
-        int height = 15,
-        int? x = null,
-        int? y = null,
-        WindowPositionSpec position = default,
-        bool isModal = false,
-        bool isResizable = false,
-        int minWidth = 10,
-        int minHeight = 5,
-        int? maxWidth = null,
-        int? maxHeight = null,
-        Action? onClose = null,
-        Action? onActivated = null,
-        Action? onDeactivated = null,
-        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
-        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close,
-        Action? onMinimize = null,
-        Action? onMaximize = null,
-        Action? onRestore = null,
-        bool allowOutOfBounds = false)
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
+        WindowOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(title);
         ArgumentNullException.ThrowIfNull(content);
+
+        options ??= WindowOptions.Default;
 
         lock (_lock)
         {
@@ -171,27 +151,26 @@ public sealed class WindowManager
                 id: id,
                 title: title,
                 contentBuilder: content,
-                width: width,
-                height: height,
-                x: x,
-                y: y,
-                positionSpec: position,
-                isModal: isModal,
-                isResizable: isResizable,
-                minWidth: minWidth,
-                minHeight: minHeight,
-                maxWidth: maxWidth,
-                maxHeight: maxHeight,
-                onClose: onClose,
-                onActivated: onActivated,
-                onDeactivated: onDeactivated,
-                chromeStyle: chromeStyle,
-                escapeBehavior: escapeBehavior,
-                onMinimize: onMinimize,
-                onMaximize: onMaximize,
-                onRestore: onRestore,
+                width: options.Width,
+                height: options.Height,
+                x: options.X,
+                y: options.Y,
+                positionSpec: options.Position,
+                isModal: options.IsModal,
+                isResizable: options.IsResizable,
+                minWidth: options.MinWidth,
+                minHeight: options.MinHeight,
+                maxWidth: options.MaxWidth,
+                maxHeight: options.MaxHeight,
+                onClose: options.OnClose,
+                onActivated: options.OnActivated,
+                onDeactivated: options.OnDeactivated,
+                showTitleBar: options.ShowTitleBar,
+                leftTitleBarActions: options.LeftTitleBarActions ?? [],
+                rightTitleBarActions: options.RightTitleBarActions ?? [WindowAction.Close()],
+                escapeBehavior: options.EscapeBehavior,
                 zIndex: _nextZIndex++,
-                allowOutOfBounds: allowOutOfBounds
+                allowOutOfBounds: options.AllowOutOfBounds
             );
 
             _entries.Add(entry);
@@ -209,10 +188,7 @@ public sealed class WindowManager
     /// <param name="id">Unique identifier for the window.</param>
     /// <param name="title">The window title.</param>
     /// <param name="content">Builder function for window content.</param>
-    /// <param name="width">Initial width of the window.</param>
-    /// <param name="height">Initial height of the window.</param>
-    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
-    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close (which will return default(TResult)).</param>
+    /// <param name="options">Configuration options. <see cref="WindowOptions.IsModal"/> is automatically set to true.</param>
     /// <returns>A task that completes when the modal is closed, containing the result.</returns>
     /// <remarks>
     /// <para>
@@ -221,13 +197,12 @@ public sealed class WindowManager
     /// the modal cannot receive clicks to close it, causing a deadlock.
     /// </para>
     /// <para>
-    /// Instead, use the regular <see cref="Open"/> method with <c>isModal: true</c> and handle the
-    /// result in button click handlers or the <c>onClose</c> callback:
+    /// Instead, use the regular <see cref="Open"/> method with <c>IsModal = true</c> and handle the
+    /// result in button click handlers or the <c>OnClose</c> callback:
     /// </para>
     /// <code>
     /// // ✓ Correct: Use Open with callbacks
-    /// e.Windows.Open("confirm", "Confirm", () => ..., isModal: true,
-    ///     onClose: () => { /* handle close */ });
+    /// e.Windows.Open("confirm", "Confirm", () => ..., new WindowOptions { IsModal = true, OnClose = () => { /* handle close */ } });
     /// 
     /// // ✗ Wrong: Don't await in event handlers
     /// var result = await e.Windows.OpenModalAsync&lt;bool&gt;(...); // DEADLOCK!
@@ -240,30 +215,43 @@ public sealed class WindowManager
     public Task<TResult?> OpenModalAsync<TResult>(
         string id,
         string title,
-        Func<Hex1bWidget> content,
-        int width = 40,
-        int height = 15,
-        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
-        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close)
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
+        WindowOptions? options = null)
     {
         var tcs = new TaskCompletionSource<object?>();
+        options ??= WindowOptions.Dialog;
         
-        var entry = Open(
-            id: id,
-            title: title,
-            content: content,
-            width: width,
-            height: height,
-            isModal: true,
-            chromeStyle: chromeStyle,
-            escapeBehavior: escapeBehavior,
-            onClose: () =>
+        // Create a new options instance that forces IsModal and captures the close callback
+        var existingOnClose = options.OnClose;
+        var modalOptions = new WindowOptions
+        {
+            Width = options.Width,
+            Height = options.Height,
+            X = options.X,
+            Y = options.Y,
+            Position = options.Position,
+            IsModal = true, // Always modal for this method
+            IsResizable = options.IsResizable,
+            MinWidth = options.MinWidth,
+            MinHeight = options.MinHeight,
+            MaxWidth = options.MaxWidth,
+            MaxHeight = options.MaxHeight,
+            AllowOutOfBounds = options.AllowOutOfBounds,
+            OnActivated = options.OnActivated,
+            OnDeactivated = options.OnDeactivated,
+            ShowTitleBar = options.ShowTitleBar,
+            LeftTitleBarActions = options.LeftTitleBarActions,
+            RightTitleBarActions = options.RightTitleBarActions,
+            EscapeBehavior = options.EscapeBehavior,
+            OnClose = () =>
             {
+                existingOnClose?.Invoke();
                 // If closed without result (e.g., by Escape), complete with default
                 tcs.TrySetResult(default);
             }
-        );
+        };
         
+        var entry = Open(id, title, content, modalOptions);
         entry.ResultSource = tcs;
         
         return tcs.Task.ContinueWith(t => t.Result is TResult r ? r : default);
@@ -275,11 +263,8 @@ public sealed class WindowManager
     /// </summary>
     /// <param name="id">Unique identifier for the window.</param>
     /// <param name="title">The window title.</param>
-    /// <param name="content">Builder function for window content.</param>
-    /// <param name="width">Initial width of the window.</param>
-    /// <param name="height">Initial height of the window.</param>
-    /// <param name="chromeStyle">The chrome style (buttons displayed). Defaults to TitleAndClose.</param>
-    /// <param name="escapeBehavior">How Escape key is handled. Defaults to Close.</param>
+    /// <param name="content">Builder function for window content. Receives a context for fluent widget construction.</param>
+    /// <param name="options">Configuration options. <see cref="WindowOptions.IsModal"/> is automatically set to true.</param>
     /// <returns>A task that completes when the modal is closed.</returns>
     /// <remarks>
     /// <para>
@@ -290,29 +275,10 @@ public sealed class WindowManager
     public Task OpenModalAsync(
         string id,
         string title,
-        Func<Hex1bWidget> content,
-        int width = 40,
-        int height = 15,
-        WindowChromeStyle chromeStyle = WindowChromeStyle.TitleAndClose,
-        WindowEscapeBehavior escapeBehavior = WindowEscapeBehavior.Close)
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
+        WindowOptions? options = null)
     {
-        var tcs = new TaskCompletionSource<object?>();
-        
-        var entry = Open(
-            id: id,
-            title: title,
-            content: content,
-            width: width,
-            height: height,
-            isModal: true,
-            chromeStyle: chromeStyle,
-            escapeBehavior: escapeBehavior,
-            onClose: () => tcs.TrySetResult(null)
-        );
-        
-        entry.ResultSource = tcs;
-        
-        return tcs.Task;
+        return OpenModalAsync<object>(id, title, content, options);
     }
 
     /// <summary>
@@ -508,67 +474,6 @@ public sealed class WindowManager
         Changed?.Invoke();
     }
 
-    /// <summary>
-    /// Sets the window state (Normal, Minimized, Maximized).
-    /// </summary>
-    /// <param name="entry">The window entry.</param>
-    /// <param name="newState">The new state.</param>
-    public void SetWindowState(WindowEntry entry, WindowState newState)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-
-        lock (_lock)
-        {
-            if (!_entries.Contains(entry))
-                return;
-
-            var oldState = entry.State;
-            if (oldState == newState)
-                return;
-
-            // Handle state transition
-            switch (newState)
-            {
-                case WindowState.Minimized:
-                    entry.State = WindowState.Minimized;
-                    entry.OnMinimize?.Invoke();
-                    break;
-
-                case WindowState.Maximized:
-                    // Save current size/position for restore
-                    if (oldState == WindowState.Normal)
-                    {
-                        entry.PreMaximizeSize = (entry.Width, entry.Height);
-                        entry.PreMaximizePosition = entry.X.HasValue && entry.Y.HasValue
-                            ? (entry.X.Value, entry.Y.Value)
-                            : null;
-                    }
-                    entry.State = WindowState.Maximized;
-                    entry.OnMaximize?.Invoke();
-                    break;
-
-                case WindowState.Normal:
-                    // Restore previous size/position if available
-                    if (oldState == WindowState.Maximized && entry.PreMaximizeSize.HasValue)
-                    {
-                        entry.Width = entry.PreMaximizeSize.Value.Width;
-                        entry.Height = entry.PreMaximizeSize.Value.Height;
-                        if (entry.PreMaximizePosition.HasValue)
-                        {
-                            entry.X = entry.PreMaximizePosition.Value.X;
-                            entry.Y = entry.PreMaximizePosition.Value.Y;
-                        }
-                        entry.PreMaximizeSize = null;
-                        entry.PreMaximizePosition = null;
-                    }
-                    entry.State = WindowState.Normal;
-                    entry.OnRestore?.Invoke();
-                    break;
-            }
-        }
-
-        Changed?.Invoke();
-    }
 }
 
 /// <summary>
@@ -580,7 +485,7 @@ public sealed class WindowEntry
         WindowManager manager,
         string id,
         string title,
-        Func<Hex1bWidget> contentBuilder,
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> contentBuilder,
         int width,
         int height,
         int? x,
@@ -595,11 +500,10 @@ public sealed class WindowEntry
         Action? onClose,
         Action? onActivated,
         Action? onDeactivated,
-        WindowChromeStyle chromeStyle,
+        bool showTitleBar,
+        IReadOnlyList<WindowAction> leftTitleBarActions,
+        IReadOnlyList<WindowAction> rightTitleBarActions,
         WindowEscapeBehavior escapeBehavior,
-        Action? onMinimize,
-        Action? onMaximize,
-        Action? onRestore,
         int zIndex,
         bool allowOutOfBounds)
     {
@@ -621,11 +525,10 @@ public sealed class WindowEntry
         OnClose = onClose;
         OnActivated = onActivated;
         OnDeactivated = onDeactivated;
-        ChromeStyle = chromeStyle;
+        ShowTitleBar = showTitleBar;
+        LeftTitleBarActions = leftTitleBarActions;
+        RightTitleBarActions = rightTitleBarActions;
         EscapeBehavior = escapeBehavior;
-        OnMinimize = onMinimize;
-        OnMaximize = onMaximize;
-        OnRestore = onRestore;
         ZIndex = zIndex;
         AllowOutOfBounds = allowOutOfBounds;
     }
@@ -645,7 +548,7 @@ public sealed class WindowEntry
     /// <summary>
     /// Builder function for the window content.
     /// </summary>
-    internal Func<Hex1bWidget> ContentBuilder { get; }
+    internal Func<WidgetContext<Hex1bWidget>, Hex1bWidget> ContentBuilder { get; }
 
     /// <summary>
     /// Current width of the window.
@@ -724,9 +627,19 @@ public sealed class WindowEntry
     internal Action? OnDeactivated { get; }
 
     /// <summary>
-    /// The chrome style for this window.
+    /// Whether the title bar is displayed.
     /// </summary>
-    public WindowChromeStyle ChromeStyle { get; }
+    public bool ShowTitleBar { get; }
+
+    /// <summary>
+    /// Actions displayed on the left side of the title bar.
+    /// </summary>
+    public IReadOnlyList<WindowAction> LeftTitleBarActions { get; }
+
+    /// <summary>
+    /// Actions displayed on the right side of the title bar.
+    /// </summary>
+    public IReadOnlyList<WindowAction> RightTitleBarActions { get; }
 
     /// <summary>
     /// How Escape key is handled for this window.
@@ -734,39 +647,9 @@ public sealed class WindowEntry
     public WindowEscapeBehavior EscapeBehavior { get; }
 
     /// <summary>
-    /// Callback invoked when the window is minimized.
-    /// </summary>
-    internal Action? OnMinimize { get; }
-
-    /// <summary>
-    /// Callback invoked when the window is maximized.
-    /// </summary>
-    internal Action? OnMaximize { get; }
-
-    /// <summary>
-    /// Callback invoked when the window is restored from minimized/maximized.
-    /// </summary>
-    internal Action? OnRestore { get; }
-
-    /// <summary>
     /// Z-order index (higher = on top).
     /// </summary>
     public int ZIndex { get; internal set; }
-
-    /// <summary>
-    /// The current window state.
-    /// </summary>
-    public WindowState State { get; internal set; } = WindowState.Normal;
-
-    /// <summary>
-    /// Stored size before maximizing, for restore.
-    /// </summary>
-    internal (int Width, int Height)? PreMaximizeSize { get; set; }
-
-    /// <summary>
-    /// Stored position before maximizing, for restore.
-    /// </summary>
-    internal (int X, int Y)? PreMaximizePosition { get; set; }
 
     /// <summary>
     /// The reconciled window node. Set by WindowPanelNode during reconciliation.
@@ -810,79 +693,6 @@ public sealed class WindowEntry
     /// Brings this window to the front.
     /// </summary>
     public void BringToFront() => Manager.BringToFront(this);
-
-    /// <summary>
-    /// Minimizes this window.
-    /// </summary>
-    public void Minimize() => Manager.SetWindowState(this, WindowState.Minimized);
-
-    /// <summary>
-    /// Maximizes this window.
-    /// </summary>
-    public void Maximize() => Manager.SetWindowState(this, WindowState.Maximized);
-
-    /// <summary>
-    /// Restores this window to normal state.
-    /// </summary>
-    public void Restore() => Manager.SetWindowState(this, WindowState.Normal);
-
-    /// <summary>
-    /// Toggles between maximized and normal state.
-    /// </summary>
-    public void ToggleMaximize()
-    {
-        if (State == WindowState.Maximized)
-            Restore();
-        else
-            Maximize();
-    }
-}
-
-/// <summary>
-/// Represents the state of a window.
-/// </summary>
-public enum WindowState
-{
-    /// <summary>
-    /// Normal window state.
-    /// </summary>
-    Normal,
-
-    /// <summary>
-    /// Window is minimized.
-    /// </summary>
-    Minimized,
-
-    /// <summary>
-    /// Window is maximized to fill the panel.
-    /// </summary>
-    Maximized
-}
-
-/// <summary>
-/// Controls which chrome elements (title bar, buttons) are displayed on a window.
-/// </summary>
-public enum WindowChromeStyle
-{
-    /// <summary>
-    /// No window chrome - just content with border.
-    /// </summary>
-    None,
-
-    /// <summary>
-    /// Title bar only, no buttons.
-    /// </summary>
-    TitleOnly,
-
-    /// <summary>
-    /// Title bar with close button.
-    /// </summary>
-    TitleAndClose,
-
-    /// <summary>
-    /// Title bar with close, minimize, and maximize buttons.
-    /// </summary>
-    Full
 }
 
 /// <summary>

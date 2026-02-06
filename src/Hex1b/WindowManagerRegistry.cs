@@ -13,7 +13,7 @@ namespace Hex1b;
 /// WindowPanels, each must have a unique name.
 /// </para>
 /// </remarks>
-public sealed class WindowManagerRegistry
+internal sealed class WindowManagerRegistry
 {
     private readonly Dictionary<string, WindowManager> _managers = new();
     private WindowManager? _defaultManager;

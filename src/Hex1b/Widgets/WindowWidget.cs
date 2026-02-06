@@ -18,11 +18,14 @@ internal sealed record WindowWidget(WindowEntry Entry) : Hex1bWidget
         node.Title = Entry.Title;
         node.IsResizable = Entry.IsResizable;
         node.IsModal = Entry.IsModal;
-        node.ChromeStyle = Entry.ChromeStyle;
+        node.ShowTitleBar = Entry.ShowTitleBar;
+        node.LeftTitleBarActions = Entry.LeftTitleBarActions;
+        node.RightTitleBarActions = Entry.RightTitleBarActions;
         node.EscapeBehavior = Entry.EscapeBehavior;
 
         // Build and reconcile the content
-        var contentWidget = Entry.ContentBuilder();
+        var windowContext = new WidgetContext<Hex1bWidget>();
+        var contentWidget = Entry.ContentBuilder(windowContext);
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);
         node.Content = await childContext.ReconcileChildAsync(node.Content, contentWidget, node);
 

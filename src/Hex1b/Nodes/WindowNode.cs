@@ -32,9 +32,19 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     public bool IsResizable { get; set; }
 
     /// <summary>
-    /// The chrome style for this window.
+    /// Whether the title bar is displayed.
     /// </summary>
-    public WindowChromeStyle ChromeStyle { get; set; } = WindowChromeStyle.TitleAndClose;
+    public bool ShowTitleBar { get; set; } = true;
+
+    /// <summary>
+    /// Actions displayed on the left side of the title bar.
+    /// </summary>
+    public IReadOnlyList<WindowAction> LeftTitleBarActions { get; set; } = [];
+
+    /// <summary>
+    /// Actions displayed on the right side of the title bar.
+    /// </summary>
+    public IReadOnlyList<WindowAction> RightTitleBarActions { get; set; } = [WindowAction.Close()];
 
     /// <summary>
     /// How Escape key is handled for this window.
@@ -45,6 +55,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     /// Whether this is a modal window.
     /// </summary>
     public bool IsModal { get; set; }
+
+    // Composable title bar nodes
+    private HStackNode? _titleBarNode;
+    private readonly List<TitleBarIconNode> _leftActionNodes = new();
+    private TextBlockNode? _titleTextNode;
+    private readonly List<TitleBarIconNode> _rightActionNodes = new();
 
     /// <summary>
     /// Whether this window is the active (topmost) window.
@@ -62,12 +78,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Gets the vertical offset for content (border + optional title bar).
     /// </summary>
-    private int ContentYOffset => ChromeStyle == WindowChromeStyle.None ? 1 : 2;
+    private int ContentYOffset => ShowTitleBar ? 2 : 1;
 
     /// <summary>
     /// Gets the height taken by chrome (borders + optional title bar).
     /// </summary>
-    private int ChromeHeight => ChromeStyle == WindowChromeStyle.None ? 2 : 3;
+    private int ChromeHeight => ShowTitleBar ? 3 : 2;
 
     /// <summary>
     /// The clip rectangle for child content (inner area excluding border and title bar).
@@ -89,6 +105,56 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
     #endregion
 
+    /// <summary>
+    /// Rebuilds the composable title bar node structure when actions or title change.
+    /// </summary>
+    private void RebuildTitleBarNodes()
+    {
+        if (!ShowTitleBar)
+        {
+            _titleBarNode = null;
+            return;
+        }
+
+        // Build left action nodes
+        _leftActionNodes.Clear();
+        foreach (var action in LeftTitleBarActions)
+        {
+            var iconNode = new TitleBarIconNode { Action = action, Entry = Entry };
+            _leftActionNodes.Add(iconNode);
+        }
+
+        // Build title text node (fills remaining space)
+        _titleTextNode = new TextBlockNode 
+        { 
+            Text = Title,
+            Overflow = TextOverflow.Ellipsis,
+            WidthHint = SizeHint.Fill
+        };
+
+        // Build right action nodes
+        _rightActionNodes.Clear();
+        foreach (var action in RightTitleBarActions)
+        {
+            var iconNode = new TitleBarIconNode { Action = action, Entry = Entry };
+            _rightActionNodes.Add(iconNode);
+        }
+
+        // Create HStack with all children: left icons + title + right icons
+        var children = new List<Hex1bNode>();
+        children.AddRange(_leftActionNodes);
+        children.Add(_titleTextNode);
+        children.AddRange(_rightActionNodes);
+        
+        // Add trailing spacer for right actions (1 space padding)
+        if (RightTitleBarActions.Count > 0)
+        {
+            children.Add(new TitleBarSpacerNode(1));
+        }
+
+        _titleBarNode = new HStackNode { Children = children };
+    }
+
     public override Size Measure(Constraints constraints)
     {
         // Windows have fixed size from their entry
@@ -97,7 +163,18 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
         // Ensure minimum size for border + title bar
         width = Math.Max(width, 10);
-        height = Math.Max(height, ChromeStyle == WindowChromeStyle.None ? 3 : 5);
+        height = Math.Max(height, ShowTitleBar ? 5 : 3);
+
+        // Rebuild and measure title bar nodes
+        if (ShowTitleBar)
+        {
+            RebuildTitleBarNodes();
+            if (_titleBarNode != null)
+            {
+                var innerWidth = Math.Max(0, width - 2);
+                _titleBarNode.Measure(new Constraints(0, innerWidth, 0, 1));
+            }
+        }
 
         // Measure content with inner constraints so it knows its available space
         if (Content != null)
@@ -113,6 +190,18 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     public override void Arrange(Rect bounds)
     {
         base.Arrange(bounds);
+
+        // Arrange title bar in the area between borders
+        if (ShowTitleBar && _titleBarNode != null)
+        {
+            var titleBarBounds = new Rect(
+                bounds.X + 1,  // After left border
+                bounds.Y + 1,  // Title bar is row 1 (row 0 is top border)
+                Math.Max(0, bounds.Width - 2),  // Minus left and right borders
+                1
+            );
+            _titleBarNode.Arrange(titleBarBounds);
+        }
 
         // Content gets the inner area (minus border and optional title bar)
         if (Content != null)
@@ -175,6 +264,15 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         // When clicking on non-focusable areas within window bounds, WindowNode is the match
         yield return this;
         
+        // Title bar action nodes are focusable
+        if (_titleBarNode != null)
+        {
+            foreach (var focusable in _titleBarNode.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
+        
         if (Content != null)
         {
             foreach (var focusable in Content.GetFocusableNodes())
@@ -230,18 +328,18 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             var localX = ctx.MouseX - Bounds.X;
             var localY = ctx.MouseY - Bounds.Y;
 
-            var clickedButton = GetClickedButton(localX, localY);
-            switch (clickedButton)
+            var clickedAction = GetClickedAction(localX, localY);
+            if (clickedAction.HasValue && Entry != null)
             {
-                case TitleBarButton.Close:
-                    Entry?.Close();
+                var (isLeft, actionIndex) = clickedAction.Value;
+                var actions = isLeft ? LeftTitleBarActions : RightTitleBarActions;
+                if (actionIndex >= 0 && actionIndex < actions.Count)
+                {
+                    var action = actions[actionIndex];
+                    var actionContext = new WindowActionContext(Entry, ctx);
+                    action.Handler(actionContext);
                     return Task.CompletedTask;
-                case TitleBarButton.Minimize:
-                    Entry?.Minimize();
-                    return Task.CompletedTask;
-                case TitleBarButton.Maximize:
-                    Entry?.ToggleMaximize();
-                    return Task.CompletedTask;
+                }
             }
 
             // Not a button click - just bring to front
@@ -393,8 +491,6 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         );
     }
 
-    private enum TitleBarButton { None, Close, Minimize, Maximize }
-
     /// <summary>
     /// Represents a resize edge or corner of the window.
     /// </summary>
@@ -412,55 +508,71 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     }
 
     /// <summary>
-    /// Determines which title bar button (if any) was clicked at the given local coordinates.
+    /// Result of checking which title bar action was clicked.
     /// </summary>
-    private TitleBarButton GetClickedButton(int localX, int localY)
+    private readonly record struct ClickedAction(bool IsLeft, int Index);
+
+    /// <summary>
+    /// Determines which title bar action (if any) was clicked at the given local coordinates.
+    /// Returns the action location (left or right) and index, or null if no action was clicked.
+    /// </summary>
+    private ClickedAction? GetClickedAction(int localX, int localY)
     {
         // Buttons are only on the title bar (row 1)
-        if (localY != 1)
-            return TitleBarButton.None;
+        if (localY != 1 || !ShowTitleBar)
+            return null;
 
-        // No buttons if chrome style doesn't include them
-        if (ChromeStyle == WindowChromeStyle.None || ChromeStyle == WindowChromeStyle.TitleOnly)
-            return TitleBarButton.None;
-
-        // Button layout from right to left: " × " for close, " □ " for max, " − " for min
-        // Each button is 2 chars wide (space + glyph), with trailing space
-        var innerWidth = Bounds.Width - 2; // Exclude border columns
-
-        if (ChromeStyle == WindowChromeStyle.TitleAndClose)
+        // Check left actions (after left border)
+        if (LeftTitleBarActions.Count > 0)
         {
-            // Close button: positions innerWidth-3 to innerWidth-1 (relative to inner area)
-            // In local coords (including left border): Bounds.Width - 4 to Bounds.Width - 2
-            if (localX >= Bounds.Width - 4 && localX < Bounds.Width - 1)
-                return TitleBarButton.Close;
-        }
-        else if (ChromeStyle == WindowChromeStyle.Full)
-        {
-            // Buttons from right: " − □ × " = 7 chars total
-            // Close: last 2 chars before border
-            // Maximize: 2 chars before close
-            // Minimize: 2 chars before maximize
-            var buttonAreaStart = Bounds.Width - 1 - 7; // Start of button area
+            var leftActionsWidth = GetActionsDisplayWidth(LeftTitleBarActions);
+            var leftActionStart = 1; // After left border
+            var leftActionEnd = leftActionStart + leftActionsWidth;
 
-            if (localX >= Bounds.Width - 4 && localX < Bounds.Width - 1)
-                return TitleBarButton.Close;
-            if (localX >= Bounds.Width - 6 && localX < Bounds.Width - 4)
-                return TitleBarButton.Maximize;
-            if (localX >= Bounds.Width - 8 && localX < Bounds.Width - 6)
-                return TitleBarButton.Minimize;
+            if (localX >= leftActionStart && localX < leftActionEnd)
+            {
+                // Find which action was clicked by walking through them
+                var currentX = leftActionStart;
+                for (int i = 0; i < LeftTitleBarActions.Count; i++)
+                {
+                    var actionWidth = 1 + DisplayWidth.GetStringWidth(LeftTitleBarActions[i].Icon);
+                    if (localX >= currentX && localX < currentX + actionWidth)
+                        return new ClickedAction(true, i);
+                    currentX += actionWidth;
+                }
+            }
         }
 
-        return TitleBarButton.None;
+        // Check right actions (before right border)
+        if (RightTitleBarActions.Count > 0)
+        {
+            var rightActionsWidth = GetActionsDisplayWidth(RightTitleBarActions) + 1; // +1 for trailing space
+            var rightActionStart = Bounds.Width - 1 - rightActionsWidth;
+
+            if (localX > rightActionStart && localX < Bounds.Width - 1)
+            {
+                // Find which action was clicked by walking through them
+                var currentX = rightActionStart + 1; // +1 to skip first space
+                for (int i = 0; i < RightTitleBarActions.Count; i++)
+                {
+                    var actionWidth = 1 + DisplayWidth.GetStringWidth(RightTitleBarActions[i].Icon);
+                    if (localX >= currentX && localX < currentX + actionWidth)
+                        return new ClickedAction(false, i);
+                    currentX += actionWidth;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
-    /// Checks if the given local coordinates are in the title bar area.
+    /// Checks if the given local coordinates are in the title bar area (draggable region).
     /// </summary>
     private bool IsInTitleBar(int localX, int localY)
     {
-        // No title bar if chrome style is None
-        if (ChromeStyle == WindowChromeStyle.None)
+        // No title bar if ShowTitleBar is false
+        if (!ShowTitleBar)
             return false;
 
         // localX/localY are already relative to window bounds (0,0 is top-left of window)
@@ -472,19 +584,32 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         if (localX < 1 || localX >= Bounds.Width - 1)
             return false;
 
-        // Exclude button area on the right side
-        var buttonsWidth = ChromeStyle switch
-        {
-            WindowChromeStyle.Full => 7, // " − □ × "
-            WindowChromeStyle.TitleAndClose => 3, // " × "
-            _ => 0
-        };
+        // Exclude left action area
+        var leftActionsWidth = GetActionsDisplayWidth(LeftTitleBarActions);
+        if (localX < 1 + leftActionsWidth)
+            return false;
 
-        var buttonStartX = Bounds.Width - 1 - buttonsWidth;
+        // Exclude right action area
+        var rightActionsWidth = RightTitleBarActions.Count > 0 ? GetActionsDisplayWidth(RightTitleBarActions) + 1 : 0;
+        var buttonStartX = Bounds.Width - 1 - rightActionsWidth;
         if (localX >= buttonStartX)
             return false;
 
         return true;
+    }
+
+    /// <summary>
+    /// Calculates the total display width of a collection of window actions.
+    /// Each action renders as: space + icon (where icon may be emoji with width > 1).
+    /// </summary>
+    private static int GetActionsDisplayWidth(IReadOnlyList<WindowAction> actions)
+    {
+        var width = 0;
+        foreach (var action in actions)
+        {
+            width += 1 + DisplayWidth.GetStringWidth(action.Icon); // space + icon width
+        }
+        return width;
     }
 
     /// <summary>
@@ -611,15 +736,15 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                 borderFg, thumbFg, resetToGlobal, hThumbSize);
         }
 
-        // Draw title bar (row below top border) based on chrome style
-        if (height > 1 && ChromeStyle != WindowChromeStyle.None && IsRowVisible(y + 1))
+        // Draw title bar (row below top border) if enabled
+        if (height > 1 && ShowTitleBar && IsRowVisible(y + 1))
         {
-            RenderTitleBar(context, theme, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
+            RenderComposableTitleBar(context, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
         }
 
         // Draw content area rows with resize thumbs on hover
         var contentBgCode = contentBg.ToBackgroundAnsi();
-        var contentStartRow = ChromeStyle == WindowChromeStyle.None ? 1 : 2;
+        var contentStartRow = ShowTitleBar ? 2 : 1;
 
         // Calculate vertical thumb range (centered on edge)
         var vThumbStart = contentStartRow + (innerHeight - vThumbSize) / 2;
@@ -755,9 +880,11 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         context.WriteClipped(x, y, sb.ToString());
     }
 
-    private void RenderTitleBar(
+    /// <summary>
+    /// Renders the title bar using composable child nodes for proper layout.
+    /// </summary>
+    private void RenderComposableTitleBar(
         Hex1bRenderContext context,
-        Hex1bTheme theme,
         int x,
         int titleBarY,
         int innerWidth,
@@ -767,65 +894,27 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string vertical,
         string resetToGlobal)
     {
-        // Calculate buttons width based on chrome style
-        var buttonsBuilder = new System.Text.StringBuilder();
-        var buttonsWidth = 0;
+        // Render left border
+        context.WriteClipped(x, titleBarY, $"{borderFg}{vertical}{resetToGlobal}");
 
-        if (ChromeStyle == WindowChromeStyle.Full)
+        // Render the composable title bar content with title bar background
+        if (_titleBarNode != null)
         {
-            // Minimize button
-            var minGlyph = theme.Get(WindowTheme.MinimizeButtonGlyph);
-            var minFg = theme.Get(WindowTheme.MinimizeButtonForeground);
-            buttonsBuilder.Append($" {minFg.ToForegroundAnsi()}{minGlyph}");
-            buttonsWidth += 2;
-
-            // Maximize/Restore button
-            var maxGlyph = Entry?.State == WindowState.Maximized
-                ? theme.Get(WindowTheme.RestoreButtonGlyph)
-                : theme.Get(WindowTheme.MaximizeButtonGlyph);
-            var maxFg = theme.Get(WindowTheme.MaximizeButtonForeground);
-            buttonsBuilder.Append($" {maxFg.ToForegroundAnsi()}{maxGlyph}");
-            buttonsWidth += 2;
+            var previousAmbient = context.AmbientBackground;
+            context.AmbientBackground = titleBg;
+            
+            // Fill title bar background first
+            var bgCode = titleBg.ToBackgroundAnsi();
+            context.WriteClipped(x + 1, titleBarY, $"{bgCode}{new string(' ', innerWidth)}{resetToGlobal}");
+            
+            // Then render the composable children (they'll inherit the ambient background)
+            context.RenderChild(_titleBarNode);
+            
+            context.AmbientBackground = previousAmbient;
         }
 
-        if (ChromeStyle is WindowChromeStyle.TitleAndClose or WindowChromeStyle.Full)
-        {
-            // Close button
-            var closeGlyph = theme.Get(WindowTheme.CloseButtonGlyph);
-            var closeFg = theme.Get(WindowTheme.CloseButtonForeground);
-            buttonsBuilder.Append($" {closeFg.ToForegroundAnsi()}{closeGlyph}");
-            buttonsWidth += 2;
-        }
-
-        // Add trailing space if we have buttons
-        if (buttonsWidth > 0)
-        {
-            buttonsBuilder.Append(' ');
-            buttonsWidth += 1;
-        }
-
-        var availableTitleWidth = Math.Max(0, innerWidth - buttonsWidth);
-
-        // Truncate title if needed
-        var displayTitle = Title;
-        if (DisplayWidth.GetStringWidth(displayTitle) > availableTitleWidth)
-        {
-            var (sliced, _, _, _) = DisplayWidth.SliceByDisplayWidth(displayTitle, 0, availableTitleWidth - 1);
-            displayTitle = sliced + "…";
-        }
-
-        // Pad title to fill available space
-        var titleDisplayWidth = DisplayWidth.GetStringWidth(displayTitle);
-        var padding = availableTitleWidth - titleDisplayWidth;
-        var paddedTitle = displayTitle + new string(' ', Math.Max(0, padding));
-
-        // Render title bar: border + title + buttons + border
-        // Use WriteClipped to respect parent's clipping bounds
-        var titleContent = $"{borderFg}{vertical}{resetToGlobal}" +
-            $"{titleFg.ToForegroundAnsi()}{titleBg.ToBackgroundAnsi()}{paddedTitle}" +
-            buttonsBuilder.ToString() +
-            $"{resetToGlobal}{borderFg}{vertical}{resetToGlobal}";
-        context.WriteClipped(x, titleBarY, titleContent);
+        // Render right border
+        context.WriteClipped(x + innerWidth + 1, titleBarY, $"{borderFg}{vertical}{resetToGlobal}");
     }
 
     /// <summary>
@@ -833,6 +922,101 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
     {
+        if (_titleBarNode != null) yield return _titleBarNode;
         if (Content != null) yield return Content;
+    }
+}
+
+/// <summary>
+/// A specialized icon node for title bar actions with spacing.
+/// Renders as: space + icon (for proper visual separation).
+/// </summary>
+internal sealed class TitleBarIconNode : Hex1bNode
+{
+    /// <summary>
+    /// The window action this node represents.
+    /// </summary>
+    public WindowAction? Action { get; set; }
+    
+    /// <summary>
+    /// The window entry for invoking the action.
+    /// </summary>
+    public WindowEntry? Entry { get; set; }
+
+    /// <summary>
+    /// Measures the size: 1 (space) + icon display width.
+    /// </summary>
+    public override Size Measure(Constraints constraints)
+    {
+        var iconWidth = Action != null ? DisplayWidth.GetStringWidth(Action.Icon) : 0;
+        // space + icon
+        return constraints.Constrain(new Size(1 + iconWidth, 1));
+    }
+
+    /// <summary>
+    /// Renders the icon with leading space.
+    /// </summary>
+    public override void Render(Hex1bRenderContext context)
+    {
+        if (Action == null) return;
+        
+        var theme = context.Theme;
+        var actionFg = theme.Get(WindowTheme.CloseButtonForeground);
+        var resetCodes = theme.GetResetToGlobalCodes();
+        
+        // Include ambient background so icon has the title bar background
+        var bgCode = "";
+        if (!context.AmbientBackground.IsDefault)
+        {
+            bgCode = context.AmbientBackground.ToBackgroundAnsi();
+        }
+        
+        var output = $"{bgCode} {actionFg.ToForegroundAnsi()}{Action.Icon}{resetCodes}";
+        context.WriteClipped(Bounds.X, Bounds.Y, output);
+    }
+
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        bindings.Mouse(Input.MouseButton.Left).Action(ctx =>
+        {
+            if (Action != null && Entry != null)
+            {
+                var actionContext = new WindowActionContext(Entry, ctx);
+                Action.Handler(actionContext);
+            }
+            return Task.CompletedTask;
+        }, "Click action");
+    }
+
+    public override bool IsFocusable => true;
+}
+
+/// <summary>
+/// A simple spacer node for title bar padding.
+/// </summary>
+internal sealed class TitleBarSpacerNode : Hex1bNode
+{
+    private readonly int _width;
+
+    public TitleBarSpacerNode(int width)
+    {
+        _width = width;
+    }
+
+    public override Size Measure(Constraints constraints)
+    {
+        return constraints.Constrain(new Size(_width, 1));
+    }
+
+    public override void Render(Hex1bRenderContext context)
+    {
+        // Render as spaces with the ambient background
+        var bgCode = "";
+        if (!context.AmbientBackground.IsDefault)
+        {
+            bgCode = context.AmbientBackground.ToBackgroundAnsi();
+        }
+        var resetCodes = context.Theme.GetResetToGlobalCodes();
+        context.WriteClipped(Bounds.X, Bounds.Y, $"{bgCode}{new string(' ', _width)}{resetCodes}");
     }
 }

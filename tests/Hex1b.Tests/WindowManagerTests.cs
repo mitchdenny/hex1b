@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -13,11 +14,10 @@ public class WindowManagerTests
         var manager = new WindowManager();
 
         var entry = manager.Open(
-            id: "test-window",
-            title: "Test Window",
-            content: () => new TextBlockWidget("Hello"),
-            width: 40,
-            height: 15
+            "test-window",
+            "Test Window",
+            _ => new TextBlockWidget("Hello"),
+            new WindowOptions { Width = 40, Height = 15 }
         );
 
         Assert.NotNull(entry);
@@ -34,15 +34,15 @@ public class WindowManagerTests
         var manager = new WindowManager();
 
         var entry1 = manager.Open(
-            id: "test-window",
-            title: "Window 1",
-            content: () => new TextBlockWidget("One")
+            "test-window",
+            "Window 1",
+            _ => new TextBlockWidget("One")
         );
 
         var entry2 = manager.Open(
-            id: "test-window",
-            title: "Window 2",
-            content: () => new TextBlockWidget("Two")
+            "test-window",
+            "Window 2",
+            _ => new TextBlockWidget("Two")
         );
 
         Assert.Same(entry1, entry2);
@@ -54,9 +54,9 @@ public class WindowManagerTests
     {
         var manager = new WindowManager();
         var entry = manager.Open(
-            id: "test-window",
-            title: "Test",
-            content: () => new TextBlockWidget("Hello")
+            "test-window",
+            "Test",
+            _ => new TextBlockWidget("Hello")
         );
 
         var result = manager.Close(entry);
@@ -71,9 +71,9 @@ public class WindowManagerTests
     {
         var manager = new WindowManager();
         manager.Open(
-            id: "test-window",
-            title: "Test",
-            content: () => new TextBlockWidget("Hello")
+            "test-window",
+            "Test",
+            _ => new TextBlockWidget("Hello")
         );
 
         var result = manager.Close("test-window");
@@ -89,10 +89,10 @@ public class WindowManagerTests
         var callbackInvoked = false;
 
         var entry = manager.Open(
-            id: "test-window",
-            title: "Test",
-            content: () => new TextBlockWidget("Hello"),
-            onClose: () => callbackInvoked = true
+            "test-window",
+            "Test",
+            _ => new TextBlockWidget("Hello"),
+            new WindowOptions { OnClose = () => callbackInvoked = true }
         );
 
         manager.Close(entry);
@@ -104,9 +104,9 @@ public class WindowManagerTests
     public void CloseAll_RemovesAllWindows()
     {
         var manager = new WindowManager();
-        manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
-        manager.Open("win3", "Window 3", () => new TextBlockWidget("3"));
+        manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
+        manager.Open("win3", "Window 3", _ => new TextBlockWidget("3"));
 
         manager.CloseAll();
 
@@ -119,8 +119,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         var callbackCount = 0;
 
-        manager.Open("win1", "Window 1", () => new TextBlockWidget("1"), onClose: () => callbackCount++);
-        manager.Open("win2", "Window 2", () => new TextBlockWidget("2"), onClose: () => callbackCount++);
+        manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"), new WindowOptions { OnClose = () => callbackCount++ });
+        manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"), new WindowOptions { OnClose = () => callbackCount++ });
 
         manager.CloseAll();
 
@@ -131,8 +131,8 @@ public class WindowManagerTests
     public void BringToFront_UpdatesZOrder()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         // Initially entry2 should have higher z-index
         Assert.True(entry2.ZIndex > entry1.ZIndex);
@@ -148,8 +148,8 @@ public class WindowManagerTests
     public void ActiveWindow_ReturnsTopmostWindow()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         Assert.Same(entry2, manager.ActiveWindow);
 
@@ -162,8 +162,8 @@ public class WindowManagerTests
     public void ActiveWindow_PrefersModalWindow()
     {
         var manager = new WindowManager();
-        var normalWindow = manager.Open("normal", "Normal", () => new TextBlockWidget("Normal"));
-        var modalWindow = manager.Open("modal", "Modal", () => new TextBlockWidget("Modal"), isModal: true);
+        var normalWindow = manager.Open("normal", "Normal", _ => new TextBlockWidget("Normal"));
+        var modalWindow = manager.Open("modal", "Modal", _ => new TextBlockWidget("Modal"), new WindowOptions { IsModal = true });
 
         // Modal should be active even though it was opened second
         Assert.Same(modalWindow, manager.ActiveWindow);
@@ -179,10 +179,10 @@ public class WindowManagerTests
         var manager = new WindowManager();
         Assert.False(manager.HasModalWindow);
 
-        manager.Open("normal", "Normal", () => new TextBlockWidget("Normal"));
+        manager.Open("normal", "Normal", _ => new TextBlockWidget("Normal"));
         Assert.False(manager.HasModalWindow);
 
-        manager.Open("modal", "Modal", () => new TextBlockWidget("Modal"), isModal: true);
+        manager.Open("modal", "Modal", _ => new TextBlockWidget("Modal"), new WindowOptions { IsModal = true });
         Assert.True(manager.HasModalWindow);
     }
 
@@ -190,7 +190,7 @@ public class WindowManagerTests
     public void Get_ReturnsEntryById()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         var found = manager.Get("test");
 
@@ -211,7 +211,7 @@ public class WindowManagerTests
     public void IsOpen_ReturnsTrueForOpenWindow()
     {
         var manager = new WindowManager();
-        manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         Assert.True(manager.IsOpen("test"));
         Assert.False(manager.IsOpen("other"));
@@ -221,9 +221,9 @@ public class WindowManagerTests
     public void All_ReturnsWindowsInZOrder()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
-        var entry3 = manager.Open("win3", "Window 3", () => new TextBlockWidget("3"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
+        var entry3 = manager.Open("win3", "Window 3", _ => new TextBlockWidget("3"));
 
         var all = manager.All;
 
@@ -241,7 +241,7 @@ public class WindowManagerTests
         var eventRaised = false;
         manager.Changed += () => eventRaised = true;
 
-        manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         Assert.True(eventRaised);
     }
@@ -250,7 +250,7 @@ public class WindowManagerTests
     public void Changed_EventRaisedOnClose()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var eventRaised = false;
         manager.Changed += () => eventRaised = true;
@@ -264,7 +264,7 @@ public class WindowManagerTests
     public void Changed_EventRaisedOnBringToFront()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var eventRaised = false;
         manager.Changed += () => eventRaised = true;
@@ -278,7 +278,7 @@ public class WindowManagerTests
     public void WindowEntry_CloseMethod_ClosesWindow()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         entry.Close();
 
@@ -289,8 +289,8 @@ public class WindowManagerTests
     public void WindowEntry_BringToFrontMethod_UpdatesZOrder()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         entry1.BringToFront();
 
@@ -302,9 +302,9 @@ public class WindowManagerTests
     {
         var manager = new WindowManager();
         var activated = false;
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"), 
-            onActivated: () => activated = true);
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"), 
+            new WindowOptions { OnActivated = () => activated = true });
 
         // entry2 should already be active since it was just opened
         // Now bring entry1 to front, then entry2 again
@@ -320,9 +320,9 @@ public class WindowManagerTests
     {
         var manager = new WindowManager();
         var deactivated = false;
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"), 
-            onDeactivated: () => deactivated = true);
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"), 
+            new WindowOptions { OnDeactivated = () => deactivated = true });
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         // entry2 is now active, entry1 is not
         // Bring entry1 to front - this should deactivate entry2
@@ -342,8 +342,8 @@ public class WindowManagerTests
     {
         var manager = new WindowManager();
         var activatedCount = 0;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Hello"),
-            onActivated: () => activatedCount++);
+        var entry = manager.Open("win", "Window", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { OnActivated = () => activatedCount++ });
 
         // Calling BringToFront on already-active window should not trigger callback
         entry.BringToFront();
@@ -353,21 +353,58 @@ public class WindowManagerTests
         Assert.Equal(0, activatedCount);
     }
 
-    #region Phase 3: Chrome Style and Window State Tests
+    #region Phase 3: Title Bar and Actions Tests
 
     [Fact]
-    public void Open_WithChromeStyle_SetsCorrectly()
+    public void Open_WithShowTitleBarFalse_SetsCorrectly()
     {
         var manager = new WindowManager();
 
         var entry = manager.Open(
-            id: "styled",
-            title: "Styled Window",
-            content: () => new TextBlockWidget("Content"),
-            chromeStyle: WindowChromeStyle.Full
+            "frameless",
+            "Frameless Window",
+            _ => new TextBlockWidget("Content"),
+            new WindowOptions { ShowTitleBar = false }
         );
 
-        Assert.Equal(WindowChromeStyle.Full, entry.ChromeStyle);
+        Assert.False(entry.ShowTitleBar);
+    }
+
+    [Fact]
+    public void Open_DefaultsTitleBarActionsToCloseButton()
+    {
+        var manager = new WindowManager();
+
+        var entry = manager.Open(
+            "default",
+            "Default Window",
+            _ => new TextBlockWidget("Content")
+        );
+
+        Assert.Single(entry.RightTitleBarActions);
+        Assert.Equal("×", entry.RightTitleBarActions[0].Icon);
+    }
+
+    [Fact]
+    public void Open_WithCustomTitleBarActions_SetsCorrectly()
+    {
+        var manager = new WindowManager();
+        var customActions = new[]
+        {
+            new WindowAction("?", _ => { }),
+            WindowAction.Close()
+        };
+
+        var entry = manager.Open(
+            "custom",
+            "Custom Window",
+            _ => new TextBlockWidget("Content"),
+            new WindowOptions { RightTitleBarActions = customActions }
+        );
+
+        Assert.Equal(2, entry.RightTitleBarActions.Count);
+        Assert.Equal("?", entry.RightTitleBarActions[0].Icon);
+        Assert.Equal("×", entry.RightTitleBarActions[1].Icon);
     }
 
     [Fact]
@@ -376,187 +413,43 @@ public class WindowManagerTests
         var manager = new WindowManager();
 
         var entry = manager.Open(
-            id: "modal-like",
-            title: "Modal Window",
-            content: () => new TextBlockWidget("Content"),
-            escapeBehavior: WindowEscapeBehavior.Ignore
+            "modal-like",
+            "Modal Window",
+            _ => new TextBlockWidget("Content"),
+            new WindowOptions { EscapeBehavior = WindowEscapeBehavior.Ignore }
         );
 
         Assert.Equal(WindowEscapeBehavior.Ignore, entry.EscapeBehavior);
     }
 
     [Fact]
-    public void SetWindowState_ToMinimized_ChangesState()
+    public void WindowAction_Close_CreatesCloseAction()
     {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        var closeAction = WindowAction.Close();
 
-        manager.SetWindowState(entry, WindowState.Minimized);
-
-        Assert.Equal(WindowState.Minimized, entry.State);
+        Assert.Equal("×", closeAction.Icon);
+        Assert.Equal("Close", closeAction.Tooltip);
     }
 
     [Fact]
-    public void SetWindowState_ToMaximized_ChangesState()
+    public void WindowAction_Close_WithCustomIcon_CreatesAction()
     {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        var closeAction = WindowAction.Close("X");
 
-        manager.SetWindowState(entry, WindowState.Maximized);
-
-        Assert.Equal(WindowState.Maximized, entry.State);
+        Assert.Equal("X", closeAction.Icon);
     }
 
     [Fact]
-    public void SetWindowState_ToMaximized_SavesPreviousSize()
+    public void WindowActionContext_Close_ClosesWindow()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"), 
-            width: 50, height: 25);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Content"));
+        var inputContext = new InputBindingActionContext(new FocusRing());
+        var context = new WindowActionContext(entry, inputContext);
 
-        manager.SetWindowState(entry, WindowState.Maximized);
+        context.Close();
 
-        Assert.NotNull(entry.PreMaximizeSize);
-        Assert.Equal((50, 25), entry.PreMaximizeSize.Value);
-    }
-
-    [Fact]
-    public void SetWindowState_ToNormal_RestoresPreviousSize()
-    {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"), 
-            width: 50, height: 25, x: 10, y: 5);
-
-        manager.SetWindowState(entry, WindowState.Maximized);
-        // Simulate maximized size change
-        entry.Width = 100;
-        entry.Height = 50;
-        entry.X = 0;
-        entry.Y = 0;
-
-        manager.SetWindowState(entry, WindowState.Normal);
-
-        Assert.Equal(WindowState.Normal, entry.State);
-        Assert.Equal(50, entry.Width);
-        Assert.Equal(25, entry.Height);
-        Assert.Equal(10, entry.X);
-        Assert.Equal(5, entry.Y);
-    }
-
-    [Fact]
-    public void SetWindowState_InvokesOnMinimizeCallback()
-    {
-        var manager = new WindowManager();
-        var minimized = false;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
-            onMinimize: () => minimized = true);
-
-        manager.SetWindowState(entry, WindowState.Minimized);
-
-        Assert.True(minimized);
-    }
-
-    [Fact]
-    public void SetWindowState_InvokesOnMaximizeCallback()
-    {
-        var manager = new WindowManager();
-        var maximized = false;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
-            onMaximize: () => maximized = true);
-
-        manager.SetWindowState(entry, WindowState.Maximized);
-
-        Assert.True(maximized);
-    }
-
-    [Fact]
-    public void SetWindowState_InvokesOnRestoreCallback()
-    {
-        var manager = new WindowManager();
-        var restored = false;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
-            onRestore: () => restored = true);
-
-        manager.SetWindowState(entry, WindowState.Maximized);
-        manager.SetWindowState(entry, WindowState.Normal);
-
-        Assert.True(restored);
-    }
-
-    [Fact]
-    public void SetWindowState_DoesNotInvokeCallback_WhenStateUnchanged()
-    {
-        var manager = new WindowManager();
-        var maximizeCount = 0;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
-            onMaximize: () => maximizeCount++);
-
-        manager.SetWindowState(entry, WindowState.Maximized);
-        manager.SetWindowState(entry, WindowState.Maximized);
-        manager.SetWindowState(entry, WindowState.Maximized);
-
-        Assert.Equal(1, maximizeCount);
-    }
-
-    [Fact]
-    public void WindowEntry_Minimize_ChangesState()
-    {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
-
-        entry.Minimize();
-
-        Assert.Equal(WindowState.Minimized, entry.State);
-    }
-
-    [Fact]
-    public void WindowEntry_Maximize_ChangesState()
-    {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
-
-        entry.Maximize();
-
-        Assert.Equal(WindowState.Maximized, entry.State);
-    }
-
-    [Fact]
-    public void WindowEntry_Restore_ChangesState()
-    {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
-        entry.Maximize();
-
-        entry.Restore();
-
-        Assert.Equal(WindowState.Normal, entry.State);
-    }
-
-    [Fact]
-    public void WindowEntry_ToggleMaximize_TogglesState()
-    {
-        var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
-
-        entry.ToggleMaximize();
-        Assert.Equal(WindowState.Maximized, entry.State);
-
-        entry.ToggleMaximize();
-        Assert.Equal(WindowState.Normal, entry.State);
-    }
-
-    [Fact]
-    public void SetWindowState_RaisesChangedEvent()
-    {
-        var manager = new WindowManager();
-        var changedCount = 0;
-        manager.Changed += () => changedCount++;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
-        changedCount = 0;
-
-        manager.SetWindowState(entry, WindowState.Maximized);
-
-        Assert.Equal(1, changedCount);
+        Assert.False(manager.IsOpen("test"));
     }
 
     #endregion
@@ -567,8 +460,8 @@ public class WindowManagerTests
     public void UpdatePosition_ChangesEntryPosition()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"),
-            x: 10, y: 5);
+        var entry = manager.Open("win", "Window", _ => new TextBlockWidget("Content"),
+            new WindowOptions { X = 10, Y = 5 });
 
         manager.UpdatePosition(entry, 20, 15);
 
@@ -582,7 +475,7 @@ public class WindowManagerTests
         var manager = new WindowManager();
         var changedCount = 0;
         manager.Changed += () => changedCount++;
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        var entry = manager.Open("win", "Window", _ => new TextBlockWidget("Content"));
         changedCount = 0;
 
         manager.UpdatePosition(entry, 50, 25);
@@ -595,7 +488,7 @@ public class WindowManagerTests
     {
         // Negative values might be valid during drag before clamping
         var manager = new WindowManager();
-        var entry = manager.Open("win", "Window", () => new TextBlockWidget("Content"));
+        var entry = manager.Open("win", "Window", _ => new TextBlockWidget("Content"));
 
         manager.UpdatePosition(entry, -5, -3);
 
@@ -613,8 +506,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         
         var task = manager.OpenModalAsync(
-            "modal", "Modal", () => new TextBlockWidget("Hello"),
-            width: 30, height: 10
+            "modal", "Modal", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { Width = 30, Height = 10 }
         );
 
         // Task should not be complete yet
@@ -634,8 +527,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         
         var task = manager.OpenModalAsync<string>(
-            "modal", "Modal", () => new TextBlockWidget("Hello"),
-            width: 30, height: 10
+            "modal", "Modal", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { Width = 30, Height = 10 }
         );
 
         // Get the entry and close with result
@@ -652,8 +545,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         
         var task = manager.OpenModalAsync<int>(
-            "modal", "Modal", () => new TextBlockWidget("Hello"),
-            width: 30, height: 10
+            "modal", "Modal", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { Width = 30, Height = 10 }
         );
 
         // Close without result (simulates Escape key)
@@ -669,8 +562,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         
         var task = manager.OpenModalAsync<bool>(
-            "confirm", "Confirm", () => new TextBlockWidget("Are you sure?"),
-            width: 30, height: 10
+            "confirm", "Confirm", _ => new TextBlockWidget("Are you sure?"),
+            new WindowOptions { Width = 30, Height = 10 }
         );
 
         var entry = manager.Get("confirm");
@@ -687,8 +580,8 @@ public class WindowManagerTests
         var tcs = new TaskCompletionSource<object?>();
         
         var entry = manager.Open(
-            "modal", "Modal", () => new TextBlockWidget("Hello"),
-            isModal: true
+            "modal", "Modal", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { IsModal = true }
         );
         entry.ResultSource = tcs;
 
@@ -704,8 +597,8 @@ public class WindowManagerTests
         var manager = new WindowManager();
         
         var entry = manager.Open(
-            "modal", "Modal", () => new TextBlockWidget("Hello"),
-            isModal: true
+            "modal", "Modal", _ => new TextBlockWidget("Hello"),
+            new WindowOptions { IsModal = true }
         );
 
         entry.CloseWithResult("done");

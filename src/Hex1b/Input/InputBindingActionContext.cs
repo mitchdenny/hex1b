@@ -204,9 +204,9 @@ public sealed class InputBindingActionContext
     /// <code>
     /// ctx.Button("Settings")
     ///    .OnClick(e => e.Windows.Open(
-    ///        id: "settings",
-    ///        title: "Settings",
-    ///        content: () => BuildSettingsContent()
+    ///        "settings",
+    ///        "Settings",
+    ///        () => BuildSettingsContent()
     ///    ));
     /// </code>
     /// </example>

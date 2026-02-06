@@ -39,13 +39,16 @@ public class WindowFocusIntegrationTests
                                 menuItemActivatedCount++;
                                 statusText = $"Menu activated {menuItemActivatedCount} times";
                                 e.Windows.Open(
-                                    id: "test-window",
-                                    title: "Test Window",
-                                    content: () => ctx.Button("Window Content").OnClick(_ => {}),
-                                    width: 30,
-                                    height: 10,
-                                    position: new WindowPositionSpec(WindowPosition.Center),
-                                    onClose: () => { windowOpened = false; statusText = "Window closed"; }
+                                    "test-window",
+                                    "Test Window",
+                                    w => w.Button("Window Content").OnClick(_ => {}),
+                                    new WindowOptions
+                                    {
+                                        Width = 30,
+                                        Height = 10,
+                                        Position = new WindowPositionSpec(WindowPosition.Center),
+                                        OnClose = () => { windowOpened = false; statusText = "Window closed"; }
+                                    }
                                 );
                                 windowOpened = true;
                             }),
@@ -170,13 +173,8 @@ public class WindowFocusIntegrationTests
                     outer.WindowPanel(
                         outer.Button("Open Window").OnClick(e =>
                         {
-                            e.Windows.Open(
-                                id: "w1",
-                                title: "Window",
-                                content: () => ctx.Text("Content"),
-                                width: 20,
-                                height: 5
-                            );
+                            e.Windows.Open("w1", "Window", w => w.Text("Content"),
+                            new WindowOptions { Width = 20, Height = 5 });
                         })
                     ).Height(SizeHint.Fill),
                     outer.Text("Status bar")
@@ -245,22 +243,28 @@ public class WindowFocusIntegrationTests
                         {
                             // Offset windows so both are visible
                             e.Windows.Open(
-                                id: "window-1",
-                                title: "Window 1",
-                                content: () => new ButtonWidget("W1 Button").OnClick(_ => {}),
-                                width: 30,
-                                height: 8,
-                                position: new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 2, OffsetY: 2),
-                                onClose: () => window1Closed = true
+                                "window-1",
+                                "Window 1",
+                                _ => new ButtonWidget("W1 Button").OnClick(_ => {}),
+                                new WindowOptions
+                                {
+                                    Width = 30,
+                                    Height = 8,
+                                    Position = new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 2, OffsetY: 2),
+                                    OnClose = () => window1Closed = true
+                                }
                             );
                             e.Windows.Open(
-                                id: "window-2",
-                                title: "Window 2",
-                                content: () => new ButtonWidget("W2 Button").OnClick(_ => {}),
-                                width: 30,
-                                height: 8,
-                                position: new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 35, OffsetY: 2),
-                                onClose: () => window2Closed = true
+                                "window-2",
+                                "Window 2",
+                                _ => new ButtonWidget("W2 Button").OnClick(_ => {}),
+                                new WindowOptions
+                                {
+                                    Width = 30,
+                                    Height = 8,
+                                    Position = new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 35, OffsetY: 2),
+                                    OnClose = () => window2Closed = true
+                                }
                             );
                         })
                     ])
@@ -313,22 +317,28 @@ public class WindowFocusIntegrationTests
                         new ButtonWidget("Open Both").OnClick(e =>
                         {
                             e.Windows.Open(
-                                id: "window-1",
-                                title: "Window 1",
-                                content: () => new TextBlockWidget("Content 1"),
-                                width: 30,
-                                height: 10,
-                                position: new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 2, OffsetY: 2),
-                                onClose: () => window1Closed = true
+                                "window-1",
+                                "Window 1",
+                                _ => new TextBlockWidget("Content 1"),
+                                new WindowOptions
+                                {
+                                    Width = 30,
+                                    Height = 10,
+                                    Position = new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 2, OffsetY: 2),
+                                    OnClose = () => window1Closed = true
+                                }
                             );
                             e.Windows.Open(
-                                id: "window-2",
-                                title: "Window 2",
-                                content: () => new TextBlockWidget("Content 2"),
-                                width: 30,
-                                height: 10,
-                                position: new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 10, OffsetY: 5),
-                                onClose: () => window2Closed = true
+                                "window-2",
+                                "Window 2",
+                                _ => new TextBlockWidget("Content 2"),
+                                new WindowOptions
+                                {
+                                    Width = 30,
+                                    Height = 10,
+                                    Position = new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 10, OffsetY: 5),
+                                    OnClose = () => window2Closed = true
+                                }
                             );
                         })
                     ])
@@ -392,18 +402,21 @@ public class WindowFocusIntegrationTests
                                     windowCounter++;
                                     var num = windowCounter;
                                     e.Windows.Open(
-                                        id: $"window-{num}",
-                                        title: $"Window {num}",
-                                        content: () => new ButtonWidget($"Content {num}").OnClick(btn => 
+                                        $"window-{num}",
+                                        $"Window {num}",
+                                        _ => new ButtonWidget($"Content {num}").OnClick(btn => 
                                         {
                                             focusedBeforeEsc = $"Window {num} button clicked";
                                         }),
-                                        width: 30,
-                                        height: 10,
-                                        onClose: () => 
-                                        { 
-                                            if (num == 1) window1Closed = true; 
-                                            else window2Closed = true; 
+                                        new WindowOptions
+                                        {
+                                            Width = 30,
+                                            Height = 10,
+                                            OnClose = () => 
+                                            { 
+                                                if (num == 1) window1Closed = true; 
+                                                else window2Closed = true; 
+                                            }
                                         }
                                     );
                                 })

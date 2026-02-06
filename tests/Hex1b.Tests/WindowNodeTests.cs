@@ -15,7 +15,7 @@ public class WindowNodeTests
     public void Measure_WithEntry_ReturnsEntrySize()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 50, height: 20);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 50, Height = 20 });
         
         var node = new WindowNode { Entry = entry };
 
@@ -29,7 +29,7 @@ public class WindowNodeTests
     public void Measure_WithSmallEntry_EnforcesMinimumSize()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 3, height: 2);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 3, Height = 2 });
         
         var node = new WindowNode { Entry = entry };
 
@@ -44,7 +44,7 @@ public class WindowNodeTests
     public void Measure_RespectsConstraints()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 100, height: 50);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 100, Height = 50 });
         
         var node = new WindowNode { Entry = entry };
 
@@ -62,7 +62,7 @@ public class WindowNodeTests
     public void Arrange_SetsNodeBounds()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 40, height: 15);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 40, Height = 15 });
         
         var node = new WindowNode { Entry = entry };
         node.Measure(Constraints.Unbounded);
@@ -80,7 +80,7 @@ public class WindowNodeTests
     {
         var content = new TextBlockNode { Text = "Content" };
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 40, height: 15);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 40, Height = 15 });
         
         var node = new WindowNode { Entry = entry, Content = content };
         node.Measure(Constraints.Unbounded);
@@ -103,7 +103,7 @@ public class WindowNodeTests
         var button = new ButtonNode { Label = "Click Me" };
         var content = new VStackNode { Children = [button] };
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var node = new WindowNode { Entry = entry, Content = content };
 
@@ -119,7 +119,7 @@ public class WindowNodeTests
     public void GetFocusableNodes_WithNoContent_ReturnsWindowNodeOnly()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var node = new WindowNode { Entry = entry };
 
@@ -138,7 +138,7 @@ public class WindowNodeTests
     public void ClipRect_ReturnsInnerContentArea()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 40, height: 15);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 40, Height = 15 });
         
         var node = new WindowNode { Entry = entry };
         node.Measure(Constraints.Unbounded);
@@ -166,7 +166,7 @@ public class WindowNodeTests
     {
         var content = new TextBlockNode { Text = "Hello" };
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var node = new WindowNode { Entry = entry, Content = content };
 
@@ -180,7 +180,7 @@ public class WindowNodeTests
     public void GetChildren_WithNoContent_ReturnsEmpty()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
         
         var node = new WindowNode { Entry = entry };
 
@@ -225,8 +225,8 @@ public class WindowNodeTests
     public void SyncFocusIndex_BringsWindowToFront_WhenChildIsFocused()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         // Set up window nodes with focusable content
         var button1 = new ButtonNode { Label = "Button 1" };
@@ -256,8 +256,8 @@ public class WindowNodeTests
     public void SyncFocusIndex_DoesNothing_WhenNoChildIsFocused()
     {
         var manager = new WindowManager();
-        var entry1 = manager.Open("win1", "Window 1", () => new TextBlockWidget("1"));
-        var entry2 = manager.Open("win2", "Window 2", () => new TextBlockWidget("2"));
+        var entry1 = manager.Open("win1", "Window 1", _ => new TextBlockWidget("1"));
+        var entry2 = manager.Open("win2", "Window 2", _ => new TextBlockWidget("2"));
 
         var button = new ButtonNode { Label = "Button" };
         var content = new VStackNode { Children = [button] };
@@ -275,14 +275,31 @@ public class WindowNodeTests
 
     #endregion
 
-    #region Phase 3: Chrome Style Tests
+    #region Phase 3: Title Bar and Actions Tests
 
     [Fact]
-    public void ChromeStyle_DefaultsToTitleAndClose()
+    public void ShowTitleBar_DefaultsToTrue()
     {
         var node = new WindowNode();
 
-        Assert.Equal(WindowChromeStyle.TitleAndClose, node.ChromeStyle);
+        Assert.True(node.ShowTitleBar);
+    }
+
+    [Fact]
+    public void RightTitleBarActions_DefaultsToCloseAction()
+    {
+        var node = new WindowNode();
+
+        Assert.Single(node.RightTitleBarActions);
+        Assert.Equal("×", node.RightTitleBarActions[0].Icon);
+    }
+
+    [Fact]
+    public void LeftTitleBarActions_DefaultsToEmpty()
+    {
+        var node = new WindowNode();
+
+        Assert.Empty(node.LeftTitleBarActions);
     }
 
     [Fact]
@@ -294,13 +311,13 @@ public class WindowNodeTests
     }
 
     [Fact]
-    public void Measure_WithChromeStyleNone_HasSmallerMinimumHeight()
+    public void Measure_WithNoTitleBar_HasSmallerMinimumHeight()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
-            width: 10, height: 3, chromeStyle: WindowChromeStyle.None);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), 
+            new WindowOptions { Width = 10, Height = 3, ShowTitleBar = false });
         
-        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.None };
+        var node = new WindowNode { Entry = entry, ShowTitleBar = false };
 
         var size = node.Measure(Constraints.Unbounded);
 
@@ -310,13 +327,13 @@ public class WindowNodeTests
     }
 
     [Fact]
-    public void ClipRect_WithChromeStyleNone_StartsAtY1()
+    public void ClipRect_WithNoTitleBar_StartsAtY1()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
-            width: 40, height: 10, chromeStyle: WindowChromeStyle.None);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), 
+            new WindowOptions { Width = 40, Height = 10, ShowTitleBar = false });
         
-        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.None };
+        var node = new WindowNode { Entry = entry, ShowTitleBar = false };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
@@ -329,19 +346,19 @@ public class WindowNodeTests
     }
 
     [Fact]
-    public void ClipRect_WithChromeStyleFull_MatchesTitleAndClose()
+    public void ClipRect_WithTitleBar_HasContentOffset()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
-            width: 40, height: 15, chromeStyle: WindowChromeStyle.Full);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), 
+            new WindowOptions { Width = 40, Height = 15 });
         
-        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.Full };
+        var node = new WindowNode { Entry = entry, ShowTitleBar = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(10, 5, 40, 15));
 
         var clipRect = node.ClipRect;
 
-        // Same as default - title bar + border
+        // Title bar + border: Y is bounds.Y + 2
         Assert.Equal(11, clipRect.X);
         Assert.Equal(7, clipRect.Y);
         Assert.Equal(38, clipRect.Width);
@@ -356,9 +373,9 @@ public class WindowNodeTests
     public void IsInTitleBar_ReturnsTrue_ForValidTitleBarPosition()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), width: 40, height: 15);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 40, Height = 15 });
         
-        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.TitleAndClose };
+        var node = new WindowNode { Entry = entry, ShowTitleBar = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(10, 5, 40, 15));
 
@@ -372,19 +389,19 @@ public class WindowNodeTests
     }
 
     [Fact]
-    public void ChromeStyleNone_DisablesTitleBarDrag()
+    public void NoTitleBar_DisablesTitleBarDrag()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), 
-            width: 40, height: 10, chromeStyle: WindowChromeStyle.None);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), 
+            new WindowOptions { Width = 40, Height = 10, ShowTitleBar = false });
         
-        var node = new WindowNode { Entry = entry, ChromeStyle = WindowChromeStyle.None };
+        var node = new WindowNode { Entry = entry, ShowTitleBar = false };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
         // With no title bar, there's no area to drag
         // The window should still be focusable but not draggable
-        Assert.Equal(WindowChromeStyle.None, node.ChromeStyle);
+        Assert.False(node.ShowTitleBar);
     }
 
     #endregion
@@ -395,7 +412,7 @@ public class WindowNodeTests
     public void IsResizable_CanBeSetToTrue()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"), isResizable: true);
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { IsResizable = true });
         
         var node = new WindowNode { Entry = entry, IsResizable = true };
 
@@ -407,11 +424,14 @@ public class WindowNodeTests
     {
         var manager = new WindowManager();
         var entry = manager.Open(
-            "test", "Test", () => new TextBlockWidget("Hello"),
-            minWidth: 20,
-            minHeight: 10,
-            maxWidth: 100,
-            maxHeight: 50
+            "test", "Test", _ => new TextBlockWidget("Hello"),
+            new WindowOptions
+            {
+                MinWidth = 20,
+                MinHeight = 10,
+                MaxWidth = 100,
+                MaxHeight = 50
+            }
         );
 
         Assert.Equal(20, entry.MinWidth);
@@ -424,7 +444,7 @@ public class WindowNodeTests
     public void Entry_MinConstraints_HaveDefaults()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         // Default min values
         Assert.Equal(10, entry.MinWidth);
@@ -439,10 +459,14 @@ public class WindowNodeTests
     {
         var manager = new WindowManager();
         var entry = manager.Open(
-            "test", "Test", () => new TextBlockWidget("Hello"),
-            width: 50, height: 30,
-            minWidth: 20,
-            minHeight: 15
+            "test", "Test", _ => new TextBlockWidget("Hello"),
+            new WindowOptions
+            {
+                Width = 50,
+                Height = 30,
+                MinWidth = 20,
+                MinHeight = 15
+            }
         );
 
         // Try to resize smaller than minimum
@@ -458,10 +482,14 @@ public class WindowNodeTests
     {
         var manager = new WindowManager();
         var entry = manager.Open(
-            "test", "Test", () => new TextBlockWidget("Hello"),
-            width: 50, height: 30,
-            maxWidth: 60,
-            maxHeight: 40
+            "test", "Test", _ => new TextBlockWidget("Hello"),
+            new WindowOptions
+            {
+                Width = 50,
+                Height = 30,
+                MaxWidth = 60,
+                MaxHeight = 40
+            }
         );
 
         // Try to resize larger than maximum
@@ -477,12 +505,16 @@ public class WindowNodeTests
     {
         var manager = new WindowManager();
         var entry = manager.Open(
-            "test", "Test", () => new TextBlockWidget("Hello"),
-            width: 50, height: 30,
-            minWidth: 20,
-            minHeight: 15,
-            maxWidth: 80,
-            maxHeight: 60
+            "test", "Test", _ => new TextBlockWidget("Hello"),
+            new WindowOptions
+            {
+                Width = 50,
+                Height = 30,
+                MinWidth = 20,
+                MinHeight = 15,
+                MaxWidth = 80,
+                MaxHeight = 60
+            }
         );
 
         // Resize within allowed range
@@ -496,7 +528,7 @@ public class WindowNodeTests
     public void WindowManager_UpdateSize_RaisesChangedEvent()
     {
         var manager = new WindowManager();
-        var entry = manager.Open("test", "Test", () => new TextBlockWidget("Hello"));
+        var entry = manager.Open("test", "Test", _ => new TextBlockWidget("Hello"));
 
         var changedCount = 0;
         manager.Changed += () => changedCount++;

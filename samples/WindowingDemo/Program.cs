@@ -9,6 +9,9 @@ var windowCounter = 0;
 var openWindowCount = 0;
 var statusMessage = "Ready";
 
+// Track custom action feedback per window
+var windowActionFeedback = new Dictionary<string, string>();
+
 // Track terminal instances for cleanup
 var terminalInstances = new Dictionary<string, (Hex1bTerminal Terminal, CancellationTokenSource Cts)>();
 
@@ -56,16 +59,59 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"window-{num}",
-                            title: $"Window {num}",
-                            content: () => BuildWindowContent(num),
-                            width: 45,
-                            height: 12,
-                            position: new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 3, OffsetY: (num - 1) * 2),
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Window {num}"; }
+                            $"window-{num}",
+                            $"Window {num}",
+                            w => BuildWindowContent(w, num),
+                            new WindowOptions
+                            {
+                                Width = 45,
+                                Height = 12,
+                                Position = new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 3, OffsetY: (num - 1) * 2),
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Window {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Window {num}";
+                    }),
+                    m.MenuItem("New Window with Custom Actions").OnActivated(e => {
+                        windowCounter++;
+                        openWindowCount++;
+                        var num = windowCounter;
+                        var windowId = $"custom-actions-{num}";
+                        windowActionFeedback[windowId] = "";
+                        e.Windows.Open(
+                            windowId,
+                            $"Custom Actions {num}",
+                            w => BuildCustomActionsContent(w, num, windowActionFeedback.GetValueOrDefault(windowId, "")),
+                            new WindowOptions
+                            {
+                                Width = 50,
+                                Height = 12,
+                                Position = new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 3, OffsetY: (num - 1) * 2),
+                                LeftTitleBarActions = [
+                                    new WindowAction("📌", ctx => { 
+                                        windowActionFeedback[windowId] = "📌 Window pinned!";
+                                        statusMessage = $"Pinned Window {num}"; 
+                                    }),
+                                    new WindowAction("📋", ctx => { 
+                                        windowActionFeedback[windowId] = "📋 Content copied!";
+                                        statusMessage = $"Copied from Window {num}"; 
+                                    })
+                                ],
+                                RightTitleBarActions = [
+                                    new WindowAction("?", ctx => { 
+                                        windowActionFeedback[windowId] = "❓ Help requested!";
+                                        statusMessage = $"Help for Window {num}"; 
+                                    }),
+                                    WindowAction.Close()
+                                ],
+                                OnClose = () => { 
+                                    openWindowCount--; 
+                                    windowActionFeedback.Remove(windowId);
+                                    statusMessage = $"Closed: Custom Actions {num}"; 
+                                }
+                            }
+                        );
+                        statusMessage = $"Opened: Custom Actions {num}";
                     }),
                     m.MenuItem("New Terminal").OnActivated(e => {
                         windowCounter++;
@@ -87,25 +133,27 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         _ = bashTerminal.RunAsync(cts.Token);
                         
                         e.Windows.Open(
-                            id: windowId,
-                            title: $"Terminal {num}",
-                            content: () => new TerminalWidget(bashHandle),
-                            width: 80,
-                            height: 24,
-                            position: new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 2, OffsetY: (num - 1)),
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            minWidth: 40,
-                            minHeight: 12,
-                            onClose: () => {
-                                openWindowCount--;
-                                statusMessage = $"Closed: Terminal {num}";
-                                // Clean up terminal
-                                if (terminalInstances.TryGetValue(windowId, out var instance))
-                                {
-                                    instance.Cts.Cancel();
-                                    instance.Terminal.Dispose();
-                                    terminalInstances.Remove(windowId);
+                            windowId,
+                            $"Terminal {num}",
+                            _ => new TerminalWidget(bashHandle),
+                            new WindowOptions
+                            {
+                                Width = 80,
+                                Height = 24,
+                                Position = new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 2, OffsetY: (num - 1)),
+                                IsResizable = true,
+                                MinWidth = 40,
+                                MinHeight = 12,
+                                OnClose = () => {
+                                    openWindowCount--;
+                                    statusMessage = $"Closed: Terminal {num}";
+                                    // Clean up terminal
+                                    if (terminalInstances.TryGetValue(windowId, out var instance))
+                                    {
+                                        instance.Cts.Cancel();
+                                        instance.Terminal.Dispose();
+                                        terminalInstances.Remove(windowId);
+                                    }
                                 }
                             }
                         );
@@ -116,13 +164,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"full-{num}",
-                            title: $"Full Chrome {num}",
-                            content: () => BuildWindowContent(num),
-                            width: 45,
-                            height: 12,
-                            chromeStyle: WindowChromeStyle.Full,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Window {num}"; }
+                            $"full-{num}",
+                            $"Full Chrome {num}",
+                            w => BuildWindowContent(w, num),
+                            new WindowOptions
+                            {
+                                Width = 45,
+                                Height = 12,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Window {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Full Chrome {num}";
                     }),
@@ -131,13 +181,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"frame-{num}",
-                            title: $"Frameless {num}",
-                            content: () => BuildFramelessContent(num),
-                            width: 35,
-                            height: 8,
-                            chromeStyle: WindowChromeStyle.None,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Frameless {num}"; }
+                            $"frame-{num}",
+                            $"Frameless {num}",
+                            w => BuildFramelessContent(w, num),
+                            new WindowOptions
+                            {
+                                Width = 35,
+                                Height = 8,
+                                ShowTitleBar = false,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Frameless {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Frameless {num}";
                     }),
@@ -146,18 +199,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"resizable-{num}",
-                            title: $"Resizable {num}",
-                            content: () => BuildResizableContent(num),
-                            width: 50,
-                            height: 15,
-                            chromeStyle: WindowChromeStyle.Full,
-                            isResizable: true,
-                            minWidth: 30,
-                            minHeight: 10,
-                            maxWidth: 80,
-                            maxHeight: 30,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Resizable {num}"; }
+                            $"resizable-{num}",
+                            $"Resizable {num}",
+                            w => BuildResizableContent(w, num),
+                            new WindowOptions
+                            {
+                                Width = 50,
+                                Height = 15,
+                                IsResizable = true,
+                                MinWidth = 30,
+                                MinHeight = 10,
+                                MaxWidth = 80,
+                                MaxHeight = 30,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Resizable {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Resizable {num}";
                     }),
@@ -166,20 +221,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"table-{num}",
-                            title: $"Employee Table {num}",
-                            content: () => BuildTableContent(tableData, tableCompactMode, tableFillWidth, tableShowSelection,
+                            $"table-{num}",
+                            $"Employee Table {num}",
+                            w => BuildTableContent(w, tableData, tableCompactMode, tableFillWidth, tableShowSelection,
                                 tableFocusedKey, key => tableFocusedKey = key,
                                 isCompact => tableCompactMode = isCompact,
                                 isFill => tableFillWidth = isFill,
                                 showSel => tableShowSelection = showSel),
-                            width: 65,
-                            height: 18,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            minWidth: 50,
-                            minHeight: 10,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 65,
+                                Height = 18,
+                                IsResizable = true,
+                                MinWidth = 50,
+                                MinHeight = 10,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Table {num}";
                     }),
@@ -203,60 +260,66 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     m.MenuItem("Open Modal Dialog").OnActivated(e => {
                         openWindowCount++;
                         e.Windows.Open(
-                            id: "modal",
-                            title: "Modal Dialog",
-                            content: () => new VStackWidget([
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  ⚠️  This is a modal dialog!"),
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  Background windows are blocked."),
-                                new TextBlockWidget(""),
-                                new HStackWidget([
-                                    new TextBlockWidget("  "),
-                                    new ButtonWidget("OK").OnClick(ev => {
+                            "modal",
+                            "Modal Dialog",
+                            w => w.VStack(v => [
+                                v.Text(""),
+                                v.Text("  ⚠️  This is a modal dialog!"),
+                                v.Text(""),
+                                v.Text("  Background windows are blocked."),
+                                v.Text(""),
+                                v.HStack(h => [
+                                    h.Text("  "),
+                                    h.Button("OK").OnClick(ev => {
                                         ev.Context.Windows.Get("modal")?.CloseWithResult(true);
                                     }),
-                                    new TextBlockWidget(" "),
-                                    new ButtonWidget("Cancel").OnClick(ev => {
+                                    h.Text(" "),
+                                    h.Button("Cancel").OnClick(ev => {
                                         ev.Context.Windows.Get("modal")?.CloseWithResult(false);
                                     })
                                 ])
                             ]),
-                            width: 50,
-                            height: 10,
-                            isModal: true,
-                            onClose: () => { openWindowCount--; statusMessage = "Modal closed"; }
+                            new WindowOptions
+                            {
+                                Width = 50,
+                                Height = 10,
+                                IsModal = true,
+                                OnClose = () => { openWindowCount--; statusMessage = "Modal closed"; }
+                            }
                         );
                         statusMessage = "Opened modal dialog";
                     }),
                     m.MenuItem("Confirm Delete").OnActivated(e => {
                         openWindowCount++;
                         e.Windows.Open(
-                            id: "confirm-delete",
-                            title: "Confirm Delete",
-                            content: () => new VStackWidget([
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  🗑️  Delete all items?"),
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  This action cannot be undone."),
-                                new TextBlockWidget(""),
-                                new HStackWidget([
-                                    new TextBlockWidget("  "),
-                                    new ButtonWidget("Delete").OnClick(ev => {
+                            "confirm-delete",
+                            "Confirm Delete",
+                            w => w.VStack(v => [
+                                v.Text(""),
+                                v.Text("  🗑️  Delete all items?"),
+                                v.Text(""),
+                                v.Text("  This action cannot be undone."),
+                                v.Text(""),
+                                v.HStack(h => [
+                                    h.Text("  "),
+                                    h.Button("Delete").OnClick(ev => {
                                         statusMessage = "Delete confirmed!";
                                         ev.Context.Windows.Get("confirm-delete")?.Close();
                                     }),
-                                    new TextBlockWidget(" "),
-                                    new ButtonWidget("Cancel").OnClick(ev => {
+                                    h.Text(" "),
+                                    h.Button("Cancel").OnClick(ev => {
                                         statusMessage = "Delete cancelled";
                                         ev.Context.Windows.Get("confirm-delete")?.Close();
                                     })
                                 ])
                             ]),
-                            width: 45,
-                            height: 10,
-                            isModal: true,
-                            onClose: () => openWindowCount--
+                            new WindowOptions
+                            {
+                                Width = 45,
+                                Height = 10,
+                                IsModal = true,
+                                OnClose = () => openWindowCount--
+                            }
                         );
                         statusMessage = "Confirm before deleting";
                     }),
@@ -270,20 +333,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     openWindowCount++;
                                     var num = windowCounter;
                                     ctx.InputTrigger.Windows.Open(
-                                        id: $"table-notif-{num}",
-                                        title: $"Employee Table {num}",
-                                        content: () => BuildTableContent(tableData, tableCompactMode, tableFillWidth, tableShowSelection,
+                                        $"table-notif-{num}",
+                                        $"Employee Table {num}",
+                                        w => BuildTableContent(w, tableData, tableCompactMode, tableFillWidth, tableShowSelection,
                                             tableFocusedKey, key => tableFocusedKey = key,
                                             isCompact => tableCompactMode = isCompact,
                                             isFill => tableFillWidth = isFill,
                                             showSel => tableShowSelection = showSel),
-                                        width: 65,
-                                        height: 18,
-                                        chromeStyle: WindowChromeStyle.TitleAndClose,
-                                        isResizable: true,
-                                        minWidth: 50,
-                                        minHeight: 10,
-                                        onClose: () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                                        new WindowOptions
+                                        {
+                                            Width = 65,
+                                            Height = 18,
+                                            IsResizable = true,
+                                            MinWidth = 50,
+                                            MinHeight = 10,
+                                            OnClose = () => { openWindowCount--; statusMessage = $"Closed: Table {num}"; }
+                                        }
                                     );
                                     statusMessage = $"Opened table from notification";
                                     ctx.Dismiss();
@@ -301,17 +366,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"fireflies-{num}",
-                            title: $"Fireflies {num}",
-                            content: () => new SurfaceWidget(s => FirefliesDemo.BuildLayers(s, fireflies))
+                            $"fireflies-{num}",
+                            $"Fireflies {num}",
+                            _ => new SurfaceWidget(s => FirefliesDemo.BuildLayers(s, fireflies))
                                 .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
                                 .Height(SizeHint.Fixed(FirefliesDemo.HeightCells))
                                 .RedrawAfter(50),
-                            width: FirefliesDemo.RequiredWidth,
-                            height: FirefliesDemo.RequiredHeight,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Fireflies {num}"; }
+                            new WindowOptions
+                            {
+                                Width = FirefliesDemo.RequiredWidth,
+                                Height = FirefliesDemo.RequiredHeight,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Fireflies {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Fireflies {num}";
                     }),
@@ -320,17 +387,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"radar-{num}",
-                            title: $"Radar {num}",
-                            content: () => new SurfaceWidget(s => RadarDemo.BuildLayers(s, demoRandom))
+                            $"radar-{num}",
+                            $"Radar {num}",
+                            _ => new SurfaceWidget(s => RadarDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Radar {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Radar {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Radar {num}";
                     }),
@@ -339,17 +408,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"gravity-{num}",
-                            title: $"Gravity {num}",
-                            content: () => new SurfaceWidget(s => GravityDemo.BuildLayers(s, demoRandom))
+                            $"gravity-{num}",
+                            $"Gravity {num}",
+                            _ => new SurfaceWidget(s => GravityDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Gravity {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Gravity {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Gravity {num}";
                     }),
@@ -358,17 +429,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"snow-{num}",
-                            title: $"Snow {num}",
-                            content: () => new SurfaceWidget(s => SnowDemo.BuildLayers(s, demoRandom))
+                            $"snow-{num}",
+                            $"Snow {num}",
+                            _ => new SurfaceWidget(s => SnowDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Snow {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Snow {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Snow {num}";
                     }),
@@ -377,17 +450,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"noise-{num}",
-                            title: $"Noise {num}",
-                            content: () => new SurfaceWidget(s => NoiseDemo.BuildLayers(s, demoRandom))
+                            $"noise-{num}",
+                            $"Noise {num}",
+                            _ => new SurfaceWidget(s => NoiseDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Noise {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Noise {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Noise {num}";
                     }),
@@ -396,17 +471,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"shadows-{num}",
-                            title: $"Shadows {num}",
-                            content: () => new SurfaceWidget(s => ShadowDemo.BuildLayers(s, demoRandom))
+                            $"shadows-{num}",
+                            $"Shadows {num}",
+                            _ => new SurfaceWidget(s => ShadowDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Shadows {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Shadows {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Shadows {num}";
                     }),
@@ -415,17 +492,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"fluid-{num}",
-                            title: $"Fluid {num}",
-                            content: () => new SurfaceWidget(s => FluidDemo.BuildLayers(s, demoRandom))
+                            $"fluid-{num}",
+                            $"Fluid {num}",
+                            _ => new SurfaceWidget(s => FluidDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Fluid {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Fluid {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Fluid {num}";
                     }),
@@ -434,17 +513,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"smartmatter-{num}",
-                            title: $"Smart Matter {num}",
-                            content: () => new SurfaceWidget(s => SmartMatterDemo.BuildLayers(s, demoRandom))
+                            $"smartmatter-{num}",
+                            $"Smart Matter {num}",
+                            _ => new SurfaceWidget(s => SmartMatterDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Smart Matter {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Smart Matter {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Smart Matter {num}";
                     }),
@@ -453,17 +534,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount++;
                         var num = windowCounter;
                         e.Windows.Open(
-                            id: $"slimemold-{num}",
-                            title: $"Slime Mold {num}",
-                            content: () => new SurfaceWidget(s => SlimeMoldDemo.BuildLayers(s, demoRandom))
+                            $"slimemold-{num}",
+                            $"Slime Mold {num}",
+                            _ => new SurfaceWidget(s => SlimeMoldDemo.BuildLayers(s, demoRandom))
                                 .Width(SizeHint.Fixed(60))
                                 .Height(SizeHint.Fixed(20))
                                 .RedrawAfter(50),
-                            width: 62,
-                            height: 22,
-                            chromeStyle: WindowChromeStyle.TitleAndClose,
-                            isResizable: true,
-                            onClose: () => { openWindowCount--; statusMessage = $"Closed: Slime Mold {num}"; }
+                            new WindowOptions
+                            {
+                                Width = 62,
+                                Height = 22,
+                                IsResizable = true,
+                                OnClose = () => { openWindowCount--; statusMessage = $"Closed: Slime Mold {num}"; }
+                            }
                         );
                         statusMessage = $"Opened: Slime Mold {num}";
                     })
@@ -476,26 +559,29 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         }
                         openWindowCount++;
                         e.Windows.Open(
-                            id: "about",
-                            title: "About",
-                            content: () => new VStackWidget([
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  Hex1b Floating Windows Demo"),
-                                new TextBlockWidget("  Version: 1.0.0"),
-                                new TextBlockWidget(""),
-                                new TextBlockWidget("  Features:"),
-                                new TextBlockWidget("  • Multiple window styles"),
-                                new TextBlockWidget("  • Drag to move"),
-                                new TextBlockWidget("  • Min/Max/Close buttons"),
-                                new TextBlockWidget(""),
-                                new HStackWidget([
-                                    new TextBlockWidget("  "),
-                                    new ButtonWidget("Close")
+                            "about",
+                            "About",
+                            w => w.VStack(v => [
+                                v.Text(""),
+                                v.Text("  Hex1b Floating Windows Demo"),
+                                v.Text("  Version: 1.0.0"),
+                                v.Text(""),
+                                v.Text("  Features:"),
+                                v.Text("  • Multiple window styles"),
+                                v.Text("  • Drag to move"),
+                                v.Text("  • Min/Max/Close buttons"),
+                                v.Text(""),
+                                v.HStack(h => [
+                                    h.Text("  "),
+                                    h.Button("Close")
                                 ])
                             ]),
-                            width: 40,
-                            height: 13,
-                            onClose: () => { openWindowCount--; statusMessage = "About closed"; }
+                            new WindowOptions
+                            {
+                                Width = 40,
+                                Height = 13,
+                                OnClose = () => { openWindowCount--; statusMessage = "About closed"; }
+                            }
                         );
                         statusMessage = "Opened About";
                     })
@@ -535,65 +621,86 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();
 
-// Build window content
-static Hex1bWidget BuildWindowContent(int windowNum)
+// Build window content - now receives context from window
+static Hex1bWidget BuildWindowContent(WidgetContext<Hex1bWidget> ctx, int windowNum)
 {
-    return new VStackWidget([
-        new TextBlockWidget(""),
-        new TextBlockWidget($"  This is Window #{windowNum}"),
-        new TextBlockWidget(""),
-        new TextBlockWidget("  Features:"),
-        new TextBlockWidget("  • Drag title bar to move"),
-        new TextBlockWidget("  • Click buttons to interact"),
-        new TextBlockWidget("  • Press Escape to close"),
-        new TextBlockWidget(""),
-        new HStackWidget([
-            new TextBlockWidget("  "),
-            new ButtonWidget("Action"),
-            new TextBlockWidget(" "),
-            new ButtonWidget("Close")
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text($"  This is Window #{windowNum}"),
+        v.Text(""),
+        v.Text("  Features:"),
+        v.Text("  • Drag title bar to move"),
+        v.Text("  • Click buttons to interact"),
+        v.Text("  • Press Escape to close"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Button("Action"),
+            h.Text(" "),
+            h.Button("Close")
         ])
     ]);
 }
 
-static Hex1bWidget BuildFramelessContent(int windowNum)
+static Hex1bWidget BuildCustomActionsContent(WidgetContext<Hex1bWidget> ctx, int windowNum, string actionFeedback)
 {
-    return new VStackWidget([
-        new TextBlockWidget($"  Frameless Window #{windowNum}"),
-        new TextBlockWidget(""),
-        new TextBlockWidget("  No title bar - just content."),
-        new TextBlockWidget("  Press Escape to close."),
-        new TextBlockWidget(""),
-        new HStackWidget([
-            new TextBlockWidget("  "),
-            new ButtonWidget("Close")
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text($"  Custom Actions Window #{windowNum}"),
+        v.Text(""),
+        v.Text("  Click the title bar icons:"),
+        v.Text("  📌 Pin  📋 Copy  ? Help"),
+        v.Text(""),
+        string.IsNullOrEmpty(actionFeedback)
+            ? v.Text("  (No action yet)")
+            : v.Text($"  → {actionFeedback}"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Button("Close")
         ])
     ]);
 }
 
-static Hex1bWidget BuildResizableContent(int windowNum)
+static Hex1bWidget BuildFramelessContent(WidgetContext<Hex1bWidget> ctx, int windowNum)
 {
-    return new VStackWidget([
-        new TextBlockWidget(""),
-        new TextBlockWidget($"  Resizable Window #{windowNum}"),
-        new TextBlockWidget(""),
-        new TextBlockWidget("  🖱️  Resize Handles:"),
-        new TextBlockWidget("  • Drag left/right edges"),
-        new TextBlockWidget("  • Drag bottom edge"),
-        new TextBlockWidget("  • Drag corners (◢)"),
-        new TextBlockWidget(""),
-        new TextBlockWidget("  📏 Constraints:"),
-        new TextBlockWidget("  • Min: 30×10"),
-        new TextBlockWidget("  • Max: 80×30"),
-        new TextBlockWidget(""),
-        new HStackWidget([
-            new TextBlockWidget("  "),
-            new ButtonWidget("Close")
+    return ctx.VStack(v => [
+        v.Text($"  Frameless Window #{windowNum}"),
+        v.Text(""),
+        v.Text("  No title bar - just content."),
+        v.Text("  Press Escape to close."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Button("Close")
+        ])
+    ]);
+}
+
+static Hex1bWidget BuildResizableContent(WidgetContext<Hex1bWidget> ctx, int windowNum)
+{
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text($"  Resizable Window #{windowNum}"),
+        v.Text(""),
+        v.Text("  🖱️  Resize Handles:"),
+        v.Text("  • Drag left/right edges"),
+        v.Text("  • Drag bottom edge"),
+        v.Text("  • Drag corners (◢)"),
+        v.Text(""),
+        v.Text("  📏 Constraints:"),
+        v.Text("  • Min: 30×10"),
+        v.Text("  • Max: 80×30"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Button("Close")
         ])
     ]).Fill();
 }
 
 static Hex1bWidget BuildTableContent(
+    WidgetContext<Hex1bWidget> ctx,
     IReadOnlyList<Employee> data,
     bool isCompact,
     bool isFillWidth,
@@ -604,7 +711,8 @@ static Hex1bWidget BuildTableContent(
     Action<bool> onFillWidthChanged,
     Action<bool> onSelectionChanged)
 {
-    var table = new TableWidget<Employee> { Data = data }
+    
+    var table = ctx.Table(data)
         .RowKey(e => e.Name)
         .Header(h => [
             h.Cell("Name").Width(SizeHint.Fill),
@@ -635,16 +743,16 @@ static Hex1bWidget BuildTableContent(
 
     var onOff = new[] { "On", "Off" };
 
-    return new VStackWidget([
-        new HStackWidget([
-            new TextBlockWidget(" Compact "),
-            new ToggleSwitchWidget(onOff, isCompact ? 0 : 1)
+    return ctx.VStack(v => [
+        v.HStack(h => [
+            h.Text(" Compact "),
+            h.ToggleSwitch(onOff, isCompact ? 0 : 1)
                 .OnSelectionChanged(e => onCompactChanged(e.SelectedIndex == 0)),
-            new TextBlockWidget("  Fill Width "),
-            new ToggleSwitchWidget(onOff, isFillWidth ? 0 : 1)
+            h.Text("  Fill Width "),
+            h.ToggleSwitch(onOff, isFillWidth ? 0 : 1)
                 .OnSelectionChanged(e => onFillWidthChanged(e.SelectedIndex == 0)),
-            new TextBlockWidget("  Selection "),
-            new ToggleSwitchWidget(onOff, showSelection ? 0 : 1)
+            h.Text("  Selection "),
+            h.ToggleSwitch(onOff, showSelection ? 0 : 1)
                 .OnSelectionChanged(e => onSelectionChanged(e.SelectedIndex == 0)),
         ]),
         table

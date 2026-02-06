@@ -32,18 +32,21 @@ public class TableClippingTests
                         new ButtonWidget("Open Table Window").OnClick(e =>
                         {
                             e.Windows.Open(
-                                id: "table-window",
-                                title: "Employees",
-                                content: () => new TableWidget<Employee>
+                                "table-window",
+                                "Employees",
+                                _ => new TableWidget<Employee>
                                 {
                                     Data = SampleEmployees.ToList(),
                                     HeaderBuilder = h => [h.Cell("ID").Fixed(5), h.Cell("Name").Fixed(15), h.Cell("Dept").Fixed(15)],
                                     RowBuilder = (r, emp, _) => [r.Cell(emp.Id.ToString()), r.Cell(emp.Name), r.Cell(emp.Department)]
                                 },
-                                width: 50,
-                                height: 12,
-                                isResizable: true,
-                                position: new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 5, OffsetY: 3)
+                                new WindowOptions
+                                {
+                                    Width = 50,
+                                    Height = 12,
+                                    IsResizable = true,
+                                    Position = new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 5, OffsetY: 3)
+                                }
                             );
                         })
                     ])
