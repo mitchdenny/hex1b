@@ -96,4 +96,26 @@ public static class WindowPanelExtensions
     /// <returns>A new WindowPanelWidget with AllowOutOfBounds enabled.</returns>
     public static WindowPanelWidget Unbounded(this WindowPanelWidget widget)
         => widget with { AllowOutOfBounds = true };
+
+    /// <summary>
+    /// Sets a decorative background widget that renders behind all content and windows.
+    /// The background does not receive focus or input.
+    /// </summary>
+    /// <param name="widget">The WindowPanelWidget to configure.</param>
+    /// <param name="backgroundBuilder">A function that builds the background widget using a context.</param>
+    /// <returns>A new WindowPanelWidget with the background configured.</returns>
+    /// <example>
+    /// <code>
+    /// ctx.WindowPanel(content)
+    ///    .Background(b => b.Surface(s => [s.Layer(GradientBackground)]))
+    /// </code>
+    /// </example>
+    public static WindowPanelWidget Background(
+        this WindowPanelWidget widget, 
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> backgroundBuilder)
+    {
+        var bgContext = new WidgetContext<Hex1bWidget>();
+        var background = backgroundBuilder(bgContext);
+        return widget with { Background = background };
+    }
 }

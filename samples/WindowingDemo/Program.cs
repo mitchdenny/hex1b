@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Layout;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 using WindowingDemo;
@@ -591,19 +592,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // ─────────────────────────────────────────────────────────────────
             // WINDOW PANEL (MDI area) - Unbounded allows windows to go outside
             // ─────────────────────────────────────────────────────────────────
-            main.WindowPanel(w =>
-                w.VStack(center => [
-                    center.Text(""),
-                    center.Text(""),
-                    center.Text(""),
-                    center.Text("╔═══════════════════════════════════════╗"),
-                    center.Text("║      Floating Windows Demo            ║"),
-                    center.Text("║                                       ║"),
-                    center.Text("║  Use File menu to open windows        ║"),
-                    center.Text("║  Drag title bar to move               ║"),
-                    center.Text("║  Windows can be dragged off-screen    ║"),
-                    center.Text("╚═══════════════════════════════════════╝")
-                ])
+            main.WindowPanel(w => w.Text(""))
+            .Background(b =>
+                b.Surface(s => SlimeMoldBackground.BuildLayers(s, demoRandom))
+                    .RedrawAfter(SlimeMoldBackground.RecommendedRedrawMs)
             ).Unbounded().Fill(),
 
             // ─────────────────────────────────────────────────────────────────

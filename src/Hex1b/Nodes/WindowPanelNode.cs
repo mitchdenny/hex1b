@@ -21,6 +21,12 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     public Hex1bNode? Content { get; set; }
 
     /// <summary>
+    /// Optional background node that renders behind all content and windows.
+    /// This node is purely decorative and does not receive focus or input.
+    /// </summary>
+    public Hex1bNode? BackgroundNode { get; set; }
+
+    /// <summary>
     /// The window nodes, in z-order (bottom to top).
     /// </summary>
     public List<WindowNode> WindowNodes { get; } = [];
@@ -264,6 +270,9 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     public override Size Measure(Constraints constraints)
     {
+        // Measure background (fills available space)
+        BackgroundNode?.Measure(constraints);
+
         // Measure content to fill available space
         var contentSize = Content?.Measure(constraints) ?? Size.Zero;
 
@@ -282,6 +291,9 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
         // Clip to our own bounds - windows should not render outside the panel
         _resolvedClipRect = bounds;
+
+        // Arrange background to fill bounds
+        BackgroundNode?.Arrange(bounds);
 
         // Arrange content to fill bounds
         Content?.Arrange(bounds);
@@ -483,7 +495,13 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
 
-        // Render content first (bottom layer)
+        // Render background first (bottom layer - decorative only)
+        if (BackgroundNode != null)
+        {
+            context.RenderChild(BackgroundNode);
+        }
+
+        // Render content (on top of background)
         if (Content != null)
         {
             context.RenderChild(Content);

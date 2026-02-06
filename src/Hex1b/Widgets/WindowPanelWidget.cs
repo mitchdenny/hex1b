@@ -40,6 +40,12 @@ public sealed record WindowPanelWidget(Hex1bWidget Content, string? Name = null)
     /// </summary>
     public bool AllowOutOfBounds { get; init; }
 
+    /// <summary>
+    /// Optional background widget that renders behind all content and windows.
+    /// This widget is purely decorative and does not receive focus or input.
+    /// </summary>
+    public Hex1bWidget? Background { get; init; }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var isNew = existingNode is not WindowPanelNode;
@@ -55,8 +61,18 @@ public sealed record WindowPanelWidget(Hex1bWidget Content, string? Name = null)
         // Update panel properties
         node.AllowOutOfBounds = AllowOutOfBounds;
 
-        // Reconcile main content
+        // Reconcile background (decorative, no focus handling)
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical);
+        if (Background != null)
+        {
+            node.BackgroundNode = await childContext.ReconcileChildAsync(node.BackgroundNode, Background, node);
+        }
+        else
+        {
+            node.BackgroundNode = null;
+        }
+
+        // Reconcile main content
         node.Content = await childContext.ReconcileChildAsync(node.Content, Content, node);
 
         // Reconcile windows from the WindowManager
