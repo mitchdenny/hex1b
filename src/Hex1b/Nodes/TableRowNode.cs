@@ -257,13 +257,11 @@ internal sealed class TableRowNode : Hex1bNode
             ? tableFocusedBorderColor 
             : borderColor;
         
-        // Determine row background color for focused or selected rows
+        // Determine row background color for focused row only
         string rowBgAnsi = "";
-        if (IsHighlighted || IsSelected == true)
+        if (IsHighlighted)
         {
-            var bg = IsHighlighted 
-                ? theme.Get(TableTheme.FocusedRowBackground) 
-                : theme.Get(TableTheme.SelectedRowBackground);
+            var bg = theme.Get(TableTheme.FocusedRowBackground);
             if (!bg.IsDefault)
             {
                 rowBgAnsi = bg.ToBackgroundAnsi();
@@ -287,9 +285,7 @@ internal sealed class TableRowNode : Hex1bNode
         var previousAmbient = context.AmbientBackground;
         if (!string.IsNullOrEmpty(rowBgAnsi))
         {
-            var effectiveBg = IsHighlighted 
-                ? theme.Get(TableTheme.FocusedRowBackground) 
-                : theme.Get(TableTheme.SelectedRowBackground);
+            var effectiveBg = theme.Get(TableTheme.FocusedRowBackground);
             if (!effectiveBg.IsDefault)
             {
                 context.AmbientBackground = effectiveBg;

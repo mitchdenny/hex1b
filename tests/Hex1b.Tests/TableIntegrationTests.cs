@@ -14,7 +14,6 @@ namespace Hex1b.Tests;
 public class TableIntegrationTests
 {
     private static readonly Hex1bColor FocusedRowBg = Hex1bColor.FromRgb(50, 50, 50);
-    private static readonly Hex1bColor SelectedRowBg = Hex1bColor.FromRgb(30, 50, 80);
 
     /// <summary>
     /// Test item for selection scenarios.
@@ -871,11 +870,9 @@ public class TableIntegrationTests
         TestContext.Current.TestOutputHelper?.WriteLine(afterMoveText);
 
         // Now Employee 1 is selected but not focused, Employee 2 is focused but not selected
-        // Both backgrounds should be visible
+        // Focus background should still be visible, selection indicated by checkbox only
         Assert.True(afterMoveSnapshot.HasBackgroundColor(FocusedRowBg),
             "Focused row (Employee 2) should have focused background");
-        Assert.True(afterMoveSnapshot.HasBackgroundColor(SelectedRowBg),
-            "Selected row (Employee 1) should have selected background");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -936,11 +933,9 @@ public class TableIntegrationTests
         Assert.Equal(3, data.Count(e => e.IsSelected));
         Assert.True(data[0].IsSelected && data[1].IsSelected && data[2].IsSelected);
 
-        // Both focused and selected colors should be present
+        // Focus background should be present, selection indicated by checkbox only
         Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
             "Focus row should show focused background");
-        Assert.True(snapshot.HasBackgroundColor(SelectedRowBg),
-            "Selected unfocused rows should show selected background");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -1370,11 +1365,9 @@ public class TableIntegrationTests
         Assert.Equal(2, data.Count(e => e.IsSelected));
 
         var afterSelectSnapshot = terminal.CreateSnapshot();
-        // Should have both focused (Bob) and selected (Alice) backgrounds
+        // Focus background should be present, selection indicated by checkbox only
         Assert.True(afterSelectSnapshot.HasBackgroundColor(FocusedRowBg),
             "Bob (focused) should have focused background");
-        Assert.True(afterSelectSnapshot.HasBackgroundColor(SelectedRowBg),
-            "Alice (selected, unfocused) should have selected background");
 
         // Step 3: Ctrl+A to select all
         await new Hex1bTerminalInputSequenceBuilder()
