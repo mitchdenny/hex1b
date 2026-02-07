@@ -1,6 +1,7 @@
 using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Input;
+using Hex1b.Layout;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -27,24 +28,23 @@ public class TableClippingTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                new WindowPanelWidget(
-                    new VStackWidget([
-                        new ButtonWidget("Open Table Window").OnClick(e =>
-                        {
-                            var handle = e.Windows.Window(_ => new TableWidget<Employee>
-                                {
-                                    Data = SampleEmployees.ToList(),
-                                    HeaderBuilder = h => [h.Cell("ID").Fixed(5), h.Cell("Name").Fixed(15), h.Cell("Dept").Fixed(15)],
-                                    RowBuilder = (r, emp, _) => [r.Cell(emp.Id.ToString()), r.Cell(emp.Name), r.Cell(emp.Department)]
-                                })
-                                .Title("Employees")
-                                .Size(50, 12)
-                                .Position(new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 5, OffsetY: 3))
-                                .Resizable();
-                            e.Windows.Open(handle);
-                        })
-                    ])
-                )
+                ctx.VStack(outer => [
+                    outer.Button("Open Table Window").OnClick(e =>
+                    {
+                        var handle = e.Windows.Window(_ => new TableWidget<Employee>
+                            {
+                                Data = SampleEmployees.ToList(),
+                                HeaderBuilder = h => [h.Cell("ID").Fixed(5), h.Cell("Name").Fixed(15), h.Cell("Dept").Fixed(15)],
+                                RowBuilder = (r, emp, _) => [r.Cell(emp.Id.ToString()), r.Cell(emp.Name), r.Cell(emp.Department)]
+                            })
+                            .Title("Employees")
+                            .Size(50, 12)
+                            .Position(new WindowPositionSpec(WindowPosition.TopLeft, OffsetX: 5, OffsetY: 3))
+                            .Resizable();
+                        e.Windows.Open(handle);
+                    }),
+                    outer.WindowPanel().Height(SizeHint.Fill)
+                ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

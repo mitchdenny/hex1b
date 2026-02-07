@@ -34,27 +34,15 @@ public class WindowPanelNodeTests
     #region Measurement Tests
 
     [Fact]
-    public void Measure_WithContent_ReturnsContentSize()
-    {
-        var content = new TextBlockNode { Text = "Hello World" };
-        var node = new WindowPanelNode { Content = content };
-
-        var size = node.Measure(new Constraints(0, 80, 0, 24));
-
-        // TextBlockNode measures as 11x1
-        Assert.Equal(11, size.Width);
-        Assert.Equal(1, size.Height);
-    }
-
-    [Fact]
-    public void Measure_WithNoContent_ReturnsZero()
+    public void Measure_FillsAvailableSpace()
     {
         var node = new WindowPanelNode();
 
         var size = node.Measure(new Constraints(0, 80, 0, 24));
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        // WindowPanel fills available space
+        Assert.Equal(80, size.Width);
+        Assert.Equal(24, size.Height);
     }
 
     #endregion
@@ -62,16 +50,17 @@ public class WindowPanelNodeTests
     #region Arrangement Tests
 
     [Fact]
-    public void Arrange_PositionsContentAtBounds()
+    public void Arrange_SetsBoundsOnNode()
     {
-        var content = new TextBlockNode { Text = "Hello" };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
         node.Measure(new Constraints(0, 80, 0, 24));
 
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, content.Bounds.X);
-        Assert.Equal(0, content.Bounds.Y);
+        Assert.Equal(0, node.Bounds.X);
+        Assert.Equal(0, node.Bounds.Y);
+        Assert.Equal(80, node.Bounds.Width);
+        Assert.Equal(24, node.Bounds.Height);
     }
 
     [Fact]
@@ -144,24 +133,19 @@ public class WindowPanelNodeTests
     #region Focus Tests
 
     [Fact]
-    public void GetFocusableNodes_WithNoWindows_ReturnsContentFocusables()
+    public void GetFocusableNodes_WithNoWindows_ReturnsEmpty()
     {
-        var button = new ButtonNode { Label = "Click" };
-        var content = new VStackNode { Children = [button] };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        Assert.Empty(focusables);
     }
 
     [Fact]
     public void GetFocusableNodes_WithModalWindow_OnlyReturnsModalFocusables()
     {
-        var contentButton = new ButtonNode { Label = "Content Button" };
-        var content = new VStackNode { Children = [contentButton] };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
 
         // Add a modal window with a button
         var windowButton = new ButtonNode { Label = "Window Button" };
@@ -182,11 +166,9 @@ public class WindowPanelNodeTests
     }
 
     [Fact]
-    public void GetFocusableNodes_WithNonModalWindows_ReturnsAllFocusables()
+    public void GetFocusableNodes_WithNonModalWindows_ReturnsWindowFocusables()
     {
-        var contentButton = new ButtonNode { Label = "Content Button" };
-        var content = new VStackNode { Children = [contentButton] };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
 
         // Add a non-modal window with a button
         var windowButton = new ButtonNode { Label = "Window Button" };
@@ -199,9 +181,8 @@ public class WindowPanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        // Should contain content button, window node itself, and window button
-        Assert.Equal(3, focusables.Count);
-        Assert.Contains(contentButton, focusables);
+        // Should contain window node itself and window button
+        Assert.Equal(2, focusables.Count);
         Assert.Contains(windowNode, focusables);
         Assert.Contains(windowButton, focusables);
     }
@@ -211,10 +192,9 @@ public class WindowPanelNodeTests
     #region GetChildren Tests
 
     [Fact]
-    public void GetChildren_ReturnsContentAndWindows()
+    public void GetChildren_ReturnsWindows()
     {
-        var content = new TextBlockNode { Text = "Content" };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
         
         var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
             .Title("Window");
@@ -224,9 +204,8 @@ public class WindowPanelNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Equal(2, children.Count);
-        Assert.Same(content, children[0]);
-        Assert.Same(windowNode, children[1]);
+        Assert.Single(children);
+        Assert.Same(windowNode, children[0]);
     }
 
     [Fact]
@@ -274,9 +253,7 @@ public class WindowPanelNodeTests
     [Fact]
     public void GetFocusableNodes_WithNestedModals_ReturnsOnlyTopmostModalFocusables()
     {
-        var contentButton = new ButtonNode { Label = "Content Button" };
-        var content = new VStackNode { Children = [contentButton] };
-        var node = new WindowPanelNode { Content = content };
+        var node = new WindowPanelNode();
 
         // Add first modal
         var modal1Button = new ButtonNode { Label = "Modal 1 Button" };
@@ -306,7 +283,6 @@ public class WindowPanelNodeTests
         Assert.Contains(modal2Button, focusables);
         Assert.DoesNotContain(modal1Node, focusables);
         Assert.DoesNotContain(modal1Button, focusables);
-        Assert.DoesNotContain(contentButton, focusables);
     }
 
     [Fact]

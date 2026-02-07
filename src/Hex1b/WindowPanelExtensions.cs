@@ -50,22 +50,7 @@ public static class WindowPanelExtensions
         string name)
         where TParent : Hex1bWidget
     {
-        return new WindowPanelWidget(null, name);
-    }
-
-    /// <summary>
-    /// Creates a WindowPanel with content displayed behind windows.
-    /// </summary>
-    /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="content">The content widget displayed behind windows.</param>
-    /// <returns>A new WindowPanelWidget.</returns>
-    public static WindowPanelWidget WindowPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Hex1bWidget content)
-        where TParent : Hex1bWidget
-    {
-        return new WindowPanelWidget(content);
+        return new WindowPanelWidget(name);
     }
 
     /// <summary>

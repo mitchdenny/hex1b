@@ -16,12 +16,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     public string? Name { get; set; }
 
     /// <summary>
-    /// The main content node displayed behind windows.
-    /// </summary>
-    public Hex1bNode? Content { get; set; }
-
-    /// <summary>
-    /// Optional background node that renders behind all content and windows.
+    /// Optional background node that renders behind all windows.
     /// This node is purely decorative and does not receive focus or input.
     /// </summary>
     public Hex1bNode? BackgroundNode { get; set; }
@@ -128,7 +123,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     /// <summary>
     /// Reconciles window nodes from the WindowManager.
-    /// Called by WindowPanelWidget after reconciling content.
+    /// Called by WindowPanelWidget after reconciling background.
     /// </summary>
     internal async Task ReconcileWindowsAsync(ReconcileContext context)
     {
@@ -177,18 +172,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             var focusables = activeWindow.Node.GetFocusableNodes().ToList();
             if (focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
             {
-                // Clear focus from content
-                if (Content != null)
-                {
-                    foreach (var focusable in Content.GetFocusableNodes())
-                    {
-                        if (focusable.IsFocused)
-                        {
-                            ReconcileContext.SetNodeFocus(focusable, false);
-                        }
-                    }
-                }
-
                 // Clear focus from other windows (not the active one)
                 foreach (var windowNode in WindowNodes)
                 {
@@ -227,15 +210,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             }
 
             // Otherwise, return focusables from all windows (topmost last for priority)
-            // and the main content
-            if (Content != null)
-            {
-                foreach (var focusable in Content.GetFocusableNodes())
-                {
-                    yield return focusable;
-                }
-            }
-
             foreach (var windowNode in WindowNodes)
             {
                 foreach (var focusable in windowNode.GetFocusableNodes())
@@ -246,14 +220,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         }
         else
         {
-            // No windows - just return content focusables
-            if (Content != null)
-            {
-                foreach (var focusable in Content.GetFocusableNodes())
-                {
-                    yield return focusable;
-                }
-            }
+            // No windows - panel has no focusables (background is decorative)
         }
 
         // Scrollbar nodes are focusable and need to be hit-testable
@@ -273,16 +240,13 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         // Measure background (fills available space)
         BackgroundNode?.Measure(constraints);
 
-        // Measure content to fill available space
-        var contentSize = Content?.Measure(constraints) ?? Size.Zero;
-
         // Measure windows (they have their own fixed sizes)
         foreach (var windowNode in WindowNodes)
         {
             windowNode.Measure(constraints);
         }
 
-        return constraints.Constrain(contentSize);
+        return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
     }
 
     public override void Arrange(Rect bounds)
@@ -294,9 +258,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
         // Arrange background to fill bounds
         BackgroundNode?.Arrange(bounds);
-
-        // Arrange content to fill bounds
-        Content?.Arrange(bounds);
 
         // First pass: resolve window positions and calculate virtual bounds
         foreach (var windowNode in WindowNodes)
@@ -501,12 +462,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             context.RenderChild(BackgroundNode);
         }
 
-        // Render content (on top of background)
-        if (Content != null)
-        {
-            context.RenderChild(Content);
-        }
-
         // Render windows in z-order (bottom to top)
         foreach (var windowNode in WindowNodes)
         {
@@ -573,7 +528,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
     {
-        if (Content != null) yield return Content;
         foreach (var windowNode in WindowNodes)
         {
             yield return windowNode;

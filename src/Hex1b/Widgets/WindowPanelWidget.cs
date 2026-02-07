@@ -4,9 +4,8 @@ namespace Hex1b.Widgets;
 
 /// <summary>
 /// A container panel that hosts floating windows.
-/// Windows are managed through the <see cref="WindowManager"/> and rendered on top of the main content.
+/// Windows are managed through the <see cref="WindowManager"/> and rendered over a decorative background.
 /// </summary>
-/// <param name="Content">Optional content widget displayed behind windows.</param>
 /// <param name="Name">Optional name for this panel. Required when using multiple WindowPanels.</param>
 /// <remarks>
 /// <para>
@@ -15,11 +14,12 @@ namespace Hex1b.Widgets;
 /// to allow windows to be dragged outside the panel, with scrollbars appearing for navigation.
 /// </para>
 /// <para>
-/// Access the window manager from event handlers via <c>e.Context.Windows</c>:
+/// Access the window manager from event handlers via <c>e.Windows</c>:
 /// <code>
 /// ctx.Button("Open").OnClick(e =&gt; {
-///     e.Context.Windows.Open("settings", "Settings", 
-///         () =&gt; c.Text("Hello"));
+///     e.Windows.Window(w =&gt; w.Text("Hello"))
+///         .Title("Settings")
+///         .Open(e.Windows);
 /// });
 /// </code>
 /// </para>
@@ -32,7 +32,7 @@ namespace Hex1b.Widgets;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed record WindowPanelWidget(Hex1bWidget? Content = null, string? Name = null) : Hex1bWidget
+public sealed record WindowPanelWidget(string? Name = null) : Hex1bWidget
 {
     /// <summary>
     /// Whether windows can be moved outside the panel bounds.
@@ -70,16 +70,6 @@ public sealed record WindowPanelWidget(Hex1bWidget? Content = null, string? Name
         else
         {
             node.BackgroundNode = null;
-        }
-
-        // Reconcile main content (if present)
-        if (Content != null)
-        {
-            node.Content = await childContext.ReconcileChildAsync(node.Content, Content, node);
-        }
-        else
-        {
-            node.Content = null;
         }
 
         // Reconcile windows from the WindowManager
