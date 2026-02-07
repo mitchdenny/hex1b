@@ -211,7 +211,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             "info" => HandleInfoRequest(),
             "capture" => HandleCaptureRequest(request.Format),
             "input" => await HandleInputRequestAsync(request.Data),
-            "key" => HandleKeyRequest(request.Key, request.Modifiers),
+            "key" => await HandleKeyRequestAsync(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
             "tree" => HandleTreeRequest(),
             "resize" => HandleResizeRequest(request.X, request.Y),
@@ -299,7 +299,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         };
     }
 
-    private DiagnosticsResponse HandleKeyRequest(string? keyName, string[]? modifiers)
+    private async Task<DiagnosticsResponse> HandleKeyRequestAsync(string? keyName, string[]? modifiers)
     {
         if (_terminal == null)
         {
@@ -358,7 +358,80 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             };
         }
 
-        return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct key injection" };
+        // For non-app workloads (PTY terminals), convert to raw bytes and send via input stream
+        var rawBytes = KeyToBytes(key, mods);
+        if (rawBytes.Length > 0)
+        {
+            await _terminal.SendInputAsync(rawBytes);
+            return new DiagnosticsResponse
+            {
+                Success = true,
+                Data = $"Sent key {key} with modifiers {mods} ({rawBytes.Length} bytes)"
+            };
+        }
+
+        return new DiagnosticsResponse { Success = false, Error = $"Cannot convert key {key} to raw input for this terminal type" };
+    }
+
+    /// <summary>
+    /// Converts a key + modifiers into raw bytes suitable for writing to a PTY input stream.
+    /// </summary>
+    private static byte[] KeyToBytes(Hex1bKey key, Hex1bModifiers mods)
+    {
+        var hasCtrl = mods.HasFlag(Hex1bModifiers.Control);
+        var hasAlt = mods.HasFlag(Hex1bModifiers.Alt);
+
+        // Single character keys with Ctrl modifier → control codes
+        if (hasCtrl && key >= Hex1bKey.A && key <= Hex1bKey.Z)
+        {
+            byte code = (byte)(key - Hex1bKey.A + 1);
+            return hasAlt ? [(byte)'\x1b', code] : [code];
+        }
+
+        // Named keys → ANSI escape sequences (or raw bytes)
+        string? seq = key switch
+        {
+            Hex1bKey.Enter => "\r",
+            Hex1bKey.Tab => "\t",
+            Hex1bKey.Escape => "\x1b",
+            Hex1bKey.Backspace => "\x7f",
+            Hex1bKey.Delete => "\x1b[3~",
+            Hex1bKey.Insert => "\x1b[2~",
+            Hex1bKey.Home => "\x1b[H",
+            Hex1bKey.End => "\x1b[F",
+            Hex1bKey.PageUp => "\x1b[5~",
+            Hex1bKey.PageDown => "\x1b[6~",
+            Hex1bKey.UpArrow => "\x1b[A",
+            Hex1bKey.DownArrow => "\x1b[B",
+            Hex1bKey.RightArrow => "\x1b[C",
+            Hex1bKey.LeftArrow => "\x1b[D",
+            Hex1bKey.F1 => "\x1bOP",
+            Hex1bKey.F2 => "\x1bOQ",
+            Hex1bKey.F3 => "\x1bOR",
+            Hex1bKey.F4 => "\x1bOS",
+            Hex1bKey.F5 => "\x1b[15~",
+            Hex1bKey.F6 => "\x1b[17~",
+            Hex1bKey.F7 => "\x1b[18~",
+            Hex1bKey.F8 => "\x1b[19~",
+            Hex1bKey.F9 => "\x1b[20~",
+            Hex1bKey.F10 => "\x1b[21~",
+            Hex1bKey.F11 => "\x1b[23~",
+            Hex1bKey.F12 => "\x1b[24~",
+            Hex1bKey.Spacebar => " ",
+            // Single letter keys without Ctrl
+            >= Hex1bKey.A and <= Hex1bKey.Z => ((char)('a' + (key - Hex1bKey.A))).ToString(),
+            _ => null
+        };
+
+        if (seq == null) return [];
+
+        // Wrap with Alt (ESC prefix)
+        if (hasAlt && !seq.StartsWith('\x1b'))
+        {
+            seq = "\x1b" + seq;
+        }
+
+        return Encoding.UTF8.GetBytes(seq);
     }
 
     private DiagnosticsResponse HandleClickRequest(int? x, int? y, string? button)
