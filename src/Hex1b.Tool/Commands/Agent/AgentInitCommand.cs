@@ -99,6 +99,11 @@ internal sealed class AgentInitCommand : BaseCommand
     }
 
     private static string GetSkillContent() => """
+        ---
+        name: hex1b
+        description: CLI tool for managing and interacting with Hex1b terminal applications. Use when launching terminals, capturing screen output, injecting input, asserting on terminal content, or automating TUI app workflows.
+        ---
+
         # Hex1b CLI Skill
 
         The `dotnet hex1b` CLI tool manages and interacts with Hex1b terminal applications.
