@@ -20,8 +20,6 @@
 dotnet add package Hex1b
 ```
 
-> **Note**: Hex1b currently targets .NET 10.0 preview.
-
 ## 🚀 Quick Start
 
 Here's a simple "Hello World" application:
