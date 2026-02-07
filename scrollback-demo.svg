@@ -10557,7 +10557,8 @@
     </g>
   </g>
   <rect class="cursor" x="700" y="660" width="10" height="20"/>
-  <line x1="0" y1="200" x2="800" y2="200" stroke="black" stroke-width="3" stroke-dasharray="8,4" />
+  <line x1="0" y1="200" x2="800" y2="200" stroke="rgba(0,0,0,0.5)" stroke-width="5" stroke-dasharray="8,4" />
+  <line x1="0" y1="200" x2="800" y2="200" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="8,4" />
   <g class="cell-grid">
     <line x1="10" y1="0" x2="10" y2="680"/>
     <line x1="20" y1="0" x2="20" y2="680"/>

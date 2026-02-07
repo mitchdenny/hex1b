@@ -404,11 +404,13 @@ public static class TerminalRegionSvgExtensions
             sb.AppendLine($"""  <rect class="cursor" x="{cursorRectX}" y="{cursorRectY}" width="{cellWidth}" height="{cellHeight}"/>""");
         }
 
-        // Render scrollback separator line (thick dotted black line between scrollback and visible area)
+        // Render scrollback separator line (bright dotted line between scrollback and visible area)
         if (scrollbackLineCount > 0)
         {
             var separatorY = scrollbackLineCount * cellHeight;
-            sb.AppendLine($"""  <line x1="0" y1="{separatorY}" x2="{width}" y2="{separatorY}" stroke="black" stroke-width="3" stroke-dasharray="8,4" />""");
+            // Draw a glow behind the line for visibility on both light and dark backgrounds
+            sb.AppendLine($"""  <line x1="0" y1="{separatorY}" x2="{width}" y2="{separatorY}" stroke="rgba(0,0,0,0.5)" stroke-width="5" stroke-dasharray="8,4" />""");
+            sb.AppendLine($"""  <line x1="0" y1="{separatorY}" x2="{width}" y2="{separatorY}" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="8,4" />""");
         }
 
         // Render pixel grid lines (shows pixel boundaries within each cell)
