@@ -17,17 +17,20 @@ namespace Hex1b.Tool.Commands.Terminal;
 internal sealed class TerminalAttachCommand : BaseCommand
 {
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
-    private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize local terminal to match the remote terminal's dimensions" };
+    private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize remote terminal to match local terminal dimensions" };
 
     private readonly TerminalIdResolver _resolver;
+    private readonly TerminalClient _client;
 
     public TerminalAttachCommand(
         TerminalIdResolver resolver,
+        TerminalClient client,
         OutputFormatter formatter,
         ILogger<TerminalAttachCommand> logger)
         : base("attach", "Attach to a terminal (Ctrl+] to detach)", formatter, logger)
     {
         _resolver = resolver;
+        _client = client;
 
         Arguments.Add(s_idArgument);
         Options.Add(s_resizeOption);
@@ -97,21 +100,17 @@ internal sealed class TerminalAttachCommand : BaseCommand
         // Use the Hex1b console driver for proper raw mode and I/O
         using var driver = new UnixConsoleDriver();
 
-        // Resize local terminal to match remote dimensions if requested
-        var savedWidth = 0;
-        var savedHeight = 0;
-        var didResize = false;
-        if (parseResult.GetValue(s_resizeOption) && response.Width.HasValue && response.Height.HasValue)
+        // Resize remote terminal to match local dimensions if requested
+        if (parseResult.GetValue(s_resizeOption))
         {
-            savedWidth = driver.Width;
-            savedHeight = driver.Height;
-            // Use ANSI escape: CSI 8 ; rows ; cols t
-            var resizeSeq = $"\x1b[8;{response.Height};{response.Width}t";
-            driver.Write(Encoding.UTF8.GetBytes(resizeSeq));
-            driver.Flush();
-            didResize = true;
-            // Small delay for the terminal emulator to process the resize
-            await Task.Delay(50, cancellationToken);
+            var localWidth = driver.Width;
+            var localHeight = driver.Height;
+            if (localWidth != response.Width || localHeight != response.Height)
+            {
+                await _client.SendAsync(resolved.SocketPath!,
+                    new DiagnosticsRequest { Method = "resize", X = localWidth, Y = localHeight },
+                    cancellationToken);
+            }
         }
 
         // Write initial screen content before entering raw mode
@@ -140,13 +139,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
             driver.ExitRawMode();
             // Send detach signal (best effort)
             try { await writer.WriteLineAsync("detach"); } catch { }
-
-            // Restore local terminal size if we resized it
-            if (didResize && savedWidth > 0 && savedHeight > 0)
-            {
-                var restoreSeq = $"\x1b[8;{savedHeight};{savedWidth}t";
-                Console.Write(restoreSeq);
-            }
 
             Console.Error.WriteLine();
             Console.Error.WriteLine($"Detached from {resolved.Id}.");
