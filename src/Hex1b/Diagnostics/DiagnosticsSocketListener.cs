@@ -43,6 +43,11 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     public string SocketPath => _socketPath;
 
     /// <summary>
+    /// Gets a token that is cancelled when a shutdown request is received.
+    /// </summary>
+    internal CancellationToken ShutdownToken => _cts.Token;
+
+    /// <summary>
     /// Creates a new MCP diagnostics presentation filter.
     /// </summary>
     /// <param name="appName">Optional application name. Defaults to the entry assembly name.</param>
@@ -209,6 +214,8 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             "key" => HandleKeyRequest(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
             "tree" => HandleTreeRequest(),
+            "resize" => HandleResizeRequest(request.X, request.Y),
+            "shutdown" => HandleShutdownRequest(),
             _ => new DiagnosticsResponse { Success = false, Error = $"Unknown method: {request.Method}" }
         };
     }
@@ -413,6 +420,39 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         }
 
         return new DiagnosticsResponse { Success = false, Error = "No diagnostic tree provider available" };
+    }
+
+    private DiagnosticsResponse HandleResizeRequest(int? width, int? height)
+    {
+        if (_terminal == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Terminal not initialized" };
+        }
+
+        var newWidth = width ?? _terminal.Width;
+        var newHeight = height ?? _terminal.Height;
+
+        _terminal.Resize(newWidth, newHeight);
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Width = _terminal.Width,
+            Height = _terminal.Height
+        };
+    }
+
+    private DiagnosticsResponse HandleShutdownRequest()
+    {
+        // Signal that we should shut down - cancel the listener
+        // The host process watches for this and exits gracefully
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100); // Allow the response to be sent first
+            await _cts.CancelAsync();
+        });
+
+        return new DiagnosticsResponse { Success = true, Data = "Shutting down" };
     }
 
     private static async Task WriteErrorAsync(StreamWriter writer, string error)

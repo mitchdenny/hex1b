@@ -29,6 +29,11 @@ public class Program
 
         // Terminal commands
         builder.Services.AddTransient<Commands.Terminal.TerminalListCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalStartCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalStopCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalInfoCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalResizeCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalHostCommand>();
         builder.Services.AddTransient<Commands.Terminal.TerminalCommand>();
 
         // App commands
