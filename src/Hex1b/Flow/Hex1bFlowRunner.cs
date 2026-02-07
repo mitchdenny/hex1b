@@ -320,9 +320,8 @@ internal sealed class Hex1bFlowRunner
     /// </summary>
     private Task<int> QueryCursorRowAsync(CancellationToken ct)
     {
-        // For the spike, assume cursor is at the current terminal height minus some buffer
-        // A real implementation would send ESC[6n (DSR) and parse the CPR response
-        return Task.FromResult(0);
+        // Use the initial cursor row from options if provided
+        return Task.FromResult(_options.InitialCursorRow ?? 0);
     }
 
     private sealed class YieldEntry
@@ -341,10 +340,17 @@ public sealed class Hex1bFlowOptions
     /// <summary>
     /// Theme for all slices and full-screen apps in the flow.
     /// </summary>
-    public Hex1bTheme? Theme { get; init; }
+    public Hex1bTheme? Theme { get; set; }
 
     /// <summary>
     /// Whether to enable mouse input for full-screen steps.
     /// </summary>
-    public bool EnableMouse { get; init; }
+    public bool EnableMouse { get; set; }
+
+    /// <summary>
+    /// Initial cursor row (0-based) where the flow starts rendering.
+    /// Set this to <c>Console.GetCursorPosition().Top</c> before calling RunAsync.
+    /// If null, defaults to 0.
+    /// </summary>
+    public int? InitialCursorRow { get; set; }
 }

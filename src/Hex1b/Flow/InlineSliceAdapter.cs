@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Hex1b.Input;
 
@@ -9,7 +10,7 @@ namespace Hex1b.Flow;
 /// without entering the alternate screen. All cursor positioning is offset by the
 /// slice's row origin in the terminal.
 /// </summary>
-internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
+internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -20,6 +21,14 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
     private bool _disposed;
     private int _outputQueueDepth;
     private bool _inTuiMode;
+
+    // Regex to match ANSI CUP sequences: ESC [ row ; col H  or  ESC [ row H  or  ESC [ H
+    [GeneratedRegex(@"\x1b\[(\d*)(;(\d*))?(H|f)", RegexOptions.Compiled)]
+    private static partial Regex CursorPositionRegex();
+
+    // Regex to match clear screen: ESC [ 2 J
+    [GeneratedRegex(@"\x1b\[2J")]
+    private static partial Regex ClearScreenRegex();
 
     public InlineSliceAdapter(int width, int height, int rowOrigin, TerminalCapabilities? capabilities = null)
     {
@@ -57,10 +66,17 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
 
     // === App-side APIs ===
 
+    /// <summary>
+    /// Write output, rewriting ANSI cursor positioning sequences to apply the row offset.
+    /// </summary>
     public void Write(string text)
     {
         if (_disposed) return;
-        var bytes = Encoding.UTF8.GetBytes(text);
+
+        // Rewrite cursor position sequences to apply row offset
+        var rewritten = RewriteCursorPositions(text);
+
+        var bytes = Encoding.UTF8.GetBytes(rewritten);
         if (_outputChannel.Writer.TryWrite(bytes))
         {
             Interlocked.Increment(ref _outputQueueDepth);
@@ -70,10 +86,9 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(data.ToArray()))
-        {
-            Interlocked.Increment(ref _outputQueueDepth);
-        }
+        // Convert to string for ANSI rewriting, then back to bytes
+        var text = Encoding.UTF8.GetString(data);
+        Write(text);
     }
 
     public void Flush() { }
@@ -91,7 +106,7 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
     {
         if (_inTuiMode) return;
         _inTuiMode = true;
-        Write("\x1b[?25l"); // Hide cursor
+        WriteRaw("\x1b[?25l"); // Hide cursor
     }
 
     /// <summary>
@@ -105,21 +120,23 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
         var sb = new StringBuilder();
         sb.Append("\x1b[0m");   // Reset text attributes
         sb.Append("\x1b[?25h"); // Show cursor
-        Write(sb.ToString());
+        // Position cursor below the slice region
+        sb.Append($"\x1b[{_rowOrigin + _height + 1};1H");
+        WriteRaw(sb.ToString());
     }
 
     /// <summary>
-    /// Clear the slice region only.
+    /// Clear the slice region only (not the full screen).
     /// </summary>
     public void Clear()
     {
         var sb = new StringBuilder();
         for (int row = 0; row < _height; row++)
         {
-            sb.Append($"\x1b[{_rowOrigin + row + 1};1H"); // Move to row
+            sb.Append($"\x1b[{_rowOrigin + row + 1};1H"); // Move to row (1-indexed)
             sb.Append("\x1b[2K");                          // Clear entire line
         }
-        Write(sb.ToString());
+        WriteRaw(sb.ToString());
     }
 
     /// <summary>
@@ -127,7 +144,7 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
     /// </summary>
     public void SetCursorPosition(int left, int top)
     {
-        Write($"\x1b[{_rowOrigin + top + 1};{left + 1}H");
+        WriteRaw($"\x1b[{_rowOrigin + top + 1};{left + 1}H");
     }
 
     // === Terminal-side APIs ===
@@ -199,5 +216,62 @@ internal sealed class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDi
     {
         Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    // === ANSI Rewriting ===
+
+    /// <summary>
+    /// Write raw bytes without ANSI rewriting (for sequences we generate ourselves).
+    /// </summary>
+    private void WriteRaw(string text)
+    {
+        if (_disposed) return;
+        var bytes = Encoding.UTF8.GetBytes(text);
+        if (_outputChannel.Writer.TryWrite(bytes))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
+    }
+
+    /// <summary>
+    /// Rewrites ANSI cursor position sequences to apply the row offset,
+    /// and converts full-screen clears to slice-region clears.
+    /// </summary>
+    private string RewriteCursorPositions(string text)
+    {
+        if (_rowOrigin == 0) return text;
+
+        // Replace clear screen (ESC[2J) with slice-region clear
+        text = ClearScreenRegex().Replace(text, _ =>
+        {
+            var sb = new StringBuilder();
+            for (int row = 0; row < _height; row++)
+            {
+                sb.Append($"\x1b[{_rowOrigin + row + 1};1H");
+                sb.Append("\x1b[2K");
+            }
+            return sb.ToString();
+        });
+
+        // Rewrite CUP sequences: ESC[row;colH → ESC[row+offset;colH
+        text = CursorPositionRegex().Replace(text, match =>
+        {
+            var rowStr = match.Groups[1].Value;
+            var colStr = match.Groups[3].Value;
+            var suffix = match.Groups[4].Value; // H or f
+
+            int row = string.IsNullOrEmpty(rowStr) ? 1 : int.Parse(rowStr);
+            int col = string.IsNullOrEmpty(colStr) ? 1 : int.Parse(colStr);
+
+            int offsetRow = row + _rowOrigin;
+
+            if (col == 1 && !match.Groups[2].Success)
+            {
+                return $"\x1b[{offsetRow}{suffix}";
+            }
+            return $"\x1b[{offsetRow};{col}{suffix}";
+        });
+
+        return text;
     }
 }

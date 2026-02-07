@@ -8,6 +8,9 @@ Console.WriteLine("=== Hex1b Flow Demo ===");
 Console.WriteLine("This demo shows inline micro-TUI slices in the normal terminal buffer.");
 Console.WriteLine();
 
+// Capture cursor position before entering the terminal (raw mode)
+var cursorRow = Console.GetCursorPosition().Top;
+
 await Hex1bTerminal.CreateBuilder()
     .WithHex1bFlow(async flow =>
     {
@@ -40,7 +43,7 @@ await Hex1bTerminal.CreateBuilder()
             ]),
             @yield: ctx => ctx.Text(confirmed ? "✓ Confirmed!" : "✗ Cancelled.")
         );
-    })
+    }, options => options.InitialCursorRow = cursorRow)
     .Build()
     .RunAsync();
 
