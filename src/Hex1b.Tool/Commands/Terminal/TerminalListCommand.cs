@@ -35,6 +35,8 @@ internal sealed class TerminalListCommand : BaseCommand
 
         var headers = new[] { "ID", "TYPE", "NAME", "PID", "SIZE", "UPTIME" };
         var rows = new List<string[]>();
+        var reachable = new List<TerminalDiscovery.DiscoveredTerminal>();
+        var staleSocketPaths = new List<string>();
 
         foreach (var terminal in terminals)
         {
@@ -45,6 +47,7 @@ internal sealed class TerminalListCommand : BaseCommand
                     ? FormatUptime(DateTimeOffset.UtcNow - info.StartTime.Value)
                     : "-";
 
+                reachable.Add(terminal);
                 rows.Add([
                     terminal.Id,
                     terminal.Type,
@@ -56,13 +59,31 @@ internal sealed class TerminalListCommand : BaseCommand
             }
             else
             {
-                rows.Add([terminal.Id, terminal.Type, "-", "-", "-", "unreachable"]);
+                // Stale socket — clean it up silently
+                staleSocketPaths.Add(terminal.SocketPath);
             }
+        }
+
+        // Remove stale sockets
+        foreach (var path in staleSocketPaths)
+        {
+            try { File.Delete(path); } catch { /* best effort */ }
+        }
+
+        if (staleSocketPaths.Count > 0)
+        {
+            Logger.LogDebug("Cleaned {Count} stale socket(s)", staleSocketPaths.Count);
+        }
+
+        if (rows.Count == 0)
+        {
+            Formatter.WriteLine("No terminals found.");
+            return 0;
         }
 
         if (parseResult.GetValue(RootCommand.JsonOption))
         {
-            Formatter.WriteJson(terminals.Select((t, i) => new
+            Formatter.WriteJson(reachable.Select((t, i) => new
             {
                 id = t.Id,
                 type = t.Type,

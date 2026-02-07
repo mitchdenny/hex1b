@@ -33,6 +33,7 @@ public class Program
         builder.Services.AddTransient<Commands.Terminal.TerminalStopCommand>();
         builder.Services.AddTransient<Commands.Terminal.TerminalInfoCommand>();
         builder.Services.AddTransient<Commands.Terminal.TerminalResizeCommand>();
+        builder.Services.AddTransient<Commands.Terminal.TerminalCleanCommand>();
         builder.Services.AddTransient<Commands.Terminal.TerminalHostCommand>();
         builder.Services.AddTransient<Commands.Terminal.TerminalCommand>();
 
