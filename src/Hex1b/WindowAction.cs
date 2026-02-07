@@ -12,17 +12,16 @@ namespace Hex1b;
 /// </remarks>
 /// <example>
 /// <code>
-/// // Window with close button (default)
-/// e.Windows.Open("my-window", "My Window", () => content);
+/// // Window with default close button
+/// var window = e.Windows.Window(w => w.Text("Content"))
+///     .Title("My Window");
+/// e.Windows.Open(window);
 /// 
-/// // Custom actions
-/// e.Windows.Open("editor", "Editor", () => content, new WindowOptions
-/// {
-///     RightTitleBarActions = [
-///         new WindowAction("?", ctx => ShowHelp()),
-///         WindowAction.Close()
-///     ]
-/// });
+/// // Custom title bar actions
+/// var editor = e.Windows.Window(w => w.Text("Editor content"))
+///     .Title("Editor")
+///     .RightTitleActions(a => [a.Action("?", ShowHelp), a.Close()]);
+/// e.Windows.Open(editor);
 /// </code>
 /// </example>
 public sealed record WindowAction

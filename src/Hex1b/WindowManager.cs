@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
 
@@ -26,20 +27,21 @@ namespace Hex1b;
 /// <para>Opening a window from a button click:</para>
 /// <code>
 /// ctx.Button("Open Settings").OnClick(e =&gt; {
-///     e.Context.Windows.Open(
-///         "settings",
-///         "Settings",
-///         () =&gt; ctx.VStack(v =&gt; [
-///             v.Text("Settings content here")
-///         ]),
-///         new WindowOptions { Width = 60, Height = 20 }
-///     );
+///     var window = e.Windows.Window(w =&gt; w.VStack(v =&gt; [
+///         v.Text("Settings content here"),
+///         v.Button("Close").OnClick(ev =&gt; ev.Windows.Close(w.Window))
+///     ]))
+///     .Title("Settings")
+///     .Size(60, 20);
+///     
+///     e.Windows.Open(window);
 /// });
 /// </code>
 /// </example>
 public sealed class WindowManager
 {
     private readonly List<WindowEntry> _entries = [];
+    private readonly Dictionary<WindowHandle, WindowEntry> _handleToEntry = new();
     private readonly object _lock = new();
     private int _nextZIndex = 0;
 
@@ -100,185 +102,98 @@ public sealed class WindowManager
     }
 
     /// <summary>
-    /// Opens a new window.
+    /// Creates a new window handle with the specified content builder.
+    /// The window is not opened until <see cref="Open(WindowHandle)"/> is called.
     /// </summary>
-    /// <param name="id">Unique identifier for the window. If a window with this ID exists, it is brought to front instead.</param>
-    /// <param name="title">The window title.</param>
-    /// <param name="content">Builder function for window content. Receives a context for fluent widget construction.</param>
-    /// <param name="options">Configuration options for the window. If null, uses <see cref="WindowOptions.Default"/>.</param>
+    /// <param name="content">Builder function for window content. Receives a <see cref="WindowContentContext{TParentWidget}"/> 
+    /// that provides access to the window handle via the <c>Window</c> property.</param>
+    /// <returns>A window handle that can be configured with fluent methods and opened.</returns>
+    /// <example>
+    /// <code>
+    /// var window = e.Windows.Window(w =&gt; w.VStack(v =&gt; [
+    ///     v.Text("Settings"),
+    ///     v.Button("Close").OnClick(ev =&gt; ev.Windows.Close(w.Window))
+    /// ]))
+    /// .Title("Settings")
+    /// .Size(60, 20);
+    /// 
+    /// e.Windows.Open(window);
+    /// </code>
+    /// </example>
+    public WindowHandle Window(Func<WindowContentContext<Hex1bWidget>, Hex1bWidget> content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return new WindowHandle(content);
+    }
+
+    /// <summary>
+    /// Opens a window from a window handle.
+    /// If the window is already open, it is brought to front instead.
+    /// </summary>
+    /// <param name="handle">The window handle created by <see cref="Window"/>.</param>
     /// <returns>The window entry.</returns>
     /// <example>
     /// <code>
-    /// // Simple window with fluent content
-    /// e.Windows.Open("my-window", "My Window", w => w.Text("Hello!"));
+    /// var window = e.Windows.Window(w =&gt; w.Text("Hello!"))
+    ///     .Title("My Window")
+    ///     .Size(40, 15);
     /// 
-    /// // Window with custom options
-    /// e.Windows.Open("settings", "Settings", w => w.VStack(v => [
-    ///     v.Text("Settings content")
-    /// ]), new WindowOptions
-    /// {
-    ///     Width = 60,
-    ///     Height = 20,
-    ///     IsResizable = true,
-    ///     Position = new WindowPositionSpec(WindowPosition.TopRight)
-    /// });
+    /// e.Windows.Open(window);
     /// </code>
     /// </example>
-    public WindowEntry Open(
-        string id,
-        string title,
-        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
-        WindowOptions? options = null)
+    public WindowEntry Open(WindowHandle handle)
     {
-        ArgumentNullException.ThrowIfNull(id);
-        ArgumentNullException.ThrowIfNull(title);
-        ArgumentNullException.ThrowIfNull(content);
-
-        options ??= WindowOptions.Default;
+        ArgumentNullException.ThrowIfNull(handle);
 
         lock (_lock)
         {
-            // Check if window with this ID already exists
-            var existing = _entries.FirstOrDefault(e => e.Id == id);
-            if (existing != null)
+            // Check if this handle is already open
+            if (_handleToEntry.TryGetValue(handle, out var existing))
             {
                 BringToFrontInternal(existing);
                 return existing;
             }
 
+            // Generate a unique ID based on the handle's identity
+            var id = $"__wh_{RuntimeHelpers.GetHashCode(handle)}_{_nextZIndex}";
+
             var entry = new WindowEntry(
                 manager: this,
                 id: id,
-                title: title,
-                contentBuilder: content,
-                width: options.Width,
-                height: options.Height,
-                x: options.X,
-                y: options.Y,
-                positionSpec: options.Position,
-                isModal: options.IsModal,
-                isResizable: options.IsResizable,
-                minWidth: options.MinWidth,
-                minHeight: options.MinHeight,
-                maxWidth: options.MaxWidth,
-                maxHeight: options.MaxHeight,
-                onClose: options.OnClose,
-                onActivated: options.OnActivated,
-                onDeactivated: options.OnDeactivated,
-                showTitleBar: options.ShowTitleBar,
-                leftTitleBarActions: options.LeftTitleBarActions ?? [],
-                rightTitleBarActions: options.RightTitleBarActions ?? [WindowAction.Close()],
-                escapeBehavior: options.EscapeBehavior,
+                title: handle.TitleValue,
+                contentBuilder: _ => handle.BuildContent(),
+                width: handle.WidthValue,
+                height: handle.HeightValue,
+                x: handle.XValue,
+                y: handle.YValue,
+                positionSpec: handle.PositionSpecValue,
+                isModal: handle.IsModalValue,
+                isResizable: handle.IsResizableValue,
+                minWidth: handle.MinWidthValue,
+                minHeight: handle.MinHeightValue,
+                maxWidth: handle.MaxWidthValue,
+                maxHeight: handle.MaxHeightValue,
+                onClose: handle.OnCloseValue,
+                onActivated: handle.OnActivatedValue,
+                onDeactivated: handle.OnDeactivatedValue,
+                onResultCallback: handle.OnResultCallbackValue,
+                resultType: handle.ResultTypeValue,
+                showTitleBar: handle.ShowTitleBarValue,
+                leftTitleBarActions: handle.BuildLeftTitleActions(),
+                rightTitleBarActions: handle.BuildRightTitleActions(),
+                escapeBehavior: handle.EscapeBehaviorValue,
                 zIndex: _nextZIndex++,
-                allowOutOfBounds: options.AllowOutOfBounds
+                allowOutOfBounds: handle.AllowOutOfBoundsValue
             );
 
+            entry.Handle = handle;
+            handle.Entry = entry;
             _entries.Add(entry);
+            _handleToEntry[handle] = entry;
         }
 
         Changed?.Invoke();
         return _entries.Last();
-    }
-
-    /// <summary>
-    /// Opens a modal dialog and waits for it to be closed with a result.
-    /// Use <see cref="WindowEntry.CloseWithResult"/> to close the dialog and return a value.
-    /// </summary>
-    /// <typeparam name="TResult">The type of result expected from the dialog.</typeparam>
-    /// <param name="id">Unique identifier for the window.</param>
-    /// <param name="title">The window title.</param>
-    /// <param name="content">Builder function for window content.</param>
-    /// <param name="options">Configuration options. <see cref="WindowOptions.IsModal"/> is automatically set to true.</param>
-    /// <returns>A task that completes when the modal is closed, containing the result.</returns>
-    /// <remarks>
-    /// <para>
-    /// <b>Warning:</b> Do not await this method directly in UI event handlers (such as button click
-    /// or menu item handlers). Awaiting in a handler blocks the UI from processing input, which means
-    /// the modal cannot receive clicks to close it, causing a deadlock.
-    /// </para>
-    /// <para>
-    /// Instead, use the regular <see cref="Open"/> method with <c>IsModal = true</c> and handle the
-    /// result in button click handlers or the <c>OnClose</c> callback:
-    /// </para>
-    /// <code>
-    /// // ✓ Correct: Use Open with callbacks
-    /// e.Windows.Open("confirm", "Confirm", () => ..., new WindowOptions { IsModal = true, OnClose = () => { /* handle close */ } });
-    /// 
-    /// // ✗ Wrong: Don't await in event handlers
-    /// var result = await e.Windows.OpenModalAsync&lt;bool&gt;(...); // DEADLOCK!
-    /// </code>
-    /// <para>
-    /// This method is suitable for use in background tasks or when you have full control of the
-    /// execution context (e.g., in tests or non-UI code that can yield to the UI thread).
-    /// </para>
-    /// </remarks>
-    public Task<TResult?> OpenModalAsync<TResult>(
-        string id,
-        string title,
-        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
-        WindowOptions? options = null)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        options ??= WindowOptions.Dialog;
-        
-        // Create a new options instance that forces IsModal and captures the close callback
-        var existingOnClose = options.OnClose;
-        var modalOptions = new WindowOptions
-        {
-            Width = options.Width,
-            Height = options.Height,
-            X = options.X,
-            Y = options.Y,
-            Position = options.Position,
-            IsModal = true, // Always modal for this method
-            IsResizable = options.IsResizable,
-            MinWidth = options.MinWidth,
-            MinHeight = options.MinHeight,
-            MaxWidth = options.MaxWidth,
-            MaxHeight = options.MaxHeight,
-            AllowOutOfBounds = options.AllowOutOfBounds,
-            OnActivated = options.OnActivated,
-            OnDeactivated = options.OnDeactivated,
-            ShowTitleBar = options.ShowTitleBar,
-            LeftTitleBarActions = options.LeftTitleBarActions,
-            RightTitleBarActions = options.RightTitleBarActions,
-            EscapeBehavior = options.EscapeBehavior,
-            OnClose = () =>
-            {
-                existingOnClose?.Invoke();
-                // If closed without result (e.g., by Escape), complete with default
-                tcs.TrySetResult(default);
-            }
-        };
-        
-        var entry = Open(id, title, content, modalOptions);
-        entry.ResultSource = tcs;
-        
-        return tcs.Task.ContinueWith(t => t.Result is TResult r ? r : default);
-    }
-
-    /// <summary>
-    /// Opens a modal dialog and waits for it to be closed.
-    /// This overload doesn't expect a specific result type.
-    /// </summary>
-    /// <param name="id">Unique identifier for the window.</param>
-    /// <param name="title">The window title.</param>
-    /// <param name="content">Builder function for window content. Receives a context for fluent widget construction.</param>
-    /// <param name="options">Configuration options. <see cref="WindowOptions.IsModal"/> is automatically set to true.</param>
-    /// <returns>A task that completes when the modal is closed.</returns>
-    /// <remarks>
-    /// <para>
-    /// <b>Warning:</b> Do not await this method directly in UI event handlers. See 
-    /// <see cref="OpenModalAsync{TResult}"/> for details on proper usage.
-    /// </para>
-    /// </remarks>
-    public Task OpenModalAsync(
-        string id,
-        string title,
-        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> content,
-        WindowOptions? options = null)
-    {
-        return OpenModalAsync<object>(id, title, content, options);
     }
 
     /// <summary>
@@ -298,30 +213,44 @@ public sealed class WindowManager
             {
                 return false;
             }
+            
+            // Clean up handle mapping if this entry was opened via WindowHandle
+            if (entry.Handle != null)
+            {
+                entry.Handle.Entry = null;
+                _handleToEntry.Remove(entry.Handle);
+            }
+            
             onClose = entry.OnClose;
         }
 
         onClose?.Invoke();
+        
+        // Invoke result callback if registered
+        entry.InvokeResultCallback();
+        
         Changed?.Invoke();
         return true;
     }
 
     /// <summary>
-    /// Closes a window by its ID.
+    /// Closes a window by its handle.
     /// </summary>
-    /// <param name="id">The window ID.</param>
+    /// <param name="handle">The window handle.</param>
     /// <returns>True if the window was found and closed.</returns>
-    public bool Close(string id)
+    public bool Close(WindowHandle handle)
     {
+        ArgumentNullException.ThrowIfNull(handle);
+
         WindowEntry? entry;
         
         lock (_lock)
         {
-            entry = _entries.FirstOrDefault(e => e.Id == id);
+            if (!_handleToEntry.TryGetValue(handle, out entry))
+            {
+                return false;
+            }
         }
-
-        if (entry == null)
-            return false;
 
         return Close(entry);
     }
@@ -337,6 +266,7 @@ public sealed class WindowManager
         {
             toClose = [.. _entries];
             _entries.Clear();
+            _handleToEntry.Clear();
         }
 
         foreach (var entry in toClose)
@@ -367,15 +297,16 @@ public sealed class WindowManager
     }
 
     /// <summary>
-    /// Brings a window to the front by ID.
+    /// Brings a window to the front by its handle.
     /// </summary>
-    /// <param name="id">The window ID.</param>
-    public void BringToFront(string id)
+    /// <param name="handle">The window handle.</param>
+    public void BringToFront(WindowHandle handle)
     {
+        ArgumentNullException.ThrowIfNull(handle);
+
         lock (_lock)
         {
-            var entry = _entries.FirstOrDefault(e => e.Id == id);
-            if (entry != null)
+            if (_handleToEntry.TryGetValue(handle, out var entry))
             {
                 BringToFrontInternal(entry);
             }
@@ -385,28 +316,30 @@ public sealed class WindowManager
     }
 
     /// <summary>
-    /// Gets a window entry by ID.
+    /// Gets a window entry by its handle.
     /// </summary>
-    /// <param name="id">The window ID.</param>
+    /// <param name="handle">The window handle.</param>
     /// <returns>The window entry, or null if not found.</returns>
-    public WindowEntry? Get(string id)
+    public WindowEntry? Get(WindowHandle handle)
     {
+        ArgumentNullException.ThrowIfNull(handle);
         lock (_lock)
         {
-            return _entries.FirstOrDefault(e => e.Id == id);
+            return _handleToEntry.GetValueOrDefault(handle);
         }
     }
 
     /// <summary>
-    /// Checks if a window with the given ID is open.
+    /// Checks if a window with the given handle is open.
     /// </summary>
-    /// <param name="id">The window ID.</param>
+    /// <param name="handle">The window handle.</param>
     /// <returns>True if the window is open.</returns>
-    public bool IsOpen(string id)
+    public bool IsOpen(WindowHandle handle)
     {
+        ArgumentNullException.ThrowIfNull(handle);
         lock (_lock)
         {
-            return _entries.Any(e => e.Id == id);
+            return _handleToEntry.ContainsKey(handle);
         }
     }
 
@@ -500,6 +433,8 @@ public sealed class WindowEntry
         Action? onClose,
         Action? onActivated,
         Action? onDeactivated,
+        object? onResultCallback,
+        Type? resultType,
         bool showTitleBar,
         IReadOnlyList<WindowAction> leftTitleBarActions,
         IReadOnlyList<WindowAction> rightTitleBarActions,
@@ -525,6 +460,8 @@ public sealed class WindowEntry
         OnClose = onClose;
         OnActivated = onActivated;
         OnDeactivated = onDeactivated;
+        OnResultCallback = onResultCallback;
+        ResultType = resultType;
         ShowTitleBar = showTitleBar;
         LeftTitleBarActions = leftTitleBarActions;
         RightTitleBarActions = rightTitleBarActions;
@@ -536,9 +473,14 @@ public sealed class WindowEntry
     internal WindowManager Manager { get; }
 
     /// <summary>
-    /// Unique identifier for this window.
+    /// The window handle for this entry.
     /// </summary>
-    public string Id { get; }
+    internal WindowHandle? Handle { get; set; }
+
+    /// <summary>
+    /// Internal identifier for this window.
+    /// </summary>
+    internal string Id { get; }
 
     /// <summary>
     /// The window title displayed in the title bar.
@@ -657,9 +599,24 @@ public sealed class WindowEntry
     internal WindowNode? Node { get; set; }
 
     /// <summary>
-    /// Task completion source for modal result pattern.
+    /// Callback invoked when the window closes with a result (boxed Action&lt;WindowResultContext&lt;T&gt;&gt;).
     /// </summary>
-    internal TaskCompletionSource<object?>? ResultSource { get; set; }
+    internal object? OnResultCallback { get; }
+
+    /// <summary>
+    /// The type T for the result callback.
+    /// </summary>
+    internal Type? ResultType { get; }
+
+    /// <summary>
+    /// The result value set by CloseWithResult. Null if cancelled.
+    /// </summary>
+    internal object? ResultValue { get; private set; }
+
+    /// <summary>
+    /// Whether a result was explicitly provided via CloseWithResult.
+    /// </summary>
+    internal bool ResultProvided { get; private set; }
 
     /// <summary>
     /// Closes this window.
@@ -667,26 +624,43 @@ public sealed class WindowEntry
     public void Close() => Manager.Close(this);
 
     /// <summary>
-    /// Closes this modal window with a result value.
-    /// If this window was opened with OpenModalAsync, the awaiting task will complete with this result.
-    /// </summary>
-    /// <param name="result">The result value to return.</param>
-    public void CloseWithResult(object? result)
-    {
-        ResultSource?.TrySetResult(result);
-        Manager.Close(this);
-    }
-
-    /// <summary>
     /// Closes this modal window with a typed result value.
-    /// If this window was opened with OpenModalAsync&lt;TResult&gt;, the awaiting task will complete with this result.
     /// </summary>
     /// <typeparam name="TResult">The type of the result.</typeparam>
     /// <param name="result">The result value to return.</param>
     public void CloseWithResult<TResult>(TResult result)
     {
-        ResultSource?.TrySetResult(result);
+        ResultValue = result;
+        ResultProvided = true;
         Manager.Close(this);
+    }
+
+    /// <summary>
+    /// Internal method to invoke the result callback after the window is closed.
+    /// Called by WindowManager.Close.
+    /// </summary>
+    internal void InvokeResultCallback()
+    {
+        if (OnResultCallback == null || ResultType == null)
+            return;
+
+        // Create WindowResultContext<T> and invoke the callback
+        var contextType = typeof(WindowResultContext<>).MakeGenericType(ResultType);
+        var context = Activator.CreateInstance(
+            contextType, 
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null,
+            [this, ResultProvided ? ResultValue : GetDefault(ResultType), !ResultProvided],
+            null);
+
+        // Invoke the callback
+        var callbackType = typeof(Action<>).MakeGenericType(contextType);
+        callbackType.GetMethod("Invoke")!.Invoke(OnResultCallback, [context]);
+    }
+
+    private static object? GetDefault(Type type)
+    {
+        return type.IsValueType ? Activator.CreateInstance(type) : null;
     }
 
     /// <summary>

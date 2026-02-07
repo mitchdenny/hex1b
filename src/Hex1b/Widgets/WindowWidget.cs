@@ -4,7 +4,7 @@ namespace Hex1b.Widgets;
 
 /// <summary>
 /// A floating window widget with title bar and content area.
-/// Windows are typically opened via <see cref="WindowManager.Open"/> rather than declared directly.
+/// Windows are typically opened via <see cref="WindowManager"/> rather than declared directly.
 /// </summary>
 /// <param name="Entry">The window entry from the WindowManager.</param>
 internal sealed record WindowWidget(WindowEntry Entry) : Hex1bWidget

@@ -44,8 +44,15 @@ public sealed class WindowActionContext : WidgetEventArgs
 
     /// <summary>
     /// Closes this window.
+    /// For dialogs with OnResult, this signals cancellation (IsCancelled = true).
     /// </summary>
     public void Close() => Window.Close();
+
+    /// <summary>
+    /// Closes this window without a result, signaling cancellation.
+    /// Alias for <see cref="Close"/> - for dialogs with OnResult, the callback receives IsCancelled = true.
+    /// </summary>
+    public void Cancel() => Window.Close();
 
     /// <summary>
     /// Closes this window with a result value (for modal dialogs).

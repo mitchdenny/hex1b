@@ -78,7 +78,10 @@ public class WindowPanelNodeTests
     public void Arrange_CentersWindowsWithNoPosition()
     {
         var node = new WindowPanelNode();
-        var entry = node.Windows.Open("test", "Test", _ => new TextBlockWidget("Hello"), new WindowOptions { Width = 40, Height = 15 });
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Test")
+            .Size(40, 15);
+        var entry = node.Windows.Open(handle);
         
         // Add window node manually for testing (normally done via reconciliation)
         var windowNode = new WindowNode { Entry = entry };
@@ -96,8 +99,11 @@ public class WindowPanelNodeTests
     public void Arrange_UsesSpecifiedPosition()
     {
         var node = new WindowPanelNode();
-        var entry = node.Windows.Open("test", "Test", _ => new TextBlockWidget("Hello"), 
-            new WindowOptions { Width = 30, Height = 10, X = 5, Y = 3 });
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Test")
+            .Size(30, 10)
+            .Position(5, 3);
+        var entry = node.Windows.Open(handle);
         
         var windowNode = new WindowNode { Entry = entry };
         windowNode.Measure(Constraints.Unbounded);
@@ -114,8 +120,11 @@ public class WindowPanelNodeTests
     {
         var node = new WindowPanelNode();
         // Position window outside bounds
-        var entry = node.Windows.Open("test", "Test", _ => new TextBlockWidget("Hello"),
-            new WindowOptions { Width = 30, Height = 10, X = 100, Y = 50 });
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Test")
+            .Size(30, 10)
+            .Position(100, 50);
+        var entry = node.Windows.Open(handle);
         
         var windowNode = new WindowNode { Entry = entry };
         windowNode.Measure(Constraints.Unbounded);
@@ -157,7 +166,10 @@ public class WindowPanelNodeTests
         // Add a modal window with a button
         var windowButton = new ButtonNode { Label = "Window Button" };
         var windowContent = new VStackNode { Children = [windowButton] };
-        var entry = node.Windows.Open("modal", "Modal", _ => new TextBlockWidget("Hello"), new WindowOptions { IsModal = true });
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Modal")
+            .Modal();
+        var entry = node.Windows.Open(handle);
         var windowNode = new WindowNode { Entry = entry, Content = windowContent, IsModal = true };
         node.WindowNodes.Add(windowNode);
 
@@ -179,7 +191,9 @@ public class WindowPanelNodeTests
         // Add a non-modal window with a button
         var windowButton = new ButtonNode { Label = "Window Button" };
         var windowContent = new VStackNode { Children = [windowButton] };
-        var entry = node.Windows.Open("win", "Window", _ => new TextBlockWidget("Hello"));
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Window");
+        var entry = node.Windows.Open(handle);
         var windowNode = new WindowNode { Entry = entry, Content = windowContent };
         node.WindowNodes.Add(windowNode);
 
@@ -202,7 +216,9 @@ public class WindowPanelNodeTests
         var content = new TextBlockNode { Text = "Content" };
         var node = new WindowPanelNode { Content = content };
         
-        var entry = node.Windows.Open("win", "Window", _ => new TextBlockWidget("Hello"));
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Window");
+        var entry = node.Windows.Open(handle);
         var windowNode = new WindowNode { Entry = entry };
         node.WindowNodes.Add(windowNode);
 
@@ -218,7 +234,9 @@ public class WindowPanelNodeTests
     {
         var node = new WindowPanelNode();
         
-        var entry = node.Windows.Open("win", "Window", _ => new TextBlockWidget("Hello"));
+        var handle = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Window");
+        var entry = node.Windows.Open(handle);
         var windowNode = new WindowNode { Entry = entry };
         node.WindowNodes.Add(windowNode);
 
@@ -263,14 +281,20 @@ public class WindowPanelNodeTests
         // Add first modal
         var modal1Button = new ButtonNode { Label = "Modal 1 Button" };
         var modal1Content = new VStackNode { Children = [modal1Button] };
-        var entry1 = node.Windows.Open("modal1", "Modal 1", _ => new TextBlockWidget("Hello"), new WindowOptions { IsModal = true });
+        var handle1 = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Modal 1")
+            .Modal();
+        var entry1 = node.Windows.Open(handle1);
         var modal1Node = new WindowNode { Entry = entry1, Content = modal1Content, IsModal = true };
         node.WindowNodes.Add(modal1Node);
 
         // Add second modal (nested on top of first)
         var modal2Button = new ButtonNode { Label = "Modal 2 Button" };
         var modal2Content = new VStackNode { Children = [modal2Button] };
-        var entry2 = node.Windows.Open("modal2", "Modal 2", _ => new TextBlockWidget("Hello"), new WindowOptions { IsModal = true });
+        var handle2 = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Modal 2")
+            .Modal();
+        var entry2 = node.Windows.Open(handle2);
         var modal2Node = new WindowNode { Entry = entry2, Content = modal2Content, IsModal = true };
         node.WindowNodes.Add(modal2Node);
 
@@ -293,14 +317,20 @@ public class WindowPanelNodeTests
         // Add first modal
         var modal1Button = new ButtonNode { Label = "Modal 1 Button" };
         var modal1Content = new VStackNode { Children = [modal1Button] };
-        var entry1 = node.Windows.Open("modal1", "Modal 1", _ => new TextBlockWidget("Hello"), new WindowOptions { IsModal = true });
+        var handle1 = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Modal 1")
+            .Modal();
+        var entry1 = node.Windows.Open(handle1);
         var modal1Node = new WindowNode { Entry = entry1, Content = modal1Content, IsModal = true };
         node.WindowNodes.Add(modal1Node);
 
         // Add second modal
         var modal2Button = new ButtonNode { Label = "Modal 2 Button" };
         var modal2Content = new VStackNode { Children = [modal2Button] };
-        var entry2 = node.Windows.Open("modal2", "Modal 2", _ => new TextBlockWidget("Hello"), new WindowOptions { IsModal = true });
+        var handle2 = node.Windows.Window(_ => new TextBlockWidget("Hello"))
+            .Title("Modal 2")
+            .Modal();
+        var entry2 = node.Windows.Open(handle2);
         var modal2Node = new WindowNode { Entry = entry2, Content = modal2Content, IsModal = true };
         node.WindowNodes.Add(modal2Node);
 
