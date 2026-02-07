@@ -219,7 +219,7 @@ public static class TableTheme
     /// Background color for selected rows.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> SelectedRowBackground = 
-        new($"{nameof(TableTheme)}.{nameof(SelectedRowBackground)}", () => Hex1bColor.FromRgb(30, 50, 80));
+        new($"{nameof(TableTheme)}.{nameof(SelectedRowBackground)}", () => Hex1bColor.Default);
     
     /// <summary>
     /// Foreground color for selected rows.

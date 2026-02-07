@@ -654,7 +654,7 @@ public class ThemePanelIntegrationTests : IDisposable
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Text("Scroll Container Test"),
-                v.VScroll(
+                v.VScrollPanel(
                     ctx.ThemePanel(
                         theme => theme
                             .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(0, 200, 200)),

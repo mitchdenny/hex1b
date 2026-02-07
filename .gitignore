@@ -502,3 +502,16 @@ src/docfx/templates/
 
 # Recording files
 *.cast
+
+# Far Manager/Far File Manager config files
+fp.dsk
+fp.ini
+
+# Temporary captures and test artifacts
+*.ansi
+windowing-demo*.svg
+windowing-demo*.txt
+windowing-demo*.png
+table-demo-capture.*
+test-*.ansi
+test-*.svg

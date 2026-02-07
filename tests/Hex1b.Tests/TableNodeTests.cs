@@ -167,7 +167,8 @@ public class TableNodeTests
         {
             Data = ["A"],
             HeaderBuilder = h => [h.Cell("Name")],
-            RowBuilder = (r, item, _) => [r.Cell(item)]
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            WidthHint = SizeHint.Fill
         };
 
         var size = node.Measure(new Constraints(0, 60, 0, 24));
@@ -2045,7 +2046,8 @@ public class TableNodeTests
                 .Row((r, item, _) => [r.Cell(item)])
                 .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
-                .FillHeight(),
+                .FillHeight()
+                .FillWidth(),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
@@ -2127,6 +2129,692 @@ public class TableNodeTests
         
         // Check that scrollbar thumb character (┃) is present
         Assert.Contains("┃", screenText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Table_WindowingDemoConfig_ScrollbarAdjacentToFixedColumns()
+    {
+        // Reproduces the exact bug seen in the WindowingDemo sample:
+        // Table with Fixed(18), Fixed(12), Fixed(6), Fixed(10) columns in a 65-wide
+        // container. When the window is resized shorter (scrollbar appears), there
+        // should be no gap between the last column and the scrollbar, and the
+        // fixed column widths should remain 18/12/6/10 regardless.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(65, 10) // Same width as demo window, short enough for scrollbar
+            .Build();
+
+        var data = new List<(string Name, string Role, int Age, string Status)>
+        {
+            ("Alice Johnson", "Engineer", 32, "Active"),
+            ("Bob Smith", "Designer", 28, "Active"),
+            ("Carol Williams", "Manager", 45, "On Leave"),
+            ("David Brown", "Developer", 35, "Active"),
+            ("Eve Davis", "Analyst", 29, "Active"),
+            ("Frank Miller", "Engineer", 41, "Inactive"),
+            ("Grace Wilson", "Designer", 33, "Active"),
+            ("Henry Taylor", "Developer", 27, "Active"),
+            ("Iris Anderson", "Manager", 52, "Active"),
+            ("Jack Thomas", "Analyst", 31, "On Leave"),
+        };
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<(string Name, string Role, int Age, string Status)>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(18)),
+                    h.Cell("Role").Width(SizeHint.Fixed(12)),
+                    h.Cell("Age").Width(SizeHint.Fixed(6)),
+                    h.Cell("Status").Width(SizeHint.Fixed(10))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item.Name),
+                    r.Cell(item.Role),
+                    r.Cell(item.Age.ToString()),
+                    r.Cell(item.Status)
+                ])
+                .Fill(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== WindowingDemo-style table with scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Parse separator to verify column widths match demo definitions exactly
+        var lines = screenText.Split('\n');
+        var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
+        Assert.NotNull(separator);
+
+        var inner = separator.TrimEnd();
+        int leftIdx = inner.IndexOf('├');
+        int rightIdx = inner.LastIndexOf('┤');
+        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+
+        var columnSection = inner[(leftIdx + 1)..rightIdx];
+        var columnParts = columnSection.Split('┼');
+        Assert.True(columnParts.Length >= 4, $"Expected at least 4 column parts, got {columnParts.Length}. Separator: {separator}");
+
+        // Fixed(18), Fixed(12), Fixed(6), Fixed(10) — must be exact
+        Assert.Equal(18, columnParts[0].Length);
+        Assert.Equal(12, columnParts[1].Length);
+        Assert.Equal(6, columnParts[2].Length);
+        Assert.Equal(10, columnParts[3].Length);
+
+        // Scrollbar must be adjacent — no gap between columns and scrollbar
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+        Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
+
+        // Table content width = 18+12+6+10 cols + 5 borders + 2 scrollbar = 53
+        var trimmedBorder = topBorder.TrimEnd();
+        Assert.Equal(53, trimmedBorder.Length);
+
+        // Scrollbar thumb must be present
+        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
+            $"Expected scrollbar thumb.\n\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task Table_WindowingDemoConfig_TallWindow_NoScrollbarSameWidths()
+    {
+        // Same column config as demo but with a tall window (no scrollbar needed).
+        // Column widths must be identical to the scrollbar case above.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(65, 18) // Same width as demo, tall enough for all 10 rows
+            .Build();
+
+        var data = new List<(string Name, string Role, int Age, string Status)>
+        {
+            ("Alice Johnson", "Engineer", 32, "Active"),
+            ("Bob Smith", "Designer", 28, "Active"),
+            ("Carol Williams", "Manager", 45, "On Leave"),
+            ("David Brown", "Developer", 35, "Active"),
+            ("Eve Davis", "Analyst", 29, "Active"),
+            ("Frank Miller", "Engineer", 41, "Inactive"),
+            ("Grace Wilson", "Designer", 33, "Active"),
+            ("Henry Taylor", "Developer", 27, "Active"),
+            ("Iris Anderson", "Manager", 52, "Active"),
+            ("Jack Thomas", "Analyst", 31, "On Leave"),
+        };
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<(string Name, string Role, int Age, string Status)>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(18)),
+                    h.Cell("Role").Width(SizeHint.Fixed(12)),
+                    h.Cell("Age").Width(SizeHint.Fixed(6)),
+                    h.Cell("Status").Width(SizeHint.Fixed(10))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item.Name),
+                    r.Cell(item.Role),
+                    r.Cell(item.Age.ToString()),
+                    r.Cell(item.Status)
+                ])
+                .Fill(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Jack Thomas"), TimeSpan.FromSeconds(2), "all rows rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== WindowingDemo-style table without scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Parse separator to verify column widths are identical to scrollbar case
+        var lines = screenText.Split('\n');
+        var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
+        Assert.NotNull(separator);
+
+        var inner = separator.TrimEnd();
+        int leftIdx = inner.IndexOf('├');
+        int rightIdx = inner.LastIndexOf('┤');
+        var columnSection = inner[(leftIdx + 1)..rightIdx];
+        var columnParts = columnSection.Split('┼');
+        Assert.True(columnParts.Length >= 4, $"Expected at least 4 column parts. Separator: {separator}");
+
+        // Same exact widths as scrollbar case: Fixed(18), Fixed(12), Fixed(6), Fixed(10)
+        Assert.Equal(18, columnParts[0].Length);
+        Assert.Equal(12, columnParts[1].Length);
+        Assert.Equal(6, columnParts[2].Length);
+        Assert.Equal(10, columnParts[3].Length);
+
+        // No scrollbar present
+        Assert.DoesNotContain("┃", screenText);
+        Assert.DoesNotContain("▉", screenText);
+
+        // Table content width = 18+12+6+10 cols + 5 borders = 51 (no scrollbar)
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+        var trimmedBorder = topBorder.TrimEnd();
+        Assert.Equal(51, trimmedBorder.Length);
+    }
+
+    [Fact]
+    public async Task Table_AllFixedColumns_ScrollbarAdjacentToContent()
+    {
+        // Arrange - table with all Fixed-width columns that needs a scrollbar.
+        // When the table is wider than the sum of fixed columns + borders + scrollbar,
+        // the scrollbar should still be adjacent to the table content (no gap).
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12) // Wider than needed columns, short enough to need scrollbar
+            .Build();
+
+        var data = Enumerable.Range(1, 20)
+            .Select(i => $"Person {i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(12)),
+                    h.Cell("Role").Width(SizeHint.Fixed(10)),
+                    h.Cell("Age").Width(SizeHint.Fixed(5))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("Engineer"),
+                    r.Cell("30")
+                ])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Table with all fixed columns + scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - the top border should have no gap between the last column tee and scrollbar
+        // Correct:   ┌────────────┬──────────┬─────┬─┐  (scrollbar immediately after last column)
+        // Incorrect: ┌────────────┬──────────┬─────┬          ─┐  (gap between columns and scrollbar)
+        var lines = screenText.Split('\n');
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+
+        // The top border should NOT have spaces between border characters
+        // A gap manifests as spaces between ┬ and ─┐
+        var borderContent = topBorder.TrimEnd();
+        Assert.DoesNotContain("┬ ", borderContent);
+
+        // Also verify the scrollbar thumb is present (table is scrollable)
+        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
+            $"Expected scrollbar thumb character in output.\n\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task Table_FixedColumnsWithoutScrollbar_ColumnWidthsMatchDefinitions()
+    {
+        // When a table has few rows (no scrollbar needed), fixed columns should have
+        // exactly the widths specified in the SizeHint.Fixed() definitions.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 20) // Tall enough that 3 rows don't need a scrollbar
+            .Build();
+
+        var data = new List<string> { "Alice", "Bob", "Charlie" };
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(12)),
+                    h.Cell("Role").Width(SizeHint.Fixed(10)),
+                    h.Cell("Age").Width(SizeHint.Fixed(5))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("Engineer"),
+                    r.Cell("30")
+                ])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Alice") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns without scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Parse the header separator to measure column widths.
+        // The separator line looks like: ├────────────┼──────────┼─────┤
+        var lines = screenText.Split('\n');
+        var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
+        Assert.NotNull(separator);
+
+        // Extract column widths by splitting on ┼ (cross) characters
+        // Strip left ├ and right ┤
+        var inner = separator.TrimEnd();
+        int leftIdx = inner.IndexOf('├');
+        int rightIdx = inner.LastIndexOf('┤');
+        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+
+        var columnSection = inner[(leftIdx + 1)..rightIdx];
+        var columnParts = columnSection.Split('┼');
+        Assert.Equal(3, columnParts.Length);
+
+        // Each column width should match the Fixed hint
+        Assert.Equal(12, columnParts[0].Length); // Fixed(12)
+        Assert.Equal(10, columnParts[1].Length); // Fixed(10)
+        Assert.Equal(5, columnParts[2].Length);  // Fixed(5)
+
+        // No scrollbar should be present
+        Assert.DoesNotContain("┃", screenText);
+    }
+
+    [Fact]
+    public async Task Table_FixedColumnsWithScrollbar_ColumnWidthsSameAsWithout()
+    {
+        // CRITICAL: Fixed column widths must be identical regardless of whether a scrollbar
+        // is present. The scrollbar should be positioned adjacent to the content, NOT
+        // cause columns to expand to fill remaining space.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12) // Short enough to need scrollbar with 20 rows
+            .Build();
+
+        var data = Enumerable.Range(1, 20)
+            .Select(i => $"Person {i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(12)),
+                    h.Cell("Role").Width(SizeHint.Fixed(10)),
+                    h.Cell("Age").Width(SizeHint.Fixed(5))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("Engineer"),
+                    r.Cell("30")
+                ])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns with scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Parse header separator: ├────────────┼──────────┼─────┼─┤
+        // Note the ┼─┤ at end is scrollbar column joining character
+        var lines = screenText.Split('\n');
+        var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
+        Assert.NotNull(separator);
+
+        // Extract the section between ├ and the last ┤, but note the scrollbar adds
+        // an extra section at the end. Split on ┼.
+        var inner = separator.TrimEnd();
+        int leftIdx = inner.IndexOf('├');
+        int rightIdx = inner.LastIndexOf('┤');
+        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+
+        var columnSection = inner[(leftIdx + 1)..rightIdx];
+        var columnParts = columnSection.Split('┼');
+
+        // With scrollbar: 3 data columns + 1 scrollbar track section = 4 parts (or 3 + ┤ via scrollbar)
+        // The first 3 should match Fixed widths exactly
+        Assert.True(columnParts.Length >= 3, $"Expected at least 3 column sections, got {columnParts.Length}. Separator: {separator}");
+
+        Assert.Equal(12, columnParts[0].Length); // Fixed(12) - same as without scrollbar
+        Assert.Equal(10, columnParts[1].Length); // Fixed(10) - same as without scrollbar
+        Assert.Equal(5, columnParts[2].Length);  // Fixed(5) - same as without scrollbar
+
+        // Scrollbar thumb should be present
+        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
+            $"Expected scrollbar thumb character.\n\nScreen:\n{screenText}");
+    }
+
+    [Fact]
+    public async Task Table_MixedFixedAndFillColumns_FillAbsorbsRemainingSpace()
+    {
+        // When a table has a mix of Fixed and Fill columns, the Fill column should
+        // absorb remaining space. The Fixed columns must retain their exact widths.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(60, 12)
+            .Build();
+
+        var data = Enumerable.Range(1, 20)
+            .Select(i => $"Item {i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Name").Width(SizeHint.Fixed(15)),
+                    h.Cell("Description").Width(SizeHint.Fill),
+                    h.Cell("Status").Width(SizeHint.Fixed(8))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("A longer description"),
+                    r.Cell("Active")
+                ])
+                .FillHeight()
+                .FillWidth(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Mixed Fixed+Fill columns with scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Parse separator to verify Fixed columns are exactly their defined widths
+        var lines = screenText.Split('\n');
+        var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
+        Assert.NotNull(separator);
+
+        var inner = separator.TrimEnd();
+        int leftIdx = inner.IndexOf('├');
+        int rightIdx = inner.LastIndexOf('┤');
+        var columnSection = inner[(leftIdx + 1)..rightIdx];
+        var columnParts = columnSection.Split('┼');
+
+        // Should have at least 3 data column parts
+        Assert.True(columnParts.Length >= 3, $"Expected at least 3 column sections. Separator: {separator}");
+
+        // Fixed(15) column must be exactly 15
+        Assert.Equal(15, columnParts[0].Length);
+        // Fill column absorbs remaining width - just check it's > 0
+        Assert.True(columnParts[1].Length > 0, "Fill column should have non-zero width");
+        // Fixed(8) column must be exactly 8
+        Assert.Equal(8, columnParts[2].Length);
+
+        // Fill column should expand to absorb space (with scrollbar, total = 60)
+        // borders: 4 (|col|col|col|), scrollbar: 2, fixed: 15+8=23 → fill ≈ 31
+        Assert.True(columnParts[1].Length > 20,
+            $"Fill column should absorb remaining space, got width={columnParts[1].Length}");
+
+        // Verify no gap - top border should have no spaces between border chars
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+        Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
+    }
+
+    [Fact]
+    public async Task Table_AllFillColumns_WithScrollbar_NoGap()
+    {
+        // All Fill columns should expand to fill the available width, and the scrollbar
+        // should be at the right edge with no gap.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(50, 10)
+            .Build();
+
+        var data = Enumerable.Range(1, 30)
+            .Select(i => $"Row {i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Col A").Width(SizeHint.Fill),
+                    h.Cell("Col B").Width(SizeHint.Fill)
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("Value")
+                ])
+                .FillHeight()
+                .FillWidth(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Row 1") && s.ContainsText("Col A"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== All Fill columns with scrollbar ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Top border should end with ┬─┐ (scrollbar connection) with no gap
+        var lines = screenText.Split('\n');
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+        Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
+
+        // With Fill columns, the table should fill the entire width (50 chars)
+        // So the right edge of the top border should be at position 49
+        var trimmedBorder = topBorder.TrimEnd();
+        Assert.Equal(50, trimmedBorder.Length);
+    }
+
+    [Fact]
+    public async Task Table_FixedColumnsNarrowWidth_ScrollbarStillAdjacentWhenTableFillsWidth()
+    {
+        // When the terminal is narrow enough that fixed columns + scrollbar fill almost
+        // all the space, the scrollbar should still be adjacent to the last column.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(35, 10) // Barely enough for the columns + borders + scrollbar
+            .Build();
+
+        var data = Enumerable.Range(1, 20)
+            .Select(i => $"R{i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("A").Width(SizeHint.Fixed(10)),
+                    h.Cell("B").Width(SizeHint.Fixed(8)),
+                    h.Cell("C").Width(SizeHint.Fixed(6))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("val"),
+                    r.Cell("x")
+                ])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("R1"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns narrow terminal ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // The table content width is: 10+8+6 columns + 4 borders + 2 scrollbar = 30
+        // Terminal is 35, so the table content occupies 30 chars, leaving 5 empty.
+        // Scrollbar must be at position 30 (adjacent to columns), not position 35.
+        var lines = screenText.Split('\n');
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+        
+        var trimmedBorder = topBorder.TrimEnd();
+        // Table content width = 10+8+6 (cols) + 4 (borders |c|c|c|) + 2 (scrollbar) = 30
+        Assert.Equal(30, trimmedBorder.Length);
+        
+        // Should NOT have any space before ┐
+        Assert.False(trimmedBorder.Contains(' '), $"Top border should have no spaces: [{trimmedBorder}]");
+    }
+
+    [Fact]
+    public async Task Table_FixedColumnsWideTerminal_ScrollbarNotAtFarRightEdge()
+    {
+        // When the terminal is much wider than the table content, the scrollbar should
+        // be positioned right after the last column, NOT at the far right of the terminal.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(100, 10) // Very wide - much wider than needed
+            .Build();
+
+        var data = Enumerable.Range(1, 30)
+            .Select(i => $"X{i}")
+            .ToList();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .Header(h => [
+                    h.Cell("Col1").Width(SizeHint.Fixed(8)),
+                    h.Cell("Col2").Width(SizeHint.Fixed(8))
+                ])
+                .Row((r, item, _) => [
+                    r.Cell(item),
+                    r.Cell("data")
+                ])
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("X1") && s.ContainsText("Col1"), TimeSpan.FromSeconds(2), "table rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns in wide terminal ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Table content width = 8+8 (cols) + 3 (borders |c|c|) + 2 (scrollbar) = 21
+        // The top border + scrollbar should be 21 chars, NOT 100 chars.
+        var lines = screenText.Split('\n');
+        var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
+        Assert.NotNull(topBorder);
+
+        var trimmedBorder = topBorder.TrimEnd();
+        // Should be much smaller than terminal width
+        Assert.True(trimmedBorder.Length < 50,
+            $"Table should not stretch to terminal width. Border length={trimmedBorder.Length}, terminal=100.\nBorder: [{trimmedBorder}]");
+
+        // Exact width check: 8+8 columns + 3 borders + 2 scrollbar = 21
+        Assert.Equal(21, trimmedBorder.Length);
     }
 
     #endregion

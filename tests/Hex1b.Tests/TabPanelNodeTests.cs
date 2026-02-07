@@ -650,12 +650,12 @@ public class TabPanelNodeTests
             ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v => [
                 v.TabPanel(tp => [
                     tp.Tab("Tab One", t => [
-                        t.VScroll(s => [
+                        t.VScrollPanel(s => [
                             s.Text("Content One - This is the first tab with some longer text").Wrap()
                         ]).Fill()
                     ]),
                     tp.Tab("Tab Two", t => [
-                        t.VScroll(s => [
+                        t.VScrollPanel(s => [
                             s.Text("Content Two - This is the second tab with different text").Wrap()
                         ]).Fill()
                     ])
@@ -708,12 +708,12 @@ public class TabPanelNodeTests
                 v.Responsive(r => [
                     r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
                         tp.Tab("Tab One", t => [
-                            t.VScroll(s => [
+                            t.VScrollPanel(s => [
                                 s.Text("Content One - This is the first tab").Wrap()
                             ]).Fill()
                         ]),
                         tp.Tab("Tab Two", t => [
-                            t.VScroll(s => [
+                            t.VScrollPanel(s => [
                                 s.Text("Content Two - This is the second tab").Wrap()
                             ]).Fill()
                         ])
@@ -773,12 +773,12 @@ public class TabPanelNodeTests
                     right.Responsive(r => [
                         r.When((w, h) => h >= 15, r => r.TabPanel(tp => [
                             tp.Tab("Tab One", t => [
-                                t.VScroll(s => [
+                                t.VScrollPanel(s => [
                                     s.Text("Content One - First tab content").Wrap()
                                 ]).Fill()
                             ]),
                             tp.Tab("Tab Two", t => [
-                                t.VScroll(s => [
+                                t.VScrollPanel(s => [
                                     s.Text("Content Two - Second tab content").Wrap()
                                 ]).Fill()
                             ])

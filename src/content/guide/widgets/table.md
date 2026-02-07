@@ -402,5 +402,5 @@ The row builder receives a `TableRowState` object with these properties:
 ## Related Widgets
 
 - [ListWidget](/guide/widgets/list) - For simple string-based lists
-- [ScrollWidget](/guide/widgets/scroll) - For scrollable content
+- [ScrollPanelWidget](/guide/widgets/scroll) - For scrollable content
 - [BorderWidget](/guide/widgets/border) - For framing tables

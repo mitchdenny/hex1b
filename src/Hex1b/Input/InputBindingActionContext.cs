@@ -30,6 +30,8 @@ public sealed class InputBindingActionContext
     /// -1 if not applicable (e.g., for keyboard bindings).
     /// </summary>
     public int MouseY { get; }
+    
+    private readonly WindowManagerRegistry? _windowManagerRegistry;
 
     internal InputBindingActionContext(
         FocusRing focusRing, 
@@ -38,12 +40,14 @@ public sealed class InputBindingActionContext
         int mouseX = -1,
         int mouseY = -1,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
         _copyToClipboard = copyToClipboard;
         _invalidate = invalidate;
+        _windowManagerRegistry = windowManagerRegistry;
         CancellationToken = cancellationToken;
         MouseX = mouseX;
         MouseY = mouseY;
@@ -179,6 +183,76 @@ public sealed class InputBindingActionContext
         while (current != null)
         {
             if (current is INotificationHost host)
+            {
+                return host;
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the window manager for managing floating windows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When a single WindowPanel exists (named or unnamed), this returns its manager.
+    /// When multiple WindowPanels exist, use the indexer <see cref="this[string]"/> to specify which panel.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// ctx.Button("Settings")
+    ///    .OnClick(e => e.Windows.Open(
+    ///        "settings",
+    ///        "Settings",
+    ///        () => BuildSettingsContent()
+    ///    ));
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no WindowPanel is registered, or multiple panels exist without specifying a name.
+    /// </exception>
+    public WindowManager Windows => _windowManagerRegistry?.Default
+        ?? FindNearestWindowHost()?.Windows
+        ?? throw new InvalidOperationException("No WindowPanel found. Add a WindowPanel to your widget tree.");
+
+    /// <summary>
+    /// Gets the window manager for a named WindowPanel.
+    /// </summary>
+    /// <param name="name">The name of the WindowPanel.</param>
+    /// <exception cref="InvalidOperationException">Thrown if no panel with the given name exists.</exception>
+    /// <example>
+    /// <code>
+    /// // With named panels:
+    /// ctx.WindowPanel("editor");
+    /// ctx.WindowPanel("preview");
+    /// 
+    /// // Access specific panel:
+    /// e.Windows["editor"].Open(...);
+    /// </code>
+    /// </example>
+    public WindowManager this[string name] => _windowManagerRegistry?[name]
+        ?? throw new InvalidOperationException($"No WindowPanel named '{name}' found.");
+
+    /// <summary>
+    /// Tries to get the default window manager, returning null if not available.
+    /// </summary>
+    public WindowManager? TryGetWindows() => _windowManagerRegistry?.TryGetDefault() 
+        ?? FindNearestWindowHost()?.Windows;
+
+    /// <summary>
+    /// Tries to get a named window manager, returning null if not found.
+    /// </summary>
+    public WindowManager? TryGetWindows(string name) => _windowManagerRegistry?.TryGet(name);
+
+    private IWindowHost? FindNearestWindowHost()
+    {
+        // Walk from the focused node up the parent chain to find the nearest window host
+        Hex1bNode? current = FocusedNode;
+        while (current != null)
+        {
+            if (current is IWindowHost host)
             {
                 return host;
             }

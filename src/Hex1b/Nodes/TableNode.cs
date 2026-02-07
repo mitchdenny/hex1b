@@ -494,11 +494,33 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         if (allSelected)
         {
-            DeselectAllCallback?.Invoke();
+            if (DeselectAllCallback != null)
+            {
+                DeselectAllCallback.Invoke();
+            }
+            else if (SelectionChangedCallback != null)
+            {
+                // Fallback: iterate over all rows and deselect individually
+                foreach (var row in Data)
+                {
+                    SelectionChangedCallback(row, false);
+                }
+            }
         }
         else
         {
-            SelectAllCallback?.Invoke();
+            if (SelectAllCallback != null)
+            {
+                SelectAllCallback.Invoke();
+            }
+            else if (SelectionChangedCallback != null)
+            {
+                // Fallback: iterate over all rows and select individually
+                foreach (var row in Data)
+                {
+                    SelectionChangedCallback(row, true);
+                }
+            }
         }
         
         MarkDirty();
@@ -726,7 +748,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (Data == null || Data.Count == 0)
             return;
 
-        SelectAllCallback?.Invoke();
+        ToggleSelectAll();
         MarkDirty();
     }
 
@@ -864,9 +886,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     {
         if (!IsScrollable) return new DragHandler();
         
-        // Check if click is on the scrollbar (rightmost column within bounds)
-        var scrollbarX = Bounds.Width - ScrollbarColumnWidth;
-        if (localX < scrollbarX || localX >= Bounds.Width)
+        // Check if click is on the scrollbar (rightmost column of actual table content)
+        var scrollbarX = ActualTableWidth - ScrollbarColumnWidth;
+        if (localX < scrollbarX || localX >= ActualTableWidth)
         {
             return new DragHandler(); // Click not on scrollbar
         }
@@ -1205,6 +1227,26 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private int SelectionColumnWidth => ShowSelectionColumn ? TableTheme.SelectionColumnWidth.DefaultValue() : 0;
 
     /// <summary>
+    /// Computes the actual rendered width of the table content (columns + borders + padding + selection + scrollbar).
+    /// This may be less than Bounds.Width when all columns are fixed/content-sized.
+    /// </summary>
+    private int ActualTableWidth
+    {
+        get
+        {
+            if (_columnCount == 0 || _columnWidths.Length == 0) return 0;
+            int width = _columnWidths.Sum() + _columnCount + 1; // columns + borders
+            if (RenderMode == TableRenderMode.Full)
+                width += _columnCount * 2; // cell padding
+            if (ShowSelectionColumn)
+                width += SelectionColumnWidth + 1; // selection + separator
+            if (IsScrollable)
+                width += ScrollbarColumnWidth; // scrollbar track + border
+            return width;
+        }
+    }
+
+    /// <summary>
     /// Calculates column widths based on column definitions (Fixed, Content, Fill hints).
     /// </summary>
     private void CalculateColumnWidths(int availableWidth, bool reserveScrollbar)
@@ -1296,6 +1338,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                     _columnWidths[i] = 1;
                 }
             }
+            
+
         }
         else
         {
@@ -1309,6 +1353,38 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
     }
     
+    /// <summary>
+    /// Computes the minimum table width that fits all column content without
+    /// expanding Fill columns beyond their measured content width.
+    /// </summary>
+    private int CalculateNaturalWidth(bool reserveScrollbar)
+    {
+        if (_columnCount == 0) return 2; // Just borders
+
+        int borderWidth = _columnCount + 1;
+        int scrollbarSpace = reserveScrollbar ? ScrollbarColumnWidth : 0;
+        int selectionSpace = ShowSelectionColumn ? SelectionColumnWidth + 1 : 0;
+        int paddingSpace = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+
+        int totalContentWidth = 0;
+        for (int i = 0; i < _columnCount; i++)
+        {
+            var hint = _columnDefs != null && i < _columnDefs.Count ? _columnDefs[i].Width : SizeHint.Fill;
+
+            if (hint.IsFixed)
+            {
+                totalContentWidth += Math.Max(1, hint.FixedValue);
+            }
+            else
+            {
+                // For both Content and Fill columns, use measured content width
+                totalContentWidth += Math.Max(1, MeasureColumnContentWidth(i));
+            }
+        }
+
+        return totalContentWidth + borderWidth + scrollbarSpace + selectionSpace + paddingSpace;
+    }
+
     /// <summary>
     /// Measures the maximum content width for a column across all rows.
     /// Uses both text cells and reconciled widget nodes for measurement.
@@ -1484,7 +1560,23 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         bool needsScrollbar = _contentRowCount > _viewportRowCount;
         
         // Calculate column widths (reserve space for scrollbar if needed)
-        int width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 80;
+        // When WidthHint is Fill, use the full available width.
+        // Otherwise compute natural content width so the table contracts horizontally.
+        bool isFillWidth = WidthHint is { IsFill: true };
+        int width;
+        if (isFillWidth)
+        {
+            width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 80;
+        }
+        else
+        {
+            width = CalculateNaturalWidth(needsScrollbar);
+            // Clamp to available space if constrained
+            if (constraints.MaxWidth > 0 && constraints.MaxWidth < int.MaxValue)
+            {
+                width = Math.Min(width, constraints.MaxWidth);
+            }
+        }
         CalculateColumnWidths(width, needsScrollbar);
 
         // Calculate total height (capped by viewport)
@@ -1576,13 +1668,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Recalculate column widths if scrollbar state changed after Arrange's viewport recalculation
         // This happens when Measure receives unbounded height but Arrange has bounded height
         bool needsScrollbar = IsScrollable;
-        CalculateColumnWidths(rect.Width, needsScrollbar);
+        // When not FillWidth, use natural content width instead of stretched arrange width
+        bool isFillWidth = WidthHint is { IsFill: true };
+        int effectiveWidth = isFillWidth ? rect.Width : Math.Min(rect.Width, CalculateNaturalWidth(needsScrollbar));
+        CalculateColumnWidths(effectiveWidth, needsScrollbar);
         
         int scrollbarSpace = needsScrollbar ? ScrollbarColumnWidth : 0;
         
         int viewportY = rect.Y + 1 + headerHeight; // After top border and header
         int viewportHeight = rect.Height - 2 - headerHeight - footerHeight; // Between borders and header/footer
-        int viewportWidth = rect.Width - scrollbarSpace;
+        int viewportWidth = ActualTableWidth - scrollbarSpace;
         
         _contentViewport = new Rect(rect.X, viewportY, viewportWidth, viewportHeight);
         
@@ -1595,9 +1690,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private void ArrangeChildNodes()
     {
         int y = 0;
-        // Width should exclude scrollbar if present
+        // Row width = actual table content width minus scrollbar (rows don't include scrollbar)
         int scrollbarSpace = IsScrollable ? ScrollbarColumnWidth : 0;
-        int width = Bounds.Width - scrollbarSpace;
+        int width = ActualTableWidth - scrollbarSpace;
         
         // Skip top border
         y++;
@@ -1886,8 +1981,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var outerColor = EffectiveBorderColor;
         var focusedBorderColor = _focusedBorderColor;
         
-        // Scrollbar column starts after the table's right border
-        var scrollbarColumnX = Bounds.X + Bounds.Width - ScrollbarColumnWidth;
+        // Scrollbar column starts right after the table content, not at the bounds edge.
+        // This ensures the scrollbar is adjacent to the columns even when the table
+        // doesn't fill its full bounds width (e.g. all fixed-width columns).
+        var scrollbarColumnX = Bounds.X + ActualTableWidth - ScrollbarColumnWidth;
         
         // Calculate the actual content height in screen rows
         // In Full mode, we have data rows + separators between them
@@ -1917,21 +2014,18 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Render top border of scrollbar column (outer edge)
         int y = 0;
-        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
+        context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_topRight}\x1b[0m");
         y++;
         
         // Render header row(s) - empty scrollbar area with track
         if (_headerRowNode is not null)
         {
             // Header row - empty cell + border (outer edge)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()} {_vertical}\x1b[0m");
             y++;
             
             // Header separator - connects to table's horizontal line (outer edge)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
         }
         
@@ -1939,15 +2033,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // The track runs continuously - no breaks for row separators in Full mode
         for (int row = 0; row < scrollbarHeight; row++)
         {
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            
             bool isThumb = row >= thumbPosition && row < thumbPosition + thumbSize;
             char trackChar = isThumb ? _scrollbarThumb : _scrollbarTrack;
             // Track uses EffectiveBorderColor (same as other internal elements)
             var trackColor = isThumb ? focusedBorderColor : EffectiveBorderColor;
             
             // Track uses inner color, right edge uses outer color
-            context.Write($"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{trackColor.ToForegroundAnsi()}{trackChar}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
@@ -1955,19 +2047,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         if (_footerRowNode is not null)
         {
             // Footer separator - outer edge
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_teeLeft}\x1b[0m");
             y++;
             
             // Footer row - track uses EffectiveBorderColor + border (outer)
-            context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-            context.Write($"{EffectiveBorderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
+            context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{EffectiveBorderColor.ToForegroundAnsi()}{_scrollbarTrack}{outerColor.ToForegroundAnsi()}{_vertical}\x1b[0m");
             y++;
         }
         
         // Render bottom border (outer edge)
-        context.SetCursorPosition(scrollbarColumnX, Bounds.Y + y);
-        context.Write($"{outerColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
+        context.WriteClipped(scrollbarColumnX, Bounds.Y + y, $"{outerColor.ToForegroundAnsi()}{_horizontal}{_bottomRight}\x1b[0m");
     }
 
     private void RenderHorizontalBorder(Hex1bRenderContext context, int y, char left, char middle, char right, char? selectionColumnMiddle = null, bool isOuterBorder = false)

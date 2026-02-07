@@ -1272,7 +1272,6 @@ public class MenuBarIntegrationTests
             $"Focus didn't move. Before Down: {focusedAfterMenuOpenLabel}, After Down: {focusedAfterDownArrowLabel}. " +
             $"LastFocusChange: {app.LastFocusChange ?? "null"}. " +
             $"LastPathDebug: {app.LastPathDebug ?? "null"}. " +
-            $"ZStackFocusDebug: {Hex1b.Widgets.ZStackWidget.LastFocusDebug ?? "null"}. " +
             $"Focusables BEFORE: [{string.Join(", ", focusablesBefore.Select(f => f.type + (f.label != null ? ":" + f.label : "")))}]. " +
             $"Focusables AFTER with IsFocused: [{string.Join(", ", focusablesAfter.Select(f => f.type + (f.label != null ? ":" + f.label : "") + (f.focused ? "*" : "")))}].");
     }

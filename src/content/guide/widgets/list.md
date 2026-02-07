@@ -291,5 +291,5 @@ When the items list changes, the selection is automatically clamped to valid bou
 
 - [ButtonWidget](/guide/widgets/button) - For single-action controls
 - [TextBoxWidget](/guide/widgets/textbox) - For text input with selection
-- [ScrollWidget](/guide/widgets/scroll) - For scrollable content areas
+- [ScrollPanelWidget](/guide/widgets/scroll) - For scrollable content areas
 - [VStackWidget](/guide/widgets/stacks) - For vertical layout of widgets

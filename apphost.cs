@@ -1,6 +1,6 @@
-﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.26101.9
-#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.26101.9
-#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.26101.9
+﻿#:sdk Aspire.AppHost.Sdk@13.2.0-preview.1.26106.8
+#:package Aspire.Hosting.JavaScript@13.2.0-preview.1.26106.8
+#:package Aspire.Hosting.Azure.AppContainers@13.2.0-preview.1.26106.8
 
 using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.Logging;
@@ -81,6 +81,10 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
 
 // Tree widget demo
 var treeDemo = builder.AddCSharpApp("tree-demo", "./samples/TreeDemo")
+    .ExcludeFromManifest();
+
+// Window widget demo
+var windowingDemo = builder.AddCSharpApp("windowing-demo", "./samples/WindowingDemo")
     .ExcludeFromManifest();
 
 var content = builder.AddViteApp("content", "./src/content")

@@ -33,7 +33,7 @@ public class ScrollEventExample(ILogger<ScrollEventExample> logger) : Hex1bExamp
                 v.Text($"Content: {contentSize} lines, Viewport: {viewportSize} lines"),
                 v.Text(""),
                 v.Border(
-                    v.VScroll(
+                    v.VScrollPanel(
                         inner => [
                             inner.Text("Line 1 - Scroll to see position update"),
                             inner.Text("Line 2"),

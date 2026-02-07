@@ -271,19 +271,23 @@ public class Hex1bTestSequenceTests
             .Drag(10, 10, 20, 15)
             .Build();
         
-        Assert.Equal(3, sequence.Steps.Count);
+        // Drag creates: Down, Wait (10ms), Drag, Up = 4 steps
+        Assert.Equal(4, sequence.Steps.Count);
         
         var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[0]);
         Assert.Equal(MouseAction.Down, downStep.Action);
         Assert.Equal(10, downStep.X);
         Assert.Equal(10, downStep.Y);
         
-        var dragStep = Assert.IsType<MouseInputStep>(sequence.Steps[1]);
+        // Step 1 is the wait step
+        Assert.IsType<WaitStep>(sequence.Steps[1]);
+        
+        var dragStep = Assert.IsType<MouseInputStep>(sequence.Steps[2]);
         Assert.Equal(MouseAction.Drag, dragStep.Action);
         Assert.Equal(20, dragStep.X);
         Assert.Equal(15, dragStep.Y);
         
-        var upStep = Assert.IsType<MouseInputStep>(sequence.Steps[2]);
+        var upStep = Assert.IsType<MouseInputStep>(sequence.Steps[3]);
         Assert.Equal(MouseAction.Up, upStep.Action);
         Assert.Equal(20, upStep.X);
         Assert.Equal(15, upStep.Y);

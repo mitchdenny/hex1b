@@ -26,6 +26,18 @@ public abstract class WidgetEventArgs
     /// </summary>
     public PopupStack Popups => Context.Popups;
 
+    /// <summary>
+    /// Convenience accessor for the notification stack of the nearest notification host.
+    /// Use this to post notifications from event handlers.
+    /// </summary>
+    public NotificationStack Notifications => Context.Notifications;
+
+    /// <summary>
+    /// Convenience accessor for the window manager of the nearest window host.
+    /// Use this to open, close, and manage floating windows from event handlers.
+    /// </summary>
+    public WindowManager Windows => Context.Windows;
+
     protected WidgetEventArgs(InputBindingActionContext context)
     {
         Context = context ?? throw new ArgumentNullException(nameof(context));

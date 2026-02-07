@@ -668,7 +668,7 @@ public class Osc8HyperlinkTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 6).Build();
 
         await using var app = new Hex1bApp(
-            ctx => ctx.VScroll(
+            ctx => ctx.VScrollPanel(
                 v => [
                     v.Hyperlink("Link 1 - First Item", "https://one.example.com"),
                     v.Hyperlink("Link 2 - Second Item", "https://two.example.com"),

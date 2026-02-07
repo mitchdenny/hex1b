@@ -8,12 +8,12 @@ public static class InputRouter
     /// <summary>
     /// Debug: The last path that was built during input routing.
     /// </summary>
-    public static string? LastPathDebug { get; private set; }
+    public static string? LastPathDebug { get; set; }
     
     /// <summary>
     /// Debug: The key that was last routed and whether a match was found.
     /// </summary>
-    public static string? LastRouteDebug { get; private set; }
+    public static string? LastRouteDebug { get; set; }
     
     /// <summary>
     /// Routes a key event through the node tree using layered chord tries.
@@ -28,7 +28,7 @@ public static class InputRouter
     /// 7. If leaf matched, execute action
     /// 8. If no match, fall through to HandleInput on focused node, then bubble up
     /// </summary>
-    public static async Task<InputResult> RouteInputAsync(
+    internal static async Task<InputResult> RouteInputAsync(
         Hex1bNode root, 
         Hex1bEvent inputEvent, 
         FocusRing focusRing,
@@ -36,13 +36,14 @@ public static class InputRouter
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Dispatch based on event type
         return inputEvent switch
         {
-            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate),
-            Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard),
+            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate, windowManagerRegistry),
+            Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, windowManagerRegistry),
             _ => InputResult.NotHandled
         };
     }
@@ -58,10 +59,11 @@ public static class InputRouter
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree
@@ -124,11 +126,14 @@ public static class InputRouter
 
         // Build layers: focused first (index 0), root last
         // Search from focused toward root - first match wins
+        var bindingSearchDebug = new List<string>();
         for (int i = path.Count - 1; i >= 0; i--)
         {
             var node = path[i];
             var builder = node.BuildBindings();
             var bindings = builder.Build();
+            
+            bindingSearchDebug.Add($"{node.GetType().Name}:{bindings.Count}");
             
             if (bindings.Count > 0)
             {
@@ -137,6 +142,7 @@ public static class InputRouter
                 
                 if (!result.IsNoMatch)
                 {
+                    LastRouteDebug = $"Key {keyEvent.Key}: MATCHED at {node.GetType().Name}, IsLeaf={result.IsLeaf}";
                     // Found a match at this layer
                     if (result.IsLeaf)
                     {
@@ -165,6 +171,8 @@ public static class InputRouter
                 return InputResult.Handled;
             }
         }
+        
+        LastRouteDebug = $"Key {keyEvent.Key}: NO MATCH. Searched: [{string.Join(", ", bindingSearchDebug)}]";
 
         // No binding matched, let the focused node handle the input directly
         // Only call HandleInput on nodes that are actually focused
@@ -257,7 +265,8 @@ public static class InputRouter
         InputRouterState state,
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
-        Action<string>? copyToClipboard = null)
+        Action<string>? copyToClipboard = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Check if a node has captured input
         var capturedNode = focusRing.CapturedNode;
@@ -297,19 +306,21 @@ public static class InputRouter
     /// <param name="cancellationToken">Cancellation token for async operations.</param>
     /// <param name="copyToClipboard">Optional callback to copy text to clipboard.</param>
     /// <param name="invalidate">Optional callback to invalidate the app and trigger re-render.</param>
+    /// <param name="windowManagerRegistry">Optional registry for window managers.</param>
     /// <returns>The result of input processing.</returns>
-    public static async Task<InputResult> RouteInputToNodeAsync(
+    internal static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
         Hex1bKeyEvent keyEvent, 
         FocusRing? focusRing = null, 
         Action? requestStop = null,
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
-        Action? invalidate = null)
+        Action? invalidate = null,
+        WindowManagerRegistry? windowManagerRegistry = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();
@@ -466,6 +477,7 @@ public static class InputRouter
             if (result.IsLeaf)
             {
                 // Global binding matched - execute and done
+                LastRouteDebug = $"Key {keyEvent.Key}: GLOBAL match, executing";
                 await result.ExecuteAsync(actionContext);
                 state.Reset();
                 return InputResult.Handled;
@@ -476,6 +488,7 @@ public static class InputRouter
                 // Global chord started - but we don't support global chords yet
                 // For now, treat as handled to prevent the key from being processed elsewhere
                 // TODO: Add support for global chords if needed
+                LastRouteDebug = $"Key {keyEvent.Key}: GLOBAL chord started";
                 return InputResult.Handled;
             }
         }

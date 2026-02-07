@@ -42,6 +42,16 @@ public class Hex1bRenderContext
     /// </summary>
     public ILayoutProvider? CurrentLayoutProvider { get; set; }
 
+    /// <summary>
+    /// The ambient background color established by a parent container (e.g., a window
+    /// or a highlighted table row). Leaf nodes like TextBlockNode
+    /// should apply this background when rendering content so that characters written
+    /// on top of a pre-painted region preserve the parent's background color.
+    /// Container nodes that paint a background should set this before rendering their
+    /// children and restore the previous value afterwards.
+    /// </summary>
+    public Hex1bColor AmbientBackground { get; set; } = Hex1bColor.Default;
+
     public virtual void EnterAlternateScreen() => _adapter?.EnterTuiMode();
     public virtual void ExitAlternateScreen() => _adapter?.ExitTuiMode();
     public virtual void Write(string text) => _adapter?.Write(text);

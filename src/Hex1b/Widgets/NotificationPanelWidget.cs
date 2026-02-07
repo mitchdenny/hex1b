@@ -290,7 +290,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
             }
             
             // Create Scroll to wrap the VStack for overflow handling
-            node.DrawerScroll ??= new ScrollNode();
+            node.DrawerScroll ??= new ScrollPanelNode();
             node.DrawerScroll.Child = node.DrawerVStack;
             node.DrawerScroll.Orientation = ScrollOrientation.Vertical;
             node.DrawerScroll.Parent = node;

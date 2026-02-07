@@ -8,9 +8,9 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Comprehensive tests for ScrollNode layout, rendering, scrolling, and focus handling.
+/// Comprehensive tests for ScrollPanelNode layout, rendering, scrolling, and focus handling.
 /// </summary>
-public class ScrollNodeTests
+public class ScrollPanelNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
     {
@@ -37,12 +37,12 @@ public class ScrollNodeTests
         return new HStackNode { Children = children };
     }
 
-    #region ScrollNode Internal State Tests
+    #region ScrollPanelNode Internal State Tests
 
     [Fact]
     public async Task ScrollNode_InitialState_IsZero()
     {
-        var node = new ScrollNode();
+        var node = new ScrollPanelNode();
 
         Assert.Equal(0, node.Offset);
         Assert.Equal(0, node.ContentSize);
@@ -52,7 +52,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ScrollNode_IsScrollable_WhenContentExceedsViewport()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical
@@ -67,7 +67,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ScrollNode_MaxOffset_IsCorrect()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(25),
             Orientation = ScrollOrientation.Vertical
@@ -86,7 +86,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Measure_Vertical_ContentSmallerThanViewport_ReturnsFitSize()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(5),
             Orientation = ScrollOrientation.Vertical,
@@ -103,7 +103,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Measure_Vertical_ContentLargerThanViewport_UsesConstraints()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
@@ -120,7 +120,7 @@ public class ScrollNodeTests
     public async Task Measure_Vertical_IncludesScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = child,
             Orientation = ScrollOrientation.Vertical,
@@ -131,7 +131,7 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 30, 20));
 
         // Create a new node with content that exceeds viewport
-        var scrollableNode = new ScrollNode
+        var scrollableNode = new ScrollPanelNode
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
@@ -148,7 +148,7 @@ public class ScrollNodeTests
     public async Task Measure_Vertical_NoScrollbar_DoesNotIncludeScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = child,
             Orientation = ScrollOrientation.Vertical,
@@ -168,7 +168,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Measure_Horizontal_ContentWiderThanViewport_UsesConstraints()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(20),
             Orientation = ScrollOrientation.Horizontal,
@@ -183,7 +183,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Measure_Horizontal_IncludesScrollbarHeight()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(50),
             Orientation = ScrollOrientation.Horizontal,
@@ -203,7 +203,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Arrange_Vertical_SetsViewportSize()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -220,7 +220,7 @@ public class ScrollNodeTests
     public async Task Arrange_Vertical_ChildPositionedWithOffset()
     {
         var child = CreateTallContent(20);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = child,
             Orientation = ScrollOrientation.Vertical,
@@ -241,7 +241,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Arrange_Vertical_ClampsOffsetToMaxOffset()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -265,7 +265,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task Arrange_Horizontal_SetsViewportSize()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(20),
             Orientation = ScrollOrientation.Horizontal,
@@ -283,7 +283,7 @@ public class ScrollNodeTests
     public async Task Arrange_Horizontal_ChildPositionedWithOffset()
     {
         var child = CreateWideContent(20);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = child,
             Orientation = ScrollOrientation.Horizontal,
@@ -312,7 +312,7 @@ public class ScrollNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -338,7 +338,7 @@ public class ScrollNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -368,7 +368,7 @@ public class ScrollNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 20).Build();
         var context = CreateContext(workload);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(5),
             Orientation = ScrollOrientation.Vertical,
@@ -396,7 +396,7 @@ public class ScrollNodeTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
 
         await using var app = new Hex1bApp(
-            ctx => ctx.VScroll(v => [
+            ctx => ctx.VScrollPanel(v => [
                 v.Text("Line 1"),
                 v.Text("Line 2"),
                 v.Text("Line 3"),
@@ -437,7 +437,7 @@ public class ScrollNodeTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
 
         await using var app = new Hex1bApp(
-            ctx => ctx.VScroll(v => [
+            ctx => ctx.VScrollPanel(v => [
                 v.Text("Line 1"),
                 v.Text("Line 2"),
                 v.Text("Line 3"),
@@ -490,7 +490,7 @@ public class ScrollNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(10),
             Orientation = ScrollOrientation.Horizontal,
@@ -501,12 +501,12 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
-        // Should contain scrollbar thumb character
-        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
+        // Should contain scrollbar thumb character (horizontal uses ■, not ▉)
+        Assert.Contains("■", terminal.CreateSnapshot().GetText());
     }
 
     [Fact]
@@ -516,7 +516,7 @@ public class ScrollNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         var context = CreateContext(workload);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(10),
             Orientation = ScrollOrientation.Horizontal,
@@ -527,12 +527,12 @@ public class ScrollNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("▉"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("■"), TimeSpan.FromSeconds(2), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
         Assert.Contains("─", terminal.CreateSnapshot().GetText());
-        Assert.Contains("▉", terminal.CreateSnapshot().GetText());
+        Assert.Contains("■", terminal.CreateSnapshot().GetText());  // Horizontal uses ■, not ▉
         // No arrows in the new minimal style
         Assert.DoesNotContain("◀", terminal.CreateSnapshot().GetText());
         Assert.DoesNotContain("▶", terminal.CreateSnapshot().GetText());
@@ -551,7 +551,7 @@ public class ScrollNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.ThumbColor, Hex1bColor.Cyan);
         var context = CreateContext(workload, theme);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -581,7 +581,7 @@ public class ScrollNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ScrollTheme.FocusedThumbColor, Hex1bColor.Yellow);
         var context = CreateContext(workload, theme);
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -610,7 +610,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task IsFocusable_ReturnsTrue()
     {
-        var node = new ScrollNode();
+        var node = new ScrollPanelNode();
 
         Assert.True(node.IsFocusable);
     }
@@ -618,7 +618,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task GetFocusableNodes_IncludesSelfFirst()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = new ButtonNode { Label = "Button" }
         };
@@ -632,7 +632,7 @@ public class ScrollNodeTests
     public async Task GetFocusableNodes_IncludesChildFocusables()
     {
         var button = new ButtonNode { Label = "Button" };
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = button
         };
@@ -646,7 +646,7 @@ public class ScrollNodeTests
     public async Task SetInitialFocus_FocusesSelf()
     {
         var button = new ButtonNode { Label = "Button" };
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = button
         };
@@ -664,7 +664,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_DownArrow_WhenFocused_ScrollsDown()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -682,7 +682,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_UpArrow_WhenFocused_ScrollsUp()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -701,7 +701,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_PageDown_WhenFocused_ScrollsByViewportSize()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
@@ -719,7 +719,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_Home_WhenFocused_ScrollsToStart()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
@@ -738,7 +738,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_End_WhenFocused_ScrollsToEnd()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
@@ -756,7 +756,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_NotFocused_DoesNotScroll()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical,
@@ -777,7 +777,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_RightArrow_WhenFocused_ScrollsRight()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(20),
             Orientation = ScrollOrientation.Horizontal,
@@ -795,7 +795,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_LeftArrow_WhenFocused_ScrollsLeft()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(20),
             Orientation = ScrollOrientation.Horizontal,
@@ -814,7 +814,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task HandleInput_Horizontal_UpDownArrows_DoNotScroll()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateWideContent(20),
             Orientation = ScrollOrientation.Horizontal,
@@ -838,12 +838,12 @@ public class ScrollNodeTests
     public async Task HandleInput_DownArrow_FiresScrollEvent()
     {
         ScrollChangedEventArgs? receivedArgs = null;
-        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+        var widget = new ScrollPanelWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
             .OnScroll(args => receivedArgs = args);
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
+        var node = (ScrollPanelNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(20);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -860,12 +860,12 @@ public class ScrollNodeTests
     public async Task ScrollEvent_ProvidesCorrectStateInfo()
     {
         ScrollChangedEventArgs? receivedArgs = null;
-        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+        var widget = new ScrollPanelWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
             .OnScroll(args => receivedArgs = args);
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
+        var node = (ScrollPanelNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -890,12 +890,12 @@ public class ScrollNodeTests
     public async Task ScrollEvent_IsAtStart_WhenAtTop()
     {
         ScrollChangedEventArgs? receivedArgs = null;
-        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+        var widget = new ScrollPanelWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
             .OnScroll(args => receivedArgs = args);
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
+        var node = (ScrollPanelNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -915,12 +915,12 @@ public class ScrollNodeTests
     public async Task ScrollEvent_IsAtEnd_WhenAtBottom()
     {
         ScrollChangedEventArgs? receivedArgs = null;
-        var widget = new ScrollWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+        var widget = new ScrollPanelWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
             .OnScroll(args => receivedArgs = args);
 
         // Use reconciliation to properly set up the node
         var context = ReconcileContext.CreateRoot();
-        var node = (ScrollNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
+        var node = (ScrollPanelNode)widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         node.Child = CreateTallContent(50);  // Replace child for this test
         node.IsFocused = true;
         node.Measure(Constraints.Unbounded);
@@ -943,7 +943,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ShouldRenderAt_WithinViewport_ReturnsTrue()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical
@@ -957,7 +957,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ShouldRenderAt_OutsideViewport_ReturnsFalse()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical
@@ -971,7 +971,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ClipString_ClipsHorizontally()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical
@@ -987,7 +987,7 @@ public class ScrollNodeTests
     [Fact]
     public async Task ClipString_OutsideVerticalBounds_ReturnsEmpty()
     {
-        var node = new ScrollNode
+        var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
             Orientation = ScrollOrientation.Vertical
@@ -1013,7 +1013,7 @@ public class ScrollNodeTests
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.VScroll(
+                ctx.VScrollPanel(
                     v => [
                         v.Text("Line 1"),
                         v.Text("Line 2"),
@@ -1060,7 +1060,7 @@ public class ScrollNodeTests
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.VScroll(
+                ctx.VScrollPanel(
                     v => [
                         v.Text("Line 1"),
                         v.Text("Line 2"),
@@ -1101,7 +1101,7 @@ public class ScrollNodeTests
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.VScroll(
+                ctx.VScrollPanel(
                     v => [
                         v.Text("Content"),
                         v.Button("Click Me").OnClick(_ => { buttonClicked = true; return Task.CompletedTask; }),
@@ -1136,7 +1136,7 @@ public class ScrollNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HSplitter(
                     ctx.Text("Left Side"),
-                    ctx.VScroll(
+                    ctx.VScrollPanel(
                         v => [
                             v.Text("Scrollable line 1"),
                             v.Text("Scrollable line 2"),
@@ -1175,7 +1175,7 @@ public class ScrollNodeTests
 
         await using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.HScroll(
+                ctx.HScrollPanel(
                     h => [
                         h.Text("Column1 "),
                         h.Text("Column2 "),
@@ -1190,9 +1190,9 @@ public class ScrollNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting
+        // Capture snapshot BEFORE exiting (horizontal scrollbar uses ■, not ▉)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(2)) // Wait for scroll thumb
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(2)) // Wait for scroll thumb
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1201,7 +1201,7 @@ public class ScrollNodeTests
 
         // Should have scrollbar with thin track and thumb (no arrows)
         Assert.Contains("─", snapshot.GetText());
-        Assert.Contains("▉", snapshot.GetText());
+        Assert.Contains("■", snapshot.GetText());  // Horizontal uses ■
     }
 
     [Fact]
@@ -1216,7 +1216,7 @@ public class ScrollNodeTests
             ctx => ctx.Border(
                 ctx.VStack(v => [
                     v.Text("Header"),
-                    v.HScroll(
+                    v.HScrollPanel(
                         h => [
                             // Long line that exceeds the viewport
                             h.Text("<<<START>>> | Col1 | Col2 | Col3 | Col4 | Col5 | <<<END>>>")

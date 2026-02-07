@@ -239,7 +239,7 @@ public sealed class RescueNode : Hex1bNode, ILayoutProvider
         widgets.Add(v.Separator());
 
         // Scrollable content area
-        widgets.Add(v.VScroll(content => BuildErrorContent(content, ctx)).Fill());
+        widgets.Add(v.VScrollPanel(content => BuildErrorContent(content, ctx)).Fill());
 
         return [.. widgets];
     }

@@ -373,7 +373,7 @@ public async Task Button_InsideHStack_SharesSpaceCorrectly()
 - Inside `VStackWidget` (vertical stacking)
 - Inside `HStackWidget` (horizontal stacking)
 - Inside `BorderWidget` (reduced available space)
-- Inside `ScrollWidget` (scrollable content)
+- Inside `ScrollPanelWidget` (scrollable content)
 - Inside `SplitterWidget` (resizable panes)
 - Nested containers (e.g., Border inside VStack inside Splitter)
 

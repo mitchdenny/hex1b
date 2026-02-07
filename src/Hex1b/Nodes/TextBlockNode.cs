@@ -267,6 +267,17 @@ public sealed class TextBlockNode : Hex1bNode
         var colorCodes = context.Theme.GetGlobalColorCodes();
         var resetCodes = !string.IsNullOrEmpty(colorCodes) ? context.Theme.GetResetToGlobalCodes() : "";
         
+        // If a parent container has set an ambient background, include it so that
+        // characters written by this node preserve the parent's background color
+        // instead of resetting to terminal default. Append after global codes so
+        // the ambient bg overrides any global background.
+        if (!context.AmbientBackground.IsDefault)
+        {
+            var ambientBgCode = context.AmbientBackground.ToBackgroundAnsi();
+            colorCodes += ambientBgCode;
+            resetCodes = (string.IsNullOrEmpty(resetCodes) ? "\x1b[0m" : resetCodes) + ambientBgCode;
+        }
+        
         switch (Overflow)
         {
             case TextOverflow.Wrap:

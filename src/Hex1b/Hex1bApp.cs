@@ -126,6 +126,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     // Animation timer for RedrawAfter() support
     private readonly AnimationTimer _animationTimer;
+    
+    // Window manager registry for accessing WindowManagers from anywhere
+    private readonly WindowManagerRegistry _windowManagerRegistry = new();
+
+    /// <summary>
+    /// Gets the registry of WindowManagers for this application.
+    /// </summary>
+    /// <remarks>
+    /// WindowPanels automatically register their managers here.
+    /// Use this to access window managers from anywhere in the app.
+    /// </remarks>
+    internal WindowManagerRegistry WindowManagers => _windowManagerRegistry;
 
     /// <summary>
     /// Creates a Hex1bApp with an async widget builder.
@@ -508,7 +520,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate);
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
@@ -525,7 +537,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     // Create context for drag events
                     var dragContext = new InputBindingActionContext(
                         _focusRing, RequestStop, cancellationToken, 
-                        mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate);
+                        mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
                     
                     // Handle both Move (no button) and Drag (button held) actions
                     if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
@@ -553,7 +565,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 else if (_rootNode != null)
                 {
                     await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
-                        RequestStop, cancellationToken, CopyToClipboard, Invalidate);
+                        RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
                 }
                 break;
         }
@@ -954,7 +966,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
         // Create action context for mouse bindings (includes mouse coordinates)
-        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate);
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
         
         // Check if the node has a drag binding for this event (checked first)
         var builder = hitNode.BuildBindings();
@@ -1075,7 +1087,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
         // Create the root reconcile context with timer scheduling callback
         var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
-            CaptureInput, ReleaseCapture, ScheduleTimer);
+            CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         
         // Delegate to the widget's own ReconcileAsync method
