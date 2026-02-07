@@ -221,6 +221,44 @@ public class Hex1bTerminalScrollbackTests
     }
 
     [Fact]
+    public void Snapshot_VoidCell_FillsGapsWithSpecifiedCell()
+    {
+        using var terminal = CreateTerminal(width: 10, height: 3);
+
+        // Write at width 10, scroll off
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("AAAAAAAAAA\r\nBBBBBBBBBB\r\nCCCCCCCCCC\r\nDDDDDDDDDD"));
+
+        // Resize to narrower
+        terminal.Resize(5, 3);
+
+        var voidCell = new TerminalCell("·", null, null);
+        using var snapshot = terminal.CreateSnapshot(
+            scrollbackLines: 1,
+            scrollbackWidth: ScrollbackWidth.Original,
+            voidCell: voidCell);
+
+        // Visible area is 5 wide, snapshot is 10 wide — columns 5-9 in visible rows should be void cell
+        Assert.Equal("·", snapshot.GetCell(5, snapshot.ScrollbackLineCount).Character);
+        Assert.Equal("·", snapshot.GetCell(9, snapshot.ScrollbackLineCount).Character);
+    }
+
+    [Fact]
+    public void Snapshot_VoidCell_DefaultsToEmpty()
+    {
+        using var terminal = CreateTerminal(width: 10, height: 3);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("AAAAAAAAAA\r\nBBBBBBBBBB\r\nCCCCCCCCCC\r\nDDDDDDDDDD"));
+        terminal.Resize(5, 3);
+
+        // No voidCell specified — should default to TerminalCell.Empty (a space)
+        using var snapshot = terminal.CreateSnapshot(
+            scrollbackLines: 1,
+            scrollbackWidth: ScrollbackWidth.Original);
+
+        Assert.Equal(" ", snapshot.GetCell(5, snapshot.ScrollbackLineCount).Character);
+    }
+
+    [Fact]
     public void Snapshot_NoScrollbackConfigured_IgnoresScrollbackLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

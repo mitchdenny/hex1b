@@ -1387,10 +1387,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="scrollbackLines">Number of scrollback lines to include above the visible area. Zero means no scrollback.</param>
     /// <param name="scrollbackWidth">Controls how scrollback line widths are adapted in the snapshot.</param>
+    /// <param name="voidCell">The cell used to fill void regions where the snapshot is wider than a row's original content. Defaults to <see cref="TerminalCell.Empty"/> (a space with no attributes).</param>
     /// <returns>A snapshot with scrollback lines prepended above the visible content.</returns>
-    public Hex1bTerminalSnapshot CreateSnapshot(int scrollbackLines, ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
+    public Hex1bTerminalSnapshot CreateSnapshot(int scrollbackLines, ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal, TerminalCell? voidCell = null)
     {
-        return new Hex1bTerminalSnapshot(this, scrollbackLines, scrollbackWidth);
+        return new Hex1bTerminalSnapshot(this, scrollbackLines, scrollbackWidth, voidCell ?? TerminalCell.Empty);
     }
 
     /// <summary>

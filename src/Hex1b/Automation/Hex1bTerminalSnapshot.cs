@@ -17,11 +17,11 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     public int ScrollbackLineCount { get; }
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
-        : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal)
+        : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal, voidCell: TerminalCell.Empty)
     {
     }
 
-    internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth)
+    internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
     {
         Terminal = terminal;
         var terminalWidth = terminal.Width;
@@ -63,6 +63,18 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 
         _cells = new TerminalCell[totalHeight, snapshotWidth];
 
+        // Pre-fill with void cell if snapshot is wider than any source row
+        if (snapshotWidth > terminalWidth)
+        {
+            for (int y = 0; y < totalHeight; y++)
+            {
+                for (int x = 0; x < snapshotWidth; x++)
+                {
+                    _cells[y, x] = voidCell;
+                }
+            }
+        }
+
         // Fill scrollback rows (top of snapshot)
         for (int rowIdx = 0; rowIdx < scrollbackRows.Length; rowIdx++)
         {
@@ -74,7 +86,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
                 row.Cells[x].TrackedSixel?.AddRef();
                 row.Cells[x].TrackedHyperlink?.AddRef();
             }
-            // Remaining columns are default (TerminalCell.Empty equivalent)
         }
 
         // Fill visible area (below scrollback)
@@ -86,7 +97,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
             {
                 _cells[scrollbackRows.Length + y, x] = screenBuffer[y, x];
             }
-            // If screen is narrower than snapshotWidth, remaining columns stay empty
         }
 
         // Adjust cursor position to account for prepended scrollback rows
