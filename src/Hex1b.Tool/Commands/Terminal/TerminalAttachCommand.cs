@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hex1b;
 using Hex1b.Diagnostics;
+using Hex1b.Input;
 using Hex1b.Tool.Infrastructure;
 using Microsoft.Extensions.Logging;
 
@@ -131,6 +132,18 @@ internal sealed class TerminalAttachCommand : BaseCommand
         }
         finally
         {
+            // Reset terminal state before exiting raw mode — undo anything the
+            // remote terminal's output stream may have enabled (mouse tracking,
+            // alternate screen, bracketed paste, etc.)
+            var resetSequence =
+                Input.MouseParser.DisableMouseTracking +
+                "\x1b[?2004l" +  // Disable bracketed paste
+                "\x1b[0m" +     // Reset text attributes
+                "\x1b[?25h" +   // Show cursor
+                "\x1b[?1049l";  // Exit alternate screen
+            driver.Write(Encoding.UTF8.GetBytes(resetSequence));
+            driver.Flush();
+
             driver.ExitRawMode();
             // Send detach signal (best effort)
             try { await writer.WriteLineAsync("detach"); } catch { }
