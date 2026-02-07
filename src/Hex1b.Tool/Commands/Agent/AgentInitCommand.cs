@@ -101,13 +101,22 @@ internal sealed class AgentInitCommand : BaseCommand
     private static string GetSkillContent() => """
         ---
         name: hex1b
-        description: CLI tool for managing and interacting with Hex1b terminal applications. Use when launching terminals, capturing screen output, injecting input, asserting on terminal content, or automating TUI app workflows.
+        description: CLI tool for automating any terminal application — TUI apps, shells, CLI tools, REPLs, and more. Use when you need to launch a process in a virtual terminal, capture its screen output, inject keystrokes or mouse input, or assert on what's visible.
         ---
 
         # Hex1b CLI Skill
 
-        The `dotnet hex1b` CLI tool manages and interacts with Hex1b terminal applications.
-        Use it to inspect, control, and automate TUI apps from scripts or agent workflows.
+        The `dotnet hex1b` CLI tool lets you automate **any terminal application** — TUI apps,
+        interactive CLIs, shells, REPLs, curses programs, or anything else that runs in a terminal.
+        It wraps arbitrary processes in a headless virtual terminal, giving you programmatic control
+        over screen capture, input injection, and content assertions.
+
+        Use it to:
+        - Launch any command in a virtual terminal and interact with it programmatically
+        - Capture what's on screen as text, ANSI, or SVG at any point
+        - Send keystrokes, text, and mouse events
+        - Assert on visible content (useful for CI and scripted testing)
+        - Inspect Hex1b TUI widget trees (Hex1b apps only)
 
         ## Installation
 
@@ -125,11 +134,14 @@ internal sealed class AgentInitCommand : BaseCommand
 
         ## Concepts
 
-        A **terminal** is any running Hex1b terminal instance. Terminals are identified by a short
-        numeric ID (the process ID). There are two kinds:
+        A **terminal** is a headless virtual terminal managed by Hex1b. Any process that runs in a
+        terminal emulator can be launched inside one — shells, TUI apps, CLI tools, REPLs, compilers,
+        test runners, etc. Terminals are identified by a short numeric ID (the process ID).
 
-        - **TUI apps** — Hex1b applications with diagnostics enabled (`WithMcpDiagnostics()`). Discovered automatically.
-        - **Hosted terminals** — Arbitrary processes (bash, pwsh, etc.) spawned by the CLI inside a headless Hex1b terminal.
+        There are two kinds:
+
+        - **Hosted terminals** — Any process spawned by the CLI inside a headless virtual terminal. This is the primary way to automate arbitrary programs.
+        - **TUI apps** — Hex1b applications with diagnostics enabled (`WithMcpDiagnostics()`). Discovered automatically; support additional features like widget tree inspection.
 
         All commands that target a terminal take an `<id>` argument. Use a prefix if unambiguous.
 
@@ -210,7 +222,35 @@ internal sealed class AgentInitCommand : BaseCommand
 
         ## Common Workflows
 
-        ### Launch and interact with a TUI app
+        ### Automate any CLI or TUI application
+
+        ```bash
+        # Launch htop in a virtual terminal
+        dotnet hex1b terminal start -- htop
+
+        # Launch a Python REPL
+        dotnet hex1b terminal start -- python3
+
+        # Launch vim editing a file
+        dotnet hex1b terminal start --width 80 --height 24 -- vim myfile.txt
+
+        # Get the terminal ID
+        dotnet hex1b terminal list
+        ```
+
+        ### Interact with a running program
+
+        ```bash
+        # Type into a shell or REPL
+        dotnet hex1b keys <id> --text "print('hello')"
+        dotnet hex1b keys <id> --key Enter
+
+        # Wait for output to appear, then capture it
+        dotnet hex1b assert <id> --text-present "hello"
+        dotnet hex1b capture <id> --format text
+        ```
+
+        ### Launch and test a Hex1b TUI app
 
         ```bash
         # Start the app in a hosted terminal
