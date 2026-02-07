@@ -37,13 +37,15 @@ internal sealed class TerminalClient
     }
 
     /// <summary>
-    /// Probes a terminal socket to check if it's alive.
+    /// Probes a terminal socket to check if it's alive. Times out after 3 seconds.
     /// </summary>
     public async Task<DiagnosticsResponse?> TryProbeAsync(string socketPath, CancellationToken cancellationToken = default)
     {
         try
         {
-            return await SendAsync(socketPath, new DiagnosticsRequest { Method = "info" }, cancellationToken);
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
+            return await SendAsync(socketPath, new DiagnosticsRequest { Method = "info" }, timeoutCts.Token);
         }
         catch
         {
