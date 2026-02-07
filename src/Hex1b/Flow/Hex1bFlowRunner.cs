@@ -54,6 +54,26 @@ internal sealed class Hex1bFlowRunner
         Func<RootContext, Hex1bWidget>? yieldBuilder,
         Hex1bFlowSliceOptions? options)
     {
+        await RunSliceInternalAsync(builder, null, yieldBuilder, options);
+    }
+
+    /// <summary>
+    /// Runs an inline slice with app access for programmatic control.
+    /// </summary>
+    internal async Task RunSliceAsync(
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configure,
+        Func<RootContext, Hex1bWidget>? yieldBuilder,
+        Hex1bFlowSliceOptions? options)
+    {
+        await RunSliceInternalAsync(null, configure, yieldBuilder, options);
+    }
+
+    private async Task RunSliceInternalAsync(
+        Func<RootContext, Hex1bWidget>? builder,
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>>? configure,
+        Func<RootContext, Hex1bWidget>? yieldBuilder,
+        Hex1bFlowSliceOptions? options)
+    {
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
         var maxHeight = options?.MaxHeight ?? terminalHeight;
@@ -108,8 +128,34 @@ internal sealed class Hex1bFlowRunner
 
         try
         {
-            await using var app = new Hex1bApp(builder, appOptions);
-            await app.RunAsync(default);
+            if (configure != null)
+            {
+                // Configure pattern: pass app reference to the callback
+                Hex1bApp? app = null;
+                Func<RootContext, Hex1bWidget>? widgetBuilder = null;
+                bool configureInvoked = false;
+
+                Func<RootContext, Hex1bWidget> wrappedBuilder = ctx =>
+                {
+                    if (!configureInvoked)
+                    {
+                        configureInvoked = true;
+                        widgetBuilder = configure(app!);
+                    }
+                    return widgetBuilder!(ctx);
+                };
+
+                app = new Hex1bApp(wrappedBuilder, appOptions);
+                await using (app)
+                {
+                    await app.RunAsync(default);
+                }
+            }
+            else
+            {
+                await using var app = new Hex1bApp(builder!, appOptions);
+                await app.RunAsync(default);
+            }
         }
         finally
         {
