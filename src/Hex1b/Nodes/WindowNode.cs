@@ -350,6 +350,8 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         // Drag to move/resize window based on where drag starts
         bindings.Drag(Input.MouseButton.Left).Action((startX, startY) =>
         {
+            // startX, startY are local coordinates (relative to this node's bounds)
+            
             // Check if this is a resize drag (on an edge/corner)
             var resizeEdge = GetResizeEdge(startX, startY);
             if (resizeEdge != ResizeEdge.None)

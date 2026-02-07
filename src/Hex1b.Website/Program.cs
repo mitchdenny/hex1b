@@ -167,6 +167,13 @@ builder.Services.AddSingleton<IGalleryExample, TabPanelBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TabPanelSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, TabPanelDynamicExample>();
 
+// Window widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, WindowBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, WindowModalExample>();
+builder.Services.AddSingleton<IGalleryExample, WindowTitleActionsExample>();
+builder.Services.AddSingleton<IGalleryExample, WindowResizableExample>();
+builder.Services.AddSingleton<IGalleryExample, WindowPositionExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

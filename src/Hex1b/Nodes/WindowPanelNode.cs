@@ -194,33 +194,33 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // If there are windows, only return focusables from the topmost window
-        // (unless modal, in which case only the modal's focusables)
-        if (WindowNodes.Count > 0)
+        // If there's a modal window, only its focusables are accessible
+        var modal = WindowNodes.LastOrDefault(w => w.IsModal);
+        if (modal != null)
         {
-            // If there's a modal, only its focusables are accessible
-            var modal = WindowNodes.LastOrDefault(w => w.IsModal);
-            if (modal != null)
+            foreach (var focusable in modal.GetFocusableNodes())
             {
-                foreach (var focusable in modal.GetFocusableNodes())
-                {
-                    yield return focusable;
-                }
-                yield break;
+                yield return focusable;
             }
+            yield break;
+        }
 
-            // Otherwise, return focusables from all windows (topmost last for priority)
-            foreach (var windowNode in WindowNodes)
+        // Return background focusables first (lower priority in hit testing)
+        if (BackgroundNode != null)
+        {
+            foreach (var focusable in BackgroundNode.GetFocusableNodes())
             {
-                foreach (var focusable in windowNode.GetFocusableNodes())
-                {
-                    yield return focusable;
-                }
+                yield return focusable;
             }
         }
-        else
+
+        // Then return window focusables (topmost last for priority)
+        foreach (var windowNode in WindowNodes)
         {
-            // No windows - panel has no focusables (background is decorative)
+            foreach (var focusable in windowNode.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
         }
 
         // Scrollbar nodes are focusable and need to be hit-testable

@@ -439,6 +439,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // Tokenize input the same way we tokenize output
                 var text = Encoding.UTF8.GetString(data.Span);
+                
                 var tokens = AnsiTokenizer.Tokenize(text);
                 
                 // Notify presentation filters of input FROM presentation
