@@ -8,9 +8,11 @@ namespace Hex1b.Tool.Commands.Agent;
 internal sealed class AgentCommand : Command
 {
     public AgentCommand(
-        AgentMcpCommand mcpCommand)
+        AgentMcpCommand mcpCommand,
+        AgentInitCommand initCommand)
         : base("agent", "AI agent integration")
     {
         Subcommands.Add(mcpCommand);
+        Subcommands.Add(initCommand);
     }
 }

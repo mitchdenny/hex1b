@@ -58,6 +58,7 @@ public class Program
 
         // Agent commands
         builder.Services.AddTransient<Commands.Agent.AgentMcpCommand>();
+        builder.Services.AddTransient<Commands.Agent.AgentInitCommand>();
         builder.Services.AddTransient<Commands.Agent.AgentCommand>();
 
         // Root command
