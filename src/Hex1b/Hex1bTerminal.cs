@@ -87,6 +87,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
+    // Scrollback buffer (opt-in via WithScrollback)
+    private readonly ScrollbackBuffer? _scrollbackBuffer;
+    private readonly Action<ScrollbackRowEventArgs>? _scrollbackCallback;
+    
     // Scroll region (DECSTBM) - 0-based indices
     private int _scrollTop; // Top margin (0 = first row)
     private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
@@ -187,6 +191,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _marginRight = _width - 1; // Default left/right margins are full screen
         
         ClearBuffer();
+
+        // Initialize scrollback buffer if configured
+        if (options.ScrollbackCapacity is int scrollbackCapacity)
+        {
+            _scrollbackBuffer = new ScrollbackBuffer(scrollbackCapacity);
+            _scrollbackCallback = options.ScrollbackCallback;
+        }
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -1129,6 +1140,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// The scrollback buffer, if one was configured via <see cref="Hex1bTerminalOptions.ScrollbackCapacity"/>.
+    /// </summary>
+    internal ScrollbackBuffer? Scrollback => _scrollbackBuffer;
+
+    /// <summary>
     /// Enters alternate screen mode (for testing purposes).
     /// In headless mode, this just sets the flag and clears the buffer.
     /// </summary>
@@ -1363,6 +1379,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     public Hex1bTerminalSnapshot CreateSnapshot()
     {
         return new Hex1bTerminalSnapshot(this);
+    }
+
+    /// <summary>
+    /// Creates an immutable snapshot of the current terminal state, optionally including
+    /// lines from the scrollback buffer.
+    /// </summary>
+    /// <param name="scrollbackLines">Number of scrollback lines to include above the visible area. Zero means no scrollback.</param>
+    /// <param name="scrollbackWidth">Controls how scrollback line widths are adapted in the snapshot.</param>
+    /// <returns>A snapshot with scrollback lines prepended above the visible content.</returns>
+    public Hex1bTerminalSnapshot CreateSnapshot(int scrollbackLines, ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
+    {
+        return new Hex1bTerminalSnapshot(this, scrollbackLines, scrollbackWidth);
     }
 
     /// <summary>
@@ -2080,6 +2108,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
                 ClearBuffer(impacts);
+                if (mode == ClearMode.AllAndScrollback)
+                {
+                    _scrollbackBuffer?.Clear();
+                }
                 break;
         }
     }
@@ -2497,6 +2529,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int leftCol = _declrmm ? _marginLeft : 0;
         int rightCol = _declrmm ? _marginRight : _width - 1;
         
+        // Capture the top row into the scrollback buffer before it's overwritten.
+        // Only capture when: scrollback is enabled, not in alternate screen, scroll region
+        // starts at row 0, and we're scrolling full-width rows (not partial DECLRMM margins).
+        if (_scrollbackBuffer is not null
+            && !_inAlternateScreen
+            && _scrollTop == 0
+            && leftCol == 0 && rightCol == _width - 1)
+        {
+            CaptureRowToScrollback(_scrollTop);
+        }
+        
         // First, release Sixel data from the top row of the region (being scrolled off)
         for (int x = leftCol; x <= rightCol; x++)
         {
@@ -2550,6 +2593,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
         }
+    }
+    
+    private void CaptureRowToScrollback(int row)
+    {
+        var cells = new TerminalCell[_width];
+        for (int x = 0; x < _width; x++)
+        {
+            cells[x] = _screenBuffer[row, x];
+        }
+
+        var timestamp = _timeProvider.GetUtcNow();
+        _scrollbackBuffer!.Push(cells, _width, timestamp);
+        _scrollbackCallback?.Invoke(new ScrollbackRowEventArgs(this, cells, _width, timestamp));
     }
     
     private void InsertLines(int count, List<CellImpact>? impacts = null)
@@ -3450,6 +3506,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // Release all scrollback buffer tracked object references
+        _scrollbackBuffer?.Clear();
+
         // Notify filters of session end (fire-and-forget from sync Dispose)
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
@@ -3479,6 +3538,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Release all scrollback buffer tracked object references
+        _scrollbackBuffer?.Clear();
 
         // Notify filters of session end
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;

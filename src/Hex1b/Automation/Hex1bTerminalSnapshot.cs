@@ -11,11 +11,21 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     private readonly TerminalCell[,] _cells;
     private bool _disposed;
 
+    /// <summary>
+    /// Number of scrollback lines included in this snapshot (prepended above visible content).
+    /// </summary>
+    public int ScrollbackLineCount { get; }
+
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
+        : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal)
+    {
+    }
+
+    internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth)
     {
         Terminal = terminal;
-        Width = terminal.Width;
-        Height = terminal.Height;
+        var terminalWidth = terminal.Width;
+        var terminalHeight = terminal.Height;
         CursorX = terminal.CursorX;
         CursorY = terminal.CursorY;
         InAlternateScreen = terminal.InAlternateScreen;
@@ -23,8 +33,64 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CellPixelWidth = terminal.Capabilities.CellPixelWidth;
         CellPixelHeight = terminal.Capabilities.CellPixelHeight;
 
-        // Get a deep copy of the cell buffer, adding refs for tracked objects
-        _cells = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
+        // Get scrollback rows if requested
+        ScrollbackRow[] scrollbackRows = [];
+        if (scrollbackLines > 0 && terminal.Scrollback is { } scrollback)
+        {
+            scrollbackRows = scrollback.GetLines(scrollbackLines);
+        }
+        ScrollbackLineCount = scrollbackRows.Length;
+
+        // Determine snapshot dimensions
+        int snapshotWidth;
+        if (scrollbackWidth == ScrollbackWidth.Original && scrollbackRows.Length > 0)
+        {
+            snapshotWidth = terminalWidth;
+            foreach (var row in scrollbackRows)
+            {
+                if (row.OriginalWidth > snapshotWidth)
+                    snapshotWidth = row.OriginalWidth;
+            }
+        }
+        else
+        {
+            snapshotWidth = terminalWidth;
+        }
+
+        int totalHeight = scrollbackRows.Length + terminalHeight;
+        Width = snapshotWidth;
+        Height = totalHeight;
+
+        _cells = new TerminalCell[totalHeight, snapshotWidth];
+
+        // Fill scrollback rows (top of snapshot)
+        for (int rowIdx = 0; rowIdx < scrollbackRows.Length; rowIdx++)
+        {
+            var row = scrollbackRows[rowIdx];
+            int copyWidth = Math.Min(row.Cells.Length, snapshotWidth);
+            for (int x = 0; x < copyWidth; x++)
+            {
+                _cells[rowIdx, x] = row.Cells[x];
+                row.Cells[x].TrackedSixel?.AddRef();
+                row.Cells[x].TrackedHyperlink?.AddRef();
+            }
+            // Remaining columns are default (TerminalCell.Empty equivalent)
+        }
+
+        // Fill visible area (below scrollback)
+        var screenBuffer = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
+        for (int y = 0; y < terminalHeight; y++)
+        {
+            int copyWidth = Math.Min(terminalWidth, snapshotWidth);
+            for (int x = 0; x < copyWidth; x++)
+            {
+                _cells[scrollbackRows.Length + y, x] = screenBuffer[y, x];
+            }
+            // If screen is narrower than snapshotWidth, remaining columns stay empty
+        }
+
+        // Adjust cursor position to account for prepended scrollback rows
+        CursorY += scrollbackRows.Length;
     }
 
     /// <summary>
@@ -101,12 +167,13 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
             return;
         _disposed = true;
 
-        // Release all Sixel data references
+        // Release all tracked object references
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
             {
                 _cells[y, x].TrackedSixel?.Release();
+                _cells[y, x].TrackedHyperlink?.Release();
             }
         }
     }
