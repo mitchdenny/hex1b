@@ -738,6 +738,45 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures the terminal to run a Hex1b Flow — a sequence of inline micro-TUI slices
+    /// and optional full-screen TUI applications in the normal terminal buffer.
+    /// </summary>
+    /// <param name="flowCallback">
+    /// Async callback that defines the flow steps. Use <see cref="Flow.Hex1bFlowContext.SliceAsync"/>
+    /// for inline micro-TUIs and <see cref="Flow.Hex1bFlowContext.FullScreenAsync"/> for full-screen apps.
+    /// </param>
+    /// <param name="configureOptions">Optional callback to configure flow options (theme, etc.).</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithHex1bFlow(
+        Func<Flow.Hex1bFlowContext, Task> flowCallback,
+        Action<Flow.Hex1bFlowOptions>? configureOptions = null)
+    {
+        ArgumentNullException.ThrowIfNull(flowCallback);
+
+        SetWorkloadFactory(presentation =>
+        {
+            var workloadAdapter = presentation != null
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
+
+            var options = new Flow.Hex1bFlowOptions();
+            configureOptions?.Invoke(options);
+
+            var runner = new Flow.Hex1bFlowRunner(flowCallback, options, workloadAdapter);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await runner.RunAsync(ct);
+                return 0;
+            };
+
+            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
     /// Configures the terminal with a custom presentation adapter.
     /// </summary>
     /// <param name="adapter">The presentation adapter to use.</param>
