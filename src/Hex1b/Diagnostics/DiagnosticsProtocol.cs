@@ -55,6 +55,18 @@ internal sealed class DiagnosticsRequest
     /// </summary>
     [JsonPropertyName("button")]
     public string? Button { get; set; }
+
+    /// <summary>
+    /// For "drag" method, the destination X position (column, 0-based).
+    /// </summary>
+    [JsonPropertyName("x2")]
+    public int? X2 { get; set; }
+
+    /// <summary>
+    /// For "drag" method, the destination Y position (row, 0-based).
+    /// </summary>
+    [JsonPropertyName("y2")]
+    public int? Y2 { get; set; }
 }
 
 /// <summary>

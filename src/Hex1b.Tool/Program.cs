@@ -49,6 +49,7 @@ public class Program
 
         // Mouse commands
         builder.Services.AddTransient<Commands.Mouse.MouseClickCommand>();
+        builder.Services.AddTransient<Commands.Mouse.MouseDragCommand>();
         builder.Services.AddTransient<Commands.Mouse.MouseCommand>();
 
         // Record commands

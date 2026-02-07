@@ -354,6 +354,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             "input" => await HandleInputRequestAsync(request.Data),
             "key" => await HandleKeyRequestAsync(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
+            "drag" => HandleDragRequest(request.X, request.Y, request.X2, request.Y2, request.Button),
             "tree" => HandleTreeRequest(),
             "resize" => HandleResizeRequest(request.X, request.Y),
             "shutdown" => HandleShutdownRequest(),
@@ -606,6 +607,57 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             {
                 Success = true,
                 Data = $"Clicked at ({x}, {y}) with {mouseButton}"
+            };
+        }
+
+        return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct mouse injection" };
+    }
+
+    private DiagnosticsResponse HandleDragRequest(int? x1, int? y1, int? x2, int? y2, string? button)
+    {
+        if (_terminal == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Terminal not initialized" };
+        }
+
+        if (x1 == null || y1 == null || x2 == null || y2 == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Missing coordinates (x, y, x2, y2 required)" };
+        }
+
+        var mouseButton = button?.ToLowerInvariant() switch
+        {
+            "left" or null => MouseButton.Left,
+            "right" => MouseButton.Right,
+            "middle" => MouseButton.Middle,
+            _ => MouseButton.Left
+        };
+
+        if (_terminal.Workload is Hex1bAppWorkloadAdapter workload)
+        {
+            // Mouse down at start
+            workload.SendMouse(mouseButton, MouseAction.Down, x1.Value, y1.Value);
+
+            // Interpolate drag events from start to end
+            int dx = x2.Value - x1.Value;
+            int dy = y2.Value - y1.Value;
+            int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            if (steps == 0) steps = 1;
+
+            for (int i = 1; i <= steps; i++)
+            {
+                int cx = x1.Value + (dx * i / steps);
+                int cy = y1.Value + (dy * i / steps);
+                workload.SendMouse(mouseButton, MouseAction.Drag, cx, cy);
+            }
+
+            // Mouse up at end
+            workload.SendMouse(mouseButton, MouseAction.Up, x2.Value, y2.Value);
+
+            return new DiagnosticsResponse
+            {
+                Success = true,
+                Data = $"Dragged from ({x1}, {y1}) to ({x2}, {y2}) with {mouseButton}"
             };
         }
 
