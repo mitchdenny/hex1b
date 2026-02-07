@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Tokens;
@@ -31,6 +32,8 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private readonly CancellationTokenSource _cts = new();
     private readonly List<byte> _pendingInput = [];
     private readonly object _inputLock = new();
+    private readonly List<Channel<string>> _attachedClients = [];
+    private readonly object _attachLock = new();
     
     private Hex1bTerminal? _terminal;
     private Socket? _listenerSocket;
@@ -98,8 +101,29 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default)
     {
-        // Pass through - we don't modify output
-        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(appliedTokens.Select(t => t.Token).ToList());
+        var tokens = appliedTokens.Select(t => t.Token).ToList();
+
+        // Broadcast to attached clients if any
+        lock (_attachLock)
+        {
+            if (_attachedClients.Count > 0)
+            {
+                var ansi = AnsiTokenSerializer.Serialize(tokens);
+                if (ansi.Length > 0)
+                {
+                    for (var i = _attachedClients.Count - 1; i >= 0; i--)
+                    {
+                        if (!_attachedClients[i].Writer.TryWrite(ansi))
+                        {
+                            // Channel full or completed — remove dead client
+                            _attachedClients.RemoveAt(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens);
     }
 
     /// <inheritdoc />
@@ -190,6 +214,13 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 return;
             }
 
+            // Attach is special — bidirectional streaming, keeps connection open
+            if (request.Method?.Equals("attach", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await HandleAttachAsync(reader, writer, ct);
+                return;
+            }
+
             var response = await HandleRequestAsync(request);
             var responseJson = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
             await writer.WriteLineAsync(responseJson);
@@ -202,6 +233,116 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             }
             catch { /* ignore write failures */ }
         }
+    }
+
+    /// <summary>
+    /// Handles an attach session — bidirectional streaming over a persistent connection.
+    /// Protocol: Server sends initial ANSI capture, then streams output lines prefixed with "o:".
+    /// Client sends input lines prefixed with "i:". Either side can send "detach" to end.
+    /// </summary>
+    private async Task HandleAttachAsync(StreamReader reader, StreamWriter writer, CancellationToken ct)
+    {
+        if (_terminal == null)
+        {
+            await WriteErrorAsync(writer, "Terminal not initialized");
+            return;
+        }
+
+        // Create a channel for this client's output
+        var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        lock (_attachLock)
+        {
+            _attachedClients.Add(channel);
+        }
+
+        try
+        {
+            // Send initial full-screen capture as ANSI
+            using var snapshot = _terminal.CreateSnapshot();
+            var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
+            {
+                IncludeClearScreen = true,
+                IncludeTrailingNewline = true
+            });
+
+            // Send attach response with terminal dimensions
+            var attachResponse = new DiagnosticsResponse
+            {
+                Success = true,
+                Width = _terminal.Width,
+                Height = _terminal.Height,
+                Data = initialAnsi
+            };
+            var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
+            await writer.WriteLineAsync(responseJson.AsMemory(), ct);
+
+            // Run two tasks: output streaming and input forwarding
+            using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+            var outputTask = StreamOutputAsync(channel.Reader, writer, detachCts.Token);
+            var inputTask = StreamInputAsync(reader, detachCts);
+
+            // Wait for either task to complete (detach or disconnect)
+            await Task.WhenAny(outputTask, inputTask);
+            await detachCts.CancelAsync();
+
+            // Allow tasks to finish cleanly
+            try { await Task.WhenAll(outputTask, inputTask); }
+            catch (OperationCanceledException) { }
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+            lock (_attachLock)
+            {
+                _attachedClients.Remove(channel);
+            }
+        }
+    }
+
+    private async Task StreamOutputAsync(ChannelReader<string> reader, StreamWriter writer, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var ansi in reader.ReadAllAsync(ct))
+            {
+                // Convert to base64 to avoid newline issues in the ANSI data
+                var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(ansi));
+                await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task StreamInputAsync(StreamReader reader, CancellationTokenSource detachCts)
+    {
+        try
+        {
+            while (!detachCts.Token.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(detachCts.Token);
+                if (line == null || line == "detach")
+                {
+                    await detachCts.CancelAsync();
+                    return;
+                }
+
+                if (line.StartsWith("i:") && _terminal != null)
+                {
+                    var base64 = line[2..];
+                    var bytes = Convert.FromBase64String(base64);
+                    await _terminal.SendInputAsync(bytes);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (IOException) { await detachCts.CancelAsync(); }
     }
 
     private async Task<DiagnosticsResponse> HandleRequestAsync(DiagnosticsRequest request)

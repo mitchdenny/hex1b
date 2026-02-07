@@ -14,6 +14,7 @@ internal sealed class TerminalCommand : Command
         TerminalInfoCommand infoCommand,
         TerminalResizeCommand resizeCommand,
         TerminalCleanCommand cleanCommand,
+        TerminalAttachCommand attachCommand,
         TerminalHostCommand hostCommand)
         : base("terminal", "Manage terminal lifecycle, metadata, and connections")
     {
@@ -23,6 +24,7 @@ internal sealed class TerminalCommand : Command
         Subcommands.Add(infoCommand);
         Subcommands.Add(resizeCommand);
         Subcommands.Add(cleanCommand);
+        Subcommands.Add(attachCommand);
         Subcommands.Add(hostCommand);
     }
 }
