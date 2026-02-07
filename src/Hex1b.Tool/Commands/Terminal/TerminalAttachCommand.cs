@@ -60,7 +60,18 @@ internal sealed class TerminalAttachCommand : BaseCommand
             return 1;
         }
 
-        // Connect to the terminal socket
+        // Use the Hex1b console driver for proper raw mode and I/O
+        using var driver = new UnixConsoleDriver();
+
+        // Resize remote terminal to match local dimensions before attaching
+        if (parseResult.GetValue(s_resizeOption))
+        {
+            await _client.SendAsync(resolved.SocketPath!,
+                new DiagnosticsRequest { Method = "resize", X = driver.Width, Y = driver.Height },
+                cancellationToken);
+        }
+
+        // Connect to the terminal socket for the attach session
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         try
         {
@@ -95,22 +106,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
         {
             Formatter.WriteError(response?.Error ?? "Attach failed");
             return 1;
-        }
-
-        // Use the Hex1b console driver for proper raw mode and I/O
-        using var driver = new UnixConsoleDriver();
-
-        // Resize remote terminal to match local dimensions if requested
-        if (parseResult.GetValue(s_resizeOption))
-        {
-            var localWidth = driver.Width;
-            var localHeight = driver.Height;
-            if (localWidth != response.Width || localHeight != response.Height)
-            {
-                await _client.SendAsync(resolved.SocketPath!,
-                    new DiagnosticsRequest { Method = "resize", X = localWidth, Y = localHeight },
-                    cancellationToken);
-            }
         }
 
         // Write initial screen content before entering raw mode
