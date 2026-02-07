@@ -350,7 +350,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         return request.Method?.ToLowerInvariant() switch
         {
             "info" => HandleInfoRequest(),
-            "capture" => HandleCaptureRequest(request.Format),
+            "capture" => HandleCaptureRequest(request.Format, request.ScrollbackLines),
             "input" => await HandleInputRequestAsync(request.Data),
             "key" => await HandleKeyRequestAsync(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
@@ -375,7 +375,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         };
     }
 
-    private DiagnosticsResponse HandleCaptureRequest(string? format)
+    private DiagnosticsResponse HandleCaptureRequest(string? format, int? scrollbackLines)
     {
         if (_terminal == null)
         {
@@ -384,12 +384,19 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
 
         format = format?.ToLowerInvariant() ?? "ansi";
 
-        using var snapshot = _terminal.CreateSnapshot();
+        var scrollback = Math.Max(0, scrollbackLines ?? 0);
+        using var snapshot = scrollback > 0
+            ? _terminal.CreateSnapshot(scrollback)
+            : _terminal.CreateSnapshot();
         
         string data;
         if (format == "svg")
         {
             data = snapshot.ToSvg(new TerminalSvgOptions { ShowCellGrid = false });
+        }
+        else if (format == "html")
+        {
+            data = snapshot.ToHtml(new TerminalSvgOptions { ShowCellGrid = false });
         }
         else if (format == "ansi")
         {

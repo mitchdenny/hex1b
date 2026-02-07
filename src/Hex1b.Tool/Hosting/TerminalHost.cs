@@ -8,6 +8,7 @@ internal sealed class TerminalHost
 {
     /// <summary>
     /// Runs the host, blocking until the child process exits or cancellation is requested.
+    /// After exit, keeps diagnostics alive for capture until shutdown is requested.
     /// </summary>
     public static async Task<int> RunAsync(TerminalHostConfig config, CancellationToken cancellationToken)
     {
@@ -37,15 +38,28 @@ internal sealed class TerminalHost
 
         await using var terminal = builder.Build();
 
+        int exitCode = 0;
         try
         {
-            await terminal.RunAsync(cancellationToken);
+            exitCode = await terminal.RunAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            // Expected on shutdown
+            // Explicit shutdown requested — exit immediately
+            return 0;
         }
 
-        return 0;
+        // Child process exited but no explicit shutdown — keep diagnostics alive
+        // so the final terminal state can still be captured.
+        try
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown requested
+        }
+
+        return exitCode;
     }
 }

@@ -7,7 +7,17 @@ namespace Hex1b.Tool.Infrastructure;
 /// </summary>
 internal sealed class TerminalDiscovery
 {
-    private static readonly string s_socketDirectory = McpDiagnosticsPresentationFilter.GetSocketDirectory();
+    private readonly string _socketDirectory;
+
+    public TerminalDiscovery()
+    {
+        _socketDirectory = McpDiagnosticsPresentationFilter.GetSocketDirectory();
+    }
+
+    internal TerminalDiscovery(string socketDirectory)
+    {
+        _socketDirectory = socketDirectory;
+    }
 
     /// <summary>
     /// Represents a discovered terminal socket.
@@ -23,14 +33,14 @@ internal sealed class TerminalDiscovery
     /// </summary>
     public IReadOnlyList<DiscoveredTerminal> Scan()
     {
-        if (!Directory.Exists(s_socketDirectory))
+        if (!Directory.Exists(_socketDirectory))
         {
             return [];
         }
 
         var terminals = new List<DiscoveredTerminal>();
 
-        foreach (var socketFile in Directory.EnumerateFiles(s_socketDirectory, "*.socket"))
+        foreach (var socketFile in Directory.EnumerateFiles(_socketDirectory, "*.socket"))
         {
             var fileName = Path.GetFileName(socketFile);
 

@@ -57,6 +57,12 @@ internal sealed class DiagnosticsRequest
     public string? Button { get; set; }
 
     /// <summary>
+    /// For "capture" method, the number of scrollback lines to include (default 0).
+    /// </summary>
+    [JsonPropertyName("scrollbackLines")]
+    public int? ScrollbackLines { get; set; }
+
+    /// <summary>
     /// For "drag" method, the destination X position (column, 0-based).
     /// </summary>
     [JsonPropertyName("x2")]
