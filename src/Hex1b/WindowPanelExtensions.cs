@@ -9,53 +9,22 @@ public static class WindowPanelExtensions
 {
     /// <summary>
     /// Creates a WindowPanel that can host floating windows.
-    /// Windows are rendered on top of the main content.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
-    /// <param name="content">The main content widget displayed behind windows.</param>
     /// <returns>A new WindowPanelWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.WindowPanel(
-    ///     ctx.VStack(v => [
-    ///         v.Text("Main content"),
-    ///         v.Button("Open Window").OnClick(e => {
-    ///             e.Context.Windows.Open(
-    ///                 "settings",
-    ///                 "Settings",
-    ///                 () => e.Context.VStack(v => [
-    ///                     v.Text("Window content")
-    ///                 ])
-    ///             );
-    ///         })
-    ///     ])
-    /// )
+    /// ctx.WindowPanel()
+    ///    .Background(b => b.Surface(...))
+    ///    .Unbounded()
+    ///    .Fill()
     /// </code>
     /// </example>
-    public static WindowPanelWidget WindowPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Hex1bWidget content)
+    public static WindowPanelWidget WindowPanel<TParent>(this WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
     {
-        return new WindowPanelWidget(content);
-    }
-
-    /// <summary>
-    /// Creates a WindowPanel with content built from a context.
-    /// </summary>
-    /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="contentBuilder">A function that builds the content widget.</param>
-    /// <returns>A new WindowPanelWidget.</returns>
-    public static WindowPanelWidget WindowPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<WidgetContext<WindowPanelWidget>, Hex1bWidget> contentBuilder)
-        where TParent : Hex1bWidget
-    {
-        var childContext = new WidgetContext<WindowPanelWidget>();
-        var content = contentBuilder(childContext);
-        return new WindowPanelWidget(content);
+        return new WindowPanelWidget();
     }
 
     /// <summary>
@@ -65,13 +34,12 @@ public static class WindowPanelExtensions
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
     /// <param name="name">The unique name for this panel.</param>
-    /// <param name="contentBuilder">A function that builds the content widget.</param>
     /// <returns>A new WindowPanelWidget.</returns>
     /// <example>
     /// <code>
     /// // Create named panels
-    /// ctx.WindowPanel("editor", w => w.Text("Editor area"));
-    /// ctx.WindowPanel("preview", w => w.Text("Preview area"));
+    /// ctx.WindowPanel("editor");
+    /// ctx.WindowPanel("preview");
     /// 
     /// // Access specific panel from event handler
     /// e.Windows["editor"].Open(...);
@@ -79,13 +47,25 @@ public static class WindowPanelExtensions
     /// </example>
     public static WindowPanelWidget WindowPanel<TParent>(
         this WidgetContext<TParent> ctx,
-        string name,
-        Func<WidgetContext<WindowPanelWidget>, Hex1bWidget> contentBuilder)
+        string name)
         where TParent : Hex1bWidget
     {
-        var childContext = new WidgetContext<WindowPanelWidget>();
-        var content = contentBuilder(childContext);
-        return new WindowPanelWidget(content, name);
+        return new WindowPanelWidget(null, name);
+    }
+
+    /// <summary>
+    /// Creates a WindowPanel with content displayed behind windows.
+    /// </summary>
+    /// <typeparam name="TParent">The parent widget type.</typeparam>
+    /// <param name="ctx">The widget context.</param>
+    /// <param name="content">The content widget displayed behind windows.</param>
+    /// <returns>A new WindowPanelWidget.</returns>
+    public static WindowPanelWidget WindowPanel<TParent>(
+        this WidgetContext<TParent> ctx,
+        Hex1bWidget content)
+        where TParent : Hex1bWidget
+    {
+        return new WindowPanelWidget(content);
     }
 
     /// <summary>
@@ -106,7 +86,7 @@ public static class WindowPanelExtensions
     /// <returns>A new WindowPanelWidget with the background configured.</returns>
     /// <example>
     /// <code>
-    /// ctx.WindowPanel(content)
+    /// ctx.WindowPanel()
     ///    .Background(b => b.Surface(s => [s.Layer(GradientBackground)]))
     /// </code>
     /// </example>

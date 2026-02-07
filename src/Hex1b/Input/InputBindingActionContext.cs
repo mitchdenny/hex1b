@@ -225,8 +225,8 @@ public sealed class InputBindingActionContext
     /// <example>
     /// <code>
     /// // With named panels:
-    /// ctx.WindowPanel("editor", content => ...);
-    /// ctx.WindowPanel("preview", content => ...);
+    /// ctx.WindowPanel("editor");
+    /// ctx.WindowPanel("preview");
     /// 
     /// // Access specific panel:
     /// e.Windows["editor"].Open(...);

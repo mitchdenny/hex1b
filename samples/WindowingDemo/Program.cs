@@ -592,7 +592,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // ─────────────────────────────────────────────────────────────────
             // WINDOW PANEL (MDI area) - Unbounded allows windows to go outside
             // ─────────────────────────────────────────────────────────────────
-            main.WindowPanel(w => w.Text(""))
+            main.WindowPanel()
             .Background(b =>
                 b.Surface(s => SlimeMoldBackground.BuildLayers(s, demoRandom))
                     .RedrawAfter(SlimeMoldBackground.RecommendedRedrawMs)
