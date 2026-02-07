@@ -30,10 +30,10 @@ public static class TerminalRegionHtmlExtensions
     public static string ToHtml(this Hex1bTerminalSnapshot snapshot, TerminalSvgOptions? options = null)
     {
         options ??= TerminalRegionSvgExtensions.DefaultOptions;
-        return RenderToHtml(snapshot, options, snapshot.CursorX, snapshot.CursorY);
+        return RenderToHtml(snapshot, options, snapshot.CursorX, snapshot.CursorY, snapshot.ScrollbackLineCount);
     }
 
-    private static string RenderToHtml(IHex1bTerminalRegion region, TerminalSvgOptions options, int? cursorX, int? cursorY)
+    private static string RenderToHtml(IHex1bTerminalRegion region, TerminalSvgOptions options, int? cursorX, int? cursorY, int scrollbackLineCount = 0)
     {
         var cellWidth = options.CellWidth;
         var cellHeight = options.CellHeight;
@@ -144,7 +144,7 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      position: relative;");
         sb.AppendLine("      border: 2px solid #333;");
         sb.AppendLine("      border-radius: 8px;");
-        sb.AppendLine("      overflow: hidden;");
+        sb.AppendLine("      overflow: auto;");
         sb.AppendLine("      background: #0d0d0d;");
         sb.AppendLine("      flex: 1;");
         sb.AppendLine("      min-height: 0;");
@@ -153,6 +153,22 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      justify-content: center;");
         sb.AppendLine("      padding: 20px;");
         sb.AppendLine("    }");
+        // When scrollback is present, constrain the container to visible-area height
+        // and allow the user to scroll up into the scrollback region
+        if (scrollbackLineCount > 0)
+        {
+            var visibleRows = region.Height - scrollbackLineCount;
+            // Use a max-height based on the visible area + padding, so the container
+            // is sized to show only the live terminal, with scrollback above
+            sb.AppendLine("    .svg-container.has-scrollback {");
+            sb.AppendLine("      align-items: flex-start;");
+            sb.AppendLine("      justify-content: flex-start;");
+            sb.AppendLine("    }");
+            sb.AppendLine("    .svg-container.has-scrollback svg {");
+            sb.AppendLine("      max-width: none;");
+            sb.AppendLine("      max-height: none;");
+            sb.AppendLine("    }");
+        }
         sb.AppendLine("    .svg-container svg {");
         sb.AppendLine("      display: block;");
         sb.AppendLine("      max-width: 100%;");
@@ -401,7 +417,8 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("    </div>");
         sb.AppendLine("  </div>");
         sb.AppendLine("  <div class=\"container\">");
-        sb.AppendLine("    <div class=\"svg-container\" id=\"svg-container\">");
+        var scrollbackClass = scrollbackLineCount > 0 ? " has-scrollback" : "";
+        sb.AppendLine($"    <div class=\"svg-container{scrollbackClass}\" id=\"svg-container\">");
         sb.AppendLine(svgContent);
         sb.AppendLine($"      <div class=\"cell-highlight\" id=\"cell-highlight\"></div>");
         sb.AppendLine("    </div>");
@@ -428,12 +445,24 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine($"    const SVG_HEIGHT = {svgHeight};");
         sb.AppendLine($"    const COLS = {region.Width};");
         sb.AppendLine($"    const ROWS = {region.Height};");
+        sb.AppendLine($"    const SCROLLBACK_LINES = {scrollbackLineCount};");
         sb.AppendLine($"    const cellData = {cellData};");
         sb.AppendLine();
         sb.AppendLine("    const container = document.getElementById('svg-container');");
         sb.AppendLine("    const highlight = document.getElementById('cell-highlight');");
         sb.AppendLine("    const tooltip = document.getElementById('tooltip');");
         sb.AppendLine("    const svg = container.querySelector('svg');");
+        sb.AppendLine();
+        // Scroll to the visible area on load when scrollback is present
+        sb.AppendLine("    // Scroll to visible area when scrollback lines are present");
+        sb.AppendLine("    if (SCROLLBACK_LINES > 0) {");
+        sb.AppendLine("      requestAnimationFrame(() => {");
+        sb.AppendLine("        const svgRect = svg.getBoundingClientRect();");
+        sb.AppendLine("        const scale = svgRect.height / SVG_HEIGHT;");
+        sb.AppendLine("        const scrollbackPixelHeight = SCROLLBACK_LINES * BASE_CELL_HEIGHT * scale;");
+        sb.AppendLine("        container.scrollTop = scrollbackPixelHeight;");
+        sb.AppendLine("      });");
+        sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    // Track current cell for shimmer effect");
         sb.AppendLine("    let currentCellX = -1;");

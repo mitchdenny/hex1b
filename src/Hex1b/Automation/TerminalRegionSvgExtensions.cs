@@ -39,10 +39,10 @@ public static class TerminalRegionSvgExtensions
             CellWidth = snapshot.CellPixelWidth,
             CellHeight = snapshot.CellPixelHeight
         };
-        return RenderToSvg(snapshot, options, snapshot.CursorX, snapshot.CursorY);
+        return RenderToSvg(snapshot, options, snapshot.CursorX, snapshot.CursorY, snapshot.ScrollbackLineCount);
     }
 
-    private static string RenderToSvg(IHex1bTerminalRegion region, TerminalSvgOptions options, int? cursorX, int? cursorY)
+    private static string RenderToSvg(IHex1bTerminalRegion region, TerminalSvgOptions options, int? cursorX, int? cursorY, int scrollbackLineCount = 0)
     {
         var cellWidth = options.CellWidth;
         var cellHeight = options.CellHeight;
@@ -402,6 +402,15 @@ public static class TerminalRegionSvgExtensions
             var cursorRectX = cursorX.Value * cellWidth;
             var cursorRectY = cursorY.Value * cellHeight;
             sb.AppendLine($"""  <rect class="cursor" x="{cursorRectX}" y="{cursorRectY}" width="{cellWidth}" height="{cellHeight}"/>""");
+        }
+
+        // Render scrollback separator line (bright dotted line between scrollback and visible area)
+        if (scrollbackLineCount > 0)
+        {
+            var separatorY = scrollbackLineCount * cellHeight;
+            // Draw a glow behind the line for visibility on both light and dark backgrounds
+            sb.AppendLine($"""  <line x1="0" y1="{separatorY}" x2="{width}" y2="{separatorY}" stroke="rgba(0,0,0,0.5)" stroke-width="5" stroke-dasharray="8,4" />""");
+            sb.AppendLine($"""  <line x1="0" y1="{separatorY}" x2="{width}" y2="{separatorY}" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="8,4" />""");
         }
 
         // Render pixel grid lines (shows pixel boundaries within each cell)

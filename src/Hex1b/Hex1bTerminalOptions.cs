@@ -87,6 +87,18 @@ public sealed class Hex1bTerminalOptions
     public Func<CancellationToken, Task<int>>? RunCallback { get; set; }
 
     /// <summary>
+    /// Maximum number of scrollback lines to retain. When null, no scrollback buffer
+    /// is created (zero overhead). Default is null.
+    /// </summary>
+    public int? ScrollbackCapacity { get; set; }
+
+    /// <summary>
+    /// Optional callback invoked each time a row is scrolled off the top of the terminal
+    /// into the scrollback buffer. Can be used for persistence or logging.
+    /// </summary>
+    public Action<ScrollbackRowEventArgs>? ScrollbackCallback { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

@@ -46,6 +46,8 @@ public sealed class Hex1bTerminalBuilder
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
     private bool _preserveOPost;
+    private int? _scrollbackCapacity;
+    private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -931,6 +933,20 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Enables a scrollback buffer that retains rows scrolled off the top of the terminal.
+    /// </summary>
+    /// <param name="capacity">Maximum number of lines to retain in the scrollback buffer. Default is 1000.</param>
+    /// <param name="onRowScrolledOff">Optional callback invoked each time a row enters the scrollback buffer.</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithScrollback(int capacity = 1000, Action<ScrollbackRowEventArgs>? onRowScrolledOff = null)
+    {
+        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity), "Scrollback capacity must be positive.");
+        _scrollbackCapacity = capacity;
+        _scrollbackCallback = onRowScrolledOff;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the dimensions for headless terminals.
     /// </summary>
     /// <param name="width">Terminal width in columns.</param>
@@ -985,7 +1001,9 @@ public sealed class Hex1bTerminalBuilder
             Width = _width,
             Height = _height,
             TimeProvider = _timeProvider ?? TimeProvider.System,
-            RunCallback = runCallback
+            RunCallback = runCallback,
+            ScrollbackCapacity = _scrollbackCapacity,
+            ScrollbackCallback = _scrollbackCallback
         };
         
         foreach (var filter in _workloadFilters)
