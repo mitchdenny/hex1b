@@ -17,6 +17,7 @@ namespace Hex1b.Tool.Commands.Terminal;
 internal sealed class TerminalAttachCommand : BaseCommand
 {
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
+    private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize local terminal to match the remote terminal's dimensions" };
 
     private readonly TerminalIdResolver _resolver;
 
@@ -29,6 +30,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
         _resolver = resolver;
 
         Arguments.Add(s_idArgument);
+        Options.Add(s_resizeOption);
     }
 
     protected override async Task<int> ExecuteAsync(ParseResult parseResult, CancellationToken cancellationToken)
@@ -95,6 +97,23 @@ internal sealed class TerminalAttachCommand : BaseCommand
         // Use the Hex1b console driver for proper raw mode and I/O
         using var driver = new UnixConsoleDriver();
 
+        // Resize local terminal to match remote dimensions if requested
+        var savedWidth = 0;
+        var savedHeight = 0;
+        var didResize = false;
+        if (parseResult.GetValue(s_resizeOption) && response.Width.HasValue && response.Height.HasValue)
+        {
+            savedWidth = driver.Width;
+            savedHeight = driver.Height;
+            // Use ANSI escape: CSI 8 ; rows ; cols t
+            var resizeSeq = $"\x1b[8;{response.Height};{response.Width}t";
+            driver.Write(Encoding.UTF8.GetBytes(resizeSeq));
+            driver.Flush();
+            didResize = true;
+            // Small delay for the terminal emulator to process the resize
+            await Task.Delay(50, cancellationToken);
+        }
+
         // Write initial screen content before entering raw mode
         if (response.Data != null)
         {
@@ -121,6 +140,13 @@ internal sealed class TerminalAttachCommand : BaseCommand
             driver.ExitRawMode();
             // Send detach signal (best effort)
             try { await writer.WriteLineAsync("detach"); } catch { }
+
+            // Restore local terminal size if we resized it
+            if (didResize && savedWidth > 0 && savedHeight > 0)
+            {
+                var restoreSeq = $"\x1b[8;{savedHeight};{savedWidth}t";
+                Console.Write(restoreSeq);
+            }
 
             Console.Error.WriteLine();
             Console.Error.WriteLine($"Detached from {resolved.Id}.");
