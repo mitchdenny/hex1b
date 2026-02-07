@@ -265,15 +265,12 @@ internal sealed class Hex1bFlowRunner
     /// <summary>
     /// Re-renders the visible yield widget stack after returning from full-screen mode.
     /// </summary>
-    private async Task ReRenderYieldStackAsync()
+    private Task ReRenderYieldStackAsync()
     {
-        foreach (var entry in _yieldStack)
-        {
-            if (entry.TopRow >= 0 && entry.TopRow < _parentAdapter.Height)
-            {
-                await RenderYieldWidgetAsync(entry.Builder, _parentAdapter.Width, entry.Height);
-            }
-        }
+        // After exiting alternate screen, the terminal restores the normal buffer
+        // which already contains the yield widgets. No re-rendering needed for now.
+        // TODO: Re-render on resize or if content was corrupted
+        return Task.CompletedTask;
     }
 
     /// <summary>
