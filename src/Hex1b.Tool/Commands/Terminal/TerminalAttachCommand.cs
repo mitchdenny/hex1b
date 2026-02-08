@@ -14,6 +14,8 @@ internal sealed class TerminalAttachCommand : BaseCommand
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
     private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize remote terminal to match local terminal dimensions" };
     private static readonly Option<bool> s_leadOption = new("--lead") { Description = "Claim resize leadership (only the leader's resize events control the remote terminal)" };
+    private static readonly Option<bool> s_webOption = new("--web") { Description = "Attach via a web browser using xterm.js instead of the TUI" };
+    private static readonly Option<int> s_portOption = new("--port") { Description = "Port for the web server (0 for random, default: 0). Only used with --web" };
 
     private readonly TerminalIdResolver _resolver;
     private readonly TerminalClient _client;
@@ -31,6 +33,8 @@ internal sealed class TerminalAttachCommand : BaseCommand
         Arguments.Add(s_idArgument);
         Options.Add(s_resizeOption);
         Options.Add(s_leadOption);
+        Options.Add(s_webOption);
+        Options.Add(s_portOption);
     }
 
     protected override async Task<int> ExecuteAsync(ParseResult parseResult, CancellationToken cancellationToken)
@@ -44,12 +48,19 @@ internal sealed class TerminalAttachCommand : BaseCommand
         var id = parseResult.GetValue(s_idArgument)!;
         var resize = parseResult.GetValue(s_resizeOption);
         var lead = parseResult.GetValue(s_leadOption);
+        var web = parseResult.GetValue(s_webOption);
+        var port = parseResult.GetValue(s_portOption);
 
         var resolved = _resolver.Resolve(id);
         if (!resolved.Success)
         {
             Formatter.WriteError(resolved.Error!);
             return 1;
+        }
+
+        if (web)
+        {
+            return await RunWebAttachAsync(resolved.SocketPath!, resolved.Id!, _client, port, cancellationToken);
         }
 
         return await RunAttachAsync(resolved.SocketPath!, resolved.Id!, _client, resize, lead, cancellationToken);
@@ -65,6 +76,19 @@ internal sealed class TerminalAttachCommand : BaseCommand
         bool resize, bool lead, CancellationToken cancellationToken)
     {
         await using var app = new AttachTuiApp(socketPath, displayId, client, resize, lead);
+        return await app.RunAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Web-based attach: starts a Kestrel server with xterm.js frontend.
+    /// </summary>
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("macos")]
+    internal static async Task<int> RunWebAttachAsync(
+        string socketPath, string displayId, TerminalClient client,
+        int port, CancellationToken cancellationToken)
+    {
+        await using var app = new AttachWebApp(socketPath, displayId, client, port);
         return await app.RunAsync(cancellationToken);
     }
 }
