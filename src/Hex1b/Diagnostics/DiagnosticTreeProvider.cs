@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hex1b.Layout;
@@ -25,6 +26,11 @@ internal interface IDiagnosticTreeProvider
     /// Gets information about the focus ring (focusable nodes and their order).
     /// </summary>
     DiagnosticFocusInfo GetDiagnosticFocusInfo();
+    
+    /// <summary>
+    /// Gets frame-level performance metrics for the last rendered frame.
+    /// </summary>
+    DiagnosticFrameInfo GetDiagnosticFrameInfo();
 }
 
 /// <summary>
@@ -87,10 +93,17 @@ internal sealed class DiagnosticNode
     public List<DiagnosticNode>? Children { get; set; }
     
     /// <summary>
+    /// Performance timing for this node (null when diagnostic timing is disabled).
+    /// </summary>
+    [JsonPropertyName("timing")]
+    public DiagnosticTiming? Timing { get; set; }
+    
+    /// <summary>
     /// Creates a diagnostic node from a Hex1b node.
     /// </summary>
     public static DiagnosticNode FromNode(Hex1bNode node)
     {
+        var now = Stopwatch.GetTimestamp();
         var diagNode = new DiagnosticNode
         {
             Type = node.GetType().Name,
@@ -99,7 +112,10 @@ internal sealed class DiagnosticNode
             ContentBounds = DiagnosticRect.FromRect(node.ContentBounds),
             IsFocusable = node.IsFocusable,
             IsFocused = node.IsFocused,
-            Properties = GetNodeProperties(node)
+            Properties = GetNodeProperties(node),
+            Timing = node.DiagReconcileTicks > 0 || node.DiagRenderTicks > 0 || node.DiagLastRenderedTimestamp > 0
+                ? DiagnosticTiming.FromNode(node, now)
+                : null
         };
         
         // Add children
@@ -185,7 +201,7 @@ internal sealed class DiagnosticRect
         Height = rect.Height
     };
     
-    public override string ToString() => $"({X},{Y},{Width},{Height})";
+    public override string ToString() => $"x={X} y={Y} w={Width} h={Height} ({X},{Y} → {X + Width},{Y + Height})";
 }
 
 /// <summary>
@@ -276,4 +292,68 @@ internal sealed class DiagnosticFocusableEntry
     
     [JsonPropertyName("isFocused")]
     public bool IsFocused { get; set; }
+}
+
+/// <summary>
+/// Per-node performance timing information.
+/// </summary>
+internal sealed class DiagnosticTiming
+{
+    /// <summary>
+    /// Time spent reconciling this node, in milliseconds.
+    /// </summary>
+    [JsonPropertyName("reconcileMs")]
+    public double ReconcileMs { get; set; }
+    
+    /// <summary>
+    /// Time spent rendering this node, in milliseconds.
+    /// </summary>
+    [JsonPropertyName("renderMs")]
+    public double RenderMs { get; set; }
+    
+    /// <summary>
+    /// Milliseconds since this node was last rendered.
+    /// </summary>
+    [JsonPropertyName("lastRenderedMsAgo")]
+    public double LastRenderedMsAgo { get; set; }
+    
+    internal static DiagnosticTiming FromNode(Hex1bNode node, long now)
+    {
+        var freq = (double)Stopwatch.Frequency;
+        return new DiagnosticTiming
+        {
+            ReconcileMs = node.DiagReconcileTicks * 1000.0 / freq,
+            RenderMs = node.DiagRenderTicks * 1000.0 / freq,
+            LastRenderedMsAgo = node.DiagLastRenderedTimestamp > 0
+                ? (now - node.DiagLastRenderedTimestamp) * 1000.0 / freq
+                : -1
+        };
+    }
+    
+    public override string ToString()
+    {
+        var parts = new List<string>(3);
+        if (ReconcileMs > 0) parts.Add($"reconcile={ReconcileMs:F2}ms");
+        if (RenderMs > 0) parts.Add($"render={RenderMs:F2}ms");
+        if (LastRenderedMsAgo >= 0) parts.Add($"last={LastRenderedMsAgo:F0}ms ago");
+        return string.Join(" ", parts);
+    }
+}
+
+/// <summary>
+/// Frame-level performance metrics.
+/// </summary>
+internal sealed class DiagnosticFrameInfo
+{
+    [JsonPropertyName("buildMs")]
+    public double BuildMs { get; set; }
+    
+    [JsonPropertyName("reconcileMs")]
+    public double ReconcileMs { get; set; }
+    
+    [JsonPropertyName("renderMs")]
+    public double RenderMs { get; set; }
+    
+    [JsonPropertyName("timingEnabled")]
+    public bool TimingEnabled { get; set; }
 }

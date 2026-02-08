@@ -1,5 +1,6 @@
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
+using System.Diagnostics;
 using System.Threading.Channels;
 using Hex1b.Animation;
 using Hex1b.Diagnostics;
@@ -129,6 +130,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     // Window manager registry for accessing WindowManagers from anywhere
     private readonly WindowManagerRegistry _windowManagerRegistry = new();
+    
+    // Diagnostic timing (opt-in, zero-alloc when disabled)
+    private bool _diagnosticTimingEnabled;
+    private long _diagBuildTicks;
+    private long _diagReconcileTicks;
+    private long _diagRenderTicks;
 
     /// <summary>
     /// Gets the registry of WindowManagers for this application.
@@ -371,6 +378,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
         {
             workloadAdapter.DiagnosticTreeProvider = this;
+            _diagnosticTimingEnabled = workloadAdapter.DiagnosticTimingEnabled;
         }
         
         _context.EnterAlternateScreen();
@@ -602,6 +610,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         Hex1bWidget? widgetTree = null;
         Exception? buildException = null;
         
+        long buildStart = 0;
+        if (_diagnosticTimingEnabled) buildStart = Stopwatch.GetTimestamp();
+        
         try
         {
             widgetTree = await _rootComponent(_rootContext);
@@ -611,6 +622,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Build phase failed - capture exception for RescueWidget to handle
             buildException = ex;
         }
+        
+        if (_diagnosticTimingEnabled) _diagBuildTicks = Stopwatch.GetTimestamp() - buildStart;
 
         // Step 2: Wrap in rescue widget if enabled (catches Reconcile/Measure/Arrange/Render and Build failures)
         if (_rescueEnabled)
@@ -641,7 +654,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         widgetTree = new ZStackWidget([widgetTree!]);
 
         // Step 3: Reconcile - update the node tree to match the widget tree
-        _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
+        {
+            long reconcileFrameStart = 0;
+            if (_diagnosticTimingEnabled) reconcileFrameStart = Stopwatch.GetTimestamp();
+            
+            _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
+            
+            if (_diagnosticTimingEnabled) _diagReconcileTicks = Stopwatch.GetTimestamp() - reconcileFrameStart;
+        }
 
         // Step 4: Layout - measure and arrange the node tree
         if (_rootNode != null)
@@ -681,7 +701,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             }
 
             // Render using Surface-based path
-            RenderFrameWithSurface();
+            {
+                long renderFrameStart = 0;
+                if (_diagnosticTimingEnabled) renderFrameStart = Stopwatch.GetTimestamp();
+                
+                RenderFrameWithSurface();
+                
+                if (_diagnosticTimingEnabled) _diagRenderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
+            }
             
             // Clear dirty flags on all nodes (they've been rendered)
             // Nodes with async content (like TerminalNode) may override ClearDirty()
@@ -781,7 +808,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // caching and compositing. We do NOT recursively render children here to avoid
         // double-rendering (containers already handle their own children).
         context.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
-        node.Render(context);
+        
+        if (_diagnosticTimingEnabled)
+        {
+            var renderStart = Stopwatch.GetTimestamp();
+            node.Render(context);
+            node.DiagRenderTicks = Stopwatch.GetTimestamp() - renderStart;
+            node.DiagLastRenderedTimestamp = Stopwatch.GetTimestamp();
+        }
+        else
+        {
+            node.Render(context);
+        }
         
         // Restore theme
         context.Theme = originalTheme;
@@ -1089,9 +1127,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
             CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
+        context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
         
         // Delegate to the widget's own ReconcileAsync method
+        long reconcileStart = 0;
+        if (_diagnosticTimingEnabled) reconcileStart = Stopwatch.GetTimestamp();
+        
         var node = await widget.ReconcileAsync(existingNode, context);
+        
+        if (_diagnosticTimingEnabled) node.DiagReconcileTicks = Stopwatch.GetTimestamp() - reconcileStart;
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
@@ -1261,6 +1305,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 HitTestBounds = DiagnosticRect.FromRect(node.HitTestBounds),
                 IsFocused = node.IsFocused
             }).ToList()
+        };
+    }
+    
+    DiagnosticFrameInfo IDiagnosticTreeProvider.GetDiagnosticFrameInfo()
+    {
+        var freq = (double)Stopwatch.Frequency;
+        return new DiagnosticFrameInfo
+        {
+            BuildMs = _diagBuildTicks * 1000.0 / freq,
+            ReconcileMs = _diagReconcileTicks * 1000.0 / freq,
+            RenderMs = _diagRenderTicks * 1000.0 / freq,
+            TimingEnabled = _diagnosticTimingEnabled
         };
     }
     

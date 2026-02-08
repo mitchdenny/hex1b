@@ -51,6 +51,11 @@ public sealed class ReconcileContext
     public bool IsNew { get; internal set; }
     
     /// <summary>
+    /// When true, per-node diagnostic timing is collected during reconciliation.
+    /// </summary>
+    internal bool DiagnosticTimingEnabled { get; set; }
+    
+    /// <summary>
     /// The layout axis of the parent container (if any).
     /// Used by SeparatorWidget to determine orientation.
     /// </summary>
@@ -135,7 +140,10 @@ public sealed class ReconcileContext
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
         return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback, 
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry);
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
+        {
+            DiagnosticTimingEnabled = DiagnosticTimingEnabled
+        };
     }
     
     /// <summary>
@@ -145,7 +153,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled };
     }
     
     /// <summary>
@@ -155,7 +163,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled };
     }
 
     /// <summary>
@@ -172,7 +180,12 @@ public sealed class ReconcileContext
         var isReplacement = existingNode is not null && existingNode.GetType() != widget.GetExpectedNodeType();
         childContext.IsNew = existingNode is null || isReplacement;
         
+        long reconcileStart = 0;
+        if (DiagnosticTimingEnabled) reconcileStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        
         var node = await widget.ReconcileAsync(existingNode, childContext);
+        
+        if (DiagnosticTimingEnabled) node.DiagReconcileTicks = System.Diagnostics.Stopwatch.GetTimestamp() - reconcileStart;
 
         // If this is a replacement (different node type), inherit bounds from the old node
         // so ClearDirtyRegions knows to clear the region previously occupied by the old content
