@@ -43,6 +43,8 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     private volatile bool _shutdownRequested;
     private int _remoteWidth;
     private int _remoteHeight;
+    private int _displayWidth;
+    private int _displayHeight;
     private Hex1bApp? _app;
     private Hex1bTerminal? _embeddedTerminal;
     private TerminalWidgetHandle? _handle;
@@ -199,8 +201,6 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                     m.MenuItem("Lead").OnActivated(async _ =>
                     {
                         try { await _writer!.WriteLineAsync("lead"); } catch { }
-                        _isLeader = true;
-                        _app?.Invalidate();
                     }),
                     m.Separator(),
                     m.MenuItem("Stop").OnActivated(async _ =>
@@ -281,6 +281,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                 else if (line == "leader:true")
                 {
                     _isLeader = true;
+                    await SendResizeForCurrentDisplayAsync();
                     _app?.Invalidate();
                 }
                 else if (line == "leader:false")
@@ -358,10 +359,20 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     /// </summary>
     private async Task HandleDisplayResizeAsync(int displayWidth, int displayHeight)
     {
-        if (!_isLeader) return;
+        _displayWidth = displayWidth;
+        _displayHeight = displayHeight;
 
-        var termWidth = displayWidth - 2;   // border left + right
-        var termHeight = displayHeight - 4; // menu bar + border top + border bottom + info bar
+        if (_isLeader)
+            await SendResizeForCurrentDisplayAsync();
+    }
+
+    /// <summary>
+    /// Computes available terminal space from current display dimensions and sends r: frame.
+    /// </summary>
+    private async Task SendResizeForCurrentDisplayAsync()
+    {
+        var termWidth = _displayWidth - 2;   // border left + right
+        var termHeight = _displayHeight - 4; // menu bar + border top + border bottom + info bar
         if (termWidth < 1 || termHeight < 1) return;
         if (termWidth == _remoteWidth && termHeight == _remoteHeight) return;
 
@@ -379,7 +390,8 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     /// </summary>
     private sealed class ResizeFilter(AttachTuiApp app) : IHex1bTerminalPresentationFilter
     {
-        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct) => default;
+        public async ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct)
+            => await app.HandleDisplayResizeAsync(width, height);
         public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct)
             => new(appliedTokens.Select(t => t.Token).ToList());
         public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct) => default;
