@@ -151,6 +151,11 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             .WithHex1bApp((app, options) =>
             {
                 _app = app;
+
+                // If we're already leader, trigger initial resize on first render
+                if (_isLeader && _displayWidth > 0)
+                    _ = SendResizeForCurrentDisplayAsync();
+
                 return ctx => BuildWidget(ctx, handle);
             })
             .Build();
@@ -385,7 +390,8 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _displayWidth = displayWidth;
         _displayHeight = displayHeight;
 
-        if (_isLeader)
+        // Only send resize after the TUI app is initialized
+        if (_isLeader && _app != null)
             await SendResizeForCurrentDisplayAsync();
     }
 
