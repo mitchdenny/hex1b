@@ -354,7 +354,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         {
             await foreach (var message in reader.ReadAllAsync(ct))
             {
-                if (message.StartsWith("r:"))
+                if (message.StartsWith("r:") || message.StartsWith("leader:"))
                 {
                     // Control frame — pass through as-is
                     await writer.WriteLineAsync(message.AsMemory(), ct);
@@ -427,7 +427,17 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 }
                 else if (line == "lead")
                 {
-                    lock (_attachLock) { _leaderChannel = channel; }
+                    Channel<string>? oldLeader;
+                    lock (_attachLock)
+                    {
+                        oldLeader = _leaderChannel;
+                        _leaderChannel = channel;
+                    }
+
+                    // Notify old leader they've been demoted
+                    if (oldLeader != null && oldLeader != channel)
+                        oldLeader.Writer.TryWrite("leader:false");
+
                     await writer.WriteLineAsync("leader:true".AsMemory(), detachCts.Token);
                 }
             }
