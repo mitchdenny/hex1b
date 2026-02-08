@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Input;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tool.Commands.Capture;
@@ -126,11 +127,16 @@ internal sealed class PlaybackPlayerApp
 
         return ctx.VStack(v =>
         [
-            // Terminal display area
-            v.Border(
-                v.Terminal(_handle).Fill(),
-                title: $"{fileName} [{state}]"
-            ).Fill(),
+            // Terminal display area with dark background and centered terminal
+            v.ThemePanel(
+                theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
+                v.Border(
+                    v.Align(Alignment.Center,
+                        v.Terminal(_handle)
+                            .FixedWidth(_recording.Width)
+                            .FixedHeight(_recording.Height)),
+                    title: $"{fileName} [{state}]"
+                )).Fill(),
 
             // Controls
             v.Border(
