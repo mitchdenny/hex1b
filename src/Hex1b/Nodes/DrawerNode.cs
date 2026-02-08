@@ -65,6 +65,12 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     public ClipMode ClipMode { get; set; } = ClipMode.Clip;
     
     /// <summary>
+    /// Background color for the drawer's content area (read from theme during render).
+    /// Used by popup content builders.
+    /// </summary>
+    internal Hex1bColor BackgroundColor { get; set; } = Hex1bColor.Default;
+    
+    /// <summary>
     /// Tracks if we have an active popup entry so we don't push duplicates.
     /// </summary>
     internal PopupEntry? ActivePopupEntry { get; set; }
@@ -132,11 +138,25 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     {
         if (Content == null) return;
         
+        // Read and cache background color from theme (also used by popup content builders)
+        var bgColor = context.Theme.Get(Theming.DrawerTheme.BackgroundColor);
+        BackgroundColor = bgColor;
+        if (!bgColor.IsDefault && Bounds.Width > 0 && Bounds.Height > 0)
+        {
+            var bgCode = bgColor.ToBackgroundAnsi();
+            var resetCode = context.Theme.GetResetToGlobalCodes();
+            var spaces = new string(' ', Bounds.Width);
+            for (int y = Bounds.Y; y < Bounds.Y + Bounds.Height; y++)
+            {
+                context.SetCursorPosition(Bounds.X, y);
+                context.Write($"{bgCode}{spaces}{resetCode}");
+            }
+        }
+        
         var previousLayout = context.CurrentLayoutProvider;
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Use RenderChild for automatic caching support
         context.RenderChild(Content);
         
         context.CurrentLayoutProvider = previousLayout;
@@ -187,7 +207,10 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
                 {
                     var widgetContext = new WidgetContext<DrawerWidget>();
                     var expandedWidgets = builder(widgetContext).ToList();
-                    return new VStackWidget(expandedWidgets);
+                    Hex1bWidget content = new VStackWidget(expandedWidgets);
+                    if (!BackgroundColor.IsDefault)
+                        content = new BackgroundPanelWidget(BackgroundColor, content);
+                    return content;
                 },
                 focusRestoreNode: this,
                 onDismiss: () =>
@@ -227,6 +250,72 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
             current = current.Parent;
         }
         return null;
+    }
+    
+    /// <summary>
+    /// Ensures the overlay popup is open. Called during reconciliation when
+    /// the widget state indicates expanded in overlay mode.
+    /// </summary>
+    internal void EnsurePopupOpen()
+    {
+        if (ActivePopupEntry != null) return;
+        if (ExpandedContentBuilder == null) return;
+        
+        var popupHost = FindPopupHost();
+        if (popupHost == null) return;
+        
+        var anchorPosition = Direction switch
+        {
+            DrawerDirection.Right => AnchorPosition.Right,
+            DrawerDirection.Left => AnchorPosition.Left,
+            DrawerDirection.Down => AnchorPosition.Below,
+            DrawerDirection.Up => AnchorPosition.Above,
+            _ => AnchorPosition.Below
+        };
+        
+        var builder = ExpandedContentBuilder;
+        
+        ActivePopupEntry = popupHost.Popups.PushAnchored(
+            this, 
+            anchorPosition, 
+            () => 
+            {
+                var widgetContext = new WidgetContext<DrawerWidget>();
+                var expandedWidgets = builder(widgetContext).ToList();
+                Hex1bWidget content = new VStackWidget(expandedWidgets);
+                if (!BackgroundColor.IsDefault)
+                    content = new BackgroundPanelWidget(BackgroundColor, content);
+                return content;
+            },
+            focusRestoreNode: this,
+            onDismiss: () =>
+            {
+                ActivePopupEntry = null;
+                _isExpanded = false;
+                CollapsedAction?.Invoke();
+                MarkDirty();
+            }
+        );
+    }
+    
+    /// <summary>
+    /// Dismisses the overlay popup if one is active. Called during reconciliation
+    /// when the widget state indicates collapsed.
+    /// </summary>
+    internal void DismissPopupIfActive()
+    {
+        if (ActivePopupEntry == null) return;
+        
+        var popupHost = FindPopupHost();
+        if (popupHost != null)
+        {
+            // Pop the popup — this invokes OnDismiss which clears ActivePopupEntry
+            popupHost.Popups.Pop();
+        }
+        else
+        {
+            ActivePopupEntry = null;
+        }
     }
     
     /// <summary>

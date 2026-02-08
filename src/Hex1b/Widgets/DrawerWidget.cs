@@ -1,4 +1,5 @@
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -150,9 +151,28 @@ public sealed record DrawerWidget : Hex1bWidget
                 node.Content = null;
             }
         }
+        else if (node.IsExpanded && Mode == DrawerMode.Overlay)
+        {
+            // Overlay mode expanded: ensure popup is active
+            node.EnsurePopupOpen();
+            
+            // Show collapsed content underneath (if any), otherwise nothing
+            if (CollapsedContentBuilder != null)
+            {
+                var collapsedWidgets = CollapsedContentBuilder(widgetContext).ToList();
+                var contentWidget = new VStackWidget(collapsedWidgets);
+                node.Content = await context.ReconcileChildAsync(node.Content, contentWidget, node);
+            }
+            else
+            {
+                node.Content = null;
+            }
+        }
         else
         {
-            // Collapsed (or overlay mode where expanded content goes to popup)
+            // Collapsed: dismiss any active popup, show collapsed content
+            node.DismissPopupIfActive();
+            
             if (CollapsedContentBuilder != null)
             {
                 var collapsedWidgets = CollapsedContentBuilder(widgetContext).ToList();
