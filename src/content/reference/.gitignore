@@ -2,3 +2,4 @@
 # These files are created by the DocGenerator project at build time
 *.md
 !index.md
+!cli.md
