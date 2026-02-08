@@ -165,6 +165,12 @@ internal sealed class DiagnosticsResponse
     public DiagnosticFocusInfo? FocusInfo { get; set; }
     
     /// <summary>
+    /// For "tree" method: frame-level performance metrics.
+    /// </summary>
+    [JsonPropertyName("frameInfo")]
+    public DiagnosticFrameInfo? FrameInfo { get; set; }
+    
+    /// <summary>
     /// For "attach" method: whether this client is the resize leader.
     /// </summary>
     [JsonPropertyName("leader")]

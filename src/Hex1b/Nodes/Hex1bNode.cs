@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
@@ -10,6 +11,25 @@ public abstract class Hex1bNode
     /// The bounds assigned to this node after layout.
     /// </summary>
     public Rect Bounds { get; set; }
+    
+    // --- Diagnostic timing fields (zero-alloc, opt-in) ---
+    // These store raw Stopwatch ticks to avoid allocations.
+    // Only written when diagnostic timing is enabled via WithDiagnostics().
+    
+    /// <summary>
+    /// Duration of the last reconciliation for this node, in Stopwatch ticks.
+    /// </summary>
+    internal long DiagReconcileTicks { get; set; }
+    
+    /// <summary>
+    /// Duration of the last render for this node, in Stopwatch ticks.
+    /// </summary>
+    internal long DiagRenderTicks { get; set; }
+    
+    /// <summary>
+    /// Absolute Stopwatch timestamp of when this node was last rendered.
+    /// </summary>
+    internal long DiagLastRenderedTimestamp { get; set; }
     
     /// <summary>
     /// The bounds of this node's actual content for hit testing purposes.

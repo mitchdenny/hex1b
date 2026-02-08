@@ -803,7 +803,8 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 Height = _terminal.Height,
                 Tree = provider.GetDiagnosticTree(),
                 Popups = provider.GetDiagnosticPopups(),
-                FocusInfo = provider.GetDiagnosticFocusInfo()
+                FocusInfo = provider.GetDiagnosticFocusInfo(),
+                FrameInfo = provider.GetDiagnosticFrameInfo()
             };
         }
 

@@ -51,6 +51,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// Set by Hex1bApp when it starts running.
     /// </summary>
     internal Diagnostics.IDiagnosticTreeProvider? DiagnosticTreeProvider { get; set; }
+    
+    /// <summary>
+    /// When true, Hex1bApp collects per-node timing metrics during reconcile and render.
+    /// Set by the terminal builder when WithDiagnostics() is applied.
+    /// </summary>
+    internal bool DiagnosticTimingEnabled { get; set; }
 
     /// <summary>
     /// Creates a new app workload adapter.

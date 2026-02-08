@@ -46,6 +46,7 @@ public sealed class Hex1bTerminalBuilder
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
     private bool _preserveOPost;
+    private bool _diagnosticsEnabled;
     private int? _scrollbackCapacity;
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
 
@@ -116,11 +117,10 @@ public sealed class Hex1bTerminalBuilder
             var workloadAdapter = presentation != null
                 ? new Hex1bAppWorkloadAdapter(presentation)
                 : new Hex1bAppWorkloadAdapter();
+            workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
 
             // Create options with managed properties already set
-            // Note: WorkloadAdapter and EnableMouse are managed by the builder.
-            // If user modifies these in configure, behavior is undefined.
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
@@ -187,6 +187,7 @@ public sealed class Hex1bTerminalBuilder
             var workloadAdapter = presentation != null 
                 ? new Hex1bAppWorkloadAdapter(presentation)
                 : new Hex1bAppWorkloadAdapter();
+            workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
             
             // Create options with managed properties already set
@@ -888,6 +889,7 @@ public sealed class Hex1bTerminalBuilder
         filter.SetRecorder(recorder);
 
         _presentationFilters.Add(filter);
+        _diagnosticsEnabled = true;
         return this;
     }
 
