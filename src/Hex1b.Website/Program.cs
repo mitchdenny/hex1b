@@ -109,6 +109,11 @@ builder.Services.AddSingleton<IGalleryExample, SplitterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterVerticalExample>();
 builder.Services.AddSingleton<IGalleryExample, SplitterNestedExample>();
 
+// Register DragBarPanel widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, DragBarBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, DragBarVerticalExample>();
+builder.Services.AddSingleton<IGalleryExample, DragBarMultiPanelExample>();
+
 // Register ThemePanel widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, ThemePanelBasicExample>();
 
