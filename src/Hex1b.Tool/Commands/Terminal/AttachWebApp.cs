@@ -196,7 +196,32 @@ internal sealed class AttachWebApp : IAsyncDisposable
                         Encoding.UTF8.GetBytes(text),
                         WebSocketMessageType.Text, true, bridgeCts.Token);
                 }
-                // leader:true/false and r: frames are server-only; browser doesn't need them
+                else if (line.StartsWith("r:"))
+                {
+                    // Remote terminal resized by leader — tell the browser to resize xterm.js
+                    var parts = line[2..].Split(',');
+                    if (parts.Length == 2 && int.TryParse(parts[0], out var cols) && int.TryParse(parts[1], out var rows))
+                    {
+                        var resizeMsg = $"{{\"type\":\"remoteResize\",\"cols\":{cols},\"rows\":{rows}}}";
+                        await ws.SendAsync(
+                            Encoding.UTF8.GetBytes(resizeMsg),
+                            WebSocketMessageType.Text, true, bridgeCts.Token);
+                    }
+                }
+                else if (line == "leader:true")
+                {
+                    var msg = "{\"type\":\"leader\",\"isLeader\":true}";
+                    await ws.SendAsync(
+                        Encoding.UTF8.GetBytes(msg),
+                        WebSocketMessageType.Text, true, bridgeCts.Token);
+                }
+                else if (line == "leader:false")
+                {
+                    var msg = "{\"type\":\"leader\",\"isLeader\":false}";
+                    await ws.SendAsync(
+                        Encoding.UTF8.GetBytes(msg),
+                        WebSocketMessageType.Text, true, bridgeCts.Token);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -333,6 +358,8 @@ internal sealed class AttachWebApp : IAsyncDisposable
 
                 const statusDot = document.getElementById('status-dot');
                 const statusText = document.getElementById('status-text');
+                let isLeader = true;
+                let suppressResizeEvent = false;
 
                 function setStatus(connected) {
                     statusDot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
@@ -370,7 +397,33 @@ internal sealed class AttachWebApp : IAsyncDisposable
                     }));
                 };
 
-                ws.onmessage = e => term.write(e.data);
+                ws.onmessage = e => {
+                    const data = e.data;
+                    // Check for JSON control messages from the server
+                    if (data.startsWith('{')) {
+                        try {
+                            const msg = JSON.parse(data);
+                            if (msg.type === 'remoteResize') {
+                                // Leader resized — update xterm.js to match
+                                suppressResizeEvent = true;
+                                term.resize(msg.cols, msg.rows);
+                                suppressResizeEvent = false;
+                                return;
+                            }
+                            if (msg.type === 'leader') {
+                                isLeader = msg.isLeader;
+                                if (isLeader) {
+                                    // Became leader — fit to browser window and send resize
+                                    fitAddon.fit();
+                                }
+                                return;
+                            }
+                        } catch (e) {
+                            // Not JSON — fall through to terminal write
+                        }
+                    }
+                    term.write(data);
+                };
 
                 ws.onclose = () => {
                     setStatus(false);
@@ -386,12 +439,15 @@ internal sealed class AttachWebApp : IAsyncDisposable
                 });
 
                 term.onResize(({ cols, rows }) => {
-                    if (ws.readyState === WebSocket.OPEN) {
+                    if (suppressResizeEvent) return;
+                    if (isLeader && ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ type: 'resize', cols, rows }));
                     }
                 });
 
-                window.addEventListener('resize', () => fitAddon.fit());
+                window.addEventListener('resize', () => {
+                    if (isLeader) fitAddon.fit();
+                });
                 setTimeout(() => fitAddon.fit(), 100);
             </script>
         </body>
