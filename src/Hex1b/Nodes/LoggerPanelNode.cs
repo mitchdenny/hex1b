@@ -1,3 +1,4 @@
+using Hex1b.Layout;
 using Hex1b.Logging;
 using Hex1b.Nodes;
 
@@ -7,8 +8,13 @@ namespace Hex1b;
 /// Render node for LoggerPanelWidget.
 /// Manages follow state for the log table.
 /// </summary>
-public sealed class LoggerPanelNode : CompositeNode
+public sealed class LoggerPanelNode : Hex1bNode
 {
+    /// <summary>
+    /// The reconciled content child node (the inner table).
+    /// </summary>
+    public Hex1bNode? ContentChild { get; set; }
+
     /// <summary>
     /// When true, the table auto-scrolls to the latest log entry.
     /// Defaults to true. Set to false when the user scrolls up.
@@ -26,14 +32,14 @@ public sealed class LoggerPanelNode : CompositeNode
     /// </summary>
     internal void ScrollTableToEnd()
     {
-        var tableNode = FindTableNodePublic(ContentChild);
+        var tableNode = FindTableNode(ContentChild);
         tableNode?.ScrollToEnd();
     }
 
     /// <summary>
     /// Walks the node tree to find the inner TableNode.
     /// </summary>
-    internal static TableNode<Hex1bLogEntry>? FindTableNodePublic(Hex1bNode? node)
+    internal static TableNode<Hex1bLogEntry>? FindTableNode(Hex1bNode? node)
     {
         if (node is TableNode<Hex1bLogEntry> table)
             return table;
@@ -43,11 +49,58 @@ public sealed class LoggerPanelNode : CompositeNode
 
         foreach (var child in node.GetChildren())
         {
-            var found = FindTableNodePublic(child);
+            var found = FindTableNode(child);
             if (found != null)
                 return found;
         }
 
         return null;
+    }
+
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (ContentChild != null) yield return ContentChild;
+    }
+
+    public override Size Measure(Constraints constraints)
+    {
+        return ContentChild?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
+    }
+
+    public override void Arrange(Rect rect)
+    {
+        base.Arrange(rect);
+        ContentChild?.Arrange(rect);
+    }
+
+    public override void Render(Hex1bRenderContext context)
+    {
+        if (ContentChild != null)
+        {
+            context.RenderChild(ContentChild);
+        }
+    }
+
+    public override bool IsFocusable => false;
+
+    public override bool IsFocused
+    {
+        get => false;
+        set
+        {
+            if (ContentChild != null)
+                ContentChild.IsFocused = value;
+        }
+    }
+
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (ContentChild != null)
+        {
+            foreach (var focusable in ContentChild.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
     }
 }
