@@ -208,8 +208,8 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
                     var widgetContext = new WidgetContext<DrawerWidget>();
                     var expandedWidgets = builder(widgetContext).ToList();
                     Hex1bWidget content = new VStackWidget(expandedWidgets);
-                    if (!BackgroundColor.IsDefault)
-                        content = new BackgroundPanelWidget(BackgroundColor, content);
+                    // Wrap with theme-driven background to prevent bleed-through
+                    content = new BackgroundPanelWidget(Theming.DrawerTheme.BackgroundColor, content);
                     return content;
                 },
                 focusRestoreNode: this,
@@ -283,8 +283,7 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
                 var widgetContext = new WidgetContext<DrawerWidget>();
                 var expandedWidgets = builder(widgetContext).ToList();
                 Hex1bWidget content = new VStackWidget(expandedWidgets);
-                if (!BackgroundColor.IsDefault)
-                    content = new BackgroundPanelWidget(BackgroundColor, content);
+                content = new BackgroundPanelWidget(Theming.DrawerTheme.BackgroundColor, content);
                 return content;
             },
             focusRestoreNode: this,

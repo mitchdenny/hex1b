@@ -11,9 +11,15 @@ namespace Hex1b.Nodes;
 public sealed class BackgroundPanelNode : Hex1bNode
 {
     /// <summary>
-    /// The background color to fill.
+    /// The explicit background color to fill. Takes precedence over <see cref="ThemeElement"/>.
     /// </summary>
     public Hex1bColor Color { get; set; } = Hex1bColor.Default;
+
+    /// <summary>
+    /// Optional theme element to read background color from at render time.
+    /// Used when the color should come from the theme rather than being hardcoded.
+    /// </summary>
+    public Hex1bThemeElement<Hex1bColor>? ThemeElement { get; set; }
 
     /// <summary>
     /// The child node.
@@ -43,10 +49,14 @@ public sealed class BackgroundPanelNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Fill bounds with background color
-        if (!Color.IsDefault && Bounds.Width > 0 && Bounds.Height > 0)
+        // Resolve color: explicit Color takes precedence, then ThemeElement
+        var bgColor = !Color.IsDefault ? Color
+            : ThemeElement != null ? context.Theme.Get(ThemeElement)
+            : Hex1bColor.Default;
+
+        if (!bgColor.IsDefault && Bounds.Width > 0 && Bounds.Height > 0)
         {
-            var bgCode = Color.ToBackgroundAnsi();
+            var bgCode = bgColor.ToBackgroundAnsi();
             var resetCode = context.Theme.GetResetToGlobalCodes();
             var spaces = new string(' ', Bounds.Width);
 
