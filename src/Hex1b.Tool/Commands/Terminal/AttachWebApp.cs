@@ -142,7 +142,23 @@ internal sealed class AttachWebApp : IAsyncDisposable
 
             // Claim leadership — browser always leads
             await writer.WriteLineAsync("lead".AsMemory(), ct);
-            await reader.ReadLineAsync(ct); // consume leader:true
+
+            // Read frames until we get the leader confirmation,
+            // forwarding any o: frames (like mode replay) to the browser
+            while (true)
+            {
+                var frameLine = await reader.ReadLineAsync(ct);
+                if (frameLine == null) break;
+                if (frameLine == "leader:true") break;
+                if (frameLine.StartsWith("o:"))
+                {
+                    var frameBytes = Convert.FromBase64String(frameLine[2..]);
+                    var frameText = Encoding.UTF8.GetString(frameBytes);
+                    await ws.SendAsync(
+                        Encoding.UTF8.GetBytes(frameText),
+                        WebSocketMessageType.Text, true, ct);
+                }
+            }
 
             // Send initial screen content to browser
             if (response.Data != null)

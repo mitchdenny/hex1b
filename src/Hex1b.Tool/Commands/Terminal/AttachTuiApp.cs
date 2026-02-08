@@ -105,9 +105,20 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         if (_claimLead && !_isLeader)
         {
             await _writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
-            var leadResponse = await _reader.ReadLineAsync(cancellationToken);
-            if (leadResponse == "leader:true")
-                _isLeader = true;
+
+            // Read frames until we get leader confirmation,
+            // forwarding any o: frames (like mode replay) to the output pipe
+            while (true)
+            {
+                var frameLine = await _reader.ReadLineAsync(cancellationToken);
+                if (frameLine == null) break;
+                if (frameLine == "leader:true") { _isLeader = true; break; }
+                if (frameLine.StartsWith("o:"))
+                {
+                    var frameBytes = Convert.FromBase64String(frameLine[2..]);
+                    await _outputPipe.Writer.WriteAsync(frameBytes, cancellationToken);
+                }
+            }
         }
 
         // 5. Write initial screen content into the output pipe so the embedded terminal parses it
