@@ -192,6 +192,34 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         var dims = $"{_remoteWidth}\u00d7{_remoteHeight}";
         var title = $" {_displayId} ({dims}) ";
 
+        // Available space inside the border chrome
+        var availWidth = _displayWidth - 2;
+        var availHeight = _displayHeight - 4;
+        var tooSmall = !_isLeader && (availWidth < _remoteWidth || availHeight < _remoteHeight);
+
+        Hex1bWidget content;
+        if (tooSmall)
+        {
+            content = ctx.Align(Alignment.Center,
+                ctx.VStack(v =>
+                [
+                    v.Text($"Terminal too small to display remote session"),
+                    v.Text($"Remote: {_remoteWidth}\u00d7{_remoteHeight}  Available: {availWidth}\u00d7{availHeight}"),
+                    v.Text(""),
+                    v.Button("Take Lead & Resize").OnClick(async _ =>
+                    {
+                        try { await _writer!.WriteLineAsync("lead"); } catch { }
+                    })
+                ]));
+        }
+        else
+        {
+            content = ctx.Align(Alignment.Center,
+                ctx.Terminal(handle)
+                    .FixedWidth(_remoteWidth)
+                    .FixedHeight(_remoteHeight));
+        }
+
         return ctx.VStack(v =>
         [
             v.MenuBar(m =>
@@ -220,12 +248,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
 
             v.ThemePanel(
                 theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
-                v.Border(
-                    v.Align(Alignment.Center,
-                        v.Terminal(handle)
-                            .FixedWidth(_remoteWidth)
-                            .FixedHeight(_remoteHeight)),
-                    title: title)).Fill(),
+                v.Border(content, title: title)).Fill(),
 
             v.InfoBar(s =>
             [
