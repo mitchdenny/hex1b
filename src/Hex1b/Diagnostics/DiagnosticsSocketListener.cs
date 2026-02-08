@@ -375,6 +375,18 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                     return;
                 }
 
+                if (line == "shutdown")
+                {
+                    // Client requested remote session termination
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(100);
+                        await _cts.CancelAsync();
+                    });
+                    await detachCts.CancelAsync();
+                    return;
+                }
+
                 if (line.StartsWith("i:") && _terminal != null)
                 {
                     var base64 = line[2..];

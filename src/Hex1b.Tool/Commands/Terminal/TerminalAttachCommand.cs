@@ -13,7 +13,7 @@ namespace Hex1b.Tool.Commands.Terminal;
 
 /// <summary>
 /// Attaches to a terminal, streaming its output to the local terminal
-/// and forwarding local input to it. Ctrl+] to detach.
+/// and forwarding local input to it. Ctrl+] to enter command mode.
 /// </summary>
 internal sealed class TerminalAttachCommand : BaseCommand
 {
@@ -29,7 +29,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
         TerminalClient client,
         OutputFormatter formatter,
         ILogger<TerminalAttachCommand> logger)
-        : base("attach", "Attach to a terminal (Ctrl+] to detach)", formatter, logger)
+        : base("attach", "Attach to a terminal (Ctrl+] for commands)", formatter, logger)
     {
         _resolver = resolver;
         _client = client;
@@ -118,16 +118,15 @@ internal sealed class TerminalAttachCommand : BaseCommand
             driver.Flush();
         }
 
-        var isLeader = response.Leader == true;
+        var state = new AttachState { IsLeader = response.Leader == true };
 
         // Claim leadership if requested
-        if (parseResult.GetValue(s_leadOption) && !isLeader)
+        if (parseResult.GetValue(s_leadOption) && !state.IsLeader)
         {
             await writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
-            // Read leader confirmation
             var leadResponse = await reader.ReadLineAsync(cancellationToken);
             if (leadResponse == "leader:true")
-                isLeader = true;
+                state.IsLeader = true;
         }
 
         using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -135,24 +134,16 @@ internal sealed class TerminalAttachCommand : BaseCommand
         driver.EnterRawMode();
         try
         {
-            // Forward local terminal resize events to remote terminal (only if leader)
             void OnResize(int width, int height)
             {
-                if (!isLeader) return;
-                try
-                {
-                    var resizeFrame = $"r:{width},{height}";
-                    writer.WriteLine(resizeFrame);
-                }
+                if (!state.IsLeader) return;
+                try { writer.WriteLine($"r:{width},{height}"); }
                 catch { /* best effort */ }
             }
             driver.Resized += OnResize;
 
-            var outputTask = ReadOutputAsync(reader, driver, detachCts, s => {
-                if (s == "leader:true") isLeader = true;
-                else if (s == "leader:false") isLeader = false;
-            });
-            var inputTask = ReadInputAsync(driver, writer, detachCts);
+            var outputTask = ReadOutputAsync(reader, driver, state, detachCts);
+            var inputTask = ReadInputAsync(driver, writer, state, detachCts);
 
             await Task.WhenAny(outputTask, inputTask);
             await detachCts.CancelAsync();
@@ -164,9 +155,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
         }
         finally
         {
-            // Reset terminal state before exiting raw mode — undo anything the
-            // remote terminal's output stream may have enabled (mouse tracking,
-            // alternate screen, bracketed paste, etc.)
             var resetSequence =
                 Input.MouseParser.DisableMouseTracking +
                 "\x1b[?2004l" +  // Disable bracketed paste
@@ -177,17 +165,25 @@ internal sealed class TerminalAttachCommand : BaseCommand
             driver.Flush();
 
             driver.ExitRawMode();
-            // Send detach signal (best effort)
-            try { await writer.WriteLineAsync("detach"); } catch { }
 
-            Console.Error.WriteLine();
-            Console.Error.WriteLine($"Detached from {resolved.Id}{(isLeader ? " (was leader)" : "")}.");
+            if (state.ShutdownRequested)
+            {
+                try { await writer.WriteLineAsync("shutdown"); } catch { }
+                Console.Error.WriteLine();
+                Console.Error.WriteLine($"Terminated remote session {resolved.Id}.");
+            }
+            else
+            {
+                try { await writer.WriteLineAsync("detach"); } catch { }
+                Console.Error.WriteLine();
+                Console.Error.WriteLine($"Detached from {resolved.Id}{(state.IsLeader ? " (leader)" : "")}.");
+            }
         }
 
         return 0;
     }
 
-    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, CancellationTokenSource detachCts, Action<string>? onControlFrame = null)
+    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, AttachState state, CancellationTokenSource detachCts)
     {
         try
         {
@@ -196,7 +192,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
                 var line = await reader.ReadLineAsync(detachCts.Token);
                 if (line == null)
                 {
-                    // Remote terminal closed the connection (process exited)
                     await detachCts.CancelAsync();
                     return;
                 }
@@ -213,9 +208,13 @@ internal sealed class TerminalAttachCommand : BaseCommand
                     await detachCts.CancelAsync();
                     return;
                 }
-                else if (line.StartsWith("leader:"))
+                else if (line == "leader:true")
                 {
-                    onControlFrame?.Invoke(line);
+                    state.IsLeader = true;
+                }
+                else if (line == "leader:false")
+                {
+                    state.IsLeader = false;
                 }
             }
         }
@@ -223,8 +222,9 @@ internal sealed class TerminalAttachCommand : BaseCommand
         catch (IOException) { try { await detachCts.CancelAsync(); } catch { } }
     }
 
-    private static async Task ReadInputAsync(IConsoleDriver driver, StreamWriter writer, CancellationTokenSource detachCts)
+    private static async Task ReadInputAsync(IConsoleDriver driver, StreamWriter writer, AttachState state, CancellationTokenSource detachCts)
     {
+        const byte CtrlRightBracket = 0x1D; // Ctrl+]
         var buffer = new byte[256];
 
         try
@@ -234,21 +234,93 @@ internal sealed class TerminalAttachCommand : BaseCommand
                 var bytesRead = await driver.ReadAsync(buffer, detachCts.Token);
                 if (bytesRead == 0) continue;
 
-                // Check for Ctrl+] (0x1D) to detach
+                // Scan for Ctrl+] to enter command mode
+                var offset = 0;
                 for (var i = 0; i < bytesRead; i++)
                 {
-                    if (buffer[i] == 0x1D)
+                    if (buffer[i] != CtrlRightBracket) continue;
+
+                    // Send any bytes before the Ctrl+]
+                    if (i > offset)
                     {
-                        await detachCts.CancelAsync();
-                        return;
+                        var pre = Convert.ToBase64String(buffer.AsSpan(offset, i - offset));
+                        await writer.WriteLineAsync($"i:{pre}".AsMemory(), detachCts.Token);
                     }
+
+                    // Enter command mode — read next byte for the command
+                    var cmd = await ReadCommandByteAsync(driver, buffer, i + 1, bytesRead, detachCts.Token);
+
+                    switch (cmd)
+                    {
+                        case (byte)'d': // detach
+                            await detachCts.CancelAsync();
+                            return;
+
+                        case (byte)'l': // toggle leadership
+                            await writer.WriteLineAsync("lead".AsMemory(), detachCts.Token);
+                            break;
+
+                        case (byte)'q': // quit (shutdown remote)
+                            state.ShutdownRequested = true;
+                            await detachCts.CancelAsync();
+                            return;
+
+                        case CtrlRightBracket: // literal Ctrl+]
+                            await writer.WriteLineAsync(
+                                $"i:{Convert.ToBase64String([CtrlRightBracket])}".AsMemory(),
+                                detachCts.Token);
+                            break;
+
+                        default:
+                            // Unknown command — ignore, resume session
+                            break;
+                    }
+
+                    // Skip past the command byte; continue scanning rest of buffer
+                    // ReadCommandByteAsync consumed from buffer[i+1..bytesRead] or did a fresh read
+                    // Either way, everything up to here is consumed
+                    offset = bytesRead; // consumed entire buffer in command mode
+                    break; // restart outer loop for fresh reads
                 }
 
-                var base64 = Convert.ToBase64String(buffer.AsSpan(0, bytesRead));
-                await writer.WriteLineAsync($"i:{base64}".AsMemory(), detachCts.Token);
+                // Send remaining bytes after last scan position
+                if (offset < bytesRead)
+                {
+                    var base64 = Convert.ToBase64String(buffer.AsSpan(offset, bytesRead - offset));
+                    await writer.WriteLineAsync($"i:{base64}".AsMemory(), detachCts.Token);
+                }
             }
         }
         catch (OperationCanceledException) { }
         catch (IOException) { await detachCts.CancelAsync(); }
+    }
+
+    /// <summary>
+    /// Reads the command byte after Ctrl+]. If there are remaining bytes in the current
+    /// buffer (Ctrl+] wasn't the last byte), uses the next byte. Otherwise reads fresh.
+    /// </summary>
+    private static async Task<byte> ReadCommandByteAsync(
+        IConsoleDriver driver, byte[] buffer, int nextIndex, int bytesRead, CancellationToken ct)
+    {
+        if (nextIndex < bytesRead)
+            return buffer[nextIndex];
+
+        // Need a fresh read for the command byte
+        var cmdBuf = new byte[1];
+        while (!ct.IsCancellationRequested)
+        {
+            var n = await driver.ReadAsync(cmdBuf, ct);
+            if (n > 0) return cmdBuf[0];
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Mutable state shared between the output and input tasks during an attach session.
+    /// </summary>
+    private sealed class AttachState
+    {
+        public volatile bool IsLeader;
+        public volatile bool ShutdownRequested;
     }
 }
