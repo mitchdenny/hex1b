@@ -151,11 +151,6 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             .WithHex1bApp((app, options) =>
             {
                 _app = app;
-
-                // If we're already leader, trigger initial resize on first render
-                if (_isLeader && _displayWidth > 0)
-                    _ = SendResizeForCurrentDisplayAsync();
-
                 return ctx => BuildWidget(ctx, handle);
             })
             .Build();
@@ -390,8 +385,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _displayWidth = displayWidth;
         _displayHeight = displayHeight;
 
-        // Only send resize after the TUI app is initialized
-        if (_isLeader && _app != null)
+        if (_isLeader)
             await SendResizeForCurrentDisplayAsync();
     }
 
@@ -419,8 +413,13 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     /// </summary>
     private sealed class ResizeFilter(AttachTuiApp app) : IHex1bTerminalPresentationFilter
     {
-        public async ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct)
-            => await app.HandleDisplayResizeAsync(width, height);
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct)
+        {
+            // Just track dimensions — don't send resize during initialization
+            app._displayWidth = width;
+            app._displayHeight = height;
+            return default;
+        }
         public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct)
             => new(appliedTokens.Select(t => t.Token).ToList());
         public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct) => default;
