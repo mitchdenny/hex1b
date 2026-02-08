@@ -31,6 +31,15 @@ public class DocumentCursor
 
     public void ClearSelection() => SelectionAnchor = null;
 
+    /// <summary>
+    /// Sets the selection anchor to the current position if not already set.
+    /// Used by the extend pattern: first Shift+move sets anchor, subsequent moves extend.
+    /// </summary>
+    public void EnsureSelectionAnchor()
+    {
+        SelectionAnchor ??= Position;
+    }
+
     /// <summary>Clamp cursor and anchor to valid range.</summary>
     public void Clamp(int documentLength)
     {

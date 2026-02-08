@@ -68,20 +68,62 @@ public sealed class EditorNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Navigation
+        // ── Navigation ──────────────────────────────────────────
         bindings.Key(Hex1bKey.LeftArrow).Action(MoveLeft, "Move left");
         bindings.Key(Hex1bKey.RightArrow).Action(MoveRight, "Move right");
         bindings.Key(Hex1bKey.UpArrow).Action(MoveUp, "Move up");
         bindings.Key(Hex1bKey.DownArrow).Action(MoveDown, "Move down");
+        bindings.Key(Hex1bKey.Home).Action(MoveToLineStart, "Go to line start");
+        bindings.Key(Hex1bKey.End).Action(MoveToLineEnd, "Go to line end");
+        bindings.Ctrl().Key(Hex1bKey.Home).Action(MoveToDocumentStart, "Go to document start");
+        bindings.Ctrl().Key(Hex1bKey.End).Action(MoveToDocumentEnd, "Go to document end");
+        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Action(MoveWordLeft, "Move to previous word");
+        bindings.Ctrl().Key(Hex1bKey.RightArrow).Action(MoveWordRight, "Move to next word");
+        bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
 
-        // Editing
+        // ── Selection (Shift+Navigation) ────────────────────────
+        bindings.Shift().Key(Hex1bKey.LeftArrow).Action(SelectLeft, "Extend selection left");
+        bindings.Shift().Key(Hex1bKey.RightArrow).Action(SelectRight, "Extend selection right");
+        bindings.Shift().Key(Hex1bKey.UpArrow).Action(SelectUp, "Extend selection up");
+        bindings.Shift().Key(Hex1bKey.DownArrow).Action(SelectDown, "Extend selection down");
+        bindings.Shift().Key(Hex1bKey.Home).Action(SelectToLineStart, "Select to line start");
+        bindings.Shift().Key(Hex1bKey.End).Action(SelectToLineEnd, "Select to line end");
+        bindings.Shift().Key(Hex1bKey.PageUp).Action(SelectPageUp, "Select page up");
+        bindings.Shift().Key(Hex1bKey.PageDown).Action(SelectPageDown, "Select page down");
+
+        // Ctrl+Shift bindings (requires direct InputBinding construction)
+        AddCtrlShiftBinding(bindings, Hex1bKey.Home, SelectToDocumentStart, "Select to document start");
+        AddCtrlShiftBinding(bindings, Hex1bKey.End, SelectToDocumentEnd, "Select to document end");
+        AddCtrlShiftBinding(bindings, Hex1bKey.LeftArrow, SelectWordLeft, "Select to previous word");
+        AddCtrlShiftBinding(bindings, Hex1bKey.RightArrow, SelectWordRight, "Select to next word");
+
+        // ── Selection (Ctrl+A) ──────────────────────────────────
+        bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+
+        // ── Editing ─────────────────────────────────────────────
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
         bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
+        bindings.Ctrl().Key(Hex1bKey.Backspace).Action(DeleteWordBackwardAsync, "Delete previous word");
+        bindings.Ctrl().Key(Hex1bKey.Delete).Action(DeleteWordForwardAsync, "Delete next word");
+        AddCtrlShiftBinding(bindings, Hex1bKey.K, DeleteLineAsync, "Delete line");
         bindings.Key(Hex1bKey.Enter).Action(InsertNewlineAsync, "Insert newline");
         bindings.Key(Hex1bKey.Tab).Action(InsertTabAsync, "Insert tab");
 
-        // Character input
+        // ── Character input ─────────────────────────────────────
         bindings.AnyCharacter().Action(InsertTextAsync, "Type text");
+    }
+
+    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, Action handler, string description)
+    {
+        var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
+        bindings.AddBinding(new InputBinding([step], handler, description));
+    }
+
+    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, Func<InputBindingActionContext, Task> handler, string description)
+    {
+        var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
+        bindings.AddBinding(new InputBinding([step], handler, description));
     }
 
     public override Size Measure(Constraints constraints)
@@ -237,87 +279,105 @@ public sealed class EditorNode : Hex1bNode
         MarkDirty();
     }
 
-    // --- Input handlers ---
+    // --- Input handlers: editing ---
 
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
         State.InsertText(text);
-        EnsureCursorVisible();
-        MarkDirty();
-        if (TextChangedAction != null)
-        {
-            await TextChangedAction(ctx);
-        }
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
     private async Task InsertNewlineAsync(InputBindingActionContext ctx)
     {
         State.InsertText("\n");
-        EnsureCursorVisible();
-        MarkDirty();
-        if (TextChangedAction != null)
-        {
-            await TextChangedAction(ctx);
-        }
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
     private async Task InsertTabAsync(InputBindingActionContext ctx)
     {
         State.InsertText(new string(' ', State.TabSize));
-        EnsureCursorVisible();
-        MarkDirty();
-        if (TextChangedAction != null)
-        {
-            await TextChangedAction(ctx);
-        }
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
     {
         State.DeleteBackward();
-        EnsureCursorVisible();
-        MarkDirty();
-        if (TextChangedAction != null)
-        {
-            await TextChangedAction(ctx);
-        }
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
     private async Task DeleteForwardAsync(InputBindingActionContext ctx)
     {
         State.DeleteForward();
-        EnsureCursorVisible();
-        MarkDirty();
-        if (TextChangedAction != null)
-        {
-            await TextChangedAction(ctx);
-        }
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
-    private void MoveLeft()
+    private async Task DeleteWordBackwardAsync(InputBindingActionContext ctx)
     {
-        State.MoveCursor(CursorDirection.Left);
+        State.DeleteWordBackward();
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
+    }
+
+    private async Task DeleteWordForwardAsync(InputBindingActionContext ctx)
+    {
+        State.DeleteWordForward();
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
+    }
+
+    private async Task DeleteLineAsync(InputBindingActionContext ctx)
+    {
+        State.DeleteLine();
+        AfterEdit();
+        if (TextChangedAction != null) await TextChangedAction(ctx);
+    }
+
+    // --- Input handlers: navigation ---
+
+    private void MoveLeft() { State.MoveCursor(CursorDirection.Left); AfterMove(); }
+    private void MoveRight() { State.MoveCursor(CursorDirection.Right); AfterMove(); }
+    private void MoveUp() { State.MoveCursor(CursorDirection.Up); AfterMove(); }
+    private void MoveDown() { State.MoveCursor(CursorDirection.Down); AfterMove(); }
+    private void MoveToLineStart() { State.MoveToLineStart(); AfterMove(); }
+    private void MoveToLineEnd() { State.MoveToLineEnd(); AfterMove(); }
+    private void MoveToDocumentStart() { State.MoveToDocumentStart(); AfterMove(); }
+    private void MoveToDocumentEnd() { State.MoveToDocumentEnd(); AfterMove(); }
+    private void MoveWordLeft() { State.MoveWordLeft(); AfterMove(); }
+    private void MoveWordRight() { State.MoveWordRight(); AfterMove(); }
+    private void PageUp() { State.MovePageUp(ViewportLines); AfterMove(); }
+    private void PageDown() { State.MovePageDown(ViewportLines); AfterMove(); }
+
+    // --- Input handlers: selection ---
+
+    private void SelectLeft() { State.MoveCursor(CursorDirection.Left, extend: true); AfterMove(); }
+    private void SelectRight() { State.MoveCursor(CursorDirection.Right, extend: true); AfterMove(); }
+    private void SelectUp() { State.MoveCursor(CursorDirection.Up, extend: true); AfterMove(); }
+    private void SelectDown() { State.MoveCursor(CursorDirection.Down, extend: true); AfterMove(); }
+    private void SelectToLineStart() { State.MoveToLineStart(extend: true); AfterMove(); }
+    private void SelectToLineEnd() { State.MoveToLineEnd(extend: true); AfterMove(); }
+    private void SelectToDocumentStart() { State.MoveToDocumentStart(extend: true); AfterMove(); }
+    private void SelectToDocumentEnd() { State.MoveToDocumentEnd(extend: true); AfterMove(); }
+    private void SelectWordLeft() { State.MoveWordLeft(extend: true); AfterMove(); }
+    private void SelectWordRight() { State.MoveWordRight(extend: true); AfterMove(); }
+    private void SelectPageUp() { State.MovePageUp(ViewportLines, extend: true); AfterMove(); }
+    private void SelectPageDown() { State.MovePageDown(ViewportLines, extend: true); AfterMove(); }
+    private void SelectAll() { State.SelectAll(); MarkDirty(); }
+
+    // --- Common post-action helpers ---
+
+    private void AfterMove()
+    {
         EnsureCursorVisible();
         MarkDirty();
     }
 
-    private void MoveRight()
+    private void AfterEdit()
     {
-        State.MoveCursor(CursorDirection.Right);
-        EnsureCursorVisible();
-        MarkDirty();
-    }
-
-    private void MoveUp()
-    {
-        State.MoveCursor(CursorDirection.Up);
-        EnsureCursorVisible();
-        MarkDirty();
-    }
-
-    private void MoveDown()
-    {
-        State.MoveCursor(CursorDirection.Down);
         EnsureCursorVisible();
         MarkDirty();
     }
