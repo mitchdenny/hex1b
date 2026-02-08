@@ -21,7 +21,7 @@ public readonly struct DocumentRange : IEquatable<DocumentRange>
 
     public bool Contains(DocumentOffset offset) => offset >= Start && offset < End;
 
-    public bool Overlaps(DocumentRange other) => Start < other.End && other.Start < End;
+    public bool Overlaps(DocumentRange other) => !IsEmpty && !other.IsEmpty && Start < other.End && other.Start < End;
 
     public bool Equals(DocumentRange other) => Start == other.Start && End == other.End;
     public override bool Equals(object? obj) => obj is DocumentRange other && Equals(other);
