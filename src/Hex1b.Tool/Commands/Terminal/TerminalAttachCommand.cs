@@ -47,14 +47,9 @@ internal sealed class TerminalAttachCommand : BaseCommand
             return 1;
         }
 
-        return await ExecuteUnixAsync(parseResult, cancellationToken);
-    }
-
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
-    private async Task<int> ExecuteUnixAsync(ParseResult parseResult, CancellationToken cancellationToken)
-    {
         var id = parseResult.GetValue(s_idArgument)!;
+        var resize = parseResult.GetValue(s_resizeOption);
+        var lead = parseResult.GetValue(s_leadOption);
 
         var resolved = _resolver.Resolve(id);
         if (!resolved.Success)
@@ -63,13 +58,25 @@ internal sealed class TerminalAttachCommand : BaseCommand
             return 1;
         }
 
+        return await RunAttachAsync(resolved.SocketPath!, resolved.Id!, _client, resize, lead, cancellationToken);
+    }
+
+    /// <summary>
+    /// Core attach logic, usable from both the attach command and terminal start --attach.
+    /// </summary>
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("macos")]
+    internal static async Task<int> RunAttachAsync(
+        string socketPath, string displayId, TerminalClient client,
+        bool resize, bool lead, CancellationToken cancellationToken)
+    {
         // Use the Hex1b console driver for proper raw mode and I/O
         using var driver = new UnixConsoleDriver();
 
         // Resize remote terminal to match local dimensions before attaching
-        if (parseResult.GetValue(s_resizeOption))
+        if (resize)
         {
-            await _client.SendAsync(resolved.SocketPath!,
+            await client.SendAsync(socketPath,
                 new DiagnosticsRequest { Method = "resize", X = driver.Width, Y = driver.Height },
                 cancellationToken);
         }
@@ -78,11 +85,11 @@ internal sealed class TerminalAttachCommand : BaseCommand
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         try
         {
-            await socket.ConnectAsync(new UnixDomainSocketEndPoint(resolved.SocketPath!), cancellationToken);
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), cancellationToken);
         }
         catch (Exception ex)
         {
-            Formatter.WriteError($"Cannot connect: {ex.Message}");
+            Console.Error.WriteLine($"Error: Cannot connect: {ex.Message}");
             socket.Dispose();
             return 1;
         }
@@ -100,14 +107,14 @@ internal sealed class TerminalAttachCommand : BaseCommand
         var responseLine = await reader.ReadLineAsync(cancellationToken);
         if (string.IsNullOrEmpty(responseLine))
         {
-            Formatter.WriteError("Empty response from terminal");
+            Console.Error.WriteLine("Error: Empty response from terminal");
             return 1;
         }
 
         var response = JsonSerializer.Deserialize<DiagnosticsResponse>(responseLine, DiagnosticsJsonOptions.Default);
         if (response is not { Success: true })
         {
-            Formatter.WriteError(response?.Error ?? "Attach failed");
+            Console.Error.WriteLine($"Error: {response?.Error ?? "Attach failed"}");
             return 1;
         }
 
@@ -121,7 +128,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
         var state = new AttachState { IsLeader = response.Leader == true };
 
         // Claim leadership if requested
-        if (parseResult.GetValue(s_leadOption) && !state.IsLeader)
+        if (lead && !state.IsLeader)
         {
             await writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
             var leadResponse = await reader.ReadLineAsync(cancellationToken);
@@ -170,13 +177,13 @@ internal sealed class TerminalAttachCommand : BaseCommand
             {
                 try { await writer.WriteLineAsync("shutdown"); } catch { }
                 Console.Error.WriteLine();
-                Console.Error.WriteLine($"Terminated remote session {resolved.Id}.");
+                Console.Error.WriteLine($"Terminated remote session {displayId}.");
             }
             else
             {
                 try { await writer.WriteLineAsync("detach"); } catch { }
                 Console.Error.WriteLine();
-                Console.Error.WriteLine($"Detached from {resolved.Id}{(state.IsLeader ? " (leader)" : "")}.");
+                Console.Error.WriteLine($"Detached from {displayId}{(state.IsLeader ? " (leader)" : "")}.");
             }
         }
 

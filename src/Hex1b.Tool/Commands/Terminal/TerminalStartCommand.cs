@@ -15,6 +15,7 @@ internal sealed class TerminalStartCommand : BaseCommand
     private static readonly Option<int> s_heightOption = new("--height") { DefaultValueFactory = _ => 30, Description = "Terminal height" };
     private static readonly Option<string?> s_cwdOption = new("--cwd") { Description = "Working directory" };
     private static readonly Option<string?> s_recordOption = new("--record") { Description = "Record to asciinema file" };
+    private static readonly Option<bool> s_attachOption = new("--attach") { Description = "Immediately attach to the terminal after starting" };
     private static readonly Argument<string[]> s_commandArgument = new("command") { Description = "Command and arguments to run (after --)" };
 
     private readonly TerminalClient _client;
@@ -31,6 +32,7 @@ internal sealed class TerminalStartCommand : BaseCommand
         Options.Add(s_heightOption);
         Options.Add(s_cwdOption);
         Options.Add(s_recordOption);
+        Options.Add(s_attachOption);
         Arguments.Add(s_commandArgument);
     }
 
@@ -112,6 +114,20 @@ internal sealed class TerminalStartCommand : BaseCommand
                 if (info is { Success: true })
                 {
                     var id = process.Id.ToString();
+
+                    if (parseResult.GetValue(s_attachOption))
+                    {
+                        // Attach immediately — resize to match local terminal, claim leadership
+                        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                        {
+                            Formatter.WriteError("Attach is only supported on Linux and macOS");
+                            return 1;
+                        }
+
+                        return await TerminalAttachCommand.RunAttachAsync(
+                            expectedSocket, id, _client,
+                            resize: true, lead: true, cancellationToken);
+                    }
 
                     if (parseResult.GetValue(RootCommand.JsonOption))
                     {
