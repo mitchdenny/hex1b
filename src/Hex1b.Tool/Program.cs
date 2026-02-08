@@ -44,19 +44,22 @@ public class Program
         builder.Services.AddTransient<Commands.App.AppCommand>();
 
         // Top-level commands
-        builder.Services.AddTransient<Commands.CaptureCommand>();
         builder.Services.AddTransient<Commands.KeysCommand>();
         builder.Services.AddTransient<Commands.AssertCommand>();
+
+        // Capture commands
+        builder.Services.AddTransient<Commands.Capture.CaptureScreenshotCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureRecordingStartCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureRecordingStopCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureRecordingStatusCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureRecordingPlaybackCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureRecordingCommand>();
+        builder.Services.AddTransient<Commands.Capture.CaptureCommand>();
 
         // Mouse commands
         builder.Services.AddTransient<Commands.Mouse.MouseClickCommand>();
         builder.Services.AddTransient<Commands.Mouse.MouseDragCommand>();
         builder.Services.AddTransient<Commands.Mouse.MouseCommand>();
-
-        // Record commands
-        builder.Services.AddTransient<Commands.Record.RecordStartCommand>();
-        builder.Services.AddTransient<Commands.Record.RecordStopCommand>();
-        builder.Services.AddTransient<Commands.Record.RecordCommand>();
 
         // Agent commands
         builder.Services.AddTransient<Commands.Agent.AgentMcpCommand>();

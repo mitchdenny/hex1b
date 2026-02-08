@@ -42,6 +42,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private bool _bracketedPasteEnabled;
     
     private Hex1bTerminal? _terminal;
+    private AsciinemaRecorder? _recorder;
     private Socket? _listenerSocket;
     private Task? _listenTask;
     private bool _disposed;
@@ -75,6 +76,14 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     public void SetTerminal(Hex1bTerminal terminal)
     {
         _terminal = terminal;
+    }
+
+    /// <summary>
+    /// Sets the asciinema recorder reference for remote recording control.
+    /// </summary>
+    internal void SetRecorder(AsciinemaRecorder recorder)
+    {
+        _recorder = recorder;
     }
 
     /// <summary>
@@ -459,6 +468,9 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             "tree" => HandleTreeRequest(),
             "resize" => HandleResizeRequest(request.X, request.Y),
             "shutdown" => HandleShutdownRequest(),
+            "record-start" => await HandleRecordStartRequestAsync(request),
+            "record-stop" => await HandleRecordStopRequestAsync(),
+            "record-status" => HandleRecordStatusRequest(),
             _ => new DiagnosticsResponse { Success = false, Error = $"Unknown method: {request.Method}" }
         };
     }
@@ -472,7 +484,9 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             ProcessId = Environment.ProcessId,
             StartTime = _startTime,
             Width = _terminal?.Width ?? 0,
-            Height = _terminal?.Height ?? 0
+            Height = _terminal?.Height ?? 0,
+            Recording = _recorder?.IsRecording,
+            RecordingPath = _recorder?.FilePath
         };
     }
 
@@ -854,6 +868,102 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             sb.Append("\x1b[?2004h");
         }
         return sb.ToString();
+    }
+
+    private async Task<DiagnosticsResponse> HandleRecordStartRequestAsync(DiagnosticsRequest request)
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FilePath))
+        {
+            return new DiagnosticsResponse { Success = false, Error = "filePath is required" };
+        }
+
+        if (_recorder.IsRecording)
+        {
+            return new DiagnosticsResponse
+            {
+                Success = false,
+                Error = $"Already recording to '{_recorder.FilePath}'. Stop it first."
+            };
+        }
+
+        // Ensure the output directory exists
+        var dir = Path.GetDirectoryName(request.FilePath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var options = new AsciinemaRecorderOptions
+        {
+            AutoFlush = true,
+            Title = request.Title,
+            IdleTimeLimit = request.IdleLimit is > 0 ? (float)request.IdleLimit.Value : null
+        };
+
+        _recorder.StartRecording(request.FilePath, options);
+
+        // Synthesize current terminal state as the first event
+        if (_terminal != null)
+        {
+            using var snapshot = _terminal.CreateSnapshot();
+            var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
+            {
+                IncludeClearScreen = true,
+                IncludeTrailingNewline = true
+            });
+            await _recorder.WriteInitialStateAsync(initialAnsi);
+        }
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Data = $"Recording started: {request.FilePath}",
+            Recording = true,
+            RecordingPath = request.FilePath
+        };
+    }
+
+    private async Task<DiagnosticsResponse> HandleRecordStopRequestAsync()
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        if (!_recorder.IsRecording)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Not currently recording" };
+        }
+
+        var completedPath = await _recorder.StopRecordingAsync();
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Data = completedPath != null ? $"Recording saved: {completedPath}" : "Recording stopped",
+            Recording = false,
+            RecordingPath = completedPath
+        };
+    }
+
+    private DiagnosticsResponse HandleRecordStatusRequest()
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Recording = _recorder.IsRecording,
+            RecordingPath = _recorder.FilePath
+        };
     }
 
     /// <inheritdoc />

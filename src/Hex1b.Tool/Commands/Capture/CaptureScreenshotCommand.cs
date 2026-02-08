@@ -3,12 +3,12 @@ using Hex1b.Diagnostics;
 using Hex1b.Tool.Infrastructure;
 using Microsoft.Extensions.Logging;
 
-namespace Hex1b.Tool.Commands;
+namespace Hex1b.Tool.Commands.Capture;
 
 /// <summary>
-/// Captures terminal screen output in various formats.
+/// Captures a terminal screen screenshot in various formats.
 /// </summary>
-internal sealed class CaptureCommand : BaseCommand
+internal sealed class CaptureScreenshotCommand : BaseCommand
 {
     private readonly TerminalIdResolver _resolver;
     private readonly TerminalClient _client;
@@ -20,12 +20,12 @@ internal sealed class CaptureCommand : BaseCommand
     private static readonly Option<int> s_timeoutOption = new("--timeout") { DefaultValueFactory = _ => 30, Description = "Timeout in seconds for --wait" };
     private static readonly Option<int> s_scrollbackOption = new("--scrollback") { DefaultValueFactory = _ => 0, Description = "Number of scrollback lines to include" };
 
-    public CaptureCommand(
+    public CaptureScreenshotCommand(
         TerminalIdResolver resolver,
         TerminalClient client,
         OutputFormatter formatter,
-        ILogger<CaptureCommand> logger)
-        : base("capture", "Capture terminal screen output", formatter, logger)
+        ILogger<CaptureScreenshotCommand> logger)
+        : base("screenshot", "Capture a terminal screen screenshot", formatter, logger)
     {
         _resolver = resolver;
         _client = client;

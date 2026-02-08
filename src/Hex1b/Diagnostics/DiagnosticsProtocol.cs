@@ -73,6 +73,24 @@ internal sealed class DiagnosticsRequest
     /// </summary>
     [JsonPropertyName("y2")]
     public int? Y2 { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, the output file path (.cast).
+    /// </summary>
+    [JsonPropertyName("filePath")]
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, the recording title.
+    /// </summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, max idle time in seconds between frames.
+    /// </summary>
+    [JsonPropertyName("idleLimit")]
+    public double? IdleLimit { get; set; }
 }
 
 /// <summary>
@@ -151,6 +169,18 @@ internal sealed class DiagnosticsResponse
     /// </summary>
     [JsonPropertyName("leader")]
     public bool? Leader { get; set; }
+
+    /// <summary>
+    /// For "info" and "record-status" methods: whether the terminal is currently recording.
+    /// </summary>
+    [JsonPropertyName("recording")]
+    public bool? Recording { get; set; }
+
+    /// <summary>
+    /// For "record-status" and "record-stop" methods: the recording file path.
+    /// </summary>
+    [JsonPropertyName("recordingPath")]
+    public string? RecordingPath { get; set; }
 }
 
 /// <summary>

@@ -879,6 +879,16 @@ public sealed class Hex1bTerminalBuilder
         }
 #endif
         var filter = new Diagnostics.McpDiagnosticsPresentationFilter(appName);
+
+        // Find an existing AsciinemaRecorder in workload filters, or create an idle one
+        var recorder = _workloadFilters.OfType<AsciinemaRecorder>().FirstOrDefault();
+        if (recorder == null)
+        {
+            recorder = new AsciinemaRecorder(); // idle — not recording until told to
+            _workloadFilters.Add(recorder);
+        }
+        filter.SetRecorder(recorder);
+
         _presentationFilters.Add(filter);
         return this;
     }

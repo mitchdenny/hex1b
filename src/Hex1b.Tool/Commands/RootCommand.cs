@@ -21,11 +21,10 @@ internal sealed class RootCommand : BaseRootCommand
     public RootCommand(
         Terminal.TerminalCommand terminalCommand,
         App.AppCommand appCommand,
-        CaptureCommand captureCommand,
+        Capture.CaptureCommand captureCommand,
         KeysCommand keysCommand,
         Mouse.MouseCommand mouseCommand,
         AssertCommand assertCommand,
-        Record.RecordCommand recordCommand,
         Agent.AgentCommand agentCommand)
         : base("Hex1b CLI tool for managing and interacting with terminal applications.")
     {
@@ -37,7 +36,6 @@ internal sealed class RootCommand : BaseRootCommand
         Subcommands.Add(keysCommand);
         Subcommands.Add(mouseCommand);
         Subcommands.Add(assertCommand);
-        Subcommands.Add(recordCommand);
         Subcommands.Add(agentCommand);
 
         SetAction((parseResult, _) =>
