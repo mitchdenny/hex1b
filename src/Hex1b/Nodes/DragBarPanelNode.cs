@@ -287,38 +287,35 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
 
     private void RenderHandle(Hex1bRenderContext context, Hex1bTheme theme)
     {
-        // Determine colors
+        // Determine handle color — no inversion, just color changes like window borders
         Hex1bColor handleFg;
-        Hex1bColor handleBg;
         
         if (IsFocused)
         {
-            var focusColor = theme.Get(DragBarPanelTheme.HandleFocusedColor);
-            handleBg = focusColor.IsDefault ? Hex1bColor.White : focusColor;
-            handleFg = GetContrastingColor(handleBg);
+            handleFg = theme.Get(DragBarPanelTheme.HandleFocusedColor);
         }
         else if (IsHovered)
         {
             handleFg = theme.Get(DragBarPanelTheme.HandleHoverColor);
-            handleBg = Hex1bColor.Default;
         }
         else
         {
             handleFg = theme.Get(DragBarPanelTheme.HandleColor);
-            handleBg = Hex1bColor.Default;
         }
+        
+        var showThumbs = IsHovered || IsFocused;
         
         if (IsHorizontalEdge)
         {
-            RenderHorizontalHandle(context, theme, handleFg, handleBg);
+            RenderHorizontalHandle(context, theme, handleFg, showThumbs);
         }
         else
         {
-            RenderVerticalHandle(context, theme, handleFg, handleBg);
+            RenderVerticalHandle(context, theme, handleFg, showThumbs);
         }
     }
 
-    private void RenderVerticalHandle(Hex1bRenderContext context, Hex1bTheme theme, Hex1bColor fg, Hex1bColor bg)
+    private void RenderVerticalHandle(Hex1bRenderContext context, Hex1bTheme theme, Hex1bColor fg, bool showThumbs)
     {
         var handleChar = theme.Get(DragBarPanelTheme.VerticalHandleChar);
         var thumbChar = theme.Get(DragBarPanelTheme.VerticalThumbChar);
@@ -335,23 +332,15 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
         {
             context.SetCursorPosition(handleX, Bounds.Y + row);
             
-            // Show thumb chars when hovered or focused
-            var isThumbRow = IsHovered && row >= thumbStart && row < thumbEnd;
+            var isThumbRow = showThumbs && row >= thumbStart && row < thumbEnd;
             var ch = isThumbRow ? thumbChar : handleChar;
             var charFg = isThumbRow ? thumbColor : fg;
             
-            if (bg.IsDefault)
-            {
-                context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
-            }
-            else
-            {
-                context.Write($"{charFg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{ch}\x1b[0m");
-            }
+            context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
         }
     }
 
-    private void RenderHorizontalHandle(Hex1bRenderContext context, Hex1bTheme theme, Hex1bColor fg, Hex1bColor bg)
+    private void RenderHorizontalHandle(Hex1bRenderContext context, Hex1bTheme theme, Hex1bColor fg, bool showThumbs)
     {
         var handleChar = theme.Get(DragBarPanelTheme.HorizontalHandleChar);
         var thumbChar = theme.Get(DragBarPanelTheme.HorizontalThumbChar);
@@ -368,18 +357,11 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
         
         for (int col = 0; col < Bounds.Width; col++)
         {
-            var isThumbCol = IsHovered && col >= thumbStart && col < thumbEnd;
+            var isThumbCol = showThumbs && col >= thumbStart && col < thumbEnd;
             var ch = isThumbCol ? thumbChar : handleChar;
             var charFg = isThumbCol ? thumbColor : fg;
             
-            if (bg.IsDefault)
-            {
-                context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
-            }
-            else
-            {
-                context.Write($"{charFg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{ch}\x1b[0m");
-            }
+            context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
         }
     }
 
@@ -391,11 +373,5 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
             return new RectLayoutProvider(ContentChild.Bounds);
         }
         return null;
-    }
-
-    private static Hex1bColor GetContrastingColor(Hex1bColor color)
-    {
-        var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
-        return luminance > 0.5 ? Hex1bColor.Black : Hex1bColor.White;
     }
 }
