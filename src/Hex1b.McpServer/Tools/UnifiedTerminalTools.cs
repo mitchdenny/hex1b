@@ -13,7 +13,7 @@ public class UnifiedTerminalTools(TerminalSessionManager sessionManager)
     /// <summary>
     /// Connects to a remote Hex1b application with diagnostics enabled.
     /// </summary>
-    [McpServerTool, Description("Connects to a remote Hex1b application by process ID. The application must have diagnostics enabled via WithMcpDiagnostics(). Returns a session ID for use with other terminal tools. Use GetHex1bSkill to get comprehensive Hex1b MCP documentation.")]
+    [McpServerTool, Description("Connects to a remote Hex1b application by process ID. The application must have diagnostics enabled via WithDiagnostics(). Returns a session ID for use with other terminal tools. Use GetHex1bSkill to get comprehensive Hex1b MCP documentation.")]
     public async Task<ConnectRemoteResult> ConnectToHex1bStack(
         [Description("Process ID of the Hex1b application to connect to")] int processId,
         CancellationToken ct = default)

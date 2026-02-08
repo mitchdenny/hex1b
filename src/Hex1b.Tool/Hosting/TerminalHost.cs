@@ -15,7 +15,7 @@ internal sealed class TerminalHost
         var builder = Hex1bTerminal.CreateBuilder()
             .WithDimensions(config.Width, config.Height)
             .WithHeadless()
-            .WithMcpDiagnostics(appName: config.Command, forceEnable: true);
+            .WithDiagnostics(appName: config.Command, forceEnable: true);
 
         if (config.WorkingDirectory != null)
         {

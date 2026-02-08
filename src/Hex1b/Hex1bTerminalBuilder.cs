@@ -840,36 +840,34 @@ public sealed class Hex1bTerminalBuilder
     /// <returns>This builder for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// Creates a Unix domain socket at ~/.hex1b/sockets/[pid].diagnostics.socket that MCP tools
-    /// can connect to for:
+    /// Creates a Unix domain socket at ~/.hex1b/sockets/[pid].diagnostics.socket that
+    /// diagnostic tools can connect to for:
     /// </para>
     /// <list type="bullet">
     ///   <item>Querying terminal info (dimensions, app name)</item>
     ///   <item>Capturing terminal state as ANSI, SVG, or text</item>
     ///   <item>Injecting input characters and mouse clicks</item>
     ///   <item>Inspecting the widget/node tree for debugging</item>
+    ///   <item>Attaching interactive terminal sessions</item>
+    ///   <item>Starting and stopping asciinema recordings</item>
     /// </list>
     /// <para>
     /// <strong>Security Note:</strong> This method is a no-op in Release builds unless 
     /// <paramref name="forceEnable"/> is true. This prevents accidental exposure of
     /// diagnostic capabilities in production deployments.
     /// </para>
-    /// <para>
-    /// <strong>Tip:</strong> Use the <c>GetHex1bSkill</c> MCP tool to get comprehensive
-    /// documentation about all available MCP tools and best practices.
-    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithMcpDiagnostics()
+    ///     .WithDiagnostics()
     ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello!"))
     ///     .Build();
     /// 
     /// await terminal.RunAsync();
     /// </code>
     /// </example>
-    public Hex1bTerminalBuilder WithMcpDiagnostics(string? appName = null, bool forceEnable = false)
+    public Hex1bTerminalBuilder WithDiagnostics(string? appName = null, bool forceEnable = false)
     {
 #if !DEBUG
         // In Release builds, only enable if explicitly forced
@@ -892,6 +890,16 @@ public sealed class Hex1bTerminalBuilder
         _presentationFilters.Add(filter);
         return this;
     }
+
+    /// <summary>
+    /// Enables the diagnostics socket for this terminal.
+    /// </summary>
+    /// <param name="appName">Optional application name reported in diagnostics info.</param>
+    /// <param name="forceEnable">When true, enables diagnostics even in Release builds.</param>
+    /// <returns>This builder for chaining.</returns>
+    [Obsolete("Use WithDiagnostics() instead. This method will be removed in a future version.")]
+    public Hex1bTerminalBuilder WithMcpDiagnostics(string? appName = null, bool forceEnable = false)
+        => WithDiagnostics(appName, forceEnable);
 
     /// <summary>
     /// Sets the time provider for the terminal. Used for testing.

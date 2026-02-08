@@ -13,7 +13,7 @@ public class RecordingProtocolTests
             .WithDimensions(80, 24)
             .WithHeadless()
             .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
-            .WithMcpDiagnostics(appName: "RecordTest", forceEnable: true)
+            .WithDiagnostics(appName: "RecordTest", forceEnable: true)
             .Build();
 
         _ = terminal.RunAsync();
@@ -71,7 +71,7 @@ public class RecordingProtocolTests
             .WithDimensions(80, 24)
             .WithHeadless()
             .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
-            .WithMcpDiagnostics(appName: "RecordTest2", forceEnable: true)
+            .WithDiagnostics(appName: "RecordTest2", forceEnable: true)
             .Build();
 
         _ = terminal.RunAsync();
@@ -108,7 +108,7 @@ public class RecordingProtocolTests
             .WithDimensions(80, 24)
             .WithHeadless()
             .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
-            .WithMcpDiagnostics(appName: "RecordTest3", forceEnable: true)
+            .WithDiagnostics(appName: "RecordTest3", forceEnable: true)
             .Build();
 
         _ = terminal.RunAsync();

@@ -76,7 +76,7 @@ List<TreeItemWidget> BuildServerChildren(TreeContext t, Hex1bApp app)
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithMcpDiagnostics("TableDemo", forceEnable: true)
+    .WithDiagnostics("TableDemo", forceEnable: true)
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("🌳 Tree Widget Demo"),
         v.Separator(),

@@ -41,7 +41,7 @@ var tableShowSelection = false;
 object? tableFocusedKey = tableData[0].Name;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithMcpDiagnostics("WindowingDemo", forceEnable: true)
+    .WithDiagnostics("WindowingDemo", forceEnable: true)
     .WithHex1bApp((app, options) => ctx =>
     {
         // Update fireflies each frame

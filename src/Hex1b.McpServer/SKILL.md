@@ -97,14 +97,14 @@ To enable MCP diagnostics in a Hex1b application:
 
 ```csharp
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithMcpDiagnostics()  // Enable MCP diagnostics
+    .WithDiagnostics()  // Enable MCP diagnostics
     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello!"))
     .Build();
 
 await terminal.RunAsync();
 ```
 
-**Note**: `WithMcpDiagnostics()` is automatically disabled in Release builds for security. To force enable in Release:
+**Note**: `WithDiagnostics()` is automatically disabled in Release builds for security. To force enable in Release:
 
 ```csharp
 .WithMcpDiagnostics(forceEnable: true)
@@ -123,7 +123,7 @@ public async Task MyWidget_Click_PerformsAction()
     // Arrange
     await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithHeadless(80, 24)  // No real terminal
-        .WithMcpDiagnostics()  // Enable for debugging if needed
+        .WithDiagnostics()  // Enable for debugging if needed
         .WithHex1bApp((app, options) => ctx => 
             ctx.Button("Click me", e => { /* handler */ }))
         .Build();
@@ -145,13 +145,13 @@ public async Task MyWidget_Click_PerformsAction()
 2. **Use `terminal.SendMouseClick()` / `terminal.SendKey()`** - Inject input
 3. **Use `terminal.ProcessEventsAsync()`** - Process pending events
 4. **Use `terminal.CreateSnapshot()`** - Capture screen for assertions
-5. **Use `WithMcpDiagnostics()`** - Enable when debugging test failures
+5. **Use `WithDiagnostics()`** - Enable when debugging test failures
 
 ### Debugging Test Failures
 
 When tests fail unexpectedly:
 
-1. Enable `WithMcpDiagnostics()` in the test
+1. Enable `WithDiagnostics()` in the test
 2. Add a breakpoint or delay
 3. Use `GetHex1bTree` MCP tool to inspect:
    - Node bounds and hit test bounds

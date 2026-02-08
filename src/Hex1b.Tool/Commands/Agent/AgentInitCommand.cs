@@ -141,7 +141,7 @@ internal sealed class AgentInitCommand : BaseCommand
         There are two kinds:
 
         - **Hosted terminals** — Any process spawned by the CLI inside a headless virtual terminal. This is the primary way to automate arbitrary programs.
-        - **TUI apps** — Hex1b applications with diagnostics enabled (`WithMcpDiagnostics()`). Discovered automatically; support additional features like widget tree inspection.
+        - **TUI apps** — Hex1b applications with diagnostics enabled (`WithDiagnostics()`). Discovered automatically; support additional features like widget tree inspection.
 
         All commands that target a terminal take an `<id>` argument. Use a prefix if unambiguous.
 

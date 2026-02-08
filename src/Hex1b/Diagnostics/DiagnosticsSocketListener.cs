@@ -14,7 +14,7 @@ namespace Hex1b.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Add this filter using <see cref="Hex1bTerminalBuilder.WithMcpDiagnostics"/>.
+/// Add this filter using <see cref="Hex1bTerminalBuilder.WithDiagnostics"/>.
 /// The filter creates a Unix domain socket at ~/.hex1b/sockets/[pid].diagnostics.socket
 /// that MCP tools can connect to for:
 /// </para>
