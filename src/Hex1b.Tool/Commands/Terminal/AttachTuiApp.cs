@@ -196,11 +196,6 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             [
                 m.Menu("Terminal", m =>
                 [
-                    m.MenuItem("Detach").OnActivated(async _ =>
-                    {
-                        try { await _writer!.WriteLineAsync("detach"); } catch { }
-                        _app?.RequestStop();
-                    }),
                     m.MenuItem("Lead").OnActivated(async _ =>
                     {
                         try { await _writer!.WriteLineAsync("lead"); } catch { }
@@ -208,9 +203,16 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                         _app?.Invalidate();
                     }),
                     m.Separator(),
-                    m.MenuItem("Quit").OnActivated(async _ =>
+                    m.MenuItem("Stop").OnActivated(async _ =>
                     {
+                        _shutdownRequested = true;
                         try { await _writer!.WriteLineAsync("shutdown"); } catch { }
+                        _app?.RequestStop();
+                    }),
+                    m.Separator(),
+                    m.MenuItem("Exit (Detach)").OnActivated(async _ =>
+                    {
+                        try { await _writer!.WriteLineAsync("detach"); } catch { }
                         _app?.RequestStop();
                     })
                 ])
