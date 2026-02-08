@@ -87,6 +87,10 @@ var treeDemo = builder.AddCSharpApp("tree-demo", "./samples/TreeDemo")
 var windowingDemo = builder.AddCSharpApp("windowing-demo", "./samples/WindowingDemo")
     .ExcludeFromManifest();
 
+// Logger panel demo
+var loggerPanelDemo = builder.AddCSharpApp("logger-panel-demo", "./samples/LoggerPanelDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

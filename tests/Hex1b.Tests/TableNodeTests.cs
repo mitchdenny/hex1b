@@ -2818,4 +2818,121 @@ public class TableNodeTests
     }
 
     #endregion
+
+    #region Fill Height Tests
+
+    [Fact]
+    public void Measure_WithFillHeight_ExpandsToConstraintHeight()
+    {
+        // A table with only 2 data rows should still measure to the full
+        // constrained height when HeightHint is Fill.
+        var data = new[] { "A", "B" };
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            HeightHint = SizeHint.Fill
+        };
+
+        var size = node.Measure(new Constraints(0, 40, 0, 24));
+
+        // Without Fill the height would be 6 (top + header + sep + 2 rows + bottom).
+        // With Fill it must expand to the constraint max height (24).
+        Assert.Equal(24, size.Height);
+    }
+
+    [Fact]
+    public void Measure_WithFillHeight_EmptyData_ExpandsToConstraintHeight()
+    {
+        var node = new TableNode<string>
+        {
+            Data = Array.Empty<string>(),
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)],
+            HeightHint = SizeHint.Fill
+        };
+
+        var size = node.Measure(new Constraints(0, 40, 0, 20));
+
+        Assert.Equal(20, size.Height);
+    }
+
+    [Fact]
+    public void Measure_WithoutFillHeight_UsesContentHeight()
+    {
+        // Baseline: without Fill, the table should use content-based height.
+        var data = new[] { "A", "B" };
+        var node = new TableNode<string>
+        {
+            Data = data,
+            HeaderBuilder = h => [h.Cell("Name")],
+            RowBuilder = (r, item, _) => [r.Cell(item)]
+        };
+
+        var size = node.Measure(new Constraints(0, 40, 0, 24));
+
+        // top (1) + header (1) + sep (1) + 2 rows (2) + bottom (1) = 6
+        Assert.Equal(6, size.Height);
+    }
+
+    [Fact]
+    public async Task Table_FillInVStack_BottomBorderAtScreenBottom()
+    {
+        // Integration test: a table with .Fill() inside a VStack should render
+        // its bottom border on the very last row of the terminal.
+        const int termWidth = 60;
+        const int termHeight = 16;
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(termWidth, termHeight)
+            .Build();
+
+        var data = new[] { "Row1", "Row2" }; // Deliberately few rows
+        object? focusedKey = "Row1";
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table((IReadOnlyList<string>)data)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Item")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .Fill(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Row1") && s.ContainsText("Row2"),
+                TimeSpan.FromSeconds(2), "table rendered")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var text = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Fill height test ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(text);
+
+        // The bottom-right corner character '┘' must be on the last row
+        var bottomRight = snapshot.GetCell(termWidth - 1, termHeight - 1);
+        Assert.Equal("┘", bottomRight.Character);
+
+        // The bottom-left corner '└' must also be on the last row
+        var bottomLeft = snapshot.GetCell(0, termHeight - 1);
+        Assert.Equal("└", bottomLeft.Character);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+    }
+
+    #endregion
 }

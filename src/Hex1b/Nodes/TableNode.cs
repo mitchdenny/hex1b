@@ -336,6 +336,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// </summary>
     internal object? GetInternalFocusedKey() => FocusedKey;
 
+    /// <summary>
+    /// Set by user-initiated input (arrow keys, mouse wheel, page up/down) when
+    /// the user navigates away from the bottom of the table. Cleared by
+    /// <see cref="ScrollToEnd"/> and when the user navigates to the last row.
+    /// Used by LoggerPanel to implement automatic follow/unfollow.
+    /// </summary>
+    internal bool UserScrolledAway { get; set; }
+
     #region ILayoutProvider Implementation
     
     /// <summary>
@@ -391,8 +399,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
         
         // Mouse wheel scrolling
-        bindings.Mouse(MouseButton.ScrollUp).Action(_ => ScrollByAmount(-3), "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(_ => ScrollByAmount(3), "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Action(_ => { ScrollByAmount(-3); UserScrolledAway = true; }, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Action(_ => { ScrollByAmount(3); if (_scrollOffset >= MaxScrollOffset) UserScrolledAway = false; }, "Scroll down");
         
         // Scrollbar drag
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
@@ -656,6 +664,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             _ = SetFocusedRowIndexAsync(currentIndex - 1);
         }
+        UserScrolledAway = true;
     }
 
     private void MoveFocusDown(InputBindingActionContext ctx)
@@ -671,6 +680,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         else if (currentIndex < maxIndex)
         {
             _ = SetFocusedRowIndexAsync(currentIndex + 1);
+            // If we just moved to the last row, re-engage follow
+            if (currentIndex + 1 == maxIndex)
+                UserScrolledAway = false;
+        }
+        else if (currentIndex >= maxIndex)
+        {
+            // Already at the bottom — signal follow re-engagement
+            UserScrolledAway = false;
         }
     }
 
@@ -681,6 +698,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             _ = SetFocusedRowIndexAsync(0);
         }
+        UserScrolledAway = true;
     }
 
     private void MoveFocusToLast(InputBindingActionContext ctx)
@@ -690,6 +708,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             _ = SetFocusedRowIndexAsync(totalCount - 1);
         }
+        UserScrolledAway = false;
     }
 
     private void PageUp(InputBindingActionContext ctx)
@@ -707,22 +726,27 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             // Just scroll the viewport
             ScrollByAmount(-pageSize);
         }
+        UserScrolledAway = true;
     }
 
     private void PageDown(InputBindingActionContext ctx)
     {
         var pageSize = Math.Max(1, _viewportRowCount - 1);
         var currentIndex = GetFocusedRowIndex();
+        var maxIndex = GetEffectiveItemCount() - 1;
         
         if (currentIndex >= 0)
         {
             // Move focus down by a page
-            _ = SetFocusedRowIndexAsync(currentIndex + pageSize);
+            var newIndex = Math.Min(currentIndex + pageSize, maxIndex);
+            _ = SetFocusedRowIndexAsync(newIndex);
+            UserScrolledAway = newIndex < maxIndex;
         }
         else
         {
             // Just scroll the viewport
             ScrollByAmount(pageSize);
+            UserScrolledAway = _scrollOffset < MaxScrollOffset;
         }
     }
 
@@ -882,6 +906,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
     }
 
+    /// <summary>
+    /// Scrolls the table to make the last row visible.
+    /// Used internally by composite widgets like LoggerPanel for follow mode.
+    /// </summary>
+    internal void ScrollToEnd()
+    {
+        SetScrollOffset(MaxScrollOffset);
+        UserScrolledAway = false;
+    }
+
     private DragHandler HandleScrollbarDrag(int localX, int localY)
     {
         if (!IsScrollable) return new DragHandler();
@@ -921,6 +955,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
                     ? (double)MaxScrollOffset / scrollRange
                     : 0;
                 
+                UserScrolledAway = true;
+                
                 if (contentPerPixel > 0)
                 {
                     return DragHandler.Simple(
@@ -941,12 +977,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             {
                 // Clicked above thumb - page up
                 ScrollByAmount(-Math.Max(1, _viewportRowCount - 1));
+                UserScrolledAway = true;
                 return new DragHandler();
             }
             else
             {
                 // Clicked below thumb - page down
                 ScrollByAmount(Math.Max(1, _viewportRowCount - 1));
+                UserScrolledAway = _scrollOffset < MaxScrollOffset;
                 return new DragHandler();
             }
         }
@@ -1596,6 +1634,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
         int height = fixedHeight + dataRowsHeight;
 
+        // When HeightHint is Fill, use the full available height (like WidthHint does for width).
+        bool isFillHeight = HeightHint is { IsFill: true };
+        if (isFillHeight && constraints.MaxHeight > 0 && constraints.MaxHeight < int.MaxValue - 1000)
+        {
+            height = Math.Max(height, constraints.MaxHeight);
+        }
+
         // NOTE: Do NOT clamp scroll offset here in Measure!
         // Measure may receive unbounded constraints from VStack, which would incorrectly reset scroll.
         // Scroll clamping happens in Arrange when we know the real viewport size.
@@ -1951,9 +1996,47 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             y++;
         }
 
-        // Bottom border (outer)
-        if (y < Bounds.Height)
+        // Fill empty space between content and bottom border when HeightHint is Fill
+        int bottomBorderY = y; // Default: right after content
+        if (HeightHint is { IsFill: true } && Bounds.Height > 0)
         {
+            bottomBorderY = Bounds.Height - 1;
+
+            if (RenderMode == TableRenderMode.Full)
+            {
+                // Full mode: alternate between empty rows and horizontal separators.
+                // If we're continuing from the last data row that didn't get a trailing
+                // separator, start with a separator.
+                bool needSeparator = hasDataRows && y < bottomBorderY;
+                while (y < bottomBorderY)
+                {
+                    if (needSeparator)
+                    {
+                        RenderHorizontalBorder(context, y, _teeRight, _cross, rightTee);
+                    }
+                    else
+                    {
+                        RenderEmptyFillRow(context, y);
+                    }
+                    needSeparator = !needSeparator;
+                    y++;
+                }
+            }
+            else
+            {
+                // Compact mode: just empty rows with column separators
+                while (y < bottomBorderY)
+                {
+                    RenderEmptyFillRow(context, y);
+                    y++;
+                }
+            }
+        }
+
+        // Bottom border (outer)
+        if (bottomBorderY < Bounds.Height)
+        {
+            y = bottomBorderY;
             // Use TeeUp for column positions when we have data/loading/footer, just horizontal when empty with no footer
             bool showColumnTees = hasColumnStructure || _footerRowNode is not null;
             if (showColumnTees)
@@ -2000,6 +2083,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         else
         {
             scrollbarHeight = Math.Max(1, visibleDataRows);
+        }
+
+        // When filling height, the scrollbar track must extend through the fill area
+        // so it covers the full visual height between header and bottom border.
+        if (HeightHint is { IsFill: true } && Bounds.Height > 0)
+        {
+            int headerHeight = _headerRowNode is not null ? 2 : 0;
+            int footerHeight = _footerRowNode is not null ? 2 : 0;
+            int fillTrackHeight = Bounds.Height - 2 - headerHeight - footerHeight;
+            scrollbarHeight = Math.Max(scrollbarHeight, fillTrackHeight);
         }
         
         if (scrollbarHeight <= 0) return;
@@ -2360,6 +2453,38 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         sb.Append(borderColor.ToForegroundAnsi());
         sb.Append(_vertical);
         sb.Append("\x1b[0m"); // Reset
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+    }
+
+    /// <summary>
+    /// Renders a blank row with left/right borders and column separators for fill-height spacing.
+    /// </summary>
+    private void RenderEmptyFillRow(Hex1bRenderContext context, int y)
+    {
+        var borderColor = EffectiveBorderColor;
+        var sb = new System.Text.StringBuilder();
+        sb.Append(borderColor.ToForegroundAnsi());
+        sb.Append(_vertical);
+
+        // Selection column
+        if (ShowSelectionColumn)
+        {
+            sb.Append("\x1b[0m");
+            sb.Append(new string(' ', SelectionColumnWidth));
+            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(_vertical);
+        }
+
+        int padding = RenderMode == TableRenderMode.Full ? 2 : 0; // per-column padding
+        for (int i = 0; i < _columnCount; i++)
+        {
+            sb.Append("\x1b[0m");
+            sb.Append(new string(' ', _columnWidths[i] + padding));
+            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(_vertical);
+        }
+
+        sb.Append("\x1b[0m");
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }
 
