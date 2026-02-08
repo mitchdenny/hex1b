@@ -34,6 +34,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private readonly object _inputLock = new();
     private readonly List<Channel<string>> _attachedClients = [];
     private readonly object _attachLock = new();
+    private Channel<string>? _leaderChannel;
     
     // Terminal mode state for attach replay
     private bool _mouseTrackingEnabled;
@@ -284,6 +285,8 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         lock (_attachLock)
         {
             _attachedClients.Add(channel);
+            // First attacher becomes leader automatically
+            _leaderChannel ??= channel;
         }
 
         try
@@ -296,13 +299,17 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 IncludeTrailingNewline = true
             });
 
-            // Send attach response with terminal dimensions
+            bool isLeader;
+            lock (_attachLock) { isLeader = _leaderChannel == channel; }
+
+            // Send attach response with terminal dimensions and leader status
             var attachResponse = new DiagnosticsResponse
             {
                 Success = true,
                 Width = _terminal.Width,
                 Height = _terminal.Height,
-                Data = initialAnsi
+                Data = initialAnsi,
+                Leader = isLeader
             };
             var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
             await writer.WriteLineAsync(responseJson.AsMemory(), ct);
@@ -319,7 +326,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
             var outputTask = StreamOutputAsync(channel.Reader, writer, detachCts.Token);
-            var inputTask = StreamInputAsync(reader, detachCts);
+            var inputTask = StreamInputAsync(reader, channel, writer, detachCts);
 
             // Wait for either task to complete (detach or disconnect)
             await Task.WhenAny(outputTask, inputTask);
@@ -335,6 +342,8 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             lock (_attachLock)
             {
                 _attachedClients.Remove(channel);
+                if (_leaderChannel == channel)
+                    _leaderChannel = _attachedClients.Count > 0 ? _attachedClients[0] : null;
             }
         }
     }
@@ -353,7 +362,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         catch (OperationCanceledException) { }
     }
 
-    private async Task StreamInputAsync(StreamReader reader, CancellationTokenSource detachCts)
+    private async Task StreamInputAsync(StreamReader reader, Channel<string> channel, StreamWriter writer, CancellationTokenSource detachCts)
     {
         try
         {
@@ -374,12 +383,21 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 }
                 else if (line.StartsWith("r:") && _terminal != null)
                 {
-                    // Resize request: r:width,height
+                    // Only the leader can resize the terminal
+                    bool isLeader;
+                    lock (_attachLock) { isLeader = _leaderChannel == channel; }
+                    if (!isLeader) continue;
+
                     var parts = line[2..].Split(',');
                     if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
                     {
                         _terminal.ResizeWithWorkload(width, height);
                     }
+                }
+                else if (line == "lead")
+                {
+                    lock (_attachLock) { _leaderChannel = channel; }
+                    await writer.WriteLineAsync("leader:true".AsMemory(), detachCts.Token);
                 }
             }
         }

@@ -145,6 +145,12 @@ internal sealed class DiagnosticsResponse
     /// </summary>
     [JsonPropertyName("focusInfo")]
     public DiagnosticFocusInfo? FocusInfo { get; set; }
+    
+    /// <summary>
+    /// For "attach" method: whether this client is the resize leader.
+    /// </summary>
+    [JsonPropertyName("leader")]
+    public bool? Leader { get; set; }
 }
 
 /// <summary>

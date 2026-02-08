@@ -19,6 +19,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
 {
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
     private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize remote terminal to match local terminal dimensions" };
+    private static readonly Option<bool> s_leadOption = new("--lead") { Description = "Claim resize leadership (only the leader's resize events control the remote terminal)" };
 
     private readonly TerminalIdResolver _resolver;
     private readonly TerminalClient _client;
@@ -35,6 +36,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
 
         Arguments.Add(s_idArgument);
         Options.Add(s_resizeOption);
+        Options.Add(s_leadOption);
     }
 
     protected override async Task<int> ExecuteAsync(ParseResult parseResult, CancellationToken cancellationToken)
@@ -116,14 +118,27 @@ internal sealed class TerminalAttachCommand : BaseCommand
             driver.Flush();
         }
 
+        var isLeader = response.Leader == true;
+
+        // Claim leadership if requested
+        if (parseResult.GetValue(s_leadOption) && !isLeader)
+        {
+            await writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
+            // Read leader confirmation
+            var leadResponse = await reader.ReadLineAsync(cancellationToken);
+            if (leadResponse == "leader:true")
+                isLeader = true;
+        }
+
         using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         driver.EnterRawMode();
         try
         {
-            // Forward local terminal resize events to remote terminal
+            // Forward local terminal resize events to remote terminal (only if leader)
             void OnResize(int width, int height)
             {
+                if (!isLeader) return;
                 try
                 {
                     var resizeFrame = $"r:{width},{height}";
@@ -133,7 +148,10 @@ internal sealed class TerminalAttachCommand : BaseCommand
             }
             driver.Resized += OnResize;
 
-            var outputTask = ReadOutputAsync(reader, driver, detachCts);
+            var outputTask = ReadOutputAsync(reader, driver, detachCts, s => {
+                if (s == "leader:true") isLeader = true;
+                else if (s == "leader:false") isLeader = false;
+            });
             var inputTask = ReadInputAsync(driver, writer, detachCts);
 
             await Task.WhenAny(outputTask, inputTask);
@@ -163,13 +181,13 @@ internal sealed class TerminalAttachCommand : BaseCommand
             try { await writer.WriteLineAsync("detach"); } catch { }
 
             Console.Error.WriteLine();
-            Console.Error.WriteLine($"Detached from {resolved.Id}.");
+            Console.Error.WriteLine($"Detached from {resolved.Id}{(isLeader ? " (was leader)" : "")}.");
         }
 
         return 0;
     }
 
-    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, CancellationTokenSource detachCts)
+    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, CancellationTokenSource detachCts, Action<string>? onControlFrame = null)
     {
         try
         {
@@ -194,6 +212,10 @@ internal sealed class TerminalAttachCommand : BaseCommand
                 {
                     await detachCts.CancelAsync();
                     return;
+                }
+                else if (line.StartsWith("leader:"))
+                {
+                    onControlFrame?.Invoke(line);
                 }
             }
         }
