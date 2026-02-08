@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Hex1b;
 using Hex1b.Diagnostics;
-using Hex1b.Theming;
 using Hex1b.Tool.Infrastructure;
 using Hex1b.Widgets;
 
@@ -97,22 +96,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _remoteWidth = response.Width ?? 80;
         _remoteHeight = response.Height ?? 24;
 
-        // 3. Resize remote to match local terminal if requested
-        if (_initialResize)
-        {
-            var localWidth = Console.WindowWidth;
-            var localHeight = Console.WindowHeight - 3; // Reserve rows for InfoBar + border
-            if (localWidth != _remoteWidth || localHeight != _remoteHeight)
-            {
-                await _client.SendAsync(_socketPath,
-                    new DiagnosticsRequest { Method = "resize", X = localWidth, Y = localHeight },
-                    cancellationToken);
-                _remoteWidth = localWidth;
-                _remoteHeight = localHeight;
-            }
-        }
-
-        // 4. Claim leadership if requested
+        // 3. Claim leadership if requested
         if (_claimLead && !_isLeader)
         {
             await _writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
@@ -200,59 +184,11 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         var dims = $"{_remoteWidth}\u00d7{_remoteHeight}";
         var title = $" {_displayId} ({dims}) ";
 
-        // Check if the display terminal is too small for the remote terminal.
-        // Available space = display size minus InfoBar (1 row) and border chrome (2 rows + 2 cols).
-        var displayWidth = Console.WindowWidth;
-        var displayHeight = Console.WindowHeight;
-        var neededWidth = _remoteWidth + 2;  // border left + right
-        var neededHeight = _remoteHeight + 3; // border top + bottom + InfoBar
-
-        var tooSmall = !_isLeader && (displayWidth < neededWidth || displayHeight < neededHeight);
-
-        Hex1bWidget mainContent;
-        if (tooSmall)
-        {
-            mainContent = ctx.Backdrop(
-                ctx.Border(v =>
-                [
-                    v.Text(""),
-                    v.Align(Alignment.Center,
-                        v.VStack(center =>
-                        [
-                            center.Text($"Terminal too small to display remote session"),
-                            center.Text($"Need {neededWidth}\u00d7{neededHeight}, have {displayWidth}\u00d7{displayHeight}"),
-                            center.Text(""),
-                            center.Button("Take Lead & Resize").OnClick(async _ =>
-                            {
-                                try { await _writer!.WriteLineAsync("lead"); } catch { }
-                                _isLeader = true;
-                                // Resize remote to fit current display
-                                var newWidth = displayWidth - 2;
-                                var newHeight = displayHeight - 3;
-                                var resizeFrame = $"r:{newWidth},{newHeight}";
-                                try { await _writer!.WriteLineAsync(resizeFrame); } catch { }
-                                _remoteWidth = newWidth;
-                                _remoteHeight = newHeight;
-                                _app?.Invalidate();
-                            })
-                        ])
-                    ),
-                    v.Text("")
-                ], title: title)
-            ).WithBackground(Hex1bColor.FromRgb(40, 40, 40));
-        }
-        else
-        {
-            mainContent = ctx.Backdrop(
-                ctx.Border(
-                    ctx.Terminal(handle),
-                    title: title)
-            ).WithBackground(Hex1bColor.FromRgb(40, 40, 40));
-        }
-
         return ctx.VStack(v =>
         [
-            mainContent,
+            v.Border(
+                v.Terminal(handle),
+                title: title),
 
             v.InfoBar(s =>
             [
