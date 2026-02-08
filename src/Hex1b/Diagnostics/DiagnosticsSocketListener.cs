@@ -35,6 +35,11 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private readonly List<Channel<string>> _attachedClients = [];
     private readonly object _attachLock = new();
     
+    // Terminal mode state for attach replay
+    private bool _mouseTrackingEnabled;
+    private bool _sgrMouseModeEnabled;
+    private bool _bracketedPasteEnabled;
+    
     private Hex1bTerminal? _terminal;
     private Socket? _listenerSocket;
     private Task? _listenTask;
@@ -102,6 +107,26 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default)
     {
         var tokens = appliedTokens.Select(t => t.Token).ToList();
+
+        // Track terminal mode state for attach replay
+        foreach (var token in tokens)
+        {
+            if (token is PrivateModeToken pm)
+            {
+                switch (pm.Mode)
+                {
+                    case 1000 or 1002 or 1003:
+                        _mouseTrackingEnabled = pm.Enable;
+                        break;
+                    case 1006:
+                        _sgrMouseModeEnabled = pm.Enable;
+                        break;
+                    case 2004:
+                        _bracketedPasteEnabled = pm.Enable;
+                        break;
+                }
+            }
+        }
 
         // Broadcast to attached clients if any
         lock (_attachLock)
@@ -281,6 +306,14 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             };
             var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
             await writer.WriteLineAsync(responseJson.AsMemory(), ct);
+
+            // Replay terminal mode state so late-joining clients get mouse/paste modes
+            var modeReplay = BuildModeReplaySequence();
+            if (modeReplay.Length > 0)
+            {
+                var modeBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(modeReplay));
+                await writer.WriteLineAsync($"o:{modeBase64}".AsMemory(), ct);
+            }
 
             // Run two tasks: output streaming and input forwarding
             using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -742,6 +775,26 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         var response = new DiagnosticsResponse { Success = false, Error = error };
         var json = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
         await writer.WriteLineAsync(json);
+    }
+
+    private string BuildModeReplaySequence()
+    {
+        var sb = new System.Text.StringBuilder();
+        if (_mouseTrackingEnabled)
+        {
+            sb.Append("\x1b[?1000h");
+            sb.Append("\x1b[?1002h");
+            sb.Append("\x1b[?1003h");
+        }
+        if (_sgrMouseModeEnabled)
+        {
+            sb.Append("\x1b[?1006h");
+        }
+        if (_bracketedPasteEnabled)
+        {
+            sb.Append("\x1b[?2004h");
+        }
+        return sb.ToString();
     }
 
     /// <inheritdoc />
