@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
+using Hex1b.Theming;
 
 namespace Hex1b;
 
@@ -83,6 +84,13 @@ public abstract class Hex1bNode
     /// </list>
     /// </remarks>
     internal Surface? CachedSurface { get; set; }
+    
+    /// <summary>
+    /// When set to a non-default color, RenderChild will fill all transparent backgrounds
+    /// and empty cells on this node's surface with the specified color after rendering.
+    /// This prevents background bleed-through from layers below in composited rendering.
+    /// </summary>
+    internal Hex1bColor FillBackground { get; set; } = Hex1bColor.Default;
     
     /// <summary>
     /// The bounds that were used when the cached surface was created.

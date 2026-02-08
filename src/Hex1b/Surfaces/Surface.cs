@@ -344,6 +344,60 @@ public sealed class Surface : ISurfaceSource
     }
 
     /// <summary>
+    /// Fills all transparent backgrounds and empty cells with the specified color.
+    /// Non-empty cells with transparent backgrounds get the color applied.
+    /// Empty cells are replaced with space cells with the background color.
+    /// </summary>
+    /// <param name="background">The background color to apply.</param>
+    internal void FillBackground(Hex1bColor background)
+    {
+        var bgCell = new SurfaceCell(" ", null, background, CellAttributes.None, 1);
+        for (int i = 0; i < _cells.Length; i++)
+        {
+            var cell = _cells[i];
+            if (cell == SurfaceCells.Empty)
+            {
+                _cells[i] = bgCell;
+            }
+            else if (cell.HasTransparentBackground)
+            {
+                _cells[i] = cell with { Background = background };
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fills transparent backgrounds and empty cells within a specific region.
+    /// Coordinates are in surface-local space.
+    /// </summary>
+    internal void FillBackgroundRegion(Hex1bColor background, int regionX, int regionY, int regionWidth, int regionHeight)
+    {
+        var bgCell = new SurfaceCell(" ", null, background, CellAttributes.None, 1);
+        var startX = Math.Max(0, regionX);
+        var startY = Math.Max(0, regionY);
+        var endX = Math.Min(Width, regionX + regionWidth);
+        var endY = Math.Min(Height, regionY + regionHeight);
+
+        for (int y = startY; y < endY; y++)
+        {
+            var rowStart = y * Width;
+            for (int x = startX; x < endX; x++)
+            {
+                var i = rowStart + x;
+                var cell = _cells[i];
+                if (cell == SurfaceCells.Empty)
+                {
+                    _cells[i] = bgCell;
+                }
+                else if (cell.HasTransparentBackground)
+                {
+                    _cells[i] = cell with { Background = background };
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Composites another surface source onto this surface at the specified offset.
     /// </summary>
     /// <remarks>

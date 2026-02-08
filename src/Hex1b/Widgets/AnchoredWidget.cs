@@ -141,8 +141,7 @@ internal sealed class AnchoredNode : Hex1bNode
     {
         if (Child == null) return;
         
-        context.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-        Child.Render(context);
+        context.RenderChild(Child);
     }
     
     public override IEnumerable<Hex1bNode> GetFocusableNodes()

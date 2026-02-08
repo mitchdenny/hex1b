@@ -71,6 +71,11 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     internal Hex1bColor BackgroundColor { get; set; } = Hex1bColor.Default;
     
     /// <summary>
+    /// Explicit overlay background color set via widget API.
+    /// </summary>
+    internal Hex1bColor OverlayBackgroundColor { get; set; } = Hex1bColor.Default;
+    
+    /// <summary>
     /// Tracks if we have an active popup entry so we don't push duplicates.
     /// </summary>
     internal PopupEntry? ActivePopupEntry { get; set; }
@@ -274,6 +279,10 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
         };
         
         var builder = ExpandedContentBuilder;
+        // Use the explicit overlay background color set via widget API.
+        // We can't use ThemeElement here because popups may render with a
+        // different theme context than the drawer's owner.
+        var bgColor = OverlayBackgroundColor;
         
         ActivePopupEntry = popupHost.Popups.PushAnchored(
             this, 
@@ -283,7 +292,10 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
                 var widgetContext = new WidgetContext<DrawerWidget>();
                 var expandedWidgets = builder(widgetContext).ToList();
                 Hex1bWidget content = new VStackWidget(expandedWidgets);
-                content = new BackgroundPanelWidget(Theming.DrawerTheme.BackgroundColor, content);
+                if (!bgColor.IsDefault)
+                {
+                    content = new BackgroundPanelWidget(bgColor, content);
+                }
                 return content;
             },
             focusRestoreNode: this,

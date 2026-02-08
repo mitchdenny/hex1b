@@ -40,7 +40,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
     {
         options.Theme = new Hex1bTheme("LoggerPanelDemo")
-            .Set(DrawerTheme.BackgroundColor, Hex1bColor.Black);
+            .Set(DrawerTheme.BackgroundColor, Hex1bColor.Black)
+            .Set(TableTheme.BackgroundColor, Hex1bColor.Black);
         
         return ctx =>
     {
@@ -60,17 +61,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ])
             ]),
 
-            // ── WINDOW PANEL with animated background ──
-            outer.WindowPanel()
-                .Background(b =>
-                    b.Surface(s => SlimeMoldBackground.BuildLayers(s, demoRandom))
-                        .RedrawAfter(SlimeMoldBackground.RecommendedRedrawMs)
-                ).Unbounded().FillHeight(3),
+            // ── RED BACKGROUND (static, for debugging bleed-through) ──
+            new BackgroundPanelWidget(Hex1bColor.FromRgb(255, 0, 0),
+                outer.VStack(v => [v.Text("RED BACKGROUND")])).FillHeight(3),
 
             // ── FLOATING DRAWER with tabbed Logs/Console (toggled with F12) ──
             outer.Drawer()
                 .AsOverlay()
                 .Expanded(drawerExpanded)
+                .OverlayBackground(Hex1bColor.Black)
                 .OnExpanded(() => drawerExpanded = true)
                 .OnCollapsed(() => drawerExpanded = false)
                 .ExpandedContent(d => [

@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit.v3" Version="3.2.1" />
@@ -30,20 +31,12 @@
     Uses a target instead of <None> items because the library may be built
     during the Hex1b project build, after ItemGroup evaluation.
   -->
-  <Target Name="CopyNativeLibraryLinux" 
-          AfterTargets="Build"
-          Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
-    <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so"
-          DestinationFolder="$(OutputPath)"
-          SkipUnchangedFiles="true" />
+  <Target Name="CopyNativeLibraryLinux" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
+    <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
   
-  <Target Name="CopyNativeLibraryOsx" 
-          AfterTargets="Build"
-          Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
-    <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib"
-          DestinationFolder="$(OutputPath)"
-          SkipUnchangedFiles="true" />
+  <Target Name="CopyNativeLibraryOsx" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib')">
+    <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
 
   <ItemGroup>

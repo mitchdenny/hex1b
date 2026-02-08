@@ -54,6 +54,14 @@ public sealed class BackgroundPanelNode : Hex1bNode
             : ThemeElement != null ? context.Theme.Get(ThemeElement)
             : Hex1bColor.Default;
 
+        // Request post-render background fill. After this node's surface is rendered,
+        // RenderChild will fill all remaining transparent/empty cells with this color.
+        // This is a belt-and-suspenders complement to the pre-fill below.
+        if (!bgColor.IsDefault)
+        {
+            FillBackground = bgColor;
+        }
+
         if (!bgColor.IsDefault && Bounds.Width > 0 && Bounds.Height > 0)
         {
             var bgCode = bgColor.ToBackgroundAnsi();
