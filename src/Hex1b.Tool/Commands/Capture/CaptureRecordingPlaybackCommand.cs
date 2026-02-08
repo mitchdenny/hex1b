@@ -13,6 +13,7 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
 {
     private static readonly Option<string> s_fileOption = new("--file") { Description = "Path to .cast file", Required = true };
     private static readonly Option<double> s_speedOption = new("--speed") { DefaultValueFactory = _ => 1.0, Description = "Playback speed multiplier (default: 1.0)" };
+    private static readonly Option<bool> s_playerOption = new("--player") { Description = "Launch interactive TUI player with controls" };
 
     public CaptureRecordingPlaybackCommand(
         OutputFormatter formatter,
@@ -21,12 +22,14 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
     {
         Options.Add(s_fileOption);
         Options.Add(s_speedOption);
+        Options.Add(s_playerOption);
     }
 
     protected override async Task<int> ExecuteAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {
         var filePath = parseResult.GetValue(s_fileOption)!;
         var speed = parseResult.GetValue(s_speedOption);
+        var usePlayer = parseResult.GetValue(s_playerOption);
 
         if (!File.Exists(filePath))
         {
@@ -40,6 +43,16 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
             return 1;
         }
 
+        if (usePlayer)
+        {
+            return await PlaybackPlayerApp.RunAsync(filePath, speed, cancellationToken);
+        }
+
+        return await RunSimplePlaybackAsync(filePath, speed, cancellationToken);
+    }
+
+    private static async Task<int> RunSimplePlaybackAsync(string filePath, double speed, CancellationToken cancellationToken)
+    {
         var stdout = Console.OpenStandardOutput();
 
         double previousTime = 0;
@@ -52,12 +65,10 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
 
             if (!headerRead)
             {
-                // First line is the header — skip it for playback
                 headerRead = true;
                 continue;
             }
 
-            // Parse event: [time, code, data]
             try
             {
                 using var doc = JsonDocument.Parse(line);
@@ -72,7 +83,6 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
                 if (code != "o" || data == null)
                     continue;
 
-                // Wait for the appropriate delay
                 var delay = (time - previousTime) / speed;
                 if (delay > 0)
                 {
@@ -80,7 +90,6 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
                 }
                 previousTime = time;
 
-                // Write output to terminal
                 var bytes = Encoding.UTF8.GetBytes(data);
                 await stdout.WriteAsync(bytes, cancellationToken);
                 await stdout.FlushAsync(cancellationToken);
@@ -91,9 +100,7 @@ internal sealed class CaptureRecordingPlaybackCommand : BaseCommand
             }
         }
 
-        // Write a newline at the end so the shell prompt appears cleanly
         Console.WriteLine();
-
         return 0;
     }
 }
