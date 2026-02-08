@@ -62,6 +62,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]);
     })
     .WithMouse()
+    .WithDiagnostics()
     .Build();
 
 // Start host in background, run TUI in foreground
