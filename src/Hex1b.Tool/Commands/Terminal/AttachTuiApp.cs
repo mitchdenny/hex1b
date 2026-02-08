@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hex1b;
 using Hex1b.Diagnostics;
+using Hex1b.Theming;
 using Hex1b.Tool.Infrastructure;
 using Hex1b.Widgets;
 
@@ -186,9 +187,11 @@ internal sealed class AttachTuiApp : IAsyncDisposable
 
         return ctx.VStack(v =>
         [
-            v.Border(
-                v.Terminal(handle),
-                title: title),
+            v.ThemePanel(
+                theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
+                v.Border(
+                    v.Align(Alignment.Center, v.Terminal(handle)),
+                    title: title)),
 
             v.InfoBar(s =>
             [
