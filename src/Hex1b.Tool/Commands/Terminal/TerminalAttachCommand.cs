@@ -121,11 +121,25 @@ internal sealed class TerminalAttachCommand : BaseCommand
         driver.EnterRawMode();
         try
         {
-            var outputTask = ReadOutputAsync(reader, driver, detachCts.Token);
+            // Forward local terminal resize events to remote terminal
+            void OnResize(int width, int height)
+            {
+                try
+                {
+                    var resizeFrame = $"r:{width},{height}";
+                    writer.WriteLine(resizeFrame);
+                }
+                catch { /* best effort */ }
+            }
+            driver.Resized += OnResize;
+
+            var outputTask = ReadOutputAsync(reader, driver, detachCts);
             var inputTask = ReadInputAsync(driver, writer, detachCts);
 
             await Task.WhenAny(outputTask, inputTask);
             await detachCts.CancelAsync();
+
+            driver.Resized -= OnResize;
 
             try { await Task.WhenAll(outputTask, inputTask); }
             catch (OperationCanceledException) { }
@@ -155,14 +169,19 @@ internal sealed class TerminalAttachCommand : BaseCommand
         return 0;
     }
 
-    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, CancellationToken ct)
+    private static async Task ReadOutputAsync(StreamReader reader, IConsoleDriver driver, CancellationTokenSource detachCts)
     {
         try
         {
-            while (!ct.IsCancellationRequested)
+            while (!detachCts.Token.IsCancellationRequested)
             {
-                var line = await reader.ReadLineAsync(ct);
-                if (line == null) return;
+                var line = await reader.ReadLineAsync(detachCts.Token);
+                if (line == null)
+                {
+                    // Remote terminal closed the connection (process exited)
+                    await detachCts.CancelAsync();
+                    return;
+                }
 
                 if (line.StartsWith("o:"))
                 {
@@ -171,9 +190,15 @@ internal sealed class TerminalAttachCommand : BaseCommand
                     driver.Write(bytes);
                     driver.Flush();
                 }
+                else if (line == "exit")
+                {
+                    await detachCts.CancelAsync();
+                    return;
+                }
             }
         }
         catch (OperationCanceledException) { }
+        catch (IOException) { try { await detachCts.CancelAsync(); } catch { } }
     }
 
     private static async Task ReadInputAsync(IConsoleDriver driver, StreamWriter writer, CancellationTokenSource detachCts)

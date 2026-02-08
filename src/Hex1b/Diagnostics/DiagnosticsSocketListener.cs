@@ -339,6 +339,15 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                     var bytes = Convert.FromBase64String(base64);
                     await _terminal.SendInputAsync(bytes);
                 }
+                else if (line.StartsWith("r:") && _terminal != null)
+                {
+                    // Resize request: r:width,height
+                    var parts = line[2..].Split(',');
+                    if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
+                    {
+                        _terminal.Resize(width, height);
+                    }
+                }
             }
         }
         catch (OperationCanceledException) { }
