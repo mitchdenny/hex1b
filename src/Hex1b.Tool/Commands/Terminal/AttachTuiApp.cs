@@ -187,22 +187,38 @@ internal sealed class AttachTuiApp : IAsyncDisposable
 
         return ctx.VStack(v =>
         [
+            v.MenuBar(m =>
+            [
+                m.Menu("Terminal", m =>
+                [
+                    m.MenuItem("Detach").OnActivated(async _ =>
+                    {
+                        try { await _writer!.WriteLineAsync("detach"); } catch { }
+                        _app?.RequestStop();
+                    }),
+                    m.MenuItem("Lead").OnActivated(async _ =>
+                    {
+                        try { await _writer!.WriteLineAsync("lead"); } catch { }
+                        _isLeader = true;
+                        _app?.Invalidate();
+                    }),
+                    m.Separator(),
+                    m.MenuItem("Quit").OnActivated(async _ =>
+                    {
+                        try { await _writer!.WriteLineAsync("shutdown"); } catch { }
+                        _app?.RequestStop();
+                    })
+                ])
+            ]),
+
             v.ThemePanel(
                 theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
                 v.Border(
                     v.Align(Alignment.Center, v.Terminal(handle)),
-                    title: title)),
+                    title: title)).Fill(),
 
             v.InfoBar(s =>
             [
-                s.Section("^]d"),
-                s.Section("detach"),
-                s.Separator("  "),
-                s.Section("^]l"),
-                s.Section("lead"),
-                s.Separator("  "),
-                s.Section("^]q"),
-                s.Section("quit"),
                 s.Spacer(),
                 s.Section(dims),
                 s.Separator(" | "),
