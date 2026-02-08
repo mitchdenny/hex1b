@@ -107,6 +107,10 @@ var chartingDemo = builder.AddCSharpApp("charting-demo", "./samples/ChartingDemo
 var interactableDemo = builder.AddCSharpApp("interactable-demo", "./samples/InteractableDemo")
     .ExcludeFromManifest();
 
+// Shared editor demo
+var sharedEditorDemo = builder.AddCSharpApp("shared-editor-demo", "./samples/SharedEditor")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
