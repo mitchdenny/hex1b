@@ -345,7 +345,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                     var parts = line[2..].Split(',');
                     if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
                     {
-                        _terminal.Resize(width, height);
+                        _terminal.ResizeWithWorkload(width, height);
                     }
                 }
             }
@@ -714,7 +714,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         var newWidth = width ?? _terminal.Width;
         var newHeight = height ?? _terminal.Height;
 
-        _terminal.Resize(newWidth, newHeight);
+        _terminal.ResizeWithWorkload(newWidth, newHeight);
 
         return new DiagnosticsResponse
         {

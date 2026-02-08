@@ -222,6 +222,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void OnPresentationResized(int width, int height)
     {
+        ResizeWithWorkload(width, height);
+    }
+
+    /// <summary>
+    /// Resizes the terminal buffer and propagates the resize to the workload (PTY child process).
+    /// Used by diagnostics to ensure child processes receive SIGWINCH.
+    /// </summary>
+    internal void ResizeWithWorkload(int width, int height)
+    {
         // IMPORTANT: Call Resize() first before updating _width/_height
         // because Resize() needs the OLD dimensions to know how much to copy
         Resize(width, height);
