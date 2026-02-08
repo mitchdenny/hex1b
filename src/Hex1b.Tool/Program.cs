@@ -14,7 +14,8 @@ public class Program
     {
         var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
 
-        // Logging
+        // Logging — only to stderr, never stdout (TUI apps use stdout for rendering)
+        builder.Logging.ClearProviders();
         builder.Logging.AddConsole(options =>
         {
             options.LogToStandardErrorThreshold = LogLevel.Trace;
