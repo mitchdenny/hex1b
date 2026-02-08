@@ -16,6 +16,7 @@
 
     <!-- .NET Tool packaging -->
     <PackAsTool>true</PackAsTool>
+    <IsPackable>true</IsPackable>
     <ToolCommandName>hex1b</ToolCommandName>
 
     <!-- Package Metadata -->
@@ -36,10 +37,15 @@
 
     <!-- Additional Package Settings -->
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hex1b.Tool.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>

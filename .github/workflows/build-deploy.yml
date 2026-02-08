@@ -615,6 +615,7 @@ jobs:
           ### Links
           - 📦 [Hex1b on NuGet](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION})
           - 🔧 [Hex1b.McpServer on NuGet](https://www.nuget.org/packages/Hex1b.McpServer/${PACKAGE_VERSION})
+          - 🛠️ [Hex1b.Tool on NuGet](https://www.nuget.org/packages/Hex1b.Tool/${PACKAGE_VERSION})
           - 📖 [Documentation](https://hex1b.dev)
 
           ---
