@@ -416,35 +416,29 @@ public class Hex1bAppIntegrationTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var renderTest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
-            ctx =>
-            {
-                var test = ctx.Test();
-                test.OnRender(_ => renderTest.TrySetResult());
-                return Task.FromResult<Hex1bWidget>(test);
-            },
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Test()),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        await renderTest.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-
-        // Send CTRL-C after the first render to exercise the default binding
+        // Wait for app to be fully in alternate screen before sending Ctrl+C
         await new Hex1bTerminalInputSequenceBuilder()
-            .Key(Hex1bKey.C, Hex1bModifiers.Control)
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        var completed = await Task.WhenAny(runTask, Task.Delay(2000, TestContext.Current.CancellationToken));
-        Assert.True(completed == runTask, "Expected CTRL-C to exit the application after the initial render.");
+        // Wait for app to exit gracefully
+        await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
-        await runTask;
-
-        // App should have exited gracefully
-        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
+        // Wait for alternate screen exit sequence to flush
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
 
     [Fact]

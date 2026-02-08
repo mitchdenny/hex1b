@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Hex1b.Input;
 
 namespace Hex1b.Automation;
@@ -57,13 +58,19 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     /// </summary>
     /// <param name="predicate">The condition to wait for. Receives a snapshot of the terminal state.</param>
     /// <param name="timeout">Maximum time to wait before throwing TimeoutException.</param>
-    /// <param name="description">Optional description for error messages.</param>
+    /// <param name="description">Optional description for error messages. If not provided, the predicate expression is used.</param>
+    /// <param name="predicateExpression">Auto-captured predicate source text. Do not pass explicitly.</param>
+    /// <param name="callerFilePath">Auto-captured caller file path. Do not pass explicitly.</param>
+    /// <param name="callerLineNumber">Auto-captured caller line number. Do not pass explicitly.</param>
     public Hex1bTerminalInputSequenceBuilder WaitUntil(
         Func<Hex1bTerminalSnapshot, bool> predicate,
         TimeSpan timeout,
-        string? description = null)
+        string? description = null,
+        [CallerArgumentExpression(nameof(predicate))] string? predicateExpression = null,
+        [CallerFilePath] string? callerFilePath = null,
+        [CallerLineNumber] int callerLineNumber = 0)
     {
-        _steps.Add(new WaitUntilStep(predicate, timeout, description));
+        _steps.Add(new WaitUntilStep(predicate, timeout, description, predicateExpression, callerFilePath, callerLineNumber));
         return this;
     }
 
