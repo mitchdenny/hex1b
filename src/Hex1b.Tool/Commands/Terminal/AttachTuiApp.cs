@@ -6,6 +6,7 @@ using System.Text.Json;
 using Hex1b;
 using Hex1b.Diagnostics;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 using Hex1b.Tool.Infrastructure;
 using Hex1b.Widgets;
 
@@ -44,6 +45,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     private int _remoteHeight;
     private Hex1bApp? _app;
     private Hex1bTerminal? _embeddedTerminal;
+    private TerminalWidgetHandle? _handle;
     private CancellationTokenSource? _appCts;
 
     public AttachTuiApp(string socketPath, string displayId, TerminalClient client, bool resize, bool lead)
@@ -130,6 +132,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             .WithTerminalWidget(out var handle)
             .Build();
 
+        _handle = handle;
         _appCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         // Start the embedded terminal's output pump in the background
@@ -139,8 +142,10 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         var networkOutputTask = PumpNetworkOutputAsync(_appCts.Token);
 
         // 8. Build and run the display TUI app
+        // The resize filter sends r: frames when the leader's display terminal resizes
         await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             .WithMouse()
+            .AddPresentationFilter(new ResizeFilter(this))
             .WithHex1bApp((app, options) =>
             {
                 _app = app;
@@ -253,6 +258,19 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                     await _outputPipe.Writer.WriteAsync(bytes, ct);
                     await _outputPipe.Writer.FlushAsync(ct);
                 }
+                else if (line.StartsWith("r:"))
+                {
+                    // Remote terminal was resized (by leader) — update embedded terminal
+                    var parts = line[2..].Split(',');
+                    if (parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h))
+                    {
+                        _remoteWidth = w;
+                        _remoteHeight = h;
+                        _handle?.Resize(w, h);
+                        _embeddedTerminal?.Resize(w, h);
+                        _app?.Invalidate();
+                    }
+                }
                 else if (line == "exit")
                 {
                     _app?.RequestStop();
@@ -330,6 +348,43 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             await _writer.DisposeAsync();
         if (_networkStream != null)
             await _networkStream.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Handles display terminal resize by sending r: frames when leader.
+    /// Chrome overhead: menu bar (1 row) + border (2 rows, 2 cols) + info bar (1 row) = 4 rows, 2 cols.
+    /// </summary>
+    private async Task HandleDisplayResizeAsync(int displayWidth, int displayHeight)
+    {
+        if (!_isLeader) return;
+
+        var termWidth = displayWidth - 2;   // border left + right
+        var termHeight = displayHeight - 4; // menu bar + border top + border bottom + info bar
+        if (termWidth < 1 || termHeight < 1) return;
+        if (termWidth == _remoteWidth && termHeight == _remoteHeight) return;
+
+        _remoteWidth = termWidth;
+        _remoteHeight = termHeight;
+        _handle?.Resize(termWidth, termHeight);
+        _embeddedTerminal?.Resize(termWidth, termHeight);
+
+        try { await _writer!.WriteLineAsync($"r:{termWidth},{termHeight}"); } catch { }
+        _app?.Invalidate();
+    }
+
+    /// <summary>
+    /// Presentation filter that detects display terminal resize events.
+    /// </summary>
+    private sealed class ResizeFilter(AttachTuiApp app) : IHex1bTerminalPresentationFilter
+    {
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct) => default;
+        public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct)
+            => new(appliedTokens.Select(t => t.Token).ToList());
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct) => default;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct) => default;
+
+        public async ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct)
+            => await app.HandleDisplayResizeAsync(width, height);
     }
 
     /// <summary>

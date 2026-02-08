@@ -352,11 +352,19 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     {
         try
         {
-            await foreach (var ansi in reader.ReadAllAsync(ct))
+            await foreach (var message in reader.ReadAllAsync(ct))
             {
-                // Convert to base64 to avoid newline issues in the ANSI data
-                var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(ansi));
-                await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+                if (message.StartsWith("r:"))
+                {
+                    // Control frame — pass through as-is
+                    await writer.WriteLineAsync(message.AsMemory(), ct);
+                }
+                else
+                {
+                    // ANSI output — convert to base64 to avoid newline issues
+                    var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(message));
+                    await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -404,6 +412,17 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                     if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
                     {
                         _terminal.ResizeWithWorkload(width, height);
+
+                        // Broadcast new dimensions to all attached clients except the sender
+                        var resizeFrame = $"r:{width},{height}";
+                        lock (_attachLock)
+                        {
+                            foreach (var client in _attachedClients)
+                            {
+                                if (client != channel)
+                                    client.Writer.TryWrite(resizeFrame);
+                            }
+                        }
                     }
                 }
                 else if (line == "lead")
