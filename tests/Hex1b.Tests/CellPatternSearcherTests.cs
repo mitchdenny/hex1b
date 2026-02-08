@@ -1204,11 +1204,12 @@ public class CellPatternSearcherTests
     [Fact]
     public async Task Result_Matches_AreOrderedByPosition()
     {
-        var snapshot = await CreateSnapshotAsync(new[] { "a", "a", "a" });
+        var snapshot = await CreateSnapshotAsync(new[] { "a", "a", "aZ" });
         var pattern = new CellPatternSearcher().Find('a');
 
         var result = pattern.Search(snapshot);
 
+        Assert.True(result.Matches.Count >= 3, $"Expected at least 3 matches but got {result.Matches.Count}");
         Assert.Equal(0, result.Matches[0].Start.Y);
         Assert.Equal(1, result.Matches[1].Start.Y);
         Assert.Equal(2, result.Matches[2].Start.Y);

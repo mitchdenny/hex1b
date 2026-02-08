@@ -50,7 +50,8 @@ public partial class Program
         {
             foreach (var file in Directory.GetFiles(outputDir, "*.md"))
             {
-                if (Path.GetFileName(file) != "index.md")
+                var fileName = Path.GetFileName(file);
+                if (fileName != "index.md" && fileName != "cli.md")
                     File.Delete(file);
             }
         }

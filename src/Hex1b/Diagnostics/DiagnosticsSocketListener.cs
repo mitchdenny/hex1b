@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Tokens;
@@ -13,7 +14,7 @@ namespace Hex1b.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Add this filter using <see cref="Hex1bTerminalBuilder.WithMcpDiagnostics"/>.
+/// Add this filter using <see cref="Hex1bTerminalBuilder.WithDiagnostics"/>.
 /// The filter creates a Unix domain socket at ~/.hex1b/sockets/[pid].diagnostics.socket
 /// that MCP tools can connect to for:
 /// </para>
@@ -31,8 +32,17 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private readonly CancellationTokenSource _cts = new();
     private readonly List<byte> _pendingInput = [];
     private readonly object _inputLock = new();
+    private readonly List<Channel<string>> _attachedClients = [];
+    private readonly object _attachLock = new();
+    private Channel<string>? _leaderChannel;
+    
+    // Terminal mode state for attach replay
+    private bool _mouseTrackingEnabled;
+    private bool _sgrMouseModeEnabled;
+    private bool _bracketedPasteEnabled;
     
     private Hex1bTerminal? _terminal;
+    private AsciinemaRecorder? _recorder;
     private Socket? _listenerSocket;
     private Task? _listenTask;
     private bool _disposed;
@@ -41,6 +51,11 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// Gets the socket path for this diagnostics filter.
     /// </summary>
     public string SocketPath => _socketPath;
+
+    /// <summary>
+    /// Gets a token that is cancelled when a shutdown request is received.
+    /// </summary>
+    internal CancellationToken ShutdownToken => _cts.Token;
 
     /// <summary>
     /// Creates a new MCP diagnostics presentation filter.
@@ -61,6 +76,14 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     public void SetTerminal(Hex1bTerminal terminal)
     {
         _terminal = terminal;
+    }
+
+    /// <summary>
+    /// Sets the asciinema recorder reference for remote recording control.
+    /// </summary>
+    internal void SetRecorder(AsciinemaRecorder recorder)
+    {
+        _recorder = recorder;
     }
 
     /// <summary>
@@ -93,8 +116,49 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct = default)
     {
-        // Pass through - we don't modify output
-        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(appliedTokens.Select(t => t.Token).ToList());
+        var tokens = appliedTokens.Select(t => t.Token).ToList();
+
+        // Track terminal mode state for attach replay
+        foreach (var token in tokens)
+        {
+            if (token is PrivateModeToken pm)
+            {
+                switch (pm.Mode)
+                {
+                    case 1000 or 1002 or 1003:
+                        _mouseTrackingEnabled = pm.Enable;
+                        break;
+                    case 1006:
+                        _sgrMouseModeEnabled = pm.Enable;
+                        break;
+                    case 2004:
+                        _bracketedPasteEnabled = pm.Enable;
+                        break;
+                }
+            }
+        }
+
+        // Broadcast to attached clients if any
+        lock (_attachLock)
+        {
+            if (_attachedClients.Count > 0)
+            {
+                var ansi = AnsiTokenSerializer.Serialize(tokens);
+                if (ansi.Length > 0)
+                {
+                    for (var i = _attachedClients.Count - 1; i >= 0; i--)
+                    {
+                        if (!_attachedClients[i].Writer.TryWrite(ansi))
+                        {
+                            // Channel full or completed — remove dead client
+                            _attachedClients.RemoveAt(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens);
     }
 
     /// <inheritdoc />
@@ -185,6 +249,13 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
                 return;
             }
 
+            // Attach is special — bidirectional streaming, keeps connection open
+            if (request.Method?.Equals("attach", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await HandleAttachAsync(reader, writer, ct);
+                return;
+            }
+
             var response = await HandleRequestAsync(request);
             var responseJson = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
             await writer.WriteLineAsync(responseJson);
@@ -199,16 +270,207 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         }
     }
 
+    /// <summary>
+    /// Handles an attach session — bidirectional streaming over a persistent connection.
+    /// Protocol: Server sends initial ANSI capture, then streams output lines prefixed with "o:".
+    /// Client sends input lines prefixed with "i:". Either side can send "detach" to end.
+    /// </summary>
+    private async Task HandleAttachAsync(StreamReader reader, StreamWriter writer, CancellationToken ct)
+    {
+        if (_terminal == null)
+        {
+            await WriteErrorAsync(writer, "Terminal not initialized");
+            return;
+        }
+
+        // Create a channel for this client's output
+        var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        lock (_attachLock)
+        {
+            _attachedClients.Add(channel);
+            // First attacher becomes leader automatically
+            _leaderChannel ??= channel;
+        }
+
+        try
+        {
+            // Send initial full-screen capture as ANSI
+            using var snapshot = _terminal.CreateSnapshot();
+            var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
+            {
+                IncludeClearScreen = true,
+                IncludeTrailingNewline = true
+            });
+
+            bool isLeader;
+            lock (_attachLock) { isLeader = _leaderChannel == channel; }
+
+            // Send attach response with terminal dimensions and leader status
+            var attachResponse = new DiagnosticsResponse
+            {
+                Success = true,
+                Width = _terminal.Width,
+                Height = _terminal.Height,
+                Data = initialAnsi,
+                Leader = isLeader
+            };
+            var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
+            await writer.WriteLineAsync(responseJson.AsMemory(), ct);
+
+            // Replay terminal mode state so late-joining clients get mouse/paste modes
+            var modeReplay = BuildModeReplaySequence();
+            if (modeReplay.Length > 0)
+            {
+                var modeBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(modeReplay));
+                await writer.WriteLineAsync($"o:{modeBase64}".AsMemory(), ct);
+            }
+
+            // Run two tasks: output streaming and input forwarding
+            using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+            var outputTask = StreamOutputAsync(channel.Reader, writer, detachCts.Token);
+            var inputTask = StreamInputAsync(reader, channel, writer, detachCts);
+
+            // Wait for either task to complete (detach or disconnect)
+            await Task.WhenAny(outputTask, inputTask);
+            await detachCts.CancelAsync();
+
+            // Allow tasks to finish cleanly
+            try { await Task.WhenAll(outputTask, inputTask); }
+            catch (OperationCanceledException) { }
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+            lock (_attachLock)
+            {
+                _attachedClients.Remove(channel);
+                if (_leaderChannel == channel)
+                    _leaderChannel = _attachedClients.Count > 0 ? _attachedClients[0] : null;
+            }
+        }
+    }
+
+    private async Task StreamOutputAsync(ChannelReader<string> reader, StreamWriter writer, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var message in reader.ReadAllAsync(ct))
+            {
+                if (message.StartsWith("r:") || message.StartsWith("leader:"))
+                {
+                    // Control frame — pass through as-is
+                    await writer.WriteLineAsync(message.AsMemory(), ct);
+                }
+                else
+                {
+                    // ANSI output — convert to base64 to avoid newline issues
+                    var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(message));
+                    await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task StreamInputAsync(StreamReader reader, Channel<string> channel, StreamWriter writer, CancellationTokenSource detachCts)
+    {
+        try
+        {
+            while (!detachCts.Token.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(detachCts.Token);
+                if (line == null || line == "detach")
+                {
+                    await detachCts.CancelAsync();
+                    return;
+                }
+
+                if (line == "shutdown")
+                {
+                    // Client requested remote session termination
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(100);
+                        await _cts.CancelAsync();
+                    });
+                    await detachCts.CancelAsync();
+                    return;
+                }
+
+                if (line.StartsWith("i:") && _terminal != null)
+                {
+                    var base64 = line[2..];
+                    var bytes = Convert.FromBase64String(base64);
+                    await _terminal.SendInputAsync(bytes);
+                }
+                else if (line.StartsWith("r:") && _terminal != null)
+                {
+                    // Only the leader can resize the terminal
+                    bool isLeader;
+                    lock (_attachLock) { isLeader = _leaderChannel == channel; }
+                    if (!isLeader) continue;
+
+                    var parts = line[2..].Split(',');
+                    if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
+                    {
+                        _terminal.ResizeWithWorkload(width, height);
+
+                        // Broadcast new dimensions to all attached clients except the sender
+                        var resizeFrame = $"r:{width},{height}";
+                        lock (_attachLock)
+                        {
+                            foreach (var client in _attachedClients)
+                            {
+                                if (client != channel)
+                                    client.Writer.TryWrite(resizeFrame);
+                            }
+                        }
+                    }
+                }
+                else if (line == "lead")
+                {
+                    Channel<string>? oldLeader;
+                    lock (_attachLock)
+                    {
+                        oldLeader = _leaderChannel;
+                        _leaderChannel = channel;
+                    }
+
+                    // Notify old leader they've been demoted
+                    if (oldLeader != null && oldLeader != channel)
+                        oldLeader.Writer.TryWrite("leader:false");
+
+                    await writer.WriteLineAsync("leader:true".AsMemory(), detachCts.Token);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (IOException) { await detachCts.CancelAsync(); }
+    }
+
     private async Task<DiagnosticsResponse> HandleRequestAsync(DiagnosticsRequest request)
     {
         return request.Method?.ToLowerInvariant() switch
         {
             "info" => HandleInfoRequest(),
-            "capture" => HandleCaptureRequest(request.Format),
+            "capture" => HandleCaptureRequest(request.Format, request.ScrollbackLines),
             "input" => await HandleInputRequestAsync(request.Data),
-            "key" => HandleKeyRequest(request.Key, request.Modifiers),
+            "key" => await HandleKeyRequestAsync(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
+            "drag" => HandleDragRequest(request.X, request.Y, request.X2, request.Y2, request.Button),
             "tree" => HandleTreeRequest(),
+            "resize" => HandleResizeRequest(request.X, request.Y),
+            "shutdown" => HandleShutdownRequest(),
+            "record-start" => await HandleRecordStartRequestAsync(request),
+            "record-stop" => await HandleRecordStopRequestAsync(),
+            "record-status" => HandleRecordStatusRequest(),
             _ => new DiagnosticsResponse { Success = false, Error = $"Unknown method: {request.Method}" }
         };
     }
@@ -222,11 +484,13 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             ProcessId = Environment.ProcessId,
             StartTime = _startTime,
             Width = _terminal?.Width ?? 0,
-            Height = _terminal?.Height ?? 0
+            Height = _terminal?.Height ?? 0,
+            Recording = _recorder?.IsRecording,
+            RecordingPath = _recorder?.FilePath
         };
     }
 
-    private DiagnosticsResponse HandleCaptureRequest(string? format)
+    private DiagnosticsResponse HandleCaptureRequest(string? format, int? scrollbackLines)
     {
         if (_terminal == null)
         {
@@ -235,12 +499,19 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
 
         format = format?.ToLowerInvariant() ?? "ansi";
 
-        using var snapshot = _terminal.CreateSnapshot();
+        var scrollback = Math.Max(0, scrollbackLines ?? 0);
+        using var snapshot = scrollback > 0
+            ? _terminal.CreateSnapshot(scrollback)
+            : _terminal.CreateSnapshot();
         
         string data;
         if (format == "svg")
         {
             data = snapshot.ToSvg(new TerminalSvgOptions { ShowCellGrid = false });
+        }
+        else if (format == "html")
+        {
+            data = snapshot.ToHtml(new TerminalSvgOptions { ShowCellGrid = false });
         }
         else if (format == "ansi")
         {
@@ -292,7 +563,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         };
     }
 
-    private DiagnosticsResponse HandleKeyRequest(string? keyName, string[]? modifiers)
+    private async Task<DiagnosticsResponse> HandleKeyRequestAsync(string? keyName, string[]? modifiers)
     {
         if (_terminal == null)
         {
@@ -351,7 +622,80 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             };
         }
 
-        return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct key injection" };
+        // For non-app workloads (PTY terminals), convert to raw bytes and send via input stream
+        var rawBytes = KeyToBytes(key, mods);
+        if (rawBytes.Length > 0)
+        {
+            await _terminal.SendInputAsync(rawBytes);
+            return new DiagnosticsResponse
+            {
+                Success = true,
+                Data = $"Sent key {key} with modifiers {mods} ({rawBytes.Length} bytes)"
+            };
+        }
+
+        return new DiagnosticsResponse { Success = false, Error = $"Cannot convert key {key} to raw input for this terminal type" };
+    }
+
+    /// <summary>
+    /// Converts a key + modifiers into raw bytes suitable for writing to a PTY input stream.
+    /// </summary>
+    private static byte[] KeyToBytes(Hex1bKey key, Hex1bModifiers mods)
+    {
+        var hasCtrl = mods.HasFlag(Hex1bModifiers.Control);
+        var hasAlt = mods.HasFlag(Hex1bModifiers.Alt);
+
+        // Single character keys with Ctrl modifier → control codes
+        if (hasCtrl && key >= Hex1bKey.A && key <= Hex1bKey.Z)
+        {
+            byte code = (byte)(key - Hex1bKey.A + 1);
+            return hasAlt ? [(byte)'\x1b', code] : [code];
+        }
+
+        // Named keys → ANSI escape sequences (or raw bytes)
+        string? seq = key switch
+        {
+            Hex1bKey.Enter => "\r",
+            Hex1bKey.Tab => "\t",
+            Hex1bKey.Escape => "\x1b",
+            Hex1bKey.Backspace => "\x7f",
+            Hex1bKey.Delete => "\x1b[3~",
+            Hex1bKey.Insert => "\x1b[2~",
+            Hex1bKey.Home => "\x1b[H",
+            Hex1bKey.End => "\x1b[F",
+            Hex1bKey.PageUp => "\x1b[5~",
+            Hex1bKey.PageDown => "\x1b[6~",
+            Hex1bKey.UpArrow => "\x1b[A",
+            Hex1bKey.DownArrow => "\x1b[B",
+            Hex1bKey.RightArrow => "\x1b[C",
+            Hex1bKey.LeftArrow => "\x1b[D",
+            Hex1bKey.F1 => "\x1bOP",
+            Hex1bKey.F2 => "\x1bOQ",
+            Hex1bKey.F3 => "\x1bOR",
+            Hex1bKey.F4 => "\x1bOS",
+            Hex1bKey.F5 => "\x1b[15~",
+            Hex1bKey.F6 => "\x1b[17~",
+            Hex1bKey.F7 => "\x1b[18~",
+            Hex1bKey.F8 => "\x1b[19~",
+            Hex1bKey.F9 => "\x1b[20~",
+            Hex1bKey.F10 => "\x1b[21~",
+            Hex1bKey.F11 => "\x1b[23~",
+            Hex1bKey.F12 => "\x1b[24~",
+            Hex1bKey.Spacebar => " ",
+            // Single letter keys without Ctrl
+            >= Hex1bKey.A and <= Hex1bKey.Z => ((char)('a' + (key - Hex1bKey.A))).ToString(),
+            _ => null
+        };
+
+        if (seq == null) return [];
+
+        // Wrap with Alt (ESC prefix)
+        if (hasAlt && !seq.StartsWith('\x1b'))
+        {
+            seq = "\x1b" + seq;
+        }
+
+        return Encoding.UTF8.GetBytes(seq);
     }
 
     private DiagnosticsResponse HandleClickRequest(int? x, int? y, string? button)
@@ -391,6 +735,57 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct mouse injection" };
     }
 
+    private DiagnosticsResponse HandleDragRequest(int? x1, int? y1, int? x2, int? y2, string? button)
+    {
+        if (_terminal == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Terminal not initialized" };
+        }
+
+        if (x1 == null || y1 == null || x2 == null || y2 == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Missing coordinates (x, y, x2, y2 required)" };
+        }
+
+        var mouseButton = button?.ToLowerInvariant() switch
+        {
+            "left" or null => MouseButton.Left,
+            "right" => MouseButton.Right,
+            "middle" => MouseButton.Middle,
+            _ => MouseButton.Left
+        };
+
+        if (_terminal.Workload is Hex1bAppWorkloadAdapter workload)
+        {
+            // Mouse down at start
+            workload.SendMouse(mouseButton, MouseAction.Down, x1.Value, y1.Value);
+
+            // Interpolate drag events from start to end
+            int dx = x2.Value - x1.Value;
+            int dy = y2.Value - y1.Value;
+            int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            if (steps == 0) steps = 1;
+
+            for (int i = 1; i <= steps; i++)
+            {
+                int cx = x1.Value + (dx * i / steps);
+                int cy = y1.Value + (dy * i / steps);
+                workload.SendMouse(mouseButton, MouseAction.Drag, cx, cy);
+            }
+
+            // Mouse up at end
+            workload.SendMouse(mouseButton, MouseAction.Up, x2.Value, y2.Value);
+
+            return new DiagnosticsResponse
+            {
+                Success = true,
+                Data = $"Dragged from ({x1}, {y1}) to ({x2}, {y2}) with {mouseButton}"
+            };
+        }
+
+        return new DiagnosticsResponse { Success = false, Error = "Terminal workload does not support direct mouse injection" };
+    }
+
     private DiagnosticsResponse HandleTreeRequest()
     {
         if (_terminal == null)
@@ -415,11 +810,160 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         return new DiagnosticsResponse { Success = false, Error = "No diagnostic tree provider available" };
     }
 
+    private DiagnosticsResponse HandleResizeRequest(int? width, int? height)
+    {
+        if (_terminal == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Terminal not initialized" };
+        }
+
+        var newWidth = width ?? _terminal.Width;
+        var newHeight = height ?? _terminal.Height;
+
+        _terminal.ResizeWithWorkload(newWidth, newHeight);
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Width = _terminal.Width,
+            Height = _terminal.Height
+        };
+    }
+
+    private DiagnosticsResponse HandleShutdownRequest()
+    {
+        // Signal that we should shut down - cancel the listener
+        // The host process watches for this and exits gracefully
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100); // Allow the response to be sent first
+            await _cts.CancelAsync();
+        });
+
+        return new DiagnosticsResponse { Success = true, Data = "Shutting down" };
+    }
+
     private static async Task WriteErrorAsync(StreamWriter writer, string error)
     {
         var response = new DiagnosticsResponse { Success = false, Error = error };
         var json = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
         await writer.WriteLineAsync(json);
+    }
+
+    private string BuildModeReplaySequence()
+    {
+        var sb = new System.Text.StringBuilder();
+        if (_mouseTrackingEnabled)
+        {
+            sb.Append("\x1b[?1000h");
+            sb.Append("\x1b[?1002h");
+            sb.Append("\x1b[?1003h");
+        }
+        if (_sgrMouseModeEnabled)
+        {
+            sb.Append("\x1b[?1006h");
+        }
+        if (_bracketedPasteEnabled)
+        {
+            sb.Append("\x1b[?2004h");
+        }
+        return sb.ToString();
+    }
+
+    private async Task<DiagnosticsResponse> HandleRecordStartRequestAsync(DiagnosticsRequest request)
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FilePath))
+        {
+            return new DiagnosticsResponse { Success = false, Error = "filePath is required" };
+        }
+
+        if (_recorder.IsRecording)
+        {
+            return new DiagnosticsResponse
+            {
+                Success = false,
+                Error = $"Already recording to '{_recorder.FilePath}'. Stop it first."
+            };
+        }
+
+        // Ensure the output directory exists
+        var dir = Path.GetDirectoryName(request.FilePath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var options = new AsciinemaRecorderOptions
+        {
+            AutoFlush = true,
+            Title = request.Title,
+            IdleTimeLimit = request.IdleLimit is > 0 ? (float)request.IdleLimit.Value : null
+        };
+
+        _recorder.StartRecording(request.FilePath, options);
+
+        // Synthesize current terminal state as the first event
+        if (_terminal != null)
+        {
+            using var snapshot = _terminal.CreateSnapshot();
+            var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
+            {
+                IncludeClearScreen = true,
+                IncludeTrailingNewline = true
+            });
+            await _recorder.WriteInitialStateAsync(initialAnsi);
+        }
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Data = $"Recording started: {request.FilePath}",
+            Recording = true,
+            RecordingPath = request.FilePath
+        };
+    }
+
+    private async Task<DiagnosticsResponse> HandleRecordStopRequestAsync()
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        if (!_recorder.IsRecording)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Not currently recording" };
+        }
+
+        var completedPath = await _recorder.StopRecordingAsync();
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Data = completedPath != null ? $"Recording saved: {completedPath}" : "Recording stopped",
+            Recording = false,
+            RecordingPath = completedPath
+        };
+    }
+
+    private DiagnosticsResponse HandleRecordStatusRequest()
+    {
+        if (_recorder == null)
+        {
+            return new DiagnosticsResponse { Success = false, Error = "Recording is not available on this terminal" };
+        }
+
+        return new DiagnosticsResponse
+        {
+            Success = true,
+            Recording = _recorder.IsRecording,
+            RecordingPath = _recorder.FilePath
+        };
     }
 
     /// <inheritdoc />

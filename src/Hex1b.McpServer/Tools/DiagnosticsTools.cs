@@ -21,10 +21,10 @@ public class DiagnosticsTools
     };
 
     /// <summary>
-    /// Lists all Hex1b terminals that have diagnostics enabled via WithMcpDiagnostics().
+    /// Lists all Hex1b terminals that have diagnostics enabled via WithDiagnostics().
     /// Connects to each socket to get info about the running application.
     /// </summary>
-    [McpServerTool, Description("Lists all Hex1b terminals that have diagnostics enabled via WithMcpDiagnostics(). Returns information about each running application including name, process ID, and dimensions. Tip: Use GetHex1bSkill to get comprehensive documentation about all Hex1b MCP tools.")]
+    [McpServerTool, Description("Lists all Hex1b terminals that have diagnostics enabled via WithDiagnostics(). Returns information about each running application including name, process ID, and dimensions. Tip: Use GetHex1bSkill to get comprehensive documentation about all Hex1b MCP tools.")]
     public async Task<GetHex1bStacksResult> GetHex1bStacksWithDiagnosticsEnabled(
         CancellationToken ct = default)
     {
@@ -98,7 +98,7 @@ public class DiagnosticsTools
             {
                 Success = false,
                 ProcessId = processId,
-                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithMcpDiagnostics() enabled."
+                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithDiagnostics() enabled."
             };
         }
 
@@ -200,7 +200,7 @@ public class DiagnosticsTools
             {
                 Success = false,
                 ProcessId = processId,
-                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithMcpDiagnostics() enabled."
+                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithDiagnostics() enabled."
             };
         }
 
@@ -291,7 +291,7 @@ public class DiagnosticsTools
             {
                 Success = false,
                 ProcessId = processId,
-                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithMcpDiagnostics() enabled."
+                Message = $"No diagnostics socket found for process {processId}. Ensure the application is running with WithDiagnostics() enabled."
             };
         }
 

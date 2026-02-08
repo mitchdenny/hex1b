@@ -66,6 +66,7 @@ export default defineConfig({
         {
           text: 'Tools',
           items: [
+            { text: 'CLI Tool', link: '/guide/cli' },
             { text: 'MCP Server', link: '/guide/mcp-server' }
           ]
         }
@@ -75,6 +76,12 @@ export default defineConfig({
           text: 'API Reference',
           items: [
             { text: 'Overview', link: '/reference/' }
+          ]
+        },
+        {
+          text: 'CLI Reference',
+          items: [
+            { text: 'hex1b', link: '/reference/cli' }
           ]
         },
         {

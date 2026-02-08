@@ -421,6 +421,7 @@ onMounted(() => {
 - **[Terminal Emulator](/guide/terminal-emulator)** — Embed a programmable terminal emulator in your .NET applications to host shells and run commands.
 - **[Automation & Testing](/guide/testing)** — Test terminal applications programmatically with input sequencing, pattern matching, and CI/CD integration.
 - **[MCP Server](/guide/mcp-server)** — Expose terminal sessions to AI agents via the Model Context Protocol for LLM-driven automation.
+- **[CLI Tool](/guide/cli)** — Debug, capture, and script terminal sessions from the command line with `dotnet hex1b`.
 
 ## Quick Start
 

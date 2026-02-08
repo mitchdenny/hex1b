@@ -55,6 +55,42 @@ internal sealed class DiagnosticsRequest
     /// </summary>
     [JsonPropertyName("button")]
     public string? Button { get; set; }
+
+    /// <summary>
+    /// For "capture" method, the number of scrollback lines to include (default 0).
+    /// </summary>
+    [JsonPropertyName("scrollbackLines")]
+    public int? ScrollbackLines { get; set; }
+
+    /// <summary>
+    /// For "drag" method, the destination X position (column, 0-based).
+    /// </summary>
+    [JsonPropertyName("x2")]
+    public int? X2 { get; set; }
+
+    /// <summary>
+    /// For "drag" method, the destination Y position (row, 0-based).
+    /// </summary>
+    [JsonPropertyName("y2")]
+    public int? Y2 { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, the output file path (.cast).
+    /// </summary>
+    [JsonPropertyName("filePath")]
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, the recording title.
+    /// </summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// For "record-start" method, max idle time in seconds between frames.
+    /// </summary>
+    [JsonPropertyName("idleLimit")]
+    public double? IdleLimit { get; set; }
 }
 
 /// <summary>
@@ -127,6 +163,24 @@ internal sealed class DiagnosticsResponse
     /// </summary>
     [JsonPropertyName("focusInfo")]
     public DiagnosticFocusInfo? FocusInfo { get; set; }
+    
+    /// <summary>
+    /// For "attach" method: whether this client is the resize leader.
+    /// </summary>
+    [JsonPropertyName("leader")]
+    public bool? Leader { get; set; }
+
+    /// <summary>
+    /// For "info" and "record-status" methods: whether the terminal is currently recording.
+    /// </summary>
+    [JsonPropertyName("recording")]
+    public bool? Recording { get; set; }
+
+    /// <summary>
+    /// For "record-status" and "record-stop" methods: the recording file path.
+    /// </summary>
+    [JsonPropertyName("recordingPath")]
+    public string? RecordingPath { get; set; }
 }
 
 /// <summary>

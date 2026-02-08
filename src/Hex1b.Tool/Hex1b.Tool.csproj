@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- Embed source code for debugging -->
+    <EmbedAllSources>true</EmbedAllSources>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+
+    <!-- .NET Tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>hex1b</ToolCommandName>
+
+    <!-- Package Metadata -->
+    <PackageId>Hex1b.Tool</PackageId>
+    <Title>Hex1b CLI Tool</Title>
+    <Authors>Mitch Denny</Authors>
+    <Copyright>Copyright (c) 2024 Mitch Denny</Copyright>
+    <Description>Command-line tool for managing and interacting with Hex1b terminal applications. Provides terminal hosting, screen capture, input injection, widget tree inspection, and more.</Description>
+    <PackageTags>hex1b;tui;terminal;cli;diagnostics;automation</PackageTags>
+
+    <!-- License -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- Repository -->
+    <RepositoryUrl>https://github.com/mitchdenny/hex1b</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/mitchdenny/hex1b</PackageProjectUrl>
+
+    <!-- Additional Package Settings -->
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hex1b.Tool.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+</Project>

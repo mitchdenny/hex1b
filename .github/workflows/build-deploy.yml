@@ -33,11 +33,15 @@ jobs:
         run: |
           dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
           dotnet restore tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj
+          dotnet restore tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj
+          dotnet restore src/Hex1b.Tool/Hex1b.Tool.csproj
 
       - name: Build
         run: |
           dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
           dotnet build tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj --no-restore
+          dotnet build tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj --no-restore
+          dotnet build src/Hex1b.Tool/Hex1b.Tool.csproj --no-restore
 
       - name: Run tests
         timeout-minutes: 2
@@ -49,6 +53,10 @@ jobs:
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=mcp-test-results.trx" \
+            --results-directory ./TestResults
+          dotnet test tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=tool-test-results.trx" \
             --results-directory ./TestResults
 
       - name: Download and install Aspire CLI
@@ -217,6 +225,12 @@ jobs:
         run: |
           dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
 
+      - name: Build and pack Hex1b.Tool (PR version for GH Packages)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+        run: |
+          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
+
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
@@ -224,6 +238,9 @@ jobs:
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
+          echo ""
+          echo "Hex1b.Tool package contents:"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -286,6 +303,12 @@ jobs:
         run: |
           dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
 
+      - name: Build and pack Hex1b.Tool (release version for NuGet.org)
+        env:
+          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+        run: |
+          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
+
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
@@ -293,6 +316,9 @@ jobs:
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30
+          echo ""
+          echo "Hex1b.Tool package contents:"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -372,6 +398,7 @@ jobs:
           |---------|-------------|
           | Hex1b | Core TUI library |
           | Hex1b.McpServer | MCP server for terminal session management |
+          | Hex1b.Tool | CLI tool for terminal management and diagnostics |
 
           ### Usage Examples
 
@@ -388,6 +415,18 @@ jobs:
           **Hex1b.McpServer - Install as global tool:**
           \`\`\`bash
           dotnet tool install -g Hex1b.McpServer --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          **Hex1b.Tool - Install as global tool:**
+          \`\`\`bash
+          dotnet tool install -g Hex1b.Tool --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          Once installed, the tool is available as:
+          \`\`\`bash
+          hex1b terminal list
+          hex1b capture <id> --format svg
+          hex1b keys <id> --key Enter
           \`\`\`
 
           ### NuGet Configuration
@@ -492,10 +531,10 @@ jobs:
           
           # Check Hex1b.McpServer
           echo "Checking if Hex1b.McpServer version $PACKAGE_VERSION exists on NuGet.org..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+          HTTP_CODE_MCP=$(curl -s -o /dev/null -w "%{http_code}" \
             "https://api.nuget.org/v3-flatcontainer/hex1b.mcpserver/$PACKAGE_VERSION/hex1b.mcpserver.nuspec")
           
-          if [ "$HTTP_CODE" = "200" ]; then
+          if [ "$HTTP_CODE_MCP" = "200" ]; then
             echo "Hex1b.McpServer version $PACKAGE_VERSION already exists on NuGet.org"
             echo "mcpserver-exists=true" >> $GITHUB_OUTPUT
           else
@@ -503,8 +542,21 @@ jobs:
             echo "mcpserver-exists=false" >> $GITHUB_OUTPUT
           fi
           
-          # Set combined flag - only skip if BOTH exist
-          if [ "$HTTP_CODE" = "200" ] && [ "$(curl -s -o /dev/null -w "%{http_code}" "https://api.nuget.org/v3-flatcontainer/hex1b/$PACKAGE_VERSION/hex1b.nuspec")" = "200" ]; then
+          # Check Hex1b.Tool
+          echo "Checking if Hex1b.Tool version $PACKAGE_VERSION exists on NuGet.org..."
+          HTTP_CODE_TOOL=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.nuget.org/v3-flatcontainer/hex1b.tool/$PACKAGE_VERSION/hex1b.tool.nuspec")
+          
+          if [ "$HTTP_CODE_TOOL" = "200" ]; then
+            echo "Hex1b.Tool version $PACKAGE_VERSION already exists on NuGet.org"
+            echo "tool-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Hex1b.Tool version $PACKAGE_VERSION does not exist on NuGet.org"
+            echo "tool-exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set combined flag - only skip if ALL exist
+          if [ "$HTTP_CODE" = "200" ] && [ "$HTTP_CODE_MCP" = "200" ] && [ "$HTTP_CODE_TOOL" = "200" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -541,6 +593,7 @@ jobs:
           |---------|-------------|
           | [Hex1b](https://www.nuget.org/packages/Hex1b/${PACKAGE_VERSION}) | Core TUI library |
           | [Hex1b.McpServer](https://www.nuget.org/packages/Hex1b.McpServer/${PACKAGE_VERSION}) | MCP server for terminal session management |
+          | [Hex1b.Tool](https://www.nuget.org/packages/Hex1b.Tool/${PACKAGE_VERSION}) | CLI tool for terminal management and diagnostics |
 
           ### Installation
 
@@ -552,6 +605,11 @@ jobs:
           **Hex1b.McpServer (global tool):**
           \`\`\`bash
           dotnet tool install -g Hex1b.McpServer --version ${PACKAGE_VERSION}
+          \`\`\`
+
+          **Hex1b.Tool (global tool):**
+          \`\`\`bash
+          dotnet tool install -g Hex1b.Tool --version ${PACKAGE_VERSION}
           \`\`\`
 
           ### Links
