@@ -61,7 +61,7 @@ public sealed record DragBarPanelWidget : Hex1bWidget
     /// <summary>
     /// Optional callback invoked when the panel size changes due to dragging.
     /// </summary>
-    internal Action<int>? SizeChangedHandler { get; init; }
+    internal Func<int, Task>? SizeChangedHandler { get; init; }
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {

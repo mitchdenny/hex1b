@@ -536,7 +536,7 @@ public class DragBarPanelNodeTests
         var node = new DragBarPanelNode
         {
             MinSize = 1,
-            SizeChangedAction = size => reportedSize = size
+            SizeChangedAction = size => { reportedSize = size; return Task.CompletedTask; }
         };
 
         node.CurrentSize = 25;
@@ -551,7 +551,7 @@ public class DragBarPanelNodeTests
         var node = new DragBarPanelNode
         {
             MinSize = 1,
-            SizeChangedAction = _ => callCount++
+            SizeChangedAction = _ => { callCount++; return Task.CompletedTask; }
         };
 
         node.CurrentSize = 20;

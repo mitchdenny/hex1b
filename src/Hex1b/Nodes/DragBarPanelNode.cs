@@ -29,7 +29,7 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
                 _currentSize = clamped;
                 MarkDirty();
                 ContentChild?.MarkDirty();
-                SizeChangedAction?.Invoke(_currentSize);
+                _ = SizeChangedAction?.Invoke(_currentSize);
             }
         }
     }
@@ -57,7 +57,7 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
     /// <summary>
     /// Callback when size changes.
     /// </summary>
-    public Action<int>? SizeChangedAction { get; set; }
+    public Func<int, Task>? SizeChangedAction { get; set; }
     
     /// <summary>
     /// Step size for keyboard resizing.
