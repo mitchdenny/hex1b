@@ -51,7 +51,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 .OnExpanded(() => drawerExpanded = true)
                 .OnCollapsed(() => drawerExpanded = false)
                 .CollapsedContent(d => [d.Text(" 📋 Logs (click to expand)")])
-                .ExpandedContent(d => [d.LoggerPanel(logStore).Fill()])
+                .ExpandedContent(d => [
+                    d.DragBarPanel(
+                        d.LoggerPanel(logStore).Fill()
+                    )
+                    .InitialSize(12)
+                    .MinSize(4)
+                    .MaxSize(30)
+                    .HandleEdge(DragBarEdge.Top)
+                ])
                 .FillHeight(1),
 
             // ── STATUS BAR ──
