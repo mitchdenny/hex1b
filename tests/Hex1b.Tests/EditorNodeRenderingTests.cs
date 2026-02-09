@@ -626,4 +626,76 @@ public class EditorNodeRenderingTests
         workload.Dispose();
         terminal.Dispose();
     }
+
+    [Fact]
+    public async Task Render_ScrollbarAppearsWhenContentOverflows()
+    {
+        // NOTE: Scrollbar appears on the rightmost column when doc has more lines than viewport.
+        var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
+        var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
+
+        node.Render(context);
+
+        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
+        var thumbColor = ToCellColor(theme.Get(ScrollTheme.FocusedThumbColor));
+
+        // Wait for content to render
+        var pattern = new CellPatternSearcher().Find("Line1");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "content visible")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Rightmost column (col 19) should contain scrollbar characters
+        var scrollCol = 19;
+        var hasTrackOrThumb = false;
+        for (var row = 0; row < 5; row++)
+        {
+            var cell = snapshot.GetCell(scrollCol, row);
+            if (cell.Character == trackChar || cell.Character == thumbChar)
+                hasTrackOrThumb = true;
+        }
+
+        Assert.True(hasTrackOrThumb, "Scrollbar should appear in rightmost column");
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_NoScrollbarWhenContentFits()
+    {
+        // NOTE: No scrollbar when all content fits in viewport.
+        var (node, workload, terminal, context, theme) = CreateEditor("Line1\nLine2", 20, 5);
+
+        node.Render(context);
+
+        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
+
+        var pattern = new CellPatternSearcher().Find("Line1");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "content visible")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Rightmost column should NOT contain scrollbar characters
+        var scrollCol = 19;
+        for (var row = 0; row < 5; row++)
+        {
+            var cell = snapshot.GetCell(scrollCol, row);
+            Assert.NotEqual(trackChar, cell.Character);
+            Assert.NotEqual(thumbChar, cell.Character);
+        }
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
 }

@@ -16,6 +16,7 @@ public sealed class EditorNode : Hex1bNode
     private int _viewportLines;
     private int _viewportColumns;
     private bool _scrollSetByWheel; // Prevents EnsureCursorVisible from overriding wheel scroll
+    private bool _showVerticalScrollbar;
     private IHex1bDocument? _subscribedDocument;
 
     /// <summary>The source widget that was reconciled into this node.</summary>
@@ -164,6 +165,11 @@ public sealed class EditorNode : Hex1bNode
         _viewportLines = bounds.Height;
         _viewportColumns = bounds.Width;
 
+        // Determine if vertical scrollbar is needed
+        _showVerticalScrollbar = State != null
+            && ViewRenderer.GetTotalLines(State.Document) > _viewportLines
+            && _viewportColumns > 1;
+
         // Subscribe to document changes if not already
         SubscribeToDocument();
 
@@ -183,7 +189,45 @@ public sealed class EditorNode : Hex1bNode
     {
         if (State == null) return;
 
+        // Render text content using full bounds — scrollbar overwrites last column
         ViewRenderer.Render(context, State, Bounds, _scrollOffset, IsFocused);
+
+        if (_showVerticalScrollbar)
+            RenderVerticalScrollbar(context);
+    }
+
+    private void RenderVerticalScrollbar(Hex1bRenderContext context)
+    {
+        var theme = context.Theme;
+        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
+        var trackColor = theme.Get(ScrollTheme.TrackColor);
+        var thumbColor = IsFocused
+            ? theme.Get(ScrollTheme.FocusedThumbColor)
+            : theme.Get(ScrollTheme.ThumbColor);
+        var bg = theme.Get(EditorTheme.BackgroundColor);
+
+        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var trackHeight = Bounds.Height;
+        var scrollX = Bounds.X + Bounds.Width - 1; // rightmost column
+
+        // Calculate thumb position and size
+        var thumbSize = Math.Max(1, (int)Math.Round((double)trackHeight * trackHeight / totalLines));
+        thumbSize = Math.Min(thumbSize, trackHeight);
+
+        var maxScroll = Math.Max(1, totalLines - _viewportLines + 1);
+        var scrollFraction = (double)(_scrollOffset - 1) / Math.Max(1, maxScroll - 1);
+        var thumbStart = (int)Math.Round(scrollFraction * (trackHeight - thumbSize));
+        thumbStart = Math.Clamp(thumbStart, 0, trackHeight - thumbSize);
+
+        for (var row = 0; row < trackHeight; row++)
+        {
+            var isThumb = row >= thumbStart && row < thumbStart + thumbSize;
+            var ch = isThumb ? thumbChar : trackChar;
+            var color = isThumb ? thumbColor : trackColor;
+            var ansi = $"{color.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{ch}";
+            context.WriteClipped(scrollX, Bounds.Y + row, ansi);
+        }
     }
 
     private void EnsureCursorVisible()
