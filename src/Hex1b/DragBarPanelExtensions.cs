@@ -54,15 +54,4 @@ public static class DragBarPanelExtensions
     public static DragBarPanelWidget HandleEdge(this DragBarPanelWidget widget, DragBarEdge edge)
         => widget with { Edge = edge };
     
-    /// <summary>
-    /// Sets a callback invoked when the panel size changes due to dragging.
-    /// </summary>
-    public static DragBarPanelWidget OnSizeChanged(this DragBarPanelWidget widget, Action<int> handler)
-        => widget with { SizeChangedHandler = size => { handler(size); return Task.CompletedTask; } };
-
-    /// <summary>
-    /// Sets an async callback invoked when the panel size changes due to dragging.
-    /// </summary>
-    public static DragBarPanelWidget OnSizeChanged(this DragBarPanelWidget widget, Func<int, Task> handler)
-        => widget with { SizeChangedHandler = handler };
 }

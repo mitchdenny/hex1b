@@ -19,8 +19,6 @@ public class DragBarBasicExample(ILogger<DragBarBasicExample> logger) : Hex1bExa
     {
         _logger.LogInformation("Creating basic DragBarPanel example");
 
-        var currentSize = 0;
-
         return () =>
         {
             var ctx = new RootContext();
@@ -31,15 +29,12 @@ public class DragBarBasicExample(ILogger<DragBarBasicExample> logger) : Hex1bExa
                         panel.Text(" ───────"),
                         panel.Text(" Drag the handle →"),
                         panel.Text(" or Tab to it and"),
-                        panel.Text(" use ← → arrow keys"),
-                        panel.Text(""),
-                        panel.Text($" Width: {currentSize}")
+                        panel.Text(" use ← → arrow keys")
                     ])
                 )
                 .InitialSize(30)
                 .MinSize(15)
-                .MaxSize(50)
-                .OnSizeChanged(size => currentSize = size),
+                .MaxSize(50),
 
                 h.Border(
                     h.VStack(main => [

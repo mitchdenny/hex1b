@@ -58,11 +58,6 @@ public sealed record DragBarPanelWidget : Hex1bWidget
     /// </summary>
     internal DragBarEdge? Edge { get; init; }
     
-    /// <summary>
-    /// Optional callback invoked when the panel size changes due to dragging.
-    /// </summary>
-    internal Func<int, Task>? SizeChangedHandler { get; init; }
-
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as DragBarPanelNode ?? new DragBarPanelNode();
@@ -73,7 +68,6 @@ public sealed record DragBarPanelWidget : Hex1bWidget
         // Set size constraints
         node.MinSize = MinimumSize ?? 5;
         node.MaxSize = MaximumSize;
-        node.SizeChangedAction = SizeChangedHandler;
         
         // Set initial size only on creation — preserve user resizing after that
         if (context.IsNew && InitialSize.HasValue)

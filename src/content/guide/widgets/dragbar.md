@@ -9,8 +9,6 @@
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var currentSize = 0;
-
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.HStack(h => [
         h.DragBarPanel(
@@ -19,15 +17,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 panel.Text(" ───────"),
                 panel.Text(" Drag the handle →"),
                 panel.Text(" or Tab to it and"),
-                panel.Text(" use ← → arrow keys"),
-                panel.Text(""),
-                panel.Text($" Width: {currentSize}")
+                panel.Text(" use ← → arrow keys")
             ])
         )
         .InitialSize(30)
         .MinSize(15)
-        .MaxSize(50)
-        .OnSizeChanged(size => currentSize = size),
+        .MaxSize(50),
 
         h.Border(
             h.VStack(main => [
@@ -221,28 +216,6 @@ h.DragBarPanel(content)
 ::: warning State Preservation
 After a user resizes the panel, the new size is preserved across re-renders through reconciliation. The `.InitialSize()` value only applies on first creation—subsequent user resizing takes precedence.
 :::
-
-## Size Change Callback
-
-React to size changes with `.OnSizeChanged()`:
-
-```csharp
-var panelWidth = 30;
-
-h.DragBarPanel(content)
-    .InitialSize(30)
-    .OnSizeChanged(size => panelWidth = size)
-```
-
-The callback receives the new size as an `int` after clamping to min/max bounds. Both synchronous and async overloads are available:
-
-```csharp
-// Synchronous
-.OnSizeChanged(size => state.Width = size)
-
-// Asynchronous
-.OnSizeChanged(async size => await SaveLayoutAsync(size))
-```
 
 ## Theming
 

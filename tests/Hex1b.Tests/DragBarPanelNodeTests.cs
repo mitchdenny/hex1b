@@ -527,41 +527,6 @@ public class DragBarPanelNodeTests
 
     #endregion
 
-    #region SizeChanged Callback Tests
-
-    [Fact]
-    public void CurrentSize_Changed_InvokesSizeChangedCallback()
-    {
-        int? reportedSize = null;
-        var node = new DragBarPanelNode
-        {
-            MinSize = 1,
-            SizeChangedAction = size => { reportedSize = size; return Task.CompletedTask; }
-        };
-
-        node.CurrentSize = 25;
-
-        Assert.Equal(25, reportedSize);
-    }
-
-    [Fact]
-    public void CurrentSize_SameValue_DoesNotInvokeCallback()
-    {
-        int callCount = 0;
-        var node = new DragBarPanelNode
-        {
-            MinSize = 1,
-            SizeChangedAction = _ => { callCount++; return Task.CompletedTask; }
-        };
-
-        node.CurrentSize = 20;
-        node.CurrentSize = 20; // Same value again
-
-        Assert.Equal(1, callCount);
-    }
-
-    #endregion
-
     #region Edge Auto-Detection Tests (via Widget Reconciliation)
 
     [Fact]
@@ -709,15 +674,6 @@ public class DragBarPanelNodeTests
         var widget = ctx.DragBarPanel(c => c.Text("Hello")).HandleEdge(DragBarEdge.Left);
 
         Assert.Equal(DragBarEdge.Left, widget.Edge);
-    }
-
-    [Fact]
-    public void OnSizeChanged_SetsHandler()
-    {
-        var ctx = new WidgetContext<VStackWidget>();
-        var widget = ctx.DragBarPanel(c => c.Text("Hello")).OnSizeChanged(_ => { });
-
-        Assert.NotNull(widget.SizeChangedHandler);
     }
 
     #endregion

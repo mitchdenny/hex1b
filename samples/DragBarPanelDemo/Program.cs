@@ -1,8 +1,6 @@
 using Hex1b;
 using Hex1b.Widgets;
 
-var currentSize = 0;
-
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
         ctx.VStack(outer => [
@@ -17,15 +15,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         panel.Text(" ───────────"),
                         panel.Text(" Drag the handle →"),
                         panel.Text(" or focus it and"),
-                        panel.Text(" use ← → arrow keys"),
-                        panel.Text(""),
-                        panel.Text($" Width: {currentSize}")
+                        panel.Text(" use ← → arrow keys")
                     ])
                 )
                 .InitialSize(30)
                 .MinSize(15)
-                .MaxSize(60)
-                .OnSizeChanged(size => currentSize = size),
+                .MaxSize(60),
 
                 // Center content — fills remaining space
                 main.Border(
