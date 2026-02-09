@@ -8,30 +8,34 @@ using Microsoft.Extensions.Logging;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A composite widget that displays log entries from an <see cref="IHex1bLogStore"/> in a table
+/// A widget that displays log entries from an <see cref="IHex1bLogStore"/> in a table
 /// with automatic follow behavior. Follows by default; scrolling up breaks the lock.
 /// Navigating back to the last row re-engages following.
 /// </summary>
 /// <param name="LogStore">The opaque log store handle returned by <c>AddHex1b()</c>.</param>
-public sealed record LoggerPanelWidget(IHex1bLogStore LogStore) : CompositeWidget<LoggerPanelNode>
+public sealed record LoggerPanelWidget(IHex1bLogStore LogStore) : Hex1bWidget
 {
-    /// <inheritdoc />
-    protected override void UpdateNode(LoggerPanelNode node)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
+        var node = existingNode as LoggerPanelNode ?? new LoggerPanelNode();
         node.LogStore = LogStore;
+
+        var contentWidget = BuildContent(node);
+        node.ContentChild = await context.ReconcileChildAsync(node.ContentChild, contentWidget, node);
+
+        return node;
     }
 
-    /// <inheritdoc />
-    protected override Task<Hex1bWidget> BuildContentAsync(LoggerPanelNode node, ReconcileContext context)
+    internal override Type GetExpectedNodeType() => typeof(LoggerPanelNode);
+
+    private Hex1bWidget BuildContent(LoggerPanelNode node)
     {
         var store = (Hex1bLogStore)LogStore;
         var dataSource = store.DataSource;
         var count = store.Buffer.Count;
 
         // Check the table node for user-initiated scroll/navigation.
-        // If the user scrolled away, break the follow lock.
-        // If they navigated back to the end, re-engage it.
-        var tableNode = LoggerPanelNode.FindTableNodePublic(node.ContentChild);
+        var tableNode = LoggerPanelNode.FindTableNode(node.ContentChild);
         if (tableNode != null)
         {
             if (tableNode.UserScrolledAway)
@@ -69,7 +73,7 @@ public sealed record LoggerPanelWidget(IHex1bLogStore LogStore) : CompositeWidge
             node.ScrollTableToEnd();
         }
 
-        return Task.FromResult<Hex1bWidget>(table);
+        return table;
     }
 
     private static string FormatLevel(LogLevel level) => level switch

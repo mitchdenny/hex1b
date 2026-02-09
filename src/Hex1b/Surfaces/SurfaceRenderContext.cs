@@ -289,11 +289,21 @@ public class SurfaceRenderContext : Hex1bRenderContext
     {
         if (child == null) return;
         
-        // If caching is disabled, just render normally
+        // If caching is disabled, render directly into this surface
         if (!CachingEnabled)
         {
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
             child.Render(this);
+            
+            // Post-process: fill transparent backgrounds in the child's region.
+            // In direct rendering mode, child writes overwrite fill cells with
+            // transparent bg. We fix them up after rendering.
+            if (!child.FillBackground.IsDefault && child.Bounds.Width > 0 && child.Bounds.Height > 0)
+            {
+                _surface.FillBackgroundRegion(child.FillBackground,
+                    child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY,
+                    child.Bounds.Width, child.Bounds.Height);
+            }
             return;
         }
         
@@ -359,6 +369,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // Render to the child surface (child uses its normal absolute coordinates,
                 // context translates them via the offset)
                 child.Render(childContext);
+                
+                // Post-process: fill transparent backgrounds with the node's fill color.
+                // This prevents background bleed-through in layered compositing by ensuring
+                // all cells on this surface have an explicit background color.
+                if (!child.FillBackground.IsDefault)
+                {
+                    childSurface.FillBackground(child.FillBackground);
+                }
                 
                 // Cache the result
                 child.CachedSurface = childSurface;

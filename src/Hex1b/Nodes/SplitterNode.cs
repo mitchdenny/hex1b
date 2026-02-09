@@ -207,17 +207,6 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
     }
 
-    /// <summary>
-    /// Computes a contrasting color (black or white) based on the luminance of the input color.
-    /// </summary>
-    private static Hex1bColor GetContrastingColor(Hex1bColor color)
-    {
-        // Calculate relative luminance using the formula for sRGB
-        // https://www.w3.org/TR/WCAG20/#relativeluminancedef
-        var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
-        return luminance > 0.5 ? Hex1bColor.Black : Hex1bColor.White;
-    }
-
     public override Size Measure(Constraints constraints)
     {
         var dividerSize = DividerSize;
@@ -419,23 +408,23 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var dividerColor = theme.Get(SplitterTheme.DividerColor);
         
-        // When focused, invert colors: divider color becomes background, use contrasting foreground
+        // Determine divider color — no inversion, just color changes like window borders
         Hex1bColor dividerFg;
-        Hex1bColor dividerBg;
-        
         if (IsFocused)
         {
-            // Use divider color as background, compute contrasting foreground
-            dividerBg = dividerColor.IsDefault ? Hex1bColor.White : dividerColor;
-            dividerFg = GetContrastingColor(dividerBg);
+            dividerFg = theme.Get(SplitterTheme.FocusedDividerColor);
+        }
+        else if (IsHovered)
+        {
+            dividerFg = theme.Get(SplitterTheme.DividerColor);
         }
         else
         {
-            dividerFg = dividerColor;
-            dividerBg = Hex1bColor.Default;
+            dividerFg = theme.Get(SplitterTheme.DividerColor);
         }
+        
+        var showThumbs = IsHovered || IsFocused;
         
         // Render first pane with clipping
         if (First != null)
@@ -453,11 +442,11 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         
         if (Orientation == SplitterOrientation.Horizontal)
         {
-            RenderHorizontalDivider(context, dividerFg, dividerBg, theme);
+            RenderHorizontalDivider(context, dividerFg, showThumbs, theme);
         }
         else
         {
-            RenderVerticalDivider(context, dividerFg, dividerBg, theme);
+            RenderVerticalDivider(context, dividerFg, showThumbs, theme);
         }
         
         // Render second pane with clipping
@@ -475,99 +464,51 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         }
     }
 
-    private void RenderHorizontalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
+    private void RenderHorizontalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, bool showThumbs, Hex1bTheme theme)
     {
         var dividerChar = theme.Get(SplitterTheme.DividerCharacter);
-        var leftArrow = theme.Get(SplitterTheme.LeftArrowCharacter);
-        var rightArrow = theme.Get(SplitterTheme.RightArrowCharacter);
-        var leftArrowColor = theme.Get(SplitterTheme.LeftArrowColor);
-        var rightArrowColor = theme.Get(SplitterTheme.RightArrowColor);
+        var thumbChar = theme.Get(SplitterTheme.VerticalThumbChar);
+        var thumbColor = theme.Get(SplitterTheme.ThumbColor);
         var dividerX = Bounds.X + FirstSize + 1;
         
-        // Calculate midpoint for arrow indicators (show arrows on 2 rows centered vertically)
-        var midRow = Bounds.Height / 2;
-        var topArrowRow = midRow - 1;
-        var bottomArrowRow = midRow;
+        // Calculate thumb region (centered, ~1/3 of height)
+        var thumbSize = Math.Max(3, Math.Min(Bounds.Height / 3, 7));
+        var thumbStart = (Bounds.Height - thumbSize) / 2;
+        var thumbEnd = thumbStart + thumbSize;
         
         for (int row = 0; row < Bounds.Height; row++)
         {
             context.SetCursorPosition(dividerX, Bounds.Y + row);
             
-            // Determine which character and color to use for this row
-            string charToRender;
-            Hex1bColor fgColor;
-            if (Bounds.Height >= 3 && row == topArrowRow)
-            {
-                charToRender = leftArrow;
-                fgColor = leftArrowColor.IsDefault ? dividerFg : leftArrowColor;
-            }
-            else if (Bounds.Height >= 3 && row == bottomArrowRow)
-            {
-                charToRender = rightArrow;
-                fgColor = rightArrowColor.IsDefault ? dividerFg : rightArrowColor;
-            }
-            else
-            {
-                charToRender = dividerChar;
-                fgColor = dividerFg;
-            }
+            var isThumbRow = showThumbs && row >= thumbStart && row < thumbEnd;
+            var ch = isThumbRow ? thumbChar : dividerChar;
+            var charFg = isThumbRow ? thumbColor : dividerFg;
             
-            if (IsFocused)
-            {
-                context.Write($"{fgColor.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{charToRender}\x1b[0m");
-            }
-            else
-            {
-                context.Write($"{fgColor.ToForegroundAnsi()}{charToRender}\x1b[0m");
-            }
+            context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
         }
     }
 
-    private void RenderVerticalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, Hex1bColor dividerBg, Hex1bTheme theme)
+    private void RenderVerticalDivider(Hex1bRenderContext context, Hex1bColor dividerFg, bool showThumbs, Hex1bTheme theme)
     {
         var dividerChar = theme.Get(SplitterTheme.HorizontalDividerCharacter);
-        var upArrow = theme.Get(SplitterTheme.UpArrowCharacter);
-        var downArrow = theme.Get(SplitterTheme.DownArrowCharacter);
-        var upArrowColor = theme.Get(SplitterTheme.UpArrowColor);
-        var downArrowColor = theme.Get(SplitterTheme.DownArrowColor);
+        var thumbChar = theme.Get(SplitterTheme.HorizontalThumbChar);
+        var thumbColor = theme.Get(SplitterTheme.ThumbColor);
         var dividerY = Bounds.Y + FirstSize;
         
-        // Calculate midpoint for arrow indicators
-        var midCol = Bounds.Width / 2;
-        var leftArrowCol = midCol - 1;
-        var rightArrowCol = midCol;
+        // Calculate thumb region (centered, ~1/3 of width)
+        var thumbSize = Math.Max(3, Math.Min(Bounds.Width / 3, 7));
+        var thumbStart = (Bounds.Width - thumbSize) / 2;
+        var thumbEnd = thumbStart + thumbSize;
         
         context.SetCursorPosition(Bounds.X, dividerY);
         
-        // Render character by character to insert arrows at midpoint
         for (int col = 0; col < Bounds.Width; col++)
         {
-            string charToRender;
-            Hex1bColor fgColor;
-            if (Bounds.Width >= 4 && col == leftArrowCol)
-            {
-                charToRender = upArrow;
-                fgColor = upArrowColor.IsDefault ? dividerFg : upArrowColor;
-            }
-            else if (Bounds.Width >= 4 && col == rightArrowCol)
-            {
-                charToRender = downArrow;
-                fgColor = downArrowColor.IsDefault ? dividerFg : downArrowColor;
-            }
-            else
-            {
-                charToRender = dividerChar;
-                fgColor = dividerFg;
-            }
+            var isThumbCol = showThumbs && col >= thumbStart && col < thumbEnd;
+            var ch = isThumbCol ? thumbChar : dividerChar;
+            var charFg = isThumbCol ? thumbColor : dividerFg;
             
-            if (IsFocused)
-            {
-                context.Write($"{fgColor.ToForegroundAnsi()}{dividerBg.ToBackgroundAnsi()}{charToRender}\x1b[0m");
-            }
-            else
-            {
-                context.Write($"{fgColor.ToForegroundAnsi()}{charToRender}\x1b[0m");
-            }
+            context.Write($"{charFg.ToForegroundAnsi()}{ch}\x1b[0m");
         }
     }
 

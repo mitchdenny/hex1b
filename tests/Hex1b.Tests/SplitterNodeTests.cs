@@ -322,7 +322,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public async Task Render_WhenFocused_InvertsDividerColors()
+    public async Task Render_WhenFocused_ShowsThumbIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -340,14 +340,14 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 50, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.HasBackgroundColor(),
-                TimeSpan.FromSeconds(1), "background color on focused divider")
+            .WaitUntil(s => s.ContainsText("⣿"),
+                TimeSpan.FromSeconds(1), "braille thumb on focused divider")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // When focused, should have background color on divider
-        Assert.True(snapshot.HasBackgroundColor());
+        // When focused, should show braille thumb indicators on divider
+        Assert.True(snapshot.ContainsText("⣿"));
     }
 
     #endregion
@@ -1249,7 +1249,7 @@ public class SplitterNodeTests
     }
 
     [Fact]
-    public async Task Render_Vertical_WhenFocused_InvertsDividerColors()
+    public async Task Render_Vertical_WhenFocused_ShowsThumbIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -1268,14 +1268,14 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.HasBackgroundColor(),
-                TimeSpan.FromSeconds(1), "background color on focused vertical divider")
+            .WaitUntil(s => s.ContainsText("⠶"),
+                TimeSpan.FromSeconds(1), "braille thumb on focused vertical divider")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // When focused, should have background color on divider
-        Assert.True(snapshot.HasBackgroundColor());
+        // When focused, should show braille thumb indicators on divider
+        Assert.True(snapshot.ContainsText("⠶"));
     }
 
     #endregion

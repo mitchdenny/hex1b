@@ -1,4 +1,5 @@
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -112,6 +113,19 @@ public sealed record DrawerWidget : Hex1bWidget
     public DrawerWidget OnCollapsed(Action handler)
         => this with { CollapsedHandler = handler };
 
+    /// <summary>
+    /// Background color for the overlay popup content.
+    /// </summary>
+    internal Hex1bColor OverlayBg { get; init; } = Hex1bColor.Default;
+
+    /// <summary>
+    /// Sets the background color for the overlay popup content.
+    /// This is required when the overlay needs an opaque background to prevent
+    /// content from layers below bleeding through.
+    /// </summary>
+    public DrawerWidget OverlayBackground(Hex1bColor color)
+        => this with { OverlayBg = color };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as DrawerNode ?? new DrawerNode();
@@ -126,6 +140,7 @@ public sealed record DrawerWidget : Hex1bWidget
         node.Mode = Mode;
         node.ExpandedAction = ExpandedHandler;
         node.CollapsedAction = CollapsedHandler;
+        node.OverlayBackgroundColor = OverlayBg;
         
         // Auto-detect direction from layout context and position
         node.Direction = DetectDirection(context);
@@ -150,9 +165,36 @@ public sealed record DrawerWidget : Hex1bWidget
                 node.Content = null;
             }
         }
+        else if (node.IsExpanded && Mode == DrawerMode.Overlay)
+        {
+            // Overlay mode expanded: ensure popup is active
+            node.EnsurePopupOpen();
+            // The popup was pushed to PopupStack during reconciliation, but the
+            // ZStack's widget list was already built. Invalidate so the popup
+            // content renders on the next frame without waiting for input.
+            context.InvalidateCallback?.Invoke();
+            
+            // Show collapsed content underneath (if any), otherwise nothing
+            if (CollapsedContentBuilder != null)
+            {
+                var collapsedWidgets = CollapsedContentBuilder(widgetContext).ToList();
+                var contentWidget = new VStackWidget(collapsedWidgets);
+                node.Content = await context.ReconcileChildAsync(node.Content, contentWidget, node);
+            }
+            else
+            {
+                node.Content = null;
+            }
+        }
         else
         {
-            // Collapsed (or overlay mode where expanded content goes to popup)
+            // Collapsed: dismiss any active popup, show collapsed content
+            node.DismissPopupIfActive();
+            // The popup was removed from PopupStack during reconciliation, but the
+            // ZStack already reconciled with the old popup widgets. Invalidate so the
+            // popup is removed on the next frame without waiting for input.
+            context.InvalidateCallback?.Invoke();
+            
             if (CollapsedContentBuilder != null)
             {
                 var collapsedWidgets = CollapsedContentBuilder(widgetContext).ToList();

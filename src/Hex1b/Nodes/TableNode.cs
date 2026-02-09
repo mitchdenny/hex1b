@@ -38,6 +38,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private Hex1bColor _focusedBorderColor;
     private bool _showFocusIndicator;
     private Hex1bColor _tableFocusedBorderColor;
+    private Hex1bColor _backgroundColor;
+    private string _backgroundAnsi = "";
     
     // INotifyCollectionChanged subscription
     private INotifyCollectionChanged? _subscribedCollection;
@@ -1819,6 +1821,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         _focusedBorderColor = theme.Get(TableTheme.FocusedBorderColor);
         _showFocusIndicator = theme.Get(TableTheme.ShowFocusIndicator);
         _tableFocusedBorderColor = theme.Get(TableTheme.TableFocusedBorderColor);
+        _backgroundColor = theme.Get(TableTheme.BackgroundColor);
+        _backgroundAnsi = !_backgroundColor.IsDefault ? _backgroundColor.ToBackgroundAnsi() : "";
     }
     
     /// <summary>
@@ -1833,6 +1837,14 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Cache theme values at start of render
         CacheThemeValues(context.Theme);
+
+        // Request post-render background fill to prevent bleed-through from layers below.
+        // RenderChild will apply this after rendering, filling all transparent and empty
+        // cells with the background color.
+        if (!_backgroundColor.IsDefault)
+        {
+            FillBackground = _backgroundColor;
+        }
 
         int y = 0;
         int totalWidth = _columnWidths.Sum() + _columnCount + 1;

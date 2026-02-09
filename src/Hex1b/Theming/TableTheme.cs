@@ -94,6 +94,13 @@ public static class TableTheme
     #region Border Colors
     
     /// <summary>
+    /// Background color for the entire table. When set, the table fills its entire area
+    /// with this color before rendering, preventing background bleed-through from layers below.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> BackgroundColor = 
+        new($"{nameof(TableTheme)}.{nameof(BackgroundColor)}", () => Hex1bColor.Default);
+    
+    /// <summary>
     /// Color for table borders.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> BorderColor = 

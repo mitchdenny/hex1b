@@ -67,4 +67,28 @@ public static class SplitterTheme
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> DownArrowColor = 
         new($"{nameof(SplitterTheme)}.{nameof(DownArrowColor)}", () => Hex1bColor.Default);
+    
+    /// <summary>
+    /// Braille thumb character shown on the vertical divider (horizontal splitter) when hovered.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> VerticalThumbChar = 
+        new($"{nameof(SplitterTheme)}.{nameof(VerticalThumbChar)}", () => "⣿");
+    
+    /// <summary>
+    /// Braille thumb character shown on the horizontal divider (vertical splitter) when hovered.
+    /// </summary>
+    public static readonly Hex1bThemeElement<string> HorizontalThumbChar = 
+        new($"{nameof(SplitterTheme)}.{nameof(HorizontalThumbChar)}", () => "⠶");
+    
+    /// <summary>
+    /// Color of the braille thumb indicators shown on hover.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> ThumbColor = 
+        new($"{nameof(SplitterTheme)}.{nameof(ThumbColor)}", () => Hex1bColor.White);
+    
+    /// <summary>
+    /// Color of the divider when the splitter is focused (for keyboard resizing).
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedDividerColor = 
+        new($"{nameof(SplitterTheme)}.{nameof(FocusedDividerColor)}", () => Hex1bColor.White);
 }
