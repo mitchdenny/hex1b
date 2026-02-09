@@ -7,7 +7,7 @@ namespace Hex1b;
 
 /// <summary>
 /// Renders document content as a hex dump with offset, hex bytes, and ASCII columns.
-/// Format per row: "XXXXXXXX  XX XX XX XX XX XX XX XX  XX XX XX XX XX XX XX XX  |................|"
+/// Format per row: "XXXXXXXX  XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX  ................"
 /// </summary>
 public sealed class HexEditorViewRenderer : IEditorViewRenderer
 {
@@ -53,22 +53,22 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
     // ── Responsive layout ────────────────────────────────────────
 
-    // Layout: "XXXXXXXX HH HH ... HH cccc"
-    //  Address (8) + space (1) + hex (3*N - 1) + space (1) + ASCII (N)
-    //  = 4N + 9  (no mid-group gap)
-    //  = 4N + 10 (with 1-char mid-group gap when N >= 4)
+    // Layout: "XXXXXXXX  HH HH ... HH  cccc"
+    //  Address (8) + gap (2) + hex (3*N - 1) + gap (2) + ASCII (N)
+    //  = 4N + 11
     private const int AddressWidth = 8;
+    private const int SeparatorWidth = 2;
 
     /// <summary>
     /// Calculates the responsive layout for a given viewport width.
-    /// Returns (bytesPerRow, hasMidGroup) where bytesPerRow respects
+    /// Returns the number of bytes per row, respecting
     /// <see cref="MinBytesPerRow"/>, <see cref="MaxBytesPerRow"/>,
     /// and <see cref="SnapPoints"/> constraints.
     /// </summary>
-    internal (int bytesPerRow, bool hasMidGroup) CalculateLayout(int availableWidth)
+    internal int CalculateLayout(int availableWidth)
     {
-        // Without mid-group gap: width = 4N + 9  → N = (width - 9) / 4
-        var maxFit = Math.Max(1, (availableWidth - 9) / 4);
+        // width = 4N + 11  → N = (width - 11) / 4
+        var maxFit = Math.Max(1, (availableWidth - 11) / 4);
 
         // Clamp to configured min/max
         var bytesPerRow = Math.Clamp(maxFit, MinBytesPerRow, MaxBytesPerRow);
@@ -87,17 +87,13 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             bytesPerRow = Math.Max(snapped, MinBytesPerRow);
         }
 
-        // Mid-group gap is shown when >= 4 bytes AND the wider row still fits
-        var hasMidGroup = bytesPerRow >= 4
-            && RowWidthForLayout(bytesPerRow, hasMidGroup: true) <= availableWidth;
-
-        return (bytesPerRow, hasMidGroup);
+        return bytesPerRow;
     }
 
-    private static int RowWidthForLayout(int bytesPerRow, bool hasMidGroup)
+    private static int RowWidthForLayout(int bytesPerRow)
     {
-        var hexWidth = bytesPerRow * 3 - 1 + (hasMidGroup ? 1 : 0);
-        return AddressWidth + 1 + hexWidth + 1 + bytesPerRow;
+        var hexWidth = bytesPerRow * 3 - 1;
+        return AddressWidth + SeparatorWidth + hexWidth + SeparatorWidth + bytesPerRow;
     }
 
     // ── Hex input handling ───────────────────────────────────────
@@ -193,7 +189,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     /// <inheritdoc />
     public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null)
     {
-        var (bytesPerRow, hasMidGroup) = CalculateLayout(viewport.Width);
+        var bytesPerRow = CalculateLayout(viewport.Width);
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
         var bg = theme.Get(EditorTheme.BackgroundColor);
@@ -229,8 +225,6 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             }
         }
 
-        var half = bytesPerRow / 2;
-
         for (var viewLine = 0; viewLine < viewport.Height; viewLine++)
         {
             var row = (scrollOffset - 1) + viewLine;
@@ -248,17 +242,16 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             var rowByteEnd = Math.Min(rowByteStart + bytesPerRow, totalBytes);
             var rowByteCount = rowByteEnd - rowByteStart;
 
-            var rowWidth = RowWidthForLayout(bytesPerRow, hasMidGroup);
+            var rowWidth = RowWidthForLayout(bytesPerRow);
             var sb = new System.Text.StringBuilder(rowWidth + 10);
 
             // Address
             sb.Append(rowByteStart.ToString("X8"));
-            sb.Append(' ');
+            sb.Append("  ");
 
             // Hex bytes
             for (int i = 0; i < bytesPerRow; i++)
             {
-                if (hasMidGroup && i == half) sb.Append(' ');
 
                 var byteIdx = rowByteStart + i;
                 if (i < rowByteCount && pendingNibble.HasValue && byteIdx == cursorByteOffset)
@@ -278,7 +271,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                     sb.Append(' ');
             }
 
-            sb.Append(' ');
+            sb.Append("  ");
 
             // ASCII
             for (int i = 0; i < bytesPerRow; i++)
@@ -309,8 +302,8 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                 for (int i = 0; i < rowByteCount; i++)
                 {
                     var byteIdx = rowByteStart + i;
-                    var hexCol = GetHexColumnForByte(i, bytesPerRow, hasMidGroup);
-                    var asciiCol = GetAsciiColumnForByte(i, bytesPerRow, hasMidGroup);
+                    var hexCol = GetHexColumnForByte(i, bytesPerRow);
+                    var asciiCol = GetAsciiColumnForByte(i, bytesPerRow);
 
                     if (byteIdx == cursorByteOffset)
                     {
@@ -344,7 +337,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         if (localX < 0 || localY < 0 || localX >= viewportColumns || localY >= viewportLines)
             return null;
 
-        var (bytesPerRow, hasMidGroup) = CalculateLayout(viewportColumns);
+        var bytesPerRow = CalculateLayout(viewportColumns);
         var doc = state.Document;
         var docText = doc.GetText();
         var docBytes = System.Text.Encoding.UTF8.GetBytes(docText);
@@ -354,7 +347,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         if (rowByteStart >= docBytes.Length)
             return new DocumentOffset(doc.Length);
 
-        var byteIndex = GetByteIndexFromColumn(localX, bytesPerRow, hasMidGroup);
+        var byteIndex = GetByteIndexFromColumn(localX, bytesPerRow);
         if (byteIndex < 0) byteIndex = 0;
 
         var targetByte = Math.Min(rowByteStart + byteIndex, docBytes.Length);
@@ -372,7 +365,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     /// <inheritdoc />
     public int GetTotalLines(IHex1bDocument document, int viewportColumns)
     {
-        var (bytesPerRow, _) = CalculateLayout(viewportColumns);
+        var bytesPerRow = CalculateLayout(viewportColumns);
         var docText = document.GetText();
         var byteCount = System.Text.Encoding.UTF8.GetByteCount(docText);
         return Math.Max(1, (byteCount + bytesPerRow - 1) / bytesPerRow);
@@ -382,39 +375,31 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     public int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines, int viewportColumns)
     {
         // Responsive: row width always fits within viewport, so no horizontal scrollbar needed
-        var (bytesPerRow, hasMidGroup) = CalculateLayout(viewportColumns);
-        return RowWidthForLayout(bytesPerRow, hasMidGroup);
+        var bytesPerRow = CalculateLayout(viewportColumns);
+        return RowWidthForLayout(bytesPerRow);
     }
 
     // ── Column mapping helpers ─────────────────────────────────
 
-    private static int GetHexColumnForByte(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    private static int GetHexColumnForByte(int byteInRow, int bytesPerRow)
     {
-        // After "XXXXXXXX " (9 chars), hex bytes start
-        var hexStart = AddressWidth + 1;
-        var half = bytesPerRow / 2;
-
-        if (!hasMidGroup)
-            return hexStart + byteInRow * 3;
-
-        return byteInRow < half
-            ? hexStart + byteInRow * 3
-            : hexStart + half * 3 + 1 + (byteInRow - half) * 3;
+        // After "XXXXXXXX  " (10 chars), hex bytes start
+        var hexStart = AddressWidth + SeparatorWidth;
+        return hexStart + byteInRow * 3;
     }
 
-    private static int GetAsciiColumnForByte(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    private static int GetAsciiColumnForByte(int byteInRow, int bytesPerRow)
     {
-        var hexWidth = bytesPerRow * 3 - 1 + (hasMidGroup ? 1 : 0);
-        var asciiStart = AddressWidth + 1 + hexWidth + 1;
+        var hexWidth = bytesPerRow * 3 - 1;
+        var asciiStart = AddressWidth + SeparatorWidth + hexWidth + SeparatorWidth;
         return asciiStart + byteInRow;
     }
 
-    private static int GetByteIndexFromColumn(int column, int bytesPerRow, bool hasMidGroup)
+    private static int GetByteIndexFromColumn(int column, int bytesPerRow)
     {
-        var hexStart = AddressWidth + 1;
-        var half = bytesPerRow / 2;
-        var hexWidth = bytesPerRow * 3 - 1 + (hasMidGroup ? 1 : 0);
-        var asciiStart = hexStart + hexWidth + 1;
+        var hexStart = AddressWidth + SeparatorWidth;
+        var hexWidth = bytesPerRow * 3 - 1;
+        var asciiStart = hexStart + hexWidth + SeparatorWidth;
 
         // In ASCII region
         if (column >= asciiStart && column < asciiStart + bytesPerRow)
@@ -422,21 +407,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
         // In hex region
         if (column >= hexStart && column < hexStart + hexWidth)
-        {
-            if (!hasMidGroup)
-                return Math.Min((column - hexStart) / 3, bytesPerRow - 1);
-
-            var firstGroupEnd = hexStart + half * 3 - 1;
-            if (column <= firstGroupEnd)
-                return Math.Min((column - hexStart) / 3, half - 1);
-
-            var secondGroupStart = hexStart + half * 3 + 1;
-            if (column >= secondGroupStart)
-                return Math.Min(half + (column - secondGroupStart) / 3, bytesPerRow - 1);
-
-            // In the mid-group gap — snap to nearest
-            return half;
-        }
+            return Math.Min((column - hexStart) / 3, bytesPerRow - 1);
 
         return 0;
     }

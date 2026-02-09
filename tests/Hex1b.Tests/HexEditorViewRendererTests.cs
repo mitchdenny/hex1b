@@ -11,33 +11,30 @@ public class HexEditorViewRendererTests
     // ═══════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData(13, 1, false)]   // Absolute minimum: "XXXXXXXX XX ."
-    [InlineData(14, 1, false)]   // 1 byte still (4*2+9=17 needed for 2)
-    [InlineData(17, 2, false)]   // 4*2+9=17 → 2 bytes
-    [InlineData(20, 2, false)]   // 4*3+9=21 needed for 3
-    [InlineData(21, 3, false)]   // 4*3+9=21 → 3 bytes
-    [InlineData(25, 4, false)]   // 4*4+9=25 fits exactly; 4*4+10=26 doesn't → no mid-group
-    [InlineData(26, 4, true)]    // 4*4+10=26 → 4 bytes with mid-group
-    [InlineData(42, 8, true)]    // 4*8+10=42 → 8 bytes with mid-group
-    [InlineData(73, 16, false)]  // 4*16+9=73 fits exactly; 4*16+10=74 doesn't → no mid-group
-    [InlineData(74, 16, true)]   // 4*16+10=74 → 16 bytes with mid-group
-    [InlineData(200, 16, true)]  // Capped at MaxBytesPerRow=16
-    public void CalculateLayout_Fluid_ReturnsExpectedBytesPerRow(int width, int expectedBytes, bool expectedMidGroup)
+    [InlineData(15, 1)]   // Absolute minimum: "XXXXXXXX  XX  ." = 4*1+11=15
+    [InlineData(16, 1)]   // 1 byte still (4*2+11=19 needed for 2)
+    [InlineData(19, 2)]   // 4*2+11=19 → 2 bytes
+    [InlineData(22, 2)]   // 4*3+11=23 needed for 3
+    [InlineData(23, 3)]   // 4*3+11=23 → 3 bytes
+    [InlineData(27, 4)]   // 4*4+11=27 → 4 bytes
+    [InlineData(43, 8)]   // 4*8+11=43 → 8 bytes
+    [InlineData(75, 16)]  // 4*16+11=75 → 16 bytes
+    [InlineData(200, 16)] // Capped at MaxBytesPerRow=16
+    public void CalculateLayout_Fluid_ReturnsExpectedBytesPerRow(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer(); // fluid (no snap points)
-        var (bytesPerRow, hasMidGroup) = renderer.CalculateLayout(width);
+        var bytesPerRow = renderer.CalculateLayout(width);
 
         Assert.Equal(expectedBytes, bytesPerRow);
-        Assert.Equal(expectedMidGroup, hasMidGroup);
     }
 
     [Theory]
-    [InlineData(10)]  // Below absolute minimum
-    [InlineData(12)]
+    [InlineData(10)]  // Below absolute minimum (15)
+    [InlineData(14)]
     public void CalculateLayout_BelowMinimum_Returns1Byte(int width)
     {
         var renderer = new HexEditorViewRenderer();
-        var (bytesPerRow, _) = renderer.CalculateLayout(width);
+        var bytesPerRow = renderer.CalculateLayout(width);
         Assert.Equal(1, bytesPerRow);
     }
 
@@ -46,30 +43,30 @@ public class HexEditorViewRendererTests
     // ═══════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData(13, 1)]   // Only 1 fits → snap to 1
-    [InlineData(41, 8)]   // (41-9)/4=8 → snap to 8
-    [InlineData(42, 8)]   // 4*8+10=42 → 8 bytes with mid-group, snap to 8
-    [InlineData(73, 16)]  // (73-9)/4=16 → snap to 16
-    [InlineData(74, 16)]  // 4*16+10=74 → snap to 16
+    [InlineData(15, 1)]   // Only 1 fits → snap to 1
+    [InlineData(43, 8)]   // (43-11)/4=8 → snap to 8
+    [InlineData(44, 8)]   // still 8
+    [InlineData(75, 16)]  // (75-11)/4=16 → snap to 16
+    [InlineData(76, 16)]  // still 16
     public void CalculateLayout_StandardSnaps_SnapsCorrectly(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = HexEditorViewRenderer.StandardSnaps };
-        var (bytesPerRow, _) = renderer.CalculateLayout(width);
+        var bytesPerRow = renderer.CalculateLayout(width);
         Assert.Equal(expectedBytes, bytesPerRow);
     }
 
     [Theory]
-    [InlineData(13, 1)]
-    [InlineData(17, 2)]
-    [InlineData(21, 2)]   // 3 bytes fit but snap down to 2
-    [InlineData(26, 4)]
-    [InlineData(41, 8)]   // (41-9)/4=8 → snap to 8
-    [InlineData(42, 8)]
-    [InlineData(74, 16)]
+    [InlineData(15, 1)]
+    [InlineData(19, 2)]
+    [InlineData(23, 2)]   // 3 bytes fit but snap down to 2
+    [InlineData(27, 4)]   // 4*4+11=27
+    [InlineData(43, 8)]   // (43-11)/4=8 → snap to 8
+    [InlineData(44, 8)]
+    [InlineData(75, 16)]
     public void CalculateLayout_PowerOfTwoSnaps_SnapsCorrectly(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = HexEditorViewRenderer.PowerOfTwoSnaps };
-        var (bytesPerRow, _) = renderer.CalculateLayout(width);
+        var bytesPerRow = renderer.CalculateLayout(width);
         Assert.Equal(expectedBytes, bytesPerRow);
     }
 
@@ -77,16 +74,16 @@ public class HexEditorViewRendererTests
     public void CalculateLayout_CustomSnaps_RoundsToNearest()
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = [1, 6, 12], MaxBytesPerRow = 12 };
-        // width 33 → (33-9)/4=6 → snap to 6
-        var (bytes6, _) = renderer.CalculateLayout(33);
+        // width 35 → (35-11)/4=6 → snap to 6
+        var bytes6 = renderer.CalculateLayout(35);
         Assert.Equal(6, bytes6);
 
-        // width 40 → (40-9)/4=7 → snap to 6 (7 > 6, 7 < 12)
-        var (bytes6b, _) = renderer.CalculateLayout(40);
+        // width 42 → (42-11)/4=7 → snap to 6 (7 > 6, 7 < 12)
+        var bytes6b = renderer.CalculateLayout(42);
         Assert.Equal(6, bytes6b);
 
-        // width 58 → (58-9)/4=12 → snap to 12; RowWidth(12,true)=8+1+(12*3-1+1)+1+12=59>58→no gap
-        var (bytes12, _) = renderer.CalculateLayout(57);
+        // width 59 → (59-11)/4=12 → snap to 12
+        var bytes12 = renderer.CalculateLayout(59);
         Assert.Equal(12, bytes12);
     }
 
@@ -99,7 +96,7 @@ public class HexEditorViewRendererTests
     {
         var renderer = new HexEditorViewRenderer { MinBytesPerRow = 4 };
         // Even at narrow widths where only 2 fit, clamp to 4
-        var (bytesPerRow, _) = renderer.CalculateLayout(17); // 2 bytes would fit
+        var bytesPerRow = renderer.CalculateLayout(19); // 2 bytes would fit
         Assert.Equal(4, bytesPerRow);
     }
 
@@ -107,7 +104,7 @@ public class HexEditorViewRendererTests
     public void CalculateLayout_MaxBytesPerRow_CapsAtMax()
     {
         var renderer = new HexEditorViewRenderer { MaxBytesPerRow = 8 };
-        var (bytesPerRow, _) = renderer.CalculateLayout(200); // 16+ would fit
+        var bytesPerRow = renderer.CalculateLayout(200); // 16+ would fit
         Assert.Equal(8, bytesPerRow);
     }
 
@@ -121,11 +118,11 @@ public class HexEditorViewRendererTests
             SnapPoints = [1, 4, 8, 16]
         };
         // Very narrow: snap to 1, but min is 2 → 2
-        var (narrow, _) = renderer.CalculateLayout(13);
+        var narrow = renderer.CalculateLayout(15);
         Assert.Equal(2, narrow);
 
         // Wide: would snap to 16, but max is 8 → 8
-        var (wide, _) = renderer.CalculateLayout(200);
+        var wide = renderer.CalculateLayout(200);
         Assert.Equal(8, wide);
     }
 
@@ -140,16 +137,16 @@ public class HexEditorViewRendererTests
         var doc = new Hex1bDocument("0123456789ABCDEF0123456789ABCDEF");
         var renderer = new HexEditorViewRenderer();
 
-        // At width 74 → 16 bytes/row → ceil(32/16)=2 rows
-        var wideLines = renderer.GetTotalLines(doc, 74);
+        // At width 75 → 16 bytes/row → ceil(32/16)=2 rows
+        var wideLines = renderer.GetTotalLines(doc, 75);
         Assert.Equal(2, wideLines);
 
-        // At width 42 → 8 bytes/row → ceil(32/8)=4 rows
-        var narrowLines = renderer.GetTotalLines(doc, 42);
+        // At width 43 → 8 bytes/row → ceil(32/8)=4 rows
+        var narrowLines = renderer.GetTotalLines(doc, 43);
         Assert.Equal(4, narrowLines);
 
-        // At width 13 → 1 byte/row → 32 rows
-        var tinyLines = renderer.GetTotalLines(doc, 13);
+        // At width 15 → 1 byte/row → 32 rows
+        var tinyLines = renderer.GetTotalLines(doc, 15);
         Assert.Equal(32, tinyLines);
     }
 
@@ -158,7 +155,7 @@ public class HexEditorViewRendererTests
     // ═══════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData(13)]
+    [InlineData(15)]
     [InlineData(30)]
     [InlineData(50)]
     [InlineData(80)]
@@ -179,27 +176,10 @@ public class HexEditorViewRendererTests
     [Fact]
     public void CalculateLayout_MinimumWidth_ProducesExpectedFormat()
     {
-        // "XXXXXXXX XX ." = 13 chars for 1 byte
+        // "XXXXXXXX  XX  ." = 15 chars for 1 byte
         var renderer = new HexEditorViewRenderer();
-        var (bytesPerRow, hasMidGroup) = renderer.CalculateLayout(13);
+        var bytesPerRow = renderer.CalculateLayout(15);
         Assert.Equal(1, bytesPerRow);
-        Assert.False(hasMidGroup);
-    }
-
-    [Fact]
-    public void CalculateLayout_MidGroupAppears_AtFourOrMoreBytes()
-    {
-        var renderer = new HexEditorViewRenderer();
-
-        // 3 bytes: no mid-group
-        var (bytes3, midGroup3) = renderer.CalculateLayout(21);
-        Assert.Equal(3, bytes3);
-        Assert.False(midGroup3);
-
-        // 4 bytes with gap: width = 4*4+10 = 26
-        var (bytes4, midGroup4) = renderer.CalculateLayout(26);
-        Assert.Equal(4, bytes4);
-        Assert.True(midGroup4);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -211,9 +191,9 @@ public class HexEditorViewRendererTests
     {
         var renderer = new HexEditorViewRenderer();
         int prev = 0;
-        for (int w = 13; w <= 80; w++)
+        for (int w = 15; w <= 80; w++)
         {
-            var (bytes, _) = renderer.CalculateLayout(w);
+            var bytes = renderer.CalculateLayout(w);
             Assert.True(bytes >= prev, $"Bytes should not decrease: was {prev} at width {w - 1}, got {bytes} at width {w}");
             prev = bytes;
         }
@@ -224,9 +204,9 @@ public class HexEditorViewRendererTests
     {
         var snaps = new[] { 1, 4, 8, 16 };
         var renderer = new HexEditorViewRenderer { SnapPoints = snaps };
-        for (int w = 13; w <= 120; w++)
+        for (int w = 15; w <= 120; w++)
         {
-            var (bytes, _) = renderer.CalculateLayout(w);
+            var bytes = renderer.CalculateLayout(w);
             Assert.Contains(bytes, snaps);
         }
     }
@@ -502,13 +482,13 @@ public class HexEditorViewRendererTests
         var doc = new Hex1bDocument("©B");
         var state = new EditorState(doc);
 
-        // In a wide viewport, byte 0 (C2) is at hex col 9, byte 1 (A9) is at hex col 12
-        // byte 2 (42) is at hex col 15
-        var (_, hasMidGroup) = renderer.CalculateLayout(80);
+        // In a wide viewport, byte 0 (C2) is at hex col 10, byte 1 (A9) is at hex col 13
+        // byte 2 (42) is at hex col 16
+        var bytesPerRow = renderer.CalculateLayout(80);
 
         // Hit test at byte index 1 (A9) — this is the continuation byte of ©
         // The hex column for byte 1 in a 16-byte-per-row layout
-        var hexCol1 = 9 + 3; // hex start (9) + 1 byte * 3 chars = col 12
+        var hexCol1 = 10 + 3; // hex start (10) + 1 byte * 3 chars = col 13
         var result = renderer.HitTest(hexCol1, 0, state, 80, 10, 1, 0);
 
         Assert.NotNull(result);
@@ -593,29 +573,26 @@ public class HexEditorViewRendererTests
     // ═══════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData(13, false)]   // 1 byte, no mid-group
-    [InlineData(17, false)]   // 2 bytes, no mid-group
-    [InlineData(26, true)]    // 4 bytes, mid-group
-    [InlineData(42, true)]    // 8 bytes, mid-group
-    [InlineData(74, true)]    // 16 bytes, mid-group
-    public void ColumnMapping_AsciiColumnMatchesRenderedPosition(int viewportWidth, bool expectMidGroup)
+    [InlineData(15)]    // 1 byte
+    [InlineData(19)]    // 2 bytes
+    [InlineData(27)]    // 4 bytes
+    [InlineData(43)]    // 8 bytes
+    [InlineData(75)]    // 16 bytes
+    public void ColumnMapping_AsciiColumnMatchesRenderedPosition(int viewportWidth)
     {
         var renderer = new HexEditorViewRenderer();
-        var (bytesPerRow, hasMidGroup) = renderer.CalculateLayout(viewportWidth);
-        Assert.Equal(expectMidGroup, hasMidGroup);
+        var bytesPerRow = renderer.CalculateLayout(viewportWidth);
 
         // Build the line the same way Render does
-        var half = bytesPerRow / 2;
         var sb = new System.Text.StringBuilder();
         sb.Append("00000000"); // address
-        sb.Append(' ');
+        sb.Append("  ");
         for (int i = 0; i < bytesPerRow; i++)
         {
-            if (hasMidGroup && i == half) sb.Append(' ');
             sb.Append(i.ToString("X2"));
             if (i < bytesPerRow - 1) sb.Append(' ');
         }
-        sb.Append(' ');
+        sb.Append("  ");
         for (int i = 0; i < bytesPerRow; i++)
             sb.Append((char)('a' + i));
 
@@ -624,8 +601,8 @@ public class HexEditorViewRendererTests
         // Verify every byte's hex and ASCII columns match rendered positions
         for (int i = 0; i < bytesPerRow; i++)
         {
-            var hexCol = GetHexColumnForByteReflection(i, bytesPerRow, hasMidGroup);
-            var asciiCol = GetAsciiColumnForByteReflection(i, bytesPerRow, hasMidGroup);
+            var hexCol = GetHexColumnForByteReflection(i);
+            var asciiCol = GetAsciiColumnForByteReflection(i, bytesPerRow);
 
             // Hex cell should contain the byte value
             var expectedHex = i.ToString("X2");
@@ -641,21 +618,16 @@ public class HexEditorViewRendererTests
     }
 
     // Mirror of the private static methods for testing
-    private static int GetHexColumnForByteReflection(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    private static int GetHexColumnForByteReflection(int byteInRow)
     {
-        const int hexStart = 9; // AddressWidth(8) + 1
-        var half = bytesPerRow / 2;
-        if (!hasMidGroup)
-            return hexStart + byteInRow * 3;
-        return byteInRow < half
-            ? hexStart + byteInRow * 3
-            : hexStart + half * 3 + 1 + (byteInRow - half) * 3;
+        const int hexStart = 10; // AddressWidth(8) + SeparatorWidth(2)
+        return hexStart + byteInRow * 3;
     }
 
-    private static int GetAsciiColumnForByteReflection(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    private static int GetAsciiColumnForByteReflection(int byteInRow, int bytesPerRow)
     {
-        var hexWidth = bytesPerRow * 3 - 1 + (hasMidGroup ? 1 : 0);
-        var asciiStart = 9 + hexWidth + 1;
+        var hexWidth = bytesPerRow * 3 - 1;
+        var asciiStart = 10 + hexWidth + 2;
         return asciiStart + byteInRow;
     }
 }
