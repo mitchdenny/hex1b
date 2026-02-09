@@ -71,7 +71,7 @@ hex1b terminal start --attach -- vim
 
 | Command | Description |
 |---------|-------------|
-| `capture screenshot` | Capture terminal screen (text, ANSI, SVG, or HTML) |
+| `capture screenshot` | Capture terminal screen (text, ANSI, SVG, HTML, or PNG) |
 | `capture recording start` | Begin recording a session to a `.cast` file |
 | `capture recording stop` | Stop an active recording |
 | `capture recording status` | Check recording status |
@@ -147,6 +147,7 @@ hex1b keys abc --text "admin"
 hex1b keys abc --key Enter
 hex1b assert abc --text-present "Dashboard"
 hex1b capture screenshot abc --format svg --output result.svg
+hex1b capture screenshot abc --format png --output result.png
 hex1b terminal stop abc
 ```
 

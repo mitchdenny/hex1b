@@ -460,7 +460,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         return request.Method?.ToLowerInvariant() switch
         {
             "info" => HandleInfoRequest(),
-            "capture" => HandleCaptureRequest(request.Format, request.ScrollbackLines),
+            "capture" => HandleCaptureRequest(request.Format, request.ScrollbackLines, request.FontFamily),
             "input" => await HandleInputRequestAsync(request.Data),
             "key" => await HandleKeyRequestAsync(request.Key, request.Modifiers),
             "click" => HandleClickRequest(request.X, request.Y, request.Button),
@@ -490,7 +490,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         };
     }
 
-    private DiagnosticsResponse HandleCaptureRequest(string? format, int? scrollbackLines)
+    private DiagnosticsResponse HandleCaptureRequest(string? format, int? scrollbackLines, string? fontFamily)
     {
         if (_terminal == null)
         {
@@ -507,11 +507,21 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         string data;
         if (format == "svg")
         {
-            data = snapshot.ToSvg(new TerminalSvgOptions { ShowCellGrid = false });
+            var svgOptions = new TerminalSvgOptions { ShowCellGrid = false };
+            if (fontFamily != null)
+            {
+                svgOptions.FontFamily = $"'{fontFamily}'";
+            }
+            data = snapshot.ToSvg(svgOptions);
         }
         else if (format == "html")
         {
-            data = snapshot.ToHtml(new TerminalSvgOptions { ShowCellGrid = false });
+            var htmlOptions = new TerminalSvgOptions { ShowCellGrid = false };
+            if (fontFamily != null)
+            {
+                htmlOptions.FontFamily = $"'{fontFamily}'";
+            }
+            data = snapshot.ToHtml(htmlOptions);
         }
         else if (format == "ansi")
         {

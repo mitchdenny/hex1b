@@ -14,8 +14,8 @@ internal sealed class CaptureScreenshotCommand : BaseCommand
     private readonly TerminalClient _client;
 
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
-    private static readonly Option<string> s_formatOption = new("--format") { DefaultValueFactory = _ => "text", Description = "Output format: text, ansi, svg, or html" };
-    private static readonly Option<string?> s_outputOption = new("--output") { Description = "Save to file instead of stdout" };
+    private static readonly Option<string> s_formatOption = new("--format") { DefaultValueFactory = _ => "text", Description = "Output format: text, ansi, svg, html, or png" };
+    private static readonly Option<string?> s_outputOption = new("--output") { Description = "Save to file instead of stdout (required for png)" };
     private static readonly Option<string?> s_waitOption = new("--wait") { Description = "Wait for text to appear before capturing" };
     private static readonly Option<int> s_timeoutOption = new("--timeout") { DefaultValueFactory = _ => 30, Description = "Timeout in seconds for --wait" };
     private static readonly Option<int> s_scrollbackOption = new("--scrollback") { DefaultValueFactory = _ => 0, Description = "Number of scrollback lines to include" };
@@ -47,6 +47,14 @@ internal sealed class CaptureScreenshotCommand : BaseCommand
         var timeout = parseResult.GetValue(s_timeoutOption);
         var scrollback = parseResult.GetValue(s_scrollbackOption);
 
+        var isPng = string.Equals(format, "png", StringComparison.OrdinalIgnoreCase);
+
+        if (isPng && outputPath == null)
+        {
+            Formatter.WriteError("--output is required when using --format png");
+            return 1;
+        }
+
         var resolved = _resolver.Resolve(id);
         if (!resolved.Success)
         {
@@ -74,8 +82,15 @@ internal sealed class CaptureScreenshotCommand : BaseCommand
             }
         }
 
+        // For PNG, capture as SVG first then convert
+        var captureFormat = isPng ? "svg" : format;
+
+        // When rendering to PNG, resolve a monospace font that's actually installed
+        // and pass it through the protocol so the SVG is generated correctly.
+        string? fontFamily = isPng ? ResolveMonospaceFont() : null;
+
         var response = await _client.SendAsync(resolved.SocketPath!,
-            new DiagnosticsRequest { Method = "capture", Format = format, ScrollbackLines = scrollback > 0 ? scrollback : null }, cancellationToken);
+            new DiagnosticsRequest { Method = "capture", Format = captureFormat, ScrollbackLines = scrollback > 0 ? scrollback : null, FontFamily = fontFamily }, cancellationToken);
 
         if (!response.Success)
         {
@@ -83,7 +98,13 @@ internal sealed class CaptureScreenshotCommand : BaseCommand
             return 1;
         }
 
-        if (outputPath != null)
+        if (isPng)
+        {
+            var pngBytes = ConvertSvgToPng(response.Data!);
+            await File.WriteAllBytesAsync(outputPath!, pngBytes, cancellationToken);
+            Formatter.WriteLine($"Saved to {outputPath}");
+        }
+        else if (outputPath != null)
         {
             await File.WriteAllTextAsync(outputPath, response.Data, cancellationToken);
             Formatter.WriteLine($"Saved to {outputPath}");
@@ -105,4 +126,8 @@ internal sealed class CaptureScreenshotCommand : BaseCommand
 
         return 0;
     }
+
+    private static byte[] ConvertSvgToPng(string svgContent) => SvgToPngConverter.Convert(svgContent);
+
+    private static string? ResolveMonospaceFont() => SvgToPngConverter.EmbeddedFontFamily;
 }
