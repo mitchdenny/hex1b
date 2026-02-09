@@ -187,7 +187,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     if (openDocs.TryGetValue(path, out var entry))
                     {
                         items.Add(ib.Spacer());
-                        var pos = entry.doc.OffsetToPosition(entry.textState.Cursor.Position);
+                        var cursorOffset = Math.Min(entry.textState.Cursor.Position.Value, entry.doc.Length);
+                        var pos = entry.doc.OffsetToPosition(new DocumentOffset(cursorOffset));
                         items.Add(ib.Section($"Ln {pos.Line}, Col {pos.Column}"));
                         items.Add(ib.Separator());
                         items.Add(ib.Section($"{entry.doc.Length} chars"));
