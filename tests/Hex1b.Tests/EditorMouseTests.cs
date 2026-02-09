@@ -320,6 +320,61 @@ public class EditorMouseTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
 
+    // ── Ctrl+Click multi-cursor ───────────────────────────────────
+
+    [Fact]
+    public async Task CtrlClick_AddsSecondCursor()
+    {
+        // NOTE: Ctrl+Click adds a cursor at the clicked position.
+        // This may evolve if we add cursor merging on overlap.
+        var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello world\nLine two");
+        using var _ = workload; using var __ = terminal; using var ___ = app;
+
+        var cursorBg = ToCellColor(theme.Get(EditorTheme.CursorBackgroundColor));
+
+        await WaitForEditor(terminal);
+
+        // Ctrl+Click at column 5, row 1 to add a second cursor
+        var secondCursor = new CellPatternSearcher()
+            .Find(ctx => ctx.X == 5 && ctx.Y == 1
+                      && ColorEquals(ctx.Cell.Background, cursorBg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().ClickAt(5, 1)
+            .WaitUntil(s => s.SearchPattern(secondCursor).HasMatches,
+                TimeSpan.FromSeconds(2), "second cursor at (5,1)")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Original cursor should still be at (0,0)
+        var snapshot = terminal.CreateSnapshot();
+        var firstCursorCell = snapshot.GetCell(0, 0);
+        Assert.True(ColorEquals(firstCursorCell.Background, cursorBg),
+            "First cursor should still be visible at (0,0)");
+
+        // State should have 2 cursors
+        Assert.Equal(2, state.Cursors.Count);
+    }
+
+    [Fact]
+    public void AddCursorAtPosition_AddsAndTogglesCursor()
+    {
+        // Unit test for the toggle behavior
+        var doc = new Hex1bDocument("Hello world");
+        var state = new EditorState(doc);
+
+        // Initial: one cursor at offset 0
+        Assert.Single(state.Cursors);
+
+        // Add cursor at offset 5
+        state.AddCursorAtPosition(new DocumentOffset(5));
+        Assert.Equal(2, state.Cursors.Count);
+
+        // Add cursor at offset 5 again — should remove it (toggle)
+        state.AddCursorAtPosition(new DocumentOffset(5));
+        Assert.Single(state.Cursors);
+    }
+
     // ── Unit tests for EditorState methods ───────────────────────
 
     [Fact]

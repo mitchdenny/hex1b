@@ -67,6 +67,18 @@ public class CursorSet : IReadOnlyList<DocumentCursor>
     }
 
     /// <summary>
+    /// Remove the cursor at the given index. Cannot remove the last cursor.
+    /// </summary>
+    public void RemoveAt(int index)
+    {
+        if (_cursors.Count <= 1) return;
+        if (index < 0 || index >= _cursors.Count) return;
+        _cursors.RemoveAt(index);
+        if (_primaryIndex >= _cursors.Count)
+            _primaryIndex = _cursors.Count - 1;
+    }
+
+    /// <summary>
     /// Merge overlapping or adjacent cursors, preserving the primary where possible.
     /// Call this after operations that may cause cursor positions to overlap.
     /// </summary>
