@@ -126,6 +126,7 @@ public sealed class EditorNode : Hex1bNode
 
         // ── Mouse ────────────────────────────────────────────────
         bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Click to position cursor");
+        bindings.Mouse(MouseButton.Left).Ctrl().Action(HandleCtrlClick, "Ctrl+Click to add/remove cursor");
         bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Double-click to select word");
         bindings.Mouse(MouseButton.Left).TripleClick().Action(HandleMouseTripleClick, "Triple-click to select line");
         bindings.Drag(MouseButton.Left).Action(HandleDragStart, "Drag to select text");
@@ -585,6 +586,15 @@ public sealed class EditorNode : Hex1bNode
         if (offset == null || State == null) return;
 
         State.SetCursorPosition(offset.Value);
+        AfterMove();
+    }
+
+    private void HandleCtrlClick(InputBindingActionContext ctx)
+    {
+        var offset = HitTest(ctx.MouseX, ctx.MouseY);
+        if (offset == null || State == null) return;
+
+        State.AddCursorAtPosition(offset.Value);
         AfterMove();
     }
 

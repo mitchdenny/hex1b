@@ -506,6 +506,30 @@ public class EditorState
     // ── Multi-cursor ─────────────────────────────────────────────
 
     /// <summary>
+    /// Add a new cursor at the given document offset (Ctrl+Click).
+    /// If a cursor already exists at this position, it is removed instead (toggle behavior).
+    /// </summary>
+    public void AddCursorAtPosition(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+
+        // Toggle: if a cursor already exists at this offset, remove it (unless it's the last one)
+        if (Cursors.Count > 1)
+        {
+            for (int i = 0; i < Cursors.Count; i++)
+            {
+                if (Cursors[i].Position == clamped)
+                {
+                    Cursors.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
+        Cursors.Add(clamped);
+    }
+
+    /// <summary>
     /// Add a cursor at the next occurrence of the currently selected text (Ctrl+D).
     /// If no text is selected, selects the word under the primary cursor.
     /// </summary>
