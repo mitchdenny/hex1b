@@ -452,6 +452,57 @@ public class EditorState
         Cursor.Position = new DocumentOffset(Document.Length);
     }
 
+    /// <summary>
+    /// Set the primary cursor to a specific document offset, clearing selection and collapsing multi-cursors.
+    /// Used for mouse click positioning.
+    /// </summary>
+    public void SetCursorPosition(DocumentOffset offset, bool extend = false)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+
+        if (!extend)
+        {
+            Cursors.CollapseToSingle();
+            Cursor.SelectionAnchor = null;
+        }
+        else if (Cursor.SelectionAnchor == null)
+        {
+            Cursor.SelectionAnchor = Cursor.Position;
+        }
+
+        Cursor.Position = clamped;
+    }
+
+    /// <summary>
+    /// Select the word at the given document offset. Collapses to single cursor.
+    /// Used for mouse double-click.
+    /// </summary>
+    public void SelectWordAt(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+        Cursors.CollapseToSingle();
+        Cursor.Position = clamped;
+        Cursor.SelectionAnchor = null;
+        SelectWordUnderCursor(Cursor);
+    }
+
+    /// <summary>
+    /// Select the entire line at the given document offset. Collapses to single cursor.
+    /// Used for mouse triple-click.
+    /// </summary>
+    public void SelectLineAt(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+        Cursors.CollapseToSingle();
+        var pos = Document.OffsetToPosition(clamped);
+        var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+        var lineEnd = pos.Line < Document.LineCount
+            ? Document.PositionToOffset(new DocumentPosition(pos.Line + 1, 1))
+            : new DocumentOffset(Document.Length);
+        Cursor.SelectionAnchor = lineStart;
+        Cursor.Position = lineEnd;
+    }
+
     // ── Multi-cursor ─────────────────────────────────────────────
 
     /// <summary>

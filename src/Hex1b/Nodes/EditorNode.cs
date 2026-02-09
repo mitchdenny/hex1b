@@ -15,6 +15,7 @@ public sealed class EditorNode : Hex1bNode
     private int _scrollOffset; // First visible line (1-based)
     private int _viewportLines;
     private int _viewportColumns;
+    private bool _scrollSetByWheel; // Prevents EnsureCursorVisible from overriding wheel scroll
     private IHex1bDocument? _subscribedDocument;
 
     /// <summary>The source widget that was reconciled into this node.</summary>
@@ -122,6 +123,14 @@ public sealed class EditorNode : Hex1bNode
 
         // ── Character input ─────────────────────────────────────
         bindings.AnyCharacter().Action(InsertTextAsync, "Type text");
+
+        // ── Mouse ────────────────────────────────────────────────
+        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Click to position cursor");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Double-click to select word");
+        bindings.Mouse(MouseButton.Left).TripleClick().Action(HandleMouseTripleClick, "Triple-click to select line");
+        bindings.Drag(MouseButton.Left).Action(HandleDragStart, "Drag to select text");
+        bindings.Mouse(MouseButton.ScrollUp).Action(ScrollUp, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Action(ScrollDown, "Scroll down");
     }
 
     private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, Action handler, string description)
@@ -156,7 +165,13 @@ public sealed class EditorNode : Hex1bNode
         // Initialize scroll if needed
         if (_scrollOffset == 0) _scrollOffset = 1;
 
-        EnsureCursorVisible();
+        // Only auto-adjust scroll for cursor visibility when the scroll wasn't
+        // explicitly changed by mouse wheel (which should allow free scrolling)
+        if (!_scrollSetByWheel)
+        {
+            EnsureCursorVisible();
+        }
+        _scrollSetByWheel = false;
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -532,5 +547,107 @@ public sealed class EditorNode : Hex1bNode
     {
         EnsureCursorVisible();
         MarkDirty();
+    }
+
+    // --- Mouse handlers ---
+
+    /// <summary>
+    /// Converts absolute screen coordinates to a document offset.
+    /// Returns null if the coordinates are outside the editor bounds.
+    /// </summary>
+    private DocumentOffset? HitTest(int absX, int absY)
+    {
+        if (State == null) return null;
+
+        var localX = absX - Bounds.X;
+        var localY = absY - Bounds.Y;
+
+        if (localX < 0 || localY < 0 || localX >= _viewportColumns || localY >= _viewportLines)
+            return null;
+
+        var docLine = _scrollOffset + localY;
+        var doc = State.Document;
+
+        if (docLine > doc.LineCount)
+        {
+            // Clicked in the ~ area — clamp to end of document
+            return new DocumentOffset(doc.Length);
+        }
+
+        var lineText = doc.GetLineText(docLine);
+        var column = Math.Min(localX + 1, lineText.Length + 1); // 1-based, clamp to line end + 1
+        return doc.PositionToOffset(new Documents.DocumentPosition(docLine, column));
+    }
+
+    private void HandleMouseClick(InputBindingActionContext ctx)
+    {
+        var offset = HitTest(ctx.MouseX, ctx.MouseY);
+        if (offset == null || State == null) return;
+
+        State.SetCursorPosition(offset.Value);
+        AfterMove();
+    }
+
+    private void HandleMouseDoubleClick(InputBindingActionContext ctx)
+    {
+        var offset = HitTest(ctx.MouseX, ctx.MouseY);
+        if (offset == null || State == null) return;
+
+        State.SelectWordAt(offset.Value);
+        AfterMove();
+    }
+
+    private void HandleMouseTripleClick(InputBindingActionContext ctx)
+    {
+        var offset = HitTest(ctx.MouseX, ctx.MouseY);
+        if (offset == null || State == null) return;
+
+        State.SelectLineAt(offset.Value);
+        AfterMove();
+    }
+
+    private DragHandler HandleDragStart(int startX, int startY)
+    {
+        var startOffset = HitTest(startX, startY);
+        if (startOffset == null || State == null)
+            return new DragHandler();
+
+        // Set cursor at drag start (clears selection)
+        State.SetCursorPosition(startOffset.Value);
+        MarkDirty();
+
+        return new DragHandler(
+            onMove: (ctx, deltaX, deltaY) =>
+            {
+                var currentOffset = HitTest(startX + deltaX, startY + deltaY);
+                if (currentOffset == null || State == null) return;
+
+                // Extend selection from the drag start point
+                State.SetCursorPosition(currentOffset.Value, extend: true);
+                EnsureCursorVisible();
+                MarkDirty();
+            });
+    }
+
+    private void ScrollUp()
+    {
+        if (_scrollOffset > 1)
+        {
+            _scrollOffset = Math.Max(1, _scrollOffset - 3);
+            _scrollSetByWheel = true;
+            MarkDirty();
+        }
+    }
+
+    private void ScrollDown()
+    {
+        if (State == null) return;
+        var maxScroll = Math.Max(1, State.Document.LineCount - _viewportLines + 1);
+        if (_scrollOffset < maxScroll)
+        {
+            _scrollOffset = Math.Min(maxScroll, _scrollOffset + 3);
+            _scrollSetByWheel = true;
+            MarkDirty();
+        }
     }
 }
