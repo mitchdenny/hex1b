@@ -117,11 +117,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ]),
             ]).ContentHeight(),
 
-            // ── Main content: tree + editor tabs ──
-            v.HStack(h =>
-            [
-                // Left panel: file tree
-                h.VStack(left =>
+            // ── Main content: tree + editor tabs (with splitter) ──
+            v.HSplitter(
+                left =>
                 [
                     left.Text(" EXPLORER").ContentHeight(),
                     left.Tree(tc => BuildTreeItems(tc, rootEntry.Children))
@@ -134,10 +132,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             }
                         })
                         .FillHeight(),
-                ]).FixedWidth(28),
-
-                // Right panel: tab panel with editors
-                h.VStack(right =>
+                ],
+                right =>
                 {
                     if (openTabs.Count == 0)
                     {
@@ -161,13 +157,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
                                 tabs.Add(tc.Tab(tabName, content =>
                                 [
-                                    content.HStack(editors =>
-                                    [
-                                        editors.Editor(textState).FillWidth().FillHeight(),
-                                        editors.Editor(hexState)
+                                    content.HSplitter(
+                                        edLeft => [edLeft.Editor(textState).FillWidth().FillHeight()],
+                                        edRight => [edRight.Editor(hexState)
                                             .WithViewRenderer(HexEditorViewRenderer.Instance)
-                                            .FillWidth().FillHeight(),
-                                    ]).FillWidth().FillHeight()
+                                            .FillWidth().FillHeight()]).FillWidth().FillHeight()
                                 ]));
                             }
                             return tabs;
@@ -175,8 +169,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .OnSelectionChanged(e => { activeTab = e.SelectedIndex; })
                         .FillWidth().FillHeight()
                     ];
-                }).FillWidth().FillHeight(),
-            ]).FillWidth().FillHeight(),
+                },
+                leftWidth: 28).FillWidth().FillHeight(),
 
             // ── Info bar (status bar) ──
             v.InfoBar(ib =>
