@@ -17,6 +17,12 @@ public static class EditorTheme
     public static readonly Hex1bThemeElement<Hex1bColor> CursorBackgroundColor =
         new($"{nameof(EditorTheme)}.{nameof(CursorBackgroundColor)}", () => Hex1bColor.White);
 
+    public static readonly Hex1bThemeElement<Hex1bColor> SelectionForegroundColor =
+        new($"{nameof(EditorTheme)}.{nameof(SelectionForegroundColor)}", () => Hex1bColor.White);
+
+    public static readonly Hex1bThemeElement<Hex1bColor> SelectionBackgroundColor =
+        new($"{nameof(EditorTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.FromRgb(0, 80, 140));
+
     public static readonly Hex1bThemeElement<Hex1bColor> LineNumberForegroundColor =
         new($"{nameof(EditorTheme)}.{nameof(LineNumberForegroundColor)}", () => Hex1bColor.DarkGray);
 }
