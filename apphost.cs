@@ -95,6 +95,10 @@ var loggerPanelDemo = builder.AddCSharpApp("logger-panel-demo", "./samples/Logge
 var dragBarPanelDemo = builder.AddCSharpApp("dragbar-panel-demo", "./samples/DragBarPanelDemo")
     .ExcludeFromManifest();
 
+// WidgetLayer demo
+var widgetLayerDemo = builder.AddCSharpApp("widget-layer-demo", "./samples/WidgetLayerDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
