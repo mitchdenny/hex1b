@@ -28,6 +28,18 @@ public class EditorState
         Document = document ?? throw new ArgumentNullException(nameof(document));
     }
 
+    /// <summary>
+    /// Clamps all cursor and selection positions to the current document length.
+    /// Call after an external edit (from another editor sharing the same document)
+    /// that may have shrunk the document.
+    /// </summary>
+    public void ClampAllCursors()
+    {
+        var len = Document.Length;
+        foreach (var cursor in Cursors)
+            cursor.Clamp(len);
+    }
+
     // ── Editing ──────────────────────────────────────────────────
 
     /// <summary>Insert text at all cursor positions, replacing any selections.</summary>

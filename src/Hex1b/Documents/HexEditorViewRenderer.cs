@@ -136,17 +136,50 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
     private void CommitByte(EditorState state, byte byteValue, int viewportColumns)
     {
-        var newChar = (char)byteValue;
-        var pos = state.Cursor.Position;
+        var docText = state.Document.GetText();
+        var docBytes = System.Text.Encoding.UTF8.GetBytes(docText);
+        var map = new Utf8ByteMap(docText);
 
-        if (pos.Value < state.Document.Length)
+        // The cursor's character position maps to a byte offset
+        var cursorCharPos = state.Cursor.Position.Value;
+        var cursorByteOffset = cursorCharPos < map.CharCount
+            ? map.CharToByteStart(cursorCharPos)
+            : map.TotalBytes;
+
+        if (cursorByteOffset >= docBytes.Length)
         {
-            // Select the current character, then replace via InsertText
-            state.Cursor.SelectionAnchor = pos;
-            state.Cursor.Position = new DocumentOffset(pos.Value + 1);
+            // Append at end
+            state.InsertText(((char)byteValue).ToString());
+            return;
         }
 
-        state.InsertText(newChar.ToString());
+        // Find which character owns this byte
+        var (charIndex, _) = map.ByteToChar(cursorByteOffset);
+        var charByteStart = map.CharToByteStart(charIndex);
+        var charByteLen = map.CharByteLength(charIndex);
+
+        // Replace the target byte within the character's UTF-8 sequence
+        var modifiedBytes = docBytes.AsSpan(charByteStart, charByteLen).ToArray();
+        modifiedBytes[cursorByteOffset - charByteStart] = byteValue;
+
+        // Decode the modified bytes (may produce U+FFFD for invalid UTF-8)
+        var newText = System.Text.Encoding.UTF8.GetString(modifiedBytes);
+
+        // Replace the character in the document
+        state.Cursor.SelectionAnchor = new DocumentOffset(charIndex);
+        state.Cursor.Position = new DocumentOffset(charIndex + 1);
+        state.InsertText(newText);
+
+        // Position cursor after the replaced byte (advance by 1 byte in the new text)
+        // The replaced char may now be multiple chars; advance to the byte after the edited one
+        var newMap = new Utf8ByteMap(state.Document.GetText());
+        var targetByteAfterEdit = cursorByteOffset + 1;
+        if (targetByteAfterEdit < newMap.TotalBytes)
+        {
+            var (nextCharIdx, _) = newMap.ByteToChar(targetByteAfterEdit);
+            state.Cursor.Position = new DocumentOffset(nextCharIdx);
+            state.Cursor.ClearSelection();
+        }
     }
 
     private static int HexCharToNibble(char c) => c switch
@@ -326,15 +359,14 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
         var targetByte = Math.Min(rowByteStart + byteIndex, docBytes.Length);
 
-        var charOffset = 0;
-        var byteCount = 0;
-        while (charOffset < docText.Length && byteCount < targetByte)
-        {
-            byteCount += System.Text.Encoding.UTF8.GetByteCount(docText.AsSpan(charOffset, 1));
-            charOffset++;
-        }
+        if (targetByte >= docBytes.Length)
+            return new DocumentOffset(doc.Length);
 
-        return new DocumentOffset(Math.Min(charOffset, doc.Length));
+        // Use Utf8ByteMap for correct byte→char mapping (handles continuation bytes)
+        var map = new Utf8ByteMap(docText);
+        var (charIndex, _) = map.ByteToChar(targetByte);
+
+        return new DocumentOffset(Math.Min(charIndex, doc.Length));
     }
 
     /// <inheritdoc />
