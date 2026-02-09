@@ -265,11 +265,14 @@ public sealed class EditorNode : Hex1bNode
         // Mark selected columns
         if (hasSelection)
         {
+            // Clamp selection to actual text length, not padded display width
+            var lineTextLength = lineEndOffset - lineStartOffset;
+
             foreach (var (start, end) in selectionRanges)
             {
                 // Convert document offsets to 0-based column indices on this line
                 var selStartCol = Math.Max(0, start - lineStartOffset);
-                var selEndCol = Math.Min(displayWidth, end - lineStartOffset);
+                var selEndCol = Math.Min(lineTextLength, end - lineStartOffset);
 
                 for (var col = selStartCol; col < selEndCol; col++)
                 {
