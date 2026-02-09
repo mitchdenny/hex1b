@@ -574,4 +574,18 @@ public class EditorSelectionRenderingTests
                 $"Cell ({col},0) should be selected or cursor, got bg={cell.Background}");
         }
     }
+
+    [Fact]
+    public void SelectAll_ThenDelete_DoesNotCrashOnArrange()
+    {
+        // Regression: after Ctrl+A then Delete, cursor position could exceed document length,
+        // causing ArgumentOutOfRangeException in EnsureCursorVisible during Arrange.
+        var (node, _, _, _, _) = CreateEditor("Hello World\nSecond line", 20, 5);
+
+        node.State.SelectAll();
+        node.State.DeleteForward();
+
+        // Re-arrange must not throw
+        node.Arrange(new Rect(0, 0, 20, 5));
+    }
 }
