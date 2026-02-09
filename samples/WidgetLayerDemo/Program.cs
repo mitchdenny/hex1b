@@ -10,6 +10,7 @@ using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using WidgetLayerDemo;
 
 // ---------- State ----------
 
@@ -22,10 +23,12 @@ var effects = new[]
     "Scanlines",
     "Vignette",
     "Invert",
+    "Braille Melt",
 };
-int selectedEffect = 0;
+int selectedEffect = 7; // Default to Braille Melt
 bool animating = false;
 var animationStart = Stopwatch.GetTimestamp();
+var meltEffect = new MeltEffect();
 
 // ---------- Table data ----------
 
@@ -56,7 +59,8 @@ double GetProgress()
 {
     if (!animating) return 0;
     var elapsed = Stopwatch.GetElapsedTime(animationStart).TotalSeconds;
-    return Math.Clamp(elapsed / 2.0, 0, 1); // 2-second animation
+    var duration = selectedEffect == 7 ? 3.0 : 2.0; // Melt gets more time
+    return Math.Clamp(elapsed / duration, 0, 1);
 }
 
 Hex1bWidget BuildTableContent<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
@@ -128,15 +132,38 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
         return ctx.VStack(v =>
         {
-            var contentWidget = animating
-                ? (Hex1bWidget)v.Surface(s =>
+            Hex1bWidget contentWidget;
+            if (animating)
+            {
+                if (selectedEffect == 7) // Braille Melt
+                {
+                    contentWidget = v.Surface(s =>
+                    {
+                        meltEffect.Update(progress, s.Width, s.Height);
+                        return
+                        [
+                            s.WidgetLayer(BuildTableContent(v)),
+                            s.Layer(meltEffect.GetCompute(progress))
+                        ];
+                    })
+                    .RedrawAfter(16)
+                    .FillHeight();
+                }
+                else
+                {
+                    contentWidget = v.Surface(s =>
                     [
                         s.WidgetLayer(BuildTableContent(v)),
                         s.Layer(BuildEffect(selectedEffect, progress, s.Width, s.Height))
                     ])
-                    .RedrawAfter(16) // ~60fps during animation
-                    .FillHeight()
-                : BuildTableContent(v).FillHeight();
+                    .RedrawAfter(16)
+                    .FillHeight();
+                }
+            }
+            else
+            {
+                contentWidget = BuildTableContent(v).FillHeight();
+            }
 
             return [
                 contentWidget,
@@ -150,7 +177,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         {
                             animating = !animating;
                             if (animating)
+                            {
                                 animationStart = Stopwatch.GetTimestamp();
+                                meltEffect.Reset();
+                            }
                         }),
                     h.Text($"  Progress: {progress:P0}")
                 ]).Height(SizeHint.Content),
