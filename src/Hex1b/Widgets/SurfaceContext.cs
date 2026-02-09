@@ -116,6 +116,24 @@ public class SurfaceLayerContext
     /// <returns>A computed layer covering the entire surface.</returns>
     public SurfaceLayer Layer(CellCompute compute)
         => new ComputedSurfaceLayer(compute);
+
+    /// <summary>
+    /// Creates a layer whose content is rendered from a widget tree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The widget tree is reconciled, measured, arranged, and rendered to a surface
+    /// each frame. This is useful for transition effects where you want a non-interactive
+    /// snapshot of a UI (e.g., a splash screen blending into the real application).
+    /// </para>
+    /// <para>
+    /// Widget layers are non-interactive — they do not receive input events.
+    /// </para>
+    /// </remarks>
+    /// <param name="widget">The widget tree to render as a layer.</param>
+    /// <returns>A layer that renders the widget tree.</returns>
+    public SurfaceLayer WidgetLayer(Hex1bWidget widget)
+        => new WidgetSurfaceLayer(widget);
     
     /// <summary>
     /// Creates a tracked sixel from a pixel buffer.

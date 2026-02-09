@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
@@ -24,6 +25,7 @@ namespace Hex1b.Nodes;
 public sealed class SurfaceNode : Hex1bNode
 {
     private Size _measuredSize;
+    private Dictionary<int, WidgetLayerState>? _widgetLayerStates;
 
     /// <summary>
     /// Gets or sets the layer builder function that creates the layers to composite.
@@ -116,7 +118,7 @@ public sealed class SurfaceNode : Hex1bNode
         var effectiveMetrics = cellMetrics ?? CellMetrics.Default;
         var composite = new CompositeSurface(width, height, effectiveMetrics);
 
-        foreach (var layer in layers)
+        foreach (var (layer, layerIndex) in layers.Select((l, i) => (l, i)))
         {
             switch (layer)
             {
@@ -135,11 +137,24 @@ public sealed class SurfaceNode : Hex1bNode
                     // Computed layers span the entire surface
                     composite.AddComputedLayer(width, height, computed.Compute);
                     break;
+
+                case WidgetSurfaceLayer widgetLayer:
+                    var widgetSurface = RenderWidgetLayer(layerIndex, widgetLayer.Widget, width, height, context.Theme, effectiveMetrics);
+                    composite.AddLayer(widgetSurface);
+                    break;
             }
         }
 
         // Flatten and render to the context
         var flattened = composite.Flatten();
+
+        // Clean up stale widget layer states (layers that were removed)
+        if (_widgetLayerStates is not null)
+        {
+            var staleKeys = _widgetLayerStates.Keys.Where(k => k >= layers.Count).ToList();
+            foreach (var key in staleKeys)
+                _widgetLayerStates.Remove(key);
+        }
 
         // Optimized path: if rendering to a SurfaceRenderContext, composite directly
         if (context is SurfaceRenderContext surfaceContext)
@@ -220,5 +235,51 @@ public sealed class SurfaceNode : Hex1bNode
     public override IEnumerable<Hex1bNode> GetChildren()
     {
         yield break;
+    }
+
+    /// <summary>
+    /// Renders a widget tree to a surface for use as a compositing layer.
+    /// Maintains reconciled node state across frames for stability.
+    /// </summary>
+    private Surface RenderWidgetLayer(int layerIndex, Hex1bWidget widget, int width, int height, Hex1bTheme theme, CellMetrics cellMetrics)
+    {
+        _widgetLayerStates ??= new Dictionary<int, WidgetLayerState>();
+
+        if (!_widgetLayerStates.TryGetValue(layerIndex, out var state))
+        {
+            state = new WidgetLayerState();
+            _widgetLayerStates[layerIndex] = state;
+        }
+
+        return state.RenderToSurface(widget, width, height, theme, cellMetrics);
+    }
+
+    /// <summary>
+    /// Manages the reconciled node tree for a single widget layer,
+    /// preserving state across re-renders.
+    /// </summary>
+    private sealed class WidgetLayerState
+    {
+        private readonly FocusRing _focusRing = new();
+        private Hex1bNode? _rootNode;
+
+        public Surface RenderToSurface(Hex1bWidget widget, int width, int height, Hex1bTheme theme, CellMetrics cellMetrics)
+        {
+            // Reconcile: create or update the node tree
+            var reconcileContext = ReconcileContext.CreateRoot(focusRing: _focusRing);
+            _rootNode = widget.ReconcileAsync(_rootNode, reconcileContext).GetAwaiter().GetResult();
+
+            // Measure and arrange within the layer bounds
+            var constraints = Constraints.Tight(new Size(width, height));
+            _rootNode.Measure(constraints);
+            _rootNode.Arrange(Rect.FromSize(new Size(width, height)));
+
+            // Render to a surface
+            var surface = new Surface(width, height, cellMetrics);
+            var renderContext = new SurfaceRenderContext(surface, theme);
+            _rootNode.Render(renderContext);
+
+            return surface;
+        }
     }
 }
