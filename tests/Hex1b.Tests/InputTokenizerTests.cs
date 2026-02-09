@@ -100,6 +100,41 @@ public class InputTokenizerTests
         Assert.Equal(original, serialized);
     }
     
+    // === Modified Home/End (xterm format: CSI 1;m H / CSI 1;m F) ===
+    
+    [Theory]
+    [InlineData(2, Hex1bModifiers.Shift)]             // Shift+End
+    [InlineData(5, Hex1bModifiers.Control)]            // Ctrl+End
+    [InlineData(6, Hex1bModifiers.Control | Hex1bModifiers.Shift)] // Ctrl+Shift+End
+    public void ModifiedEnd_XtermFormat_ParsesAsSpecialKeyWithModifiers(int modCode, Hex1bModifiers expectedMod)
+    {
+        // CSI 1;{mod}F = End with modifiers (xterm)
+        var input = $"\x1b[1;{modCode}F";
+        var tokens = AnsiTokenizer.Tokenize(input);
+        
+        var keyToken = Assert.Single(tokens);
+        var token = Assert.IsType<SpecialKeyToken>(keyToken);
+        Assert.Equal(4, token.KeyCode); // 4 = End
+        Assert.Equal(modCode, token.Modifiers);
+        
+        // Verify the modifier decodes correctly through SpecialKeyTokenToKeyEvent
+        // (indirectly: modifier code - 1 gives bits where bit0=Shift, bit1=Alt, bit2=Ctrl)
+        var decodedBits = modCode - 1;
+        if (expectedMod.HasFlag(Hex1bModifiers.Shift)) Assert.NotEqual(0, decodedBits & 1);
+        if (expectedMod.HasFlag(Hex1bModifiers.Control)) Assert.NotEqual(0, decodedBits & 4);
+    }
+    
+    [Fact]
+    public void PlainEnd_CsiF_ParsesAsCursorMove()
+    {
+        // CSI F (no params) = Cursor Previous Line = End key
+        var input = "\x1b[F";
+        var tokens = AnsiTokenizer.Tokenize(input);
+        
+        var token = Assert.Single(tokens);
+        Assert.IsType<CursorMoveToken>(token);
+    }
+
     // === SGR Mouse Sequences (ESC [ < Cb ; Cx ; Cy M/m) ===
     
     [Fact]
