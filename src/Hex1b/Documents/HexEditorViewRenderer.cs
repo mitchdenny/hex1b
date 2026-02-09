@@ -39,7 +39,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         AddressWidth + GapWidth + HexGroupWidth + GapWidth + HexGroupWidth + GapWidth + AsciiWidth;
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, bool isFocused)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused)
     {
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
@@ -191,7 +191,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     }
 
     /// <inheritdoc />
-    public DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset)
+    public DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset, int horizontalScrollOffset)
     {
         if (localX < 0 || localY < 0 || localX >= viewportColumns || localY >= viewportLines)
             return null;
