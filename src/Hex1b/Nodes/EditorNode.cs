@@ -380,6 +380,8 @@ public sealed class EditorNode : Hex1bNode
 
     private void OnDocumentChanged(object? sender, DocumentChangedEventArgs e)
     {
+        // Clamp cursors in case an external edit shrunk the document
+        State?.ClampAllCursors();
         MarkDirty();
     }
 

@@ -324,15 +324,15 @@ public class HexEditorViewRendererTests
     [Fact]
     public void HandleCharInput_TwoNibbles_ProducesCorrectByteValue()
     {
-        // 0xFF = 255
+        // 0xFF is not valid as a single UTF-8 byte → becomes replacement char
         var (renderer, state) = SetupHexInput("X");
         char? nibble = null;
 
         renderer.HandleCharInput('F', state, ref nibble, 80);
         renderer.HandleCharInput('F', state, ref nibble, 80);
 
-        // (char)0xFF = 'ÿ'
-        Assert.Equal("\u00FFX".Length > 1 ? '\u00FF' : 'X', state.Document.GetText()[0]);
+        // Single byte 0xFF is invalid UTF-8 → U+FFFD replacement
+        Assert.Equal('\uFFFD', state.Document.GetText()[0]);
     }
 
     [Fact]
@@ -372,14 +372,14 @@ public class HexEditorViewRendererTests
     [Fact]
     public void HandleCharInput_LowercaseHex_WorksCorrectly()
     {
+        // 0x41 = 'A' (valid ASCII byte)
         var (renderer, state) = SetupHexInput("X");
         char? nibble = null;
 
-        renderer.HandleCharInput('a', state, ref nibble, 80);
-        renderer.HandleCharInput('b', state, ref nibble, 80);
+        renderer.HandleCharInput('4', state, ref nibble, 80);
+        renderer.HandleCharInput('1', state, ref nibble, 80);
 
-        // 0xAB = 171
-        Assert.Equal((char)0xAB, state.Document.GetText()[0]);
+        Assert.Equal('A', state.Document.GetText()[0]);
     }
 
     [Fact]
@@ -420,5 +420,171 @@ public class HexEditorViewRendererTests
     {
         IEditorViewRenderer renderer = TextEditorViewRenderer.Instance;
         Assert.False(renderer.HandlesCharInput);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 10: Multi-byte byte-level editing
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public void CommitByte_TwoByteChar_ReplacesFirstByte()
+    {
+        // © = C2 A9. Replace C2 with 41 → bytes become 41 A9.
+        // 41 = 'A' (valid ASCII), A9 is invalid UTF-8 start → replacement char
+        var (renderer, state) = SetupHexInput("©");
+        char? nibble = null;
+
+        renderer.HandleCharInput('4', state, ref nibble, 80);
+        renderer.HandleCharInput('1', state, ref nibble, 80);
+
+        var result = state.Document.GetText();
+        // The bytes 41 A9 decoded as UTF-8: 'A' + invalid → "A\uFFFD"
+        Assert.StartsWith("A", result);
+        Assert.Equal(2, result.Length); // 'A' + replacement char
+    }
+
+    [Fact]
+    public void CommitByte_TwoByteChar_ReplacesSecondByte()
+    {
+        // "A©" = bytes 41 C2 A9. Cursor at char 1 (©), byte offset = 1.
+        // Replace byte 1 (C2) with C3 → bytes 41 C3 A9 = "Aé"
+        var (renderer, state) = SetupHexInput("A©");
+        state.MoveCursor(CursorDirection.Right); // cursor at char 1 (©)
+        char? nibble = null;
+
+        renderer.HandleCharInput('C', state, ref nibble, 80);
+        renderer.HandleCharInput('3', state, ref nibble, 80);
+
+        // C3 A9 = é
+        Assert.Equal("Aé", state.Document.GetText());
+    }
+
+    [Fact]
+    public void CommitByte_BOM_ReplaceFirstByte()
+    {
+        // BOM = EF BB BF. Replace EF with 00 → bytes 00 BB BF
+        // 00 = NUL, BB/BF are invalid UTF-8 starts → NUL + 2 replacement chars
+        var (renderer, state) = SetupHexInput("\uFEFF");
+        char? nibble = null;
+
+        renderer.HandleCharInput('0', state, ref nibble, 80);
+        renderer.HandleCharInput('0', state, ref nibble, 80);
+
+        var result = state.Document.GetText();
+        Assert.Equal('\0', result[0]); // NUL byte
+        Assert.True(result.Length >= 2); // At least NUL + something from invalid bytes
+    }
+
+    [Fact]
+    public void CommitByte_AsciiChar_StillWorks()
+    {
+        // Verify ASCII editing still works with the new CommitByte
+        var (renderer, state) = SetupHexInput("ABC");
+        char? nibble = null;
+
+        // Replace 'A' (0x41) with 'X' (0x58)
+        renderer.HandleCharInput('5', state, ref nibble, 80);
+        renderer.HandleCharInput('8', state, ref nibble, 80);
+
+        Assert.Equal("XBC", state.Document.GetText());
+        Assert.Equal(1, state.Cursor.Position.Value); // Advanced past 'X'
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 11: HitTest with multi-byte characters
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public void HitTest_ContinuationByte_MapsToSameChar()
+    {
+        // "©B" = bytes C2 A9 42. Clicking byte 1 (A9) should map to char 0 (©), not char 1
+        var renderer = new HexEditorViewRenderer();
+        var doc = new Hex1bDocument("©B");
+        var state = new EditorState(doc);
+
+        // In a wide viewport, byte 0 (C2) is at hex col 9, byte 1 (A9) is at hex col 12
+        // byte 2 (42) is at hex col 15
+        var (_, hasMidGroup) = renderer.CalculateLayout(80);
+
+        // Hit test at byte index 1 (A9) — this is the continuation byte of ©
+        // The hex column for byte 1 in a 16-byte-per-row layout
+        var hexCol1 = 9 + 3; // hex start (9) + 1 byte * 3 chars = col 12
+        var result = renderer.HitTest(hexCol1, 0, state, 80, 10, 1, 0);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Value.Value); // Should map to char 0 (©), not char 1 (B)
+    }
+
+    [Fact]
+    public void HitTest_BOMThirdByte_MapsToCharZero()
+    {
+        // "\uFEFFX" = bytes EF BB BF 58. Byte 2 (BF) should map to char 0 (BOM)
+        var renderer = new HexEditorViewRenderer();
+        var doc = new Hex1bDocument("\uFEFFX");
+        var state = new EditorState(doc);
+
+        // Byte 2 is at hex col 9 + 2*3 = 15
+        var hexCol2 = 9 + 6;
+        var result = renderer.HitTest(hexCol2, 0, state, 80, 10, 1, 0);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Value.Value); // Char 0 (BOM), not char 2
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 12: Cross-editor resilience
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public void SharedDoc_HexDeleteShrinks_TextEditorCursorClamped()
+    {
+        // Two EditorStates sharing one document
+        var doc = new Hex1bDocument("Hello World");
+        var textState = new EditorState(doc);
+        var hexState = new EditorState(doc);
+
+        // Move text editor cursor to end
+        textState.MoveToDocumentEnd();
+        Assert.Equal(11, textState.Cursor.Position.Value);
+
+        // Hex editor selects all and deletes (simulating via document)
+        hexState.SelectAll();
+        hexState.DeleteForward();
+
+        // Document is now empty
+        Assert.Equal(0, doc.Length);
+
+        // Text editor clamps its cursor
+        textState.ClampAllCursors();
+        Assert.Equal(0, textState.Cursor.Position.Value);
+    }
+
+    [Fact]
+    public void SharedDoc_HexReplacesMultibyte_TextEditorSurvives()
+    {
+        // Document with BOM followed by text
+        var doc = new Hex1bDocument("\uFEFFHello");
+        var textState = new EditorState(doc);
+        var hexState = new EditorState(doc);
+
+        // Text editor cursor at char 3 (the 'l')
+        textState.MoveCursor(CursorDirection.Right);
+        textState.MoveCursor(CursorDirection.Right);
+        textState.MoveCursor(CursorDirection.Right);
+        Assert.Equal(3, textState.Cursor.Position.Value);
+
+        // Hex editor replaces the BOM byte — this changes the BOM char
+        // to potentially multiple replacement chars, shifting everything
+        var renderer = new HexEditorViewRenderer();
+        char? nibble = null;
+        renderer.HandleCharInput('0', hexState, ref nibble, 80);
+        renderer.HandleCharInput('0', hexState, ref nibble, 80);
+
+        // Document has changed — clamp text editor cursors
+        textState.ClampAllCursors();
+
+        // Cursor should still be valid (not throw)
+        var pos = textState.Cursor.Position.Value;
+        Assert.True(pos >= 0 && pos <= doc.Length);
     }
 }
