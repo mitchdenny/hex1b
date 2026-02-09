@@ -469,4 +469,45 @@ public class EditorMouseTests
         Assert.Equal(6, state.Cursor.SelectionStart!.Value);
         Assert.Equal(11, state.Cursor.SelectionEnd!.Value); // doc length
     }
+
+    // ── Editor inside container widgets ──────────────────────────
+
+    [Fact]
+    public async Task Drag_InsideSplitter_CreatesSelection()
+    {
+        // Regression: editor drag selection stopped working when editor is inside a splitter.
+        var doc = new Hex1bDocument("Hello world");
+        var state = new EditorState(doc);
+
+        var workload = new Hex1bAppWorkloadAdapter();
+        var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        var theme = Hex1bThemes.Default;
+
+        // Editor inside an HSplitter (left=text widget, right=editor) — like SharedEditor demo
+        var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.HSplitter(
+                    left => [left.Text("Explorer").FillWidth().FillHeight()],
+                    right => [right.Editor(state).FillWidth().FillHeight()],
+                    leftWidth: 15).FillWidth().FillHeight()),
+            new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme, EnableMouse = true });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        using var _ = workload; using var __ = terminal; using var ___ = app;
+
+        await WaitForEditor(terminal);
+
+        // Editor starts at column 18 (15 left + 3 divider), drag within editor area
+        // Drag from col 18 to col 23 (5 chars into editor = "Hello")
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Drag(18, 0, 23, 0)
+            .WaitUntil(_ => state.Cursor.HasSelection,
+                TimeSpan.FromSeconds(2), "drag selection inside splitter")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(state.Cursor.HasSelection, "Editor inside splitter should support drag selection");
+    }
 }

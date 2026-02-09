@@ -392,7 +392,10 @@ public sealed class EditorNode : Hex1bNode
 
     private DragHandler HandleDragStart(int startX, int startY)
     {
-        var startOffset = HitTest(startX, startY);
+        // startX/startY are local to this node; HitTest expects absolute coordinates
+        var absStartX = startX + Bounds.X;
+        var absStartY = startY + Bounds.Y;
+        var startOffset = HitTest(absStartX, absStartY);
         if (startOffset == null || State == null)
             return new DragHandler();
 
@@ -403,7 +406,7 @@ public sealed class EditorNode : Hex1bNode
         return new DragHandler(
             onMove: (ctx, deltaX, deltaY) =>
             {
-                var currentOffset = HitTest(startX + deltaX, startY + deltaY);
+                var currentOffset = HitTest(absStartX + deltaX, absStartY + deltaY);
                 if (currentOffset == null || State == null) return;
 
                 // Extend selection from the drag start point
