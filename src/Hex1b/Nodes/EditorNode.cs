@@ -101,6 +101,16 @@ public sealed class EditorNode : Hex1bNode
         // ── Selection (Ctrl+A) ──────────────────────────────────
         bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
 
+        // ── Multi-cursor (Ctrl+D) ───────────────────────────────
+        bindings.Ctrl().Key(Hex1bKey.D).Action(AddCursorAtNextMatch, "Add cursor at next match");
+
+        // ── Undo/Redo ───────────────────────────────────────────
+        bindings.Ctrl().Key(Hex1bKey.Z).Action(UndoAction, "Undo");
+        bindings.Ctrl().Key(Hex1bKey.Y).Action(RedoAction, "Redo");
+
+        // ── Escape to collapse multi-cursor ─────────────────────
+        // Note: Escape is only handled when we have multiple cursors
+
         // ── Editing ─────────────────────────────────────────────
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
         bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
@@ -160,7 +170,17 @@ public sealed class EditorNode : Hex1bNode
         var cursorBg = theme.Get(EditorTheme.CursorBackgroundColor);
 
         var doc = State.Document;
-        var cursorPos = doc.OffsetToPosition(State.Cursor.Position);
+
+        // Collect all cursor positions that are visible in the viewport
+        var cursorPositions = new HashSet<(int Line, int Column)>();
+        if (IsFocused)
+        {
+            foreach (var cursor in State.Cursors)
+            {
+                var pos = doc.OffsetToPosition(cursor.Position);
+                cursorPositions.Add((pos.Line, pos.Column));
+            }
+        }
 
         for (var viewLine = 0; viewLine < _viewportLines; viewLine++)
         {
@@ -172,7 +192,7 @@ public sealed class EditorNode : Hex1bNode
             {
                 // Past end of document — render tilde like vim
                 var emptyLine = "~".PadRight(_viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, null, null, null, null);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, null, null, null);
                 continue;
             }
 
@@ -189,15 +209,23 @@ public sealed class EditorNode : Hex1bNode
                 displayText = lineText.PadRight(_viewportColumns);
             }
 
-            // Determine if cursor is on this line
-            if (IsFocused && docLine == cursorPos.Line)
+            // Collect cursor columns on this line
+            var cursorsOnLine = new List<int>();
+            foreach (var (line, column) in cursorPositions)
             {
-                var cursorCol = cursorPos.Column - 1; // 0-based for rendering
-                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, cursorCol, null);
+                if (line == docLine)
+                {
+                    cursorsOnLine.Add(column - 1); // 0-based for rendering
+                }
+            }
+
+            if (cursorsOnLine.Count > 0)
+            {
+                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, cursorsOnLine);
             }
             else
             {
-                RenderLine(context, screenX, screenY, displayText, fg, bg, null, null, null, null);
+                RenderLine(context, screenX, screenY, displayText, fg, bg, null, null, null);
             }
         }
     }
@@ -208,23 +236,39 @@ public sealed class EditorNode : Hex1bNode
         string text,
         Hex1bColor fg, Hex1bColor bg,
         Hex1bColor? cursorFg, Hex1bColor? cursorBg,
-        int? cursorCol,
-        int? _)
+        List<int>? cursorCols)
     {
         string output;
 
-        if (cursorCol is not null && cursorFg is not null && cursorBg is not null)
+        if (cursorCols is { Count: > 0 } && cursorFg is not null && cursorBg is not null)
         {
-            var col = cursorCol.Value;
-            var before = col < text.Length ? text[..col] : text;
-            var cursorChar = col < text.Length ? text[col].ToString() : " ";
-            var after = col + 1 < text.Length ? text[(col + 1)..] : "";
-
             var globalColors = context.Theme.GetGlobalColorCodes();
             var resetToGlobal = context.Theme.GetResetToGlobalCodes();
-            output = $"{globalColors}{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{before}" +
-                     $"{cursorFg.Value.ToForegroundAnsi()}{cursorBg.Value.ToBackgroundAnsi()}{cursorChar}" +
-                     $"{resetToGlobal}{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{after}";
+            var sb = new System.Text.StringBuilder(text.Length * 2);
+            sb.Append(globalColors);
+            sb.Append(fg.ToForegroundAnsi());
+            sb.Append(bg.ToBackgroundAnsi());
+
+            var cursorSet = new HashSet<int>(cursorCols);
+
+            for (var i = 0; i < text.Length; i++)
+            {
+                if (cursorSet.Contains(i))
+                {
+                    sb.Append(cursorFg.Value.ToForegroundAnsi());
+                    sb.Append(cursorBg.Value.ToBackgroundAnsi());
+                    sb.Append(text[i]);
+                    sb.Append(resetToGlobal);
+                    sb.Append(fg.ToForegroundAnsi());
+                    sb.Append(bg.ToBackgroundAnsi());
+                }
+                else
+                {
+                    sb.Append(text[i]);
+                }
+            }
+
+            output = sb.ToString();
         }
         else
         {
@@ -244,6 +288,7 @@ public sealed class EditorNode : Hex1bNode
     private void EnsureCursorVisible()
     {
         if (State == null) return;
+        // Track primary cursor for scroll
         var cursorPos = State.Document.OffsetToPosition(State.Cursor.Position);
         var cursorLine = cursorPos.Line;
 
@@ -367,6 +412,15 @@ public sealed class EditorNode : Hex1bNode
     private void SelectPageUp() { State.MovePageUp(ViewportLines, extend: true); AfterMove(); }
     private void SelectPageDown() { State.MovePageDown(ViewportLines, extend: true); AfterMove(); }
     private void SelectAll() { State.SelectAll(); MarkDirty(); }
+
+    // --- Input handlers: multi-cursor ---
+
+    private void AddCursorAtNextMatch() { State.AddCursorAtNextMatch(); MarkDirty(); }
+
+    // --- Input handlers: undo/redo ---
+
+    private void UndoAction() { State.Undo(); AfterEdit(); }
+    private void RedoAction() { State.Redo(); AfterEdit(); }
 
     // --- Common post-action helpers ---
 
