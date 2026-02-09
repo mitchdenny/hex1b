@@ -1,5 +1,5 @@
 name: 'Generate Version'
-description: 'Generates version strings for NuGet packages based on latest published version'
+description: 'Generates version strings for NuGet packages based on latest git tag'
 
 outputs:
   preview:
@@ -15,30 +15,33 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Get latest NuGet version
-      id: nuget
+    - name: Get latest version from git tags
+      id: latest
       shell: bash
       run: |
-        echo "Fetching latest version of Hex1b from NuGet.org..."
+        echo "Fetching latest version from git tags..."
         
-        # Query NuGet API for all versions
-        VERSIONS_JSON=$(curl -s "https://api.nuget.org/v3-flatcontainer/hex1b/index.json" 2>/dev/null || echo '{"versions":[]}')
+        # Fetch all tags to ensure we have them
+        git fetch --tags --quiet 2>/dev/null || true
         
-        # Extract the latest stable version (no prerelease suffix)
-        LATEST_VERSION=$(echo "$VERSIONS_JSON" | jq -r '.versions | map(select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))) | last // "0.0.0"')
+        # Get the latest semver tag (vX.Y.Z format), sorted by version
+        LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
         
-        if [ "$LATEST_VERSION" = "null" ] || [ -z "$LATEST_VERSION" ]; then
+        if [ -z "$LATEST_TAG" ]; then
           LATEST_VERSION="0.0.0"
+        else
+          # Strip the 'v' prefix
+          LATEST_VERSION="${LATEST_TAG#v}"
         fi
         
-        echo "Latest stable version on NuGet.org: $LATEST_VERSION"
+        echo "Latest version from git tags: $LATEST_VERSION"
         echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
 
     - name: Calculate next version
       id: version
       shell: bash
       run: |
-        LATEST_VERSION="${{ steps.nuget.outputs.latest }}"
+        LATEST_VERSION="${{ steps.latest.outputs.latest }}"
         
         # Parse major.minor.patch
         MAJOR=$(echo "$LATEST_VERSION" | cut -d'.' -f1)
