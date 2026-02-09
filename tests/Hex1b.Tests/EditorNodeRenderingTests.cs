@@ -5,7 +5,6 @@
 using Hex1b.Automation;
 using Hex1b.Documents;
 using Hex1b.Layout;
-using Hex1b.Nodes;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -701,28 +700,29 @@ public class EditorNodeRenderingTests
     }
 
     [Fact]
-    public void Arrange_LongLine_ShowsHorizontalScrollbar()
+    public void Arrange_LongLine_ReducesViewportForHorizontalScrollbar()
     {
-        // Line longer than viewport should trigger horizontal scrollbar
+        // Line longer than viewport should reduce viewport height for horizontal scrollbar
         var longLine = new string('A', 40);
         var (node, workload, terminal, context, theme) = CreateEditor(longLine, 20, 5);
 
-        Assert.True(node.GetChildren().Any(), "Editor should have scrollbar children when content overflows horizontally");
+        // With horizontal scrollbar, viewport lines should be reduced by 1
+        Assert.Equal(4, node.ViewportLines);
+        Assert.Equal(20, node.ViewportColumns); // no vertical scrollbar
 
         workload.Dispose();
         terminal.Dispose();
     }
 
     [Fact]
-    public void Arrange_VerticalOverflow_ScrollbarNodeIsChild()
+    public void Arrange_VerticalOverflow_ReducesViewportForScrollbar()
     {
-        // Vertical overflow should create a ScrollbarNode child
+        // Many lines should reduce viewport columns for vertical scrollbar
         var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
         var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
 
-        var children = node.GetChildren().ToList();
-        Assert.True(children.Count > 0, "Should have scrollbar node children");
-        Assert.Contains(children, c => c is Hex1b.Nodes.ScrollbarNode);
+        Assert.Equal(19, node.ViewportColumns);
+        Assert.Equal(5, node.ViewportLines); // no horizontal scrollbar
 
         workload.Dispose();
         terminal.Dispose();
@@ -759,17 +759,37 @@ public class EditorNodeRenderingTests
     }
 
     [Fact]
-    public void GetFocusableNodes_IncludesScrollbarNodes()
+    public async Task Render_HorizontalScrollbar_AppearsAtBottom()
     {
-        // Scrollbar nodes should be focusable for mouse hit testing
-        var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
-        var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
+        // When content is wider than viewport, horizontal scrollbar renders on bottom row
+        var longLine = new string('X', 40);
+        var (node, workload, terminal, context, theme) = CreateEditor(longLine, 20, 5);
 
-        var focusables = node.GetFocusableNodes().ToList();
-        // Should include at least the editor itself and scrollbar nodes
-        Assert.True(focusables.Count >= 2, "Should include editor and scrollbar in focusable nodes");
-        Assert.Contains(focusables, f => f is EditorNode);
-        Assert.Contains(focusables, f => f is Hex1b.Nodes.ScrollbarNode);
+        node.Render(context);
+
+        var trackChar = theme.Get(ScrollTheme.HorizontalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.HorizontalThumbCharacter);
+
+        var pattern = new CellPatternSearcher().Find("X");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "content visible")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Bottom row (row 4) should contain horizontal scrollbar characters
+        var scrollRow = 4;
+        var hasTrackOrThumb = false;
+        for (var col = 0; col < 20; col++)
+        {
+            var cell = snapshot.GetCell(col, scrollRow);
+            if (cell.Character == trackChar || cell.Character == thumbChar)
+                hasTrackOrThumb = true;
+        }
+
+        Assert.True(hasTrackOrThumb, "Horizontal scrollbar should appear on bottom row");
 
         workload.Dispose();
         terminal.Dispose();

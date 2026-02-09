@@ -1,7 +1,6 @@
 using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Layout;
-using Hex1b.Nodes;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -10,6 +9,8 @@ namespace Hex1b;
 /// <summary>
 /// Node for multi-line document editing. Manages scroll, viewport, and input.
 /// Scroll offset is per-node to support different views on the same document.
+/// Scrollbars are rendered and handled internally (not composed) because their
+/// behavior is tightly coupled to the active IEditorViewRenderer.
 /// </summary>
 public sealed class EditorNode : Hex1bNode
 {
@@ -20,8 +21,6 @@ public sealed class EditorNode : Hex1bNode
     private bool _scrollSetByWheel; // Prevents EnsureCursorVisible from overriding wheel scroll
     private bool _showVerticalScrollbar;
     private bool _showHorizontalScrollbar;
-    private ScrollbarNode? _verticalScrollbar;
-    private ScrollbarNode? _horizontalScrollbar;
     private IHex1bDocument? _subscribedDocument;
 
     /// <summary>The source widget that was reconciled into this node.</summary>
@@ -209,8 +208,6 @@ public sealed class EditorNode : Hex1bNode
             _viewportColumns = bounds.Width - 1;
         }
 
-        ArrangeScrollbars(bounds);
-
         // Subscribe to document changes if not already
         SubscribeToDocument();
 
@@ -223,87 +220,105 @@ public sealed class EditorNode : Hex1bNode
         _scrollSetByWheel = false;
     }
 
-    private void ArrangeScrollbars(Rect bounds)
-    {
-        // Vertical scrollbar
-        if (_showVerticalScrollbar && State != null)
-        {
-            _verticalScrollbar ??= new ScrollbarNode { Parent = this };
-            _verticalScrollbar.Orientation = ScrollOrientation.Vertical;
-            _verticalScrollbar.ContentSize = ViewRenderer.GetTotalLines(State.Document);
-            _verticalScrollbar.ViewportSize = _viewportLines;
-            _verticalScrollbar.Offset = Math.Max(0, _scrollOffset - 1); // 1-based to 0-based
-            _verticalScrollbar.ScrollHandler = offset =>
-            {
-                _scrollOffset = offset + 1; // 0-based to 1-based
-                _scrollSetByWheel = true;
-                MarkDirty();
-                return Task.CompletedTask;
-            };
-
-            var vScrollHeight = _viewportLines;
-            _verticalScrollbar.Measure(new Constraints(0, 1, 0, vScrollHeight));
-            _verticalScrollbar.Arrange(new Rect(bounds.X + bounds.Width - 1, bounds.Y, 1, vScrollHeight));
-        }
-        else
-        {
-            _verticalScrollbar = null;
-        }
-
-        // Horizontal scrollbar
-        if (_showHorizontalScrollbar && State != null)
-        {
-            var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
-            _horizontalScrollbar ??= new ScrollbarNode { Parent = this };
-            _horizontalScrollbar.Orientation = ScrollOrientation.Horizontal;
-            _horizontalScrollbar.ContentSize = maxWidth;
-            _horizontalScrollbar.ViewportSize = _viewportColumns;
-            _horizontalScrollbar.Offset = _horizontalScrollOffset;
-            _horizontalScrollbar.ScrollHandler = offset =>
-            {
-                _horizontalScrollOffset = offset;
-                MarkDirty();
-                return Task.CompletedTask;
-            };
-
-            var hScrollWidth = _viewportColumns;
-            _horizontalScrollbar.Measure(new Constraints(0, hScrollWidth, 0, 1));
-            _horizontalScrollbar.Arrange(new Rect(bounds.X, bounds.Y + bounds.Height - 1, hScrollWidth, 1));
-        }
-        else
-        {
-            _horizontalScrollbar = null;
-        }
-    }
-
     public override void Render(Hex1bRenderContext context)
     {
         if (State == null) return;
 
-        // Render text content at full bounds width — scrollbar nodes render on top.
-        // This avoids ANSI rendering issues when narrowing the viewport by 1 column.
+        // Render text content at full bounds width — scrollbars render on top
         ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused);
 
-        // Render scrollbar children (overlay on top of text)
-        if (_verticalScrollbar != null)
-        {
-            // Update offset in case scroll changed since Arrange
-            _verticalScrollbar.Offset = Math.Max(0, _scrollOffset - 1);
-            context.RenderChild(_verticalScrollbar);
-        }
-        if (_horizontalScrollbar != null)
-        {
-            _horizontalScrollbar.Offset = _horizontalScrollOffset;
-            context.RenderChild(_horizontalScrollbar);
-        }
+        // Render scrollbars (self-rendered, not composed)
+        if (_showVerticalScrollbar)
+            RenderVerticalScrollbar(context);
+        if (_showHorizontalScrollbar)
+            RenderHorizontalScrollbar(context);
 
-        // Render corner cell when both scrollbars present
-        if (_verticalScrollbar != null && _horizontalScrollbar != null)
+        // Corner cell when both scrollbars present
+        if (_showVerticalScrollbar && _showHorizontalScrollbar)
         {
-            var cornerX = Bounds.X + Bounds.Width - 1;
-            var cornerY = Bounds.Y + Bounds.Height - 1;
             var bg = context.Theme.Get(EditorTheme.BackgroundColor);
-            context.WriteClipped(cornerX, cornerY, $"{bg.ToBackgroundAnsi()} ");
+            context.WriteClipped(Bounds.X + Bounds.Width - 1, Bounds.Y + Bounds.Height - 1,
+                $"{bg.ToBackgroundAnsi()} ");
+        }
+    }
+
+    // ── Scrollbar rendering ─────────────────────────────────────
+
+    private (int thumbSize, int thumbStart) CalculateVerticalThumb()
+    {
+        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var trackHeight = _viewportLines;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)trackHeight / totalLines * trackHeight));
+        thumbSize = Math.Min(thumbSize, trackHeight);
+
+        var maxScroll = Math.Max(1, totalLines - _viewportLines);
+        var scrollFraction = maxScroll > 0 ? (double)(_scrollOffset - 1) / maxScroll : 0;
+        var thumbStart = (int)Math.Round(scrollFraction * (trackHeight - thumbSize));
+        thumbStart = Math.Clamp(thumbStart, 0, trackHeight - thumbSize);
+
+        return (thumbSize, thumbStart);
+    }
+
+    private (int thumbSize, int thumbStart) CalculateHorizontalThumb()
+    {
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var trackWidth = _viewportColumns;
+        var thumbSize = Math.Max(1, (int)Math.Ceiling((double)trackWidth / maxWidth * trackWidth));
+        thumbSize = Math.Min(thumbSize, trackWidth);
+
+        var maxHScroll = Math.Max(1, maxWidth - _viewportColumns);
+        var scrollFraction = maxHScroll > 0 ? (double)_horizontalScrollOffset / maxHScroll : 0;
+        var thumbStart = (int)Math.Round(scrollFraction * (trackWidth - thumbSize));
+        thumbStart = Math.Clamp(thumbStart, 0, trackWidth - thumbSize);
+
+        return (thumbSize, thumbStart);
+    }
+
+    private void RenderVerticalScrollbar(Hex1bRenderContext context)
+    {
+        var theme = context.Theme;
+        var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
+        var trackColor = theme.Get(ScrollTheme.TrackColor);
+        var thumbColor = IsFocused
+            ? theme.Get(ScrollTheme.FocusedThumbColor)
+            : theme.Get(ScrollTheme.ThumbColor);
+        var bg = theme.Get(EditorTheme.BackgroundColor);
+
+        var scrollX = Bounds.X + Bounds.Width - 1;
+        var (thumbSize, thumbStart) = CalculateVerticalThumb();
+
+        for (var row = 0; row < _viewportLines; row++)
+        {
+            var isThumb = row >= thumbStart && row < thumbStart + thumbSize;
+            var ch = isThumb ? thumbChar : trackChar;
+            var color = isThumb ? thumbColor : trackColor;
+            context.WriteClipped(scrollX, Bounds.Y + row,
+                $"{color.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{ch}");
+        }
+    }
+
+    private void RenderHorizontalScrollbar(Hex1bRenderContext context)
+    {
+        var theme = context.Theme;
+        var trackChar = theme.Get(ScrollTheme.HorizontalTrackCharacter);
+        var thumbChar = theme.Get(ScrollTheme.HorizontalThumbCharacter);
+        var trackColor = theme.Get(ScrollTheme.TrackColor);
+        var thumbColor = IsFocused
+            ? theme.Get(ScrollTheme.FocusedThumbColor)
+            : theme.Get(ScrollTheme.ThumbColor);
+        var bg = theme.Get(EditorTheme.BackgroundColor);
+
+        var scrollY = Bounds.Y + Bounds.Height - 1;
+        var (thumbSize, thumbStart) = CalculateHorizontalThumb();
+
+        for (var col = 0; col < _viewportColumns; col++)
+        {
+            var isThumb = col >= thumbStart && col < thumbStart + thumbSize;
+            var ch = isThumb ? thumbChar : trackChar;
+            var color = isThumb ? thumbColor : trackColor;
+            context.WriteClipped(Bounds.X + col, scrollY,
+                $"{color.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{ch}");
         }
     }
 
@@ -474,8 +489,24 @@ public sealed class EditorNode : Hex1bNode
     // --- Mouse handlers ---
 
     /// <summary>
+    /// Determines which zone a local coordinate falls in.
+    /// </summary>
+    private enum HitZone { Content, VerticalScrollbar, HorizontalScrollbar, Corner }
+
+    private HitZone GetHitZone(int localX, int localY)
+    {
+        var inScrollbarCol = _showVerticalScrollbar && localX >= _viewportColumns;
+        var inScrollbarRow = _showHorizontalScrollbar && localY >= _viewportLines;
+
+        if (inScrollbarCol && inScrollbarRow) return HitZone.Corner;
+        if (inScrollbarCol) return HitZone.VerticalScrollbar;
+        if (inScrollbarRow) return HitZone.HorizontalScrollbar;
+        return HitZone.Content;
+    }
+
+    /// <summary>
     /// Converts absolute screen coordinates to a document offset.
-    /// Returns null if the coordinates are outside the editor bounds.
+    /// Returns null if the coordinates are outside the content area.
     /// </summary>
     private DocumentOffset? HitTest(int absX, int absY)
     {
@@ -484,16 +515,80 @@ public sealed class EditorNode : Hex1bNode
         var localX = absX - Bounds.X;
         var localY = absY - Bounds.Y;
 
+        if (GetHitZone(localX, localY) != HitZone.Content) return null;
+
         return ViewRenderer.HitTest(localX, localY, State, _viewportColumns, _viewportLines, _scrollOffset, _horizontalScrollOffset);
     }
 
     private void HandleMouseClick(InputBindingActionContext ctx)
     {
+        var localX = ctx.MouseX - Bounds.X;
+        var localY = ctx.MouseY - Bounds.Y;
+        var zone = GetHitZone(localX, localY);
+
+        switch (zone)
+        {
+            case HitZone.VerticalScrollbar:
+                HandleVerticalScrollbarClick(localY);
+                return;
+            case HitZone.HorizontalScrollbar:
+                HandleHorizontalScrollbarClick(localX);
+                return;
+            case HitZone.Corner:
+                return; // Ignore corner clicks
+        }
+
         var offset = HitTest(ctx.MouseX, ctx.MouseY);
         if (offset == null || State == null) return;
-
         State.SetCursorPosition(offset.Value);
         AfterMove();
+    }
+
+    private void HandleVerticalScrollbarClick(int localY)
+    {
+        if (State == null) return;
+        var (thumbSize, thumbStart) = CalculateVerticalThumb();
+
+        if (localY < thumbStart)
+        {
+            // Page up
+            var pageSize = Math.Max(1, _viewportLines - 1);
+            _scrollOffset = Math.Max(1, _scrollOffset - pageSize);
+        }
+        else if (localY >= thumbStart + thumbSize)
+        {
+            // Page down
+            var totalLines = ViewRenderer.GetTotalLines(State.Document);
+            var maxScroll = Math.Max(1, totalLines - _viewportLines + 1);
+            var pageSize = Math.Max(1, _viewportLines - 1);
+            _scrollOffset = Math.Min(maxScroll, _scrollOffset + pageSize);
+        }
+
+        _scrollSetByWheel = true;
+        MarkDirty();
+    }
+
+    private void HandleHorizontalScrollbarClick(int localX)
+    {
+        if (State == null) return;
+        var (thumbSize, thumbStart) = CalculateHorizontalThumb();
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxHScroll = Math.Max(0, maxWidth - _viewportColumns);
+
+        if (localX < thumbStart)
+        {
+            // Page left
+            var pageSize = Math.Max(1, _viewportColumns - 1);
+            _horizontalScrollOffset = Math.Max(0, _horizontalScrollOffset - pageSize);
+        }
+        else if (localX >= thumbStart + thumbSize)
+        {
+            // Page right
+            var pageSize = Math.Max(1, _viewportColumns - 1);
+            _horizontalScrollOffset = Math.Min(maxHScroll, _horizontalScrollOffset + pageSize);
+        }
+
+        MarkDirty();
     }
 
     private void HandleCtrlClick(InputBindingActionContext ctx)
@@ -525,14 +620,20 @@ public sealed class EditorNode : Hex1bNode
 
     private DragHandler HandleDragStart(int startX, int startY)
     {
-        // startX/startY are local to this node; HitTest expects absolute coordinates
+        var zone = GetHitZone(startX, startY);
+
+        if (zone == HitZone.VerticalScrollbar)
+            return HandleVerticalScrollbarDrag(startY);
+        if (zone == HitZone.HorizontalScrollbar)
+            return HandleHorizontalScrollbarDrag(startX);
+
+        // Content area — text selection drag
         var absStartX = startX + Bounds.X;
         var absStartY = startY + Bounds.Y;
         var startOffset = HitTest(absStartX, absStartY);
         if (startOffset == null || State == null)
             return new DragHandler();
 
-        // Set cursor at drag start (clears selection)
         State.SetCursorPosition(startOffset.Value);
         MarkDirty();
 
@@ -542,10 +643,71 @@ public sealed class EditorNode : Hex1bNode
                 var currentOffset = HitTest(absStartX + deltaX, absStartY + deltaY);
                 if (currentOffset == null || State == null) return;
 
-                // Extend selection from the drag start point
                 State.SetCursorPosition(currentOffset.Value, extend: true);
                 EnsureCursorVisible();
                 MarkDirty();
+            });
+    }
+
+    private DragHandler HandleVerticalScrollbarDrag(int localY)
+    {
+        if (State == null) return new DragHandler();
+        var (thumbSize, thumbStart) = CalculateVerticalThumb();
+
+        if (localY < thumbStart || localY >= thumbStart + thumbSize)
+        {
+            // Clicked on track, not thumb — page jump already handled by click
+            HandleVerticalScrollbarClick(localY);
+            return new DragHandler();
+        }
+
+        // Thumb drag
+        var startScrollOffset = _scrollOffset;
+        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var maxScroll = Math.Max(1, totalLines - _viewportLines);
+        var scrollRange = _viewportLines - thumbSize;
+        var contentPerPixel = scrollRange > 0 ? (double)maxScroll / scrollRange : 0;
+
+        return DragHandler.Simple(
+            onMove: (deltaX, deltaY) =>
+            {
+                if (contentPerPixel > 0)
+                {
+                    var newOffset = (int)Math.Round(startScrollOffset - 1 + deltaY * contentPerPixel) + 1;
+                    _scrollOffset = Math.Clamp(newOffset, 1, maxScroll + 1);
+                    _scrollSetByWheel = true;
+                    MarkDirty();
+                }
+            });
+    }
+
+    private DragHandler HandleHorizontalScrollbarDrag(int localX)
+    {
+        if (State == null) return new DragHandler();
+        var (thumbSize, thumbStart) = CalculateHorizontalThumb();
+
+        if (localX < thumbStart || localX >= thumbStart + thumbSize)
+        {
+            HandleHorizontalScrollbarClick(localX);
+            return new DragHandler();
+        }
+
+        // Thumb drag
+        var startHOffset = _horizontalScrollOffset;
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxHScroll = Math.Max(1, maxWidth - _viewportColumns);
+        var scrollRange = _viewportColumns - thumbSize;
+        var contentPerPixel = scrollRange > 0 ? (double)maxHScroll / scrollRange : 0;
+
+        return DragHandler.Simple(
+            onMove: (deltaX, deltaY) =>
+            {
+                if (contentPerPixel > 0)
+                {
+                    var newOffset = (int)Math.Round(startHOffset + deltaX * contentPerPixel);
+                    _horizontalScrollOffset = Math.Clamp(newOffset, 0, maxHScroll);
+                    MarkDirty();
+                }
             });
     }
 
@@ -591,25 +753,5 @@ public sealed class EditorNode : Hex1bNode
             _horizontalScrollOffset = Math.Min(maxHScroll, _horizontalScrollOffset + 4);
             MarkDirty();
         }
-    }
-
-    /// <inheritdoc />
-    public override IEnumerable<Hex1bNode> GetChildren()
-    {
-        // Scrollbars last = hit-tested first by input router
-        if (_horizontalScrollbar != null) yield return _horizontalScrollbar;
-        if (_verticalScrollbar != null) yield return _verticalScrollbar;
-    }
-
-    /// <inheritdoc />
-    public override IEnumerable<Hex1bNode> GetFocusableNodes()
-    {
-        // The editor itself is focusable
-        yield return this;
-        // Scrollbar nodes are focusable for mouse hit testing
-        if (_horizontalScrollbar != null && _horizontalScrollbar.IsFocusable)
-            yield return _horizontalScrollbar;
-        if (_verticalScrollbar != null && _verticalScrollbar.IsFocusable)
-            yield return _verticalScrollbar;
     }
 }
