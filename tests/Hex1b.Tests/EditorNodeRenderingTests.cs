@@ -5,6 +5,7 @@
 using Hex1b.Automation;
 using Hex1b.Documents;
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -694,6 +695,81 @@ public class EditorNodeRenderingTests
             Assert.NotEqual(trackChar, cell.Character);
             Assert.NotEqual(thumbChar, cell.Character);
         }
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public void Arrange_LongLine_ShowsHorizontalScrollbar()
+    {
+        // Line longer than viewport should trigger horizontal scrollbar
+        var longLine = new string('A', 40);
+        var (node, workload, terminal, context, theme) = CreateEditor(longLine, 20, 5);
+
+        Assert.True(node.GetChildren().Any(), "Editor should have scrollbar children when content overflows horizontally");
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public void Arrange_VerticalOverflow_ScrollbarNodeIsChild()
+    {
+        // Vertical overflow should create a ScrollbarNode child
+        var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
+        var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
+
+        var children = node.GetChildren().ToList();
+        Assert.True(children.Count > 0, "Should have scrollbar node children");
+        Assert.Contains(children, c => c is Hex1b.Nodes.ScrollbarNode);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public void HorizontalScroll_CursorMovesRight_ScrollsHorizontally()
+    {
+        // Moving cursor past viewport width should trigger horizontal scrolling
+        var longLine = new string('A', 40);
+        var doc = new Hex1bDocument(longLine);
+        var state = new EditorState(doc);
+        var node = new EditorNode { State = state, IsFocused = true };
+
+        var theme = Hex1bThemes.Default;
+        var workload = new Hex1bAppWorkloadAdapter();
+        var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(20, 5)
+            .Build();
+
+        node.Measure(new Constraints(0, 20, 0, 5));
+        node.Arrange(new Rect(0, 0, 20, 5));
+
+        // Move cursor to end of document
+        state.MoveToDocumentEnd();
+        node.Arrange(new Rect(0, 0, 20, 5));
+
+        Assert.True(node.HorizontalScrollOffset > 0, "Horizontal scroll should be non-zero when cursor is past viewport");
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public void GetFocusableNodes_IncludesScrollbarNodes()
+    {
+        // Scrollbar nodes should be focusable for mouse hit testing
+        var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
+        var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
+
+        var focusables = node.GetFocusableNodes().ToList();
+        // Should include at least the editor itself and scrollbar nodes
+        Assert.True(focusables.Count >= 2, "Should include editor and scrollbar in focusable nodes");
+        Assert.Contains(focusables, f => f is EditorNode);
+        Assert.Contains(focusables, f => f is Hex1b.Nodes.ScrollbarNode);
 
         workload.Dispose();
         terminal.Dispose();

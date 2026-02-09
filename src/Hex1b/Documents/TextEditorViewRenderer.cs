@@ -16,7 +16,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     public static TextEditorViewRenderer Instance { get; } = new();
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, bool isFocused)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused)
     {
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
@@ -63,28 +63,41 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
 
             var lineText = doc.GetLineText(docLine);
 
-            string displayText;
-            if (lineText.Length >= viewportColumns)
+            // Apply horizontal scroll offset
+            string scrolledLine;
+            if (horizontalScrollOffset > 0)
             {
-                displayText = lineText[..viewportColumns];
+                scrolledLine = horizontalScrollOffset < lineText.Length
+                    ? lineText[horizontalScrollOffset..]
+                    : "";
             }
             else
             {
-                displayText = lineText.PadRight(viewportColumns);
+                scrolledLine = lineText;
+            }
+
+            string displayText;
+            if (scrolledLine.Length >= viewportColumns)
+            {
+                displayText = scrolledLine[..viewportColumns];
+            }
+            else
+            {
+                displayText = scrolledLine.PadRight(viewportColumns);
             }
 
             // Build per-column cell type map for this line
             var lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
             var lineEndOffset = lineStartOffset + lineText.Length;
             var cellTypes = BuildCellTypes(displayText.Length, docLine, lineStartOffset, lineEndOffset,
-                cursorPositions, selectionRanges);
+                cursorPositions, selectionRanges, horizontalScrollOffset);
 
             RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes);
         }
     }
 
     /// <inheritdoc />
-    public DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset)
+    public DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset, int horizontalScrollOffset)
     {
         if (localX < 0 || localY < 0 || localX >= viewportColumns || localY >= viewportLines)
             return null;
@@ -99,7 +112,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         }
 
         var lineText = doc.GetLineText(docLine);
-        var column = Math.Min(localX + 1, lineText.Length + 1); // 1-based, clamp to line end + 1
+        var column = Math.Min(localX + horizontalScrollOffset + 1, lineText.Length + 1); // 1-based, clamp to line end + 1
         return doc.PositionToOffset(new DocumentPosition(docLine, column));
     }
 
@@ -133,7 +146,8 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         int lineStartOffset,
         int lineEndOffset,
         HashSet<(int Line, int Column)> cursorPositions,
-        List<(int Start, int End)> selectionRanges)
+        List<(int Start, int End)> selectionRanges,
+        int horizontalScrollOffset = 0)
     {
         var hasCursor = false;
         foreach (var (line, _) in cursorPositions)
@@ -161,12 +175,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
 
             foreach (var (start, end) in selectionRanges)
             {
-                var selStartCol = Math.Max(0, start - lineStartOffset);
-                var selEndCol = Math.Min(Math.Min(lineTextLength, displayWidth), end - lineStartOffset);
+                var selStartCol = Math.Max(0, start - lineStartOffset - horizontalScrollOffset);
+                var selEndCol = Math.Min(displayWidth, end - lineStartOffset - horizontalScrollOffset);
 
                 for (var col = selStartCol; col < selEndCol; col++)
                 {
-                    types[col] = CellType.Selected;
+                    if (col >= 0)
+                        types[col] = CellType.Selected;
                 }
             }
         }
@@ -177,7 +192,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             {
                 if (line == docLine)
                 {
-                    var col = column - 1; // 0-based
+                    var col = column - 1 - horizontalScrollOffset; // 0-based, adjusted for scroll
                     if (col >= 0 && col < displayWidth)
                     {
                         types[col] = CellType.Cursor;

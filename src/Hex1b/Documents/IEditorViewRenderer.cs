@@ -19,8 +19,9 @@ public interface IEditorViewRenderer
     /// <param name="state">The editor state (document, cursors, selections).</param>
     /// <param name="viewport">The screen area to render into.</param>
     /// <param name="scrollOffset">First visible line (1-based).</param>
+    /// <param name="horizontalScrollOffset">First visible column (0-based).</param>
     /// <param name="isFocused">Whether the editor is currently focused.</param>
-    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, bool isFocused);
+    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused);
 
     /// <summary>
     /// Converts screen-local coordinates (relative to viewport origin) to a document offset.
@@ -32,7 +33,8 @@ public interface IEditorViewRenderer
     /// <param name="viewportColumns">Number of visible columns.</param>
     /// <param name="viewportLines">Number of visible lines.</param>
     /// <param name="scrollOffset">First visible line (1-based).</param>
-    DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset);
+    /// <param name="horizontalScrollOffset">First visible column (0-based).</param>
+    DocumentOffset? HitTest(int localX, int localY, EditorState state, int viewportColumns, int viewportLines, int scrollOffset, int horizontalScrollOffset);
 
     /// <summary>
     /// Returns the total number of visual lines this renderer needs for the document.
