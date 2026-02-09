@@ -21,7 +21,8 @@ public interface IEditorViewRenderer
     /// <param name="scrollOffset">First visible line (1-based).</param>
     /// <param name="horizontalScrollOffset">First visible column (0-based).</param>
     /// <param name="isFocused">Whether the editor is currently focused.</param>
-    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused);
+    /// <param name="pendingNibble">For hex renderers, the first nibble of a partially-entered byte (null if none).</param>
+    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null);
 
     /// <summary>
     /// Converts screen-local coordinates (relative to viewport origin) to a document offset.
@@ -52,4 +53,19 @@ public interface IEditorViewRenderer
     /// For hex view, this is the computed row width (always ≤ viewport, so no horizontal scroll).
     /// </summary>
     int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines, int viewportColumns);
+
+    /// <summary>
+    /// Whether this renderer intercepts character input (e.g., hex byte editing).
+    /// When <c>true</c>, <see cref="HandleCharInput"/> is called instead of
+    /// the default text insertion for printable characters.
+    /// </summary>
+    bool HandlesCharInput => false;
+
+    /// <summary>
+    /// Processes a printable character for renderers that intercept input.
+    /// Returns <c>true</c> if the input was consumed (including storing a
+    /// partial value like a hex nibble). The <paramref name="pendingNibble"/>
+    /// ref parameter holds per-editor-instance state managed by the caller.
+    /// </summary>
+    bool HandleCharInput(char c, EditorState state, ref char? pendingNibble, int viewportColumns) => false;
 }

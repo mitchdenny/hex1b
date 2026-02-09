@@ -1,4 +1,6 @@
 using Hex1b.Documents;
+using Hex1b.Layout;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -227,5 +229,196 @@ public class HexEditorViewRendererTests
             var (bytes, _) = renderer.CalculateLayout(w);
             Assert.Contains(bytes, snaps);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 8: Hex input mode — HandleCharInput
+    // ═══════════════════════════════════════════════════════════
+
+    private static (HexEditorViewRenderer renderer, EditorState state) SetupHexInput(string text)
+    {
+        var doc = new Hex1bDocument(text);
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        return (renderer, state);
+    }
+
+    [Fact]
+    public void HandlesCharInput_IsTrue()
+    {
+        var renderer = new HexEditorViewRenderer();
+        Assert.True(renderer.HandlesCharInput);
+    }
+
+    [Fact]
+    public void HandleCharInput_FirstNibble_StoresPending()
+    {
+        var (renderer, state) = SetupHexInput("AB");
+        char? nibble = null;
+
+        var consumed = renderer.HandleCharInput('4', state, ref nibble, 80);
+
+        Assert.True(consumed);
+        Assert.Equal('4', nibble);
+        // Document unchanged — still "AB"
+        Assert.Equal("AB", state.Document.GetText());
+    }
+
+    [Fact]
+    public void HandleCharInput_SecondNibble_CommitsByte()
+    {
+        var (renderer, state) = SetupHexInput("AB");
+        char? nibble = '4';
+
+        var consumed = renderer.HandleCharInput('A', state, ref nibble, 80);
+
+        Assert.True(consumed);
+        Assert.Null(nibble);
+        // Byte 0x4A = 'J' replaces 'A' at position 0, cursor advances to pos 1
+        Assert.Equal("JB", state.Document.GetText());
+        Assert.Equal(1, state.Cursor.Position.Value);
+    }
+
+    [Theory]
+    [InlineData('0')]
+    [InlineData('9')]
+    [InlineData('a')]
+    [InlineData('f')]
+    [InlineData('A')]
+    [InlineData('F')]
+    public void HandleCharInput_HexChars_AreConsumed(char c)
+    {
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        Assert.True(renderer.HandleCharInput(c, state, ref nibble, 80));
+        Assert.Equal(c, nibble);
+    }
+
+    [Theory]
+    [InlineData('g')]
+    [InlineData('G')]
+    [InlineData('z')]
+    [InlineData(' ')]
+    [InlineData('!')]
+    public void HandleCharInput_NonHexChars_NotConsumed(char c)
+    {
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        Assert.False(renderer.HandleCharInput(c, state, ref nibble, 80));
+        Assert.Null(nibble);
+    }
+
+    [Fact]
+    public void HandleCharInput_NonHexChar_ClearsPendingNibble()
+    {
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = 'A';
+
+        renderer.HandleCharInput('z', state, ref nibble, 80);
+
+        Assert.Null(nibble);
+    }
+
+    [Fact]
+    public void HandleCharInput_TwoNibbles_ProducesCorrectByteValue()
+    {
+        // 0xFF = 255
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        renderer.HandleCharInput('F', state, ref nibble, 80);
+        renderer.HandleCharInput('F', state, ref nibble, 80);
+
+        // (char)0xFF = 'ÿ'
+        Assert.Equal("\u00FFX".Length > 1 ? '\u00FF' : 'X', state.Document.GetText()[0]);
+    }
+
+    [Fact]
+    public void HandleCharInput_AtEndOfDocument_InsertsNewByte()
+    {
+        var (renderer, state) = SetupHexInput("A");
+        // Move cursor to end
+        state.MoveToDocumentEnd();
+
+        char? nibble = null;
+        renderer.HandleCharInput('4', state, ref nibble, 80);
+        renderer.HandleCharInput('2', state, ref nibble, 80);
+
+        // 0x42 = 'B', appended after 'A'
+        Assert.Equal("AB", state.Document.GetText());
+    }
+
+    [Fact]
+    public void HandleCharInput_CursorAdvancesAfterCommit()
+    {
+        var (renderer, state) = SetupHexInput("ABC");
+        char? nibble = null;
+
+        // Edit first byte: 0x58 = 'X'
+        renderer.HandleCharInput('5', state, ref nibble, 80);
+        renderer.HandleCharInput('8', state, ref nibble, 80);
+        Assert.Equal(1, state.Cursor.Position.Value);
+
+        // Edit second byte: 0x59 = 'Y'
+        renderer.HandleCharInput('5', state, ref nibble, 80);
+        renderer.HandleCharInput('9', state, ref nibble, 80);
+        Assert.Equal(2, state.Cursor.Position.Value);
+
+        Assert.Equal("XYC", state.Document.GetText());
+    }
+
+    [Fact]
+    public void HandleCharInput_LowercaseHex_WorksCorrectly()
+    {
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        renderer.HandleCharInput('a', state, ref nibble, 80);
+        renderer.HandleCharInput('b', state, ref nibble, 80);
+
+        // 0xAB = 171
+        Assert.Equal((char)0xAB, state.Document.GetText()[0]);
+    }
+
+    [Fact]
+    public void HandleCharInput_ReadOnly_DoesNotConsume()
+    {
+        var (renderer, state) = SetupHexInput("X");
+        state.IsReadOnly = true;
+        char? nibble = null;
+
+        var consumed = renderer.HandleCharInput('4', state, ref nibble, 80);
+
+        Assert.False(consumed);
+        Assert.Null(nibble);
+        Assert.Equal("X", state.Document.GetText());
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 9: Hex input via EditorNode integration
+    // ═══════════════════════════════════════════════════════════
+
+    private static EditorNode CreateHexNode(string text, int width, int height)
+    {
+        var doc = new Hex1bDocument(text);
+        var state = new EditorState(doc);
+        var node = new EditorNode
+        {
+            State = state,
+            ViewRenderer = HexEditorViewRenderer.Instance,
+            IsFocused = true
+        };
+        node.Measure(new Constraints(0, width, 0, height));
+        node.Arrange(new Rect(0, 0, width, height));
+        return node;
+    }
+
+    [Fact]
+    public void TextEditorRenderer_HandlesCharInput_IsFalse()
+    {
+        IEditorViewRenderer renderer = TextEditorViewRenderer.Instance;
+        Assert.False(renderer.HandlesCharInput);
     }
 }

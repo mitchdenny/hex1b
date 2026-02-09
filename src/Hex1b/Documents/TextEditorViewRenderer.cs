@@ -16,7 +16,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     public static TextEditorViewRenderer Instance { get; } = new();
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null)
     {
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
