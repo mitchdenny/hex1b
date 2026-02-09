@@ -274,7 +274,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                         : "  ");
                 }
 
-                if (i < bytesPerRow - 1 && !(hasMidGroup && i == half - 1))
+                if (i < bytesPerRow - 1)
                     sb.Append(' ');
             }
 
