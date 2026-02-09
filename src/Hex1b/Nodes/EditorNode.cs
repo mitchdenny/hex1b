@@ -168,17 +168,27 @@ public sealed class EditorNode : Hex1bNode
         var bg = theme.Get(EditorTheme.BackgroundColor);
         var cursorFg = theme.Get(EditorTheme.CursorForegroundColor);
         var cursorBg = theme.Get(EditorTheme.CursorBackgroundColor);
+        var selFg = theme.Get(EditorTheme.SelectionForegroundColor);
+        var selBg = theme.Get(EditorTheme.SelectionBackgroundColor);
 
         var doc = State.Document;
 
-        // Collect all cursor positions that are visible in the viewport
+        // Collect all cursor positions and selection ranges
         var cursorPositions = new HashSet<(int Line, int Column)>();
+        // Selection ranges as (startOffset, endOffset) pairs — already sorted
+        var selectionRanges = new List<(int Start, int End)>();
+
         if (IsFocused)
         {
             foreach (var cursor in State.Cursors)
             {
                 var pos = doc.OffsetToPosition(cursor.Position);
                 cursorPositions.Add((pos.Line, pos.Column));
+
+                if (cursor.HasSelection)
+                {
+                    selectionRanges.Add((cursor.SelectionStart.Value, cursor.SelectionEnd.Value));
+                }
             }
         }
 
@@ -190,15 +200,13 @@ public sealed class EditorNode : Hex1bNode
 
             if (docLine > doc.LineCount)
             {
-                // Past end of document — render tilde like vim
                 var emptyLine = "~".PadRight(_viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, null, null, null);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
             }
 
             var lineText = doc.GetLineText(docLine);
 
-            // Truncate or pad to viewport width
             string displayText;
             if (lineText.Length >= _viewportColumns)
             {
@@ -209,25 +217,91 @@ public sealed class EditorNode : Hex1bNode
                 displayText = lineText.PadRight(_viewportColumns);
             }
 
-            // Collect cursor columns on this line
-            var cursorsOnLine = new List<int>();
+            // Build per-column cell type map for this line
+            var lineStartOffset = doc.PositionToOffset(new Documents.DocumentPosition(docLine, 1)).Value;
+            var lineEndOffset = lineStartOffset + lineText.Length;
+            var cellTypes = BuildCellTypes(displayText.Length, docLine, lineStartOffset, lineEndOffset,
+                cursorPositions, selectionRanges);
+
+            RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg,
+                cellTypes, null);
+        }
+    }
+
+    /// <summary>
+    /// Determines the visual type for each column in a line: normal, cursor, or selected.
+    /// Cursor takes priority over selection.
+    /// </summary>
+    private static CellType[]? BuildCellTypes(
+        int displayWidth,
+        int docLine,
+        int lineStartOffset,
+        int lineEndOffset,
+        HashSet<(int Line, int Column)> cursorPositions,
+        List<(int Start, int End)> selectionRanges)
+    {
+        // Quick check: any decorations on this line?
+        var hasCursor = false;
+        foreach (var (line, _) in cursorPositions)
+        {
+            if (line == docLine) { hasCursor = true; break; }
+        }
+
+        var hasSelection = false;
+        foreach (var (start, end) in selectionRanges)
+        {
+            // Selection overlaps this line if it starts before lineEnd and ends after lineStart
+            if (start < lineEndOffset + 1 && end > lineStartOffset)
+            {
+                hasSelection = true;
+                break;
+            }
+        }
+
+        if (!hasCursor && !hasSelection) return null;
+
+        var types = new CellType[displayWidth];
+
+        // Mark selected columns
+        if (hasSelection)
+        {
+            foreach (var (start, end) in selectionRanges)
+            {
+                // Convert document offsets to 0-based column indices on this line
+                var selStartCol = Math.Max(0, start - lineStartOffset);
+                var selEndCol = Math.Min(displayWidth, end - lineStartOffset);
+
+                for (var col = selStartCol; col < selEndCol; col++)
+                {
+                    types[col] = CellType.Selected;
+                }
+            }
+        }
+
+        // Mark cursor columns (overrides selection)
+        if (hasCursor)
+        {
             foreach (var (line, column) in cursorPositions)
             {
                 if (line == docLine)
                 {
-                    cursorsOnLine.Add(column - 1); // 0-based for rendering
+                    var col = column - 1; // 0-based
+                    if (col >= 0 && col < displayWidth)
+                    {
+                        types[col] = CellType.Cursor;
+                    }
                 }
             }
-
-            if (cursorsOnLine.Count > 0)
-            {
-                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, cursorsOnLine);
-            }
-            else
-            {
-                RenderLine(context, screenX, screenY, displayText, fg, bg, null, null, null);
-            }
         }
+
+        return types;
+    }
+
+    private enum CellType : byte
+    {
+        Normal = 0,
+        Selected = 1,
+        Cursor = 2
     }
 
     private void RenderLine(
@@ -235,37 +309,58 @@ public sealed class EditorNode : Hex1bNode
         int x, int y,
         string text,
         Hex1bColor fg, Hex1bColor bg,
-        Hex1bColor? cursorFg, Hex1bColor? cursorBg,
-        List<int>? cursorCols)
+        Hex1bColor cursorFg, Hex1bColor cursorBg,
+        Hex1bColor selFg, Hex1bColor selBg,
+        CellType[]? cellTypes,
+        int? _)
     {
         string output;
 
-        if (cursorCols is { Count: > 0 } && cursorFg is not null && cursorBg is not null)
+        if (cellTypes != null)
         {
             var globalColors = context.Theme.GetGlobalColorCodes();
             var resetToGlobal = context.Theme.GetResetToGlobalCodes();
             var sb = new System.Text.StringBuilder(text.Length * 2);
             sb.Append(globalColors);
+
+            var prevType = CellType.Normal;
             sb.Append(fg.ToForegroundAnsi());
             sb.Append(bg.ToBackgroundAnsi());
 
-            var cursorSet = new HashSet<int>(cursorCols);
-
             for (var i = 0; i < text.Length; i++)
             {
-                if (cursorSet.Contains(i))
+                var cellType = i < cellTypes.Length ? cellTypes[i] : CellType.Normal;
+
+                if (cellType != prevType)
                 {
-                    sb.Append(cursorFg.Value.ToForegroundAnsi());
-                    sb.Append(cursorBg.Value.ToBackgroundAnsi());
-                    sb.Append(text[i]);
-                    sb.Append(resetToGlobal);
-                    sb.Append(fg.ToForegroundAnsi());
-                    sb.Append(bg.ToBackgroundAnsi());
+                    switch (cellType)
+                    {
+                        case CellType.Cursor:
+                            sb.Append(cursorFg.ToForegroundAnsi());
+                            sb.Append(cursorBg.ToBackgroundAnsi());
+                            break;
+                        case CellType.Selected:
+                            sb.Append(selFg.ToForegroundAnsi());
+                            sb.Append(selBg.ToBackgroundAnsi());
+                            break;
+                        case CellType.Normal:
+                            sb.Append(resetToGlobal);
+                            sb.Append(fg.ToForegroundAnsi());
+                            sb.Append(bg.ToBackgroundAnsi());
+                            break;
+                    }
+                    prevType = cellType;
                 }
-                else
-                {
-                    sb.Append(text[i]);
-                }
+
+                sb.Append(text[i]);
+            }
+
+            // Reset at end if we were in a special mode
+            if (prevType != CellType.Normal)
+            {
+                sb.Append(resetToGlobal);
+                sb.Append(fg.ToForegroundAnsi());
+                sb.Append(bg.ToBackgroundAnsi());
             }
 
             output = sb.ToString();
