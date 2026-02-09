@@ -69,7 +69,8 @@ public class EditorNodeScrollTests
         for (var i = 0; i < 9; i++)
             node.State.MoveCursor(CursorDirection.Down);
 
-        // Re-arrange triggers EnsureCursorVisible
+        // Notify the node that cursor changed (in real usage, input handlers do this)
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 5));
 
         // Cursor is on line 10; viewport should scroll so line 10 is visible
@@ -79,20 +80,20 @@ public class EditorNodeScrollTests
     }
 
     [Fact]
-    public void EnsureCursorVisible_CursorAboveViewport_ScrollsUp()
+    public void ScrollOffset_SetManually_DoesNotFlickBackToCursor()
     {
-        // NOTE: Scroll margin may be added.
+        // When scroll is set via scrollbar or wheel (no cursor change), Arrange must
+        // NOT snap back to the cursor position. This is the "flick-back" fix.
         var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
         var node = CreateNode(lines, 20, 5);
 
         // Scroll to line 15, but cursor is still on line 1
         node.ScrollOffset = 15;
 
-        // Re-arrange triggers EnsureCursorVisible
+        // Re-arrange should NOT snap back — no cursor change occurred
         node.Arrange(new Rect(0, 0, 20, 5));
 
-        // Cursor is on line 1; viewport should scroll back to show it
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.Equal(15, node.ScrollOffset);
     }
 
     [Fact]
@@ -109,6 +110,7 @@ public class EditorNodeScrollTests
         for (var i = 0; i < 4; i++)
             node.State.MoveCursor(CursorDirection.Down);
 
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 10));
 
         // Should still be at scroll offset 1
@@ -124,6 +126,7 @@ public class EditorNodeScrollTests
 
         // PageDown moves cursor by viewport lines
         node.State.MovePageDown(node.ViewportLines);
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 10));
 
         // Cursor should be on line 11 (started at line 1, moved down by viewport=10);
@@ -144,9 +147,11 @@ public class EditorNodeScrollTests
         // Go to line 20, then page up
         for (var i = 0; i < 19; i++)
             node.State.MoveCursor(CursorDirection.Down);
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 10));
 
         node.State.MovePageUp(node.ViewportLines);
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 10));
 
         var cursorLine = node.State.Document.OffsetToPosition(node.State.Cursor.Position).Line;

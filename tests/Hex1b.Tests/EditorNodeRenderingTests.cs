@@ -750,6 +750,7 @@ public class EditorNodeRenderingTests
 
         // Move cursor to end of document
         state.MoveToDocumentEnd();
+        node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 5));
 
         Assert.True(node.HorizontalScrollOffset > 0, "Horizontal scroll should be non-zero when cursor is past viewport");
