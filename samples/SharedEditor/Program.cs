@@ -40,7 +40,7 @@ var activeTab = 0;
         var content = File.Exists(fullPath) ? File.ReadAllText(fullPath) : "";
         var doc = new Hex1bDocument(content);
         var textState = new EditorState(doc);
-        var hexState = new EditorState(doc) { IsReadOnly = true };
+        var hexState = new EditorState(doc);
         openDocs[relativePath] = (doc, textState, hexState);
     }
 
