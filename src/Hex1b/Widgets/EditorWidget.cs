@@ -14,6 +14,12 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     internal Func<EditorTextChangedEventArgs, Task>? TextChangedHandler { get; init; }
 
     /// <summary>
+    /// The view renderer that controls how document content is displayed.
+    /// Defaults to TextEditorViewRenderer (plain text).
+    /// </summary>
+    internal IEditorViewRenderer? Renderer { get; init; }
+
+    /// <summary>
     /// Sets a synchronous handler called when the document text changes.
     /// </summary>
     public EditorWidget OnTextChanged(Action<EditorTextChangedEventArgs> handler)
@@ -25,12 +31,24 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     public EditorWidget OnTextChanged(Func<EditorTextChangedEventArgs, Task> handler)
         => this with { TextChangedHandler = handler };
 
+    /// <summary>
+    /// Sets the view renderer for this editor. Use <see cref="TextEditorViewRenderer"/> for text
+    /// or <see cref="HexEditorViewRenderer"/> for hex dump views.
+    /// </summary>
+    public EditorWidget WithViewRenderer(IEditorViewRenderer renderer)
+        => this with { Renderer = renderer };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as EditorNode ?? new EditorNode();
 
         node.SourceWidget = this;
         node.State = State;
+
+        if (Renderer != null)
+        {
+            node.ViewRenderer = Renderer;
+        }
 
         if (TextChangedHandler != null)
         {
