@@ -101,7 +101,7 @@ internal sealed class AgentInitCommand : BaseCommand
     private static string GetSkillContent() => """
         ---
         name: hex1b
-        description: CLI tool for automating any terminal application — TUI apps, shells, CLI tools, REPLs, and more. Use when you need to launch a process in a virtual terminal, capture its screen output, inject keystrokes or mouse input, or assert on what's visible.
+        description: CLI tool for automating any terminal application — TUI apps, shells, CLI tools, REPLs, and more. Use when you need to launch a process in a virtual terminal, capture its screen output, inject keystrokes or mouse input, take screenshots, record sessions, or assert on what's visible.
         ---
 
         # Hex1b CLI Skill
@@ -111,178 +111,326 @@ internal sealed class AgentInitCommand : BaseCommand
         It wraps arbitrary processes in a headless virtual terminal, giving you programmatic control
         over screen capture, input injection, and content assertions.
 
-        Use it to:
-        - Launch any command in a virtual terminal and interact with it programmatically
-        - Capture what's on screen as text, ANSI, or SVG at any point
-        - Send keystrokes, text, and mouse events
-        - Assert on visible content (useful for CI and scripted testing)
-        - Inspect Hex1b TUI widget trees (Hex1b apps only)
-
         ## Installation
 
-        The tool is distributed as a .NET local tool. Install it in the repo:
-
         ```bash
+        # Install as a local tool (recommended for repos)
         dotnet tool install Hex1b.Tool
-        ```
 
-        Or restore if already in the manifest:
-
-        ```bash
+        # Or restore if already in the tool manifest
         dotnet tool restore
         ```
 
         ## Concepts
 
         A **terminal** is a headless virtual terminal managed by Hex1b. Any process that runs in a
-        terminal emulator can be launched inside one — shells, TUI apps, CLI tools, REPLs, compilers,
-        test runners, etc. Terminals are identified by a short numeric ID (the process ID).
+        terminal emulator can be launched inside one. Terminals are identified by a short numeric ID
+        (the process ID). Use a prefix if unambiguous.
 
-        There are two kinds:
+        All commands support `--json` for machine-readable output.
 
-        - **Hosted terminals** — Any process spawned by the CLI inside a headless virtual terminal. This is the primary way to automate arbitrary programs.
-        - **TUI apps** — Hex1b applications with diagnostics enabled (`WithDiagnostics()`). Discovered automatically; support additional features like widget tree inspection.
+        ---
 
-        All commands that target a terminal take an `<id>` argument. Use a prefix if unambiguous.
+        ## How to Launch a Process in a Virtual Terminal
 
-        ## Global Options
-
-        - `--json` — Output results as JSON (available on all commands)
-        - `--help` — Show help for any command
-
-        ## Commands
-
-        ### Terminal Lifecycle
+        Start any command in a headless terminal. This is the entry point for all automation.
 
         ```bash
-        # List all known terminals (auto-cleans stale sockets)
+        # Start a shell
+        dotnet hex1b terminal start -- bash
+
+        # Start a specific program with custom terminal size
+        dotnet hex1b terminal start --width 120 --height 40 -- htop
+
+        # Start with a working directory
+        dotnet hex1b terminal start --cwd /path/to/project -- vim myfile.txt
+
+        # Start a .NET project
+        dotnet hex1b terminal start -- dotnet run --project src/MyApp
+
+        # Start and immediately attach (interactive mirror)
+        dotnet hex1b terminal start --attach -- bash
+        ```
+
+        To get the terminal ID for subsequent commands:
+
+        ```bash
+        # List all running terminals
         dotnet hex1b terminal list
 
-        # Start a hosted terminal running a command
-        dotnet hex1b terminal start [--width 120] [--height 30] [--cwd <path>] -- <command> [args...]
-
-        # Stop a hosted terminal
-        dotnet hex1b terminal stop <id>
-
-        # Show terminal details (name, PID, dimensions, uptime)
-        dotnet hex1b terminal info <id>
-
-        # Resize a terminal
-        dotnet hex1b terminal resize <id> --width <n> --height <n>
-
-        # Remove stale socket files
-        dotnet hex1b terminal clean
-
-        # Attach to a terminal (interactive — streams output, forwards input, Ctrl+] to detach)
-        dotnet hex1b terminal attach <id>
+        # Get the ID as JSON (useful for scripting)
+        ID=$(dotnet hex1b terminal start --json -- dotnet run --project src/MyApp | jq -r .id)
         ```
 
-        ### Screen Capture
+        ## How to See What's on Screen
+
+        Capture the terminal's visible content at any point.
 
         ```bash
-        # Capture terminal screen (formats: text, ansi, svg)
-        dotnet hex1b capture <id> [--format text|ansi|svg] [--output <file>]
+        # Plain text (default) — good for reading content and assertions
+        dotnet hex1b capture screenshot <id>
 
-        # Wait for text to appear before capturing
-        dotnet hex1b capture <id> --wait "Ready" --timeout 30
+        # ANSI — preserves colors and formatting
+        dotnet hex1b capture screenshot <id> --format ansi
+
+        # SVG — rendered terminal screenshot as vector image
+        dotnet hex1b capture screenshot <id> --format svg --output screenshot.svg
+
+        # PNG — rendered terminal screenshot as raster image (requires --output)
+        dotnet hex1b capture screenshot <id> --format png --output screenshot.png
+
+        # HTML — rendered terminal screenshot as HTML
+        dotnet hex1b capture screenshot <id> --format html --output screenshot.html
+
+        # Include scrollback history
+        dotnet hex1b capture screenshot <id> --scrollback 100
+
+        # Wait for specific content to appear before capturing
+        dotnet hex1b capture screenshot <id> --format png --output ready.png --wait "Ready" --timeout 30
         ```
 
-        ### Input Injection
+        The `--wait` option polls until the specified text is visible, then captures. Useful when
+        the application takes time to render its initial state.
+
+        ## How to Wait for Something to Appear
+
+        Use assertions to block until content is visible (or confirm it's absent). This is essential
+        for reliable automation — never assume timing.
 
         ```bash
-        # Send a named key (Enter, Tab, Escape, F1, ArrowUp, etc.)
-        dotnet hex1b keys <id> --key Enter
+        # Wait up to 30 seconds for text to appear
+        dotnet hex1b assert <id> --text-present "Welcome" --timeout 30
 
-        # Send text as keystrokes
-        dotnet hex1b keys <id> --text "hello world"
-
-        # Send key with modifiers
-        dotnet hex1b keys <id> --key C --ctrl
-
-        # Click at coordinates (0-based column, row)
-        dotnet hex1b mouse click <id> <x> <y> [--button left|right|middle]
-        ```
-
-        ### Assertions (for CI and scripting)
-
-        ```bash
-        # Assert text is visible on screen (waits up to --timeout seconds)
-        dotnet hex1b assert <id> --text-present "Welcome"
-
-        # Assert text is NOT visible
+        # Confirm error text is NOT showing (waits up to 10s to be sure)
         dotnet hex1b assert <id> --text-absent "Error" --timeout 10
         ```
 
-        ### Widget Tree Inspection (TUI apps only)
+        Exit code 0 means the assertion passed; non-zero means it failed (timed out).
+
+        ## How to Send Keyboard Input
+
+        Type text or send individual keys to the terminal.
 
         ```bash
-        # Inspect the widget/node tree
-        dotnet hex1b app tree <id> [--focus] [--popups] [--depth <n>]
+        # Type text (each character sent as a keystroke)
+        dotnet hex1b keys <id> --text "hello world"
+
+        # Send a named key
+        dotnet hex1b keys <id> --key Enter
+        dotnet hex1b keys <id> --key Tab
+        dotnet hex1b keys <id> --key Escape
+        dotnet hex1b keys <id> --key ArrowUp
+
+        # Send key with modifiers
+        dotnet hex1b keys <id> --key C --ctrl          # Ctrl+C
+        dotnet hex1b keys <id> --key S --ctrl           # Ctrl+S
+        dotnet hex1b keys <id> --key Tab --shift        # Shift+Tab
+        dotnet hex1b keys <id> --key F --ctrl --shift   # Ctrl+Shift+F
         ```
 
-        ## Common Workflows
+        Available key names: `Enter`, `Tab`, `Escape`, `Backspace`, `Spacebar`, `UpArrow`,
+        `DownArrow`, `LeftArrow`, `RightArrow`, `Home`, `End`, `PageUp`, `PageDown`, `Delete`,
+        `Insert`, `F1`–`F12`, and single letters `A`–`Z`.
 
-        ### Automate any CLI or TUI application
+        ## How to Send Mouse Input
+
+        Click or drag at specific terminal coordinates (0-based column, row).
 
         ```bash
-        # Launch htop in a virtual terminal
-        dotnet hex1b terminal start -- htop
+        # Left click at column 10, row 5
+        dotnet hex1b mouse click <id> 10 5
 
-        # Launch a Python REPL
-        dotnet hex1b terminal start -- python3
+        # Right click
+        dotnet hex1b mouse click <id> 10 5 --button right
 
-        # Launch vim editing a file
-        dotnet hex1b terminal start --width 80 --height 24 -- vim myfile.txt
-
-        # Get the terminal ID
-        dotnet hex1b terminal list
+        # Drag from (5,3) to (20,3)
+        dotnet hex1b mouse drag <id> 5 3 20 3
         ```
 
-        ### Interact with a running program
+        ## How to Start a Recording After a Terminal Has Launched
+
+        If the terminal is already running, start recording its session to an asciinema `.cast` file.
 
         ```bash
-        # Type into a shell or REPL
-        dotnet hex1b keys <id> --text "print('hello')"
+        # Start the terminal first
+        dotnet hex1b terminal start -- dotnet run --project src/MyApp
+        # ... get the <id> from terminal list ...
+
+        # Begin recording to a file
+        dotnet hex1b capture recording start <id> --output session.cast
+
+        # Optionally set a title and idle time limit
+        dotnet hex1b capture recording start <id> --output session.cast --title "Demo session" --idle-limit 2.0
+
+        # Do your interactions...
+        dotnet hex1b keys <id> --text "hello"
         dotnet hex1b keys <id> --key Enter
 
-        # Wait for output to appear, then capture it
-        dotnet hex1b assert <id> --text-present "hello"
-        dotnet hex1b capture <id> --format text
+        # Stop recording when done
+        dotnet hex1b capture recording stop <id>
         ```
 
-        ### Launch and test a Hex1b TUI app
+        ## How to Record a Session from the Moment It Starts
+
+        Use `--record` on `terminal start` to begin recording immediately when the process launches.
 
         ```bash
-        # Start the app in a hosted terminal
-        dotnet hex1b terminal start -- dotnet run --project samples/MyApp
+        # Start terminal with recording enabled from the start
+        dotnet hex1b terminal start --record session.cast -- dotnet run --project src/MyApp
 
-        # List to get the ID
-        dotnet hex1b terminal list
+        # The recording is already in progress — interact normally
+        dotnet hex1b assert <id> --text-present "Ready" --timeout 15
+        dotnet hex1b keys <id> --key Enter
+        dotnet hex1b capture screenshot <id> --format text
 
-        # Wait for it to be ready, then interact
-        dotnet hex1b assert <id> --text-present "Ready"
-        dotnet hex1b keys <id> --key Tab
-        dotnet hex1b capture <id> --format text
+        # Stop recording when done
+        dotnet hex1b capture recording stop <id>
         ```
 
-        ### Scripted testing
+        ## How to Stop a Recording
 
         ```bash
-        # Start, interact, assert, stop
+        # Stop the active recording
+        dotnet hex1b capture recording stop <id>
+
+        # Check if a terminal is currently recording
+        dotnet hex1b capture recording status <id>
+        ```
+
+        The `.cast` file is written incrementally, so the file will contain all events up to the
+        point you stop.
+
+        ## How to Play Back a Recording
+
+        ```bash
+        # Simple playback in the terminal
+        dotnet hex1b capture recording playback --file session.cast
+
+        # Play at 2x speed
+        dotnet hex1b capture recording playback --file session.cast --speed 2.0
+
+        # Interactive TUI player with pause/seek controls
+        dotnet hex1b capture recording playback --file session.cast --player
+        ```
+
+        ## How to Inspect a Hex1b TUI App's Widget Tree
+
+        If the terminal is running a Hex1b application with `.WithDiagnostics()` enabled, you can
+        inspect its internal widget/node tree.
+
+        ```bash
+        # Show the full widget tree with geometry
+        dotnet hex1b app tree <id>
+
+        # Include focus state
+        dotnet hex1b app tree <id> --focus
+
+        # Include popup stack
+        dotnet hex1b app tree <id> --popups
+
+        # Limit tree depth
+        dotnet hex1b app tree <id> --depth 3
+
+        # Get as JSON for programmatic inspection
+        dotnet hex1b app tree <id> --json
+        ```
+
+        ## How to Stop and Clean Up Terminals
+
+        ```bash
+        # Stop a specific terminal
+        dotnet hex1b terminal stop <id>
+
+        # Get terminal details (PID, dimensions, uptime)
+        dotnet hex1b terminal info <id>
+
+        # Resize a running terminal
+        dotnet hex1b terminal resize <id> --width 160 --height 50
+
+        # Clean up stale sockets from exited processes
+        dotnet hex1b terminal clean
+        ```
+
+        ## How to Attach Interactively
+
+        Attach to a terminal for interactive use — you see what the process sees and can type directly.
+
+        ```bash
+        # Attach to a terminal (Ctrl+] to detach)
+        dotnet hex1b terminal attach <id>
+        ```
+
+        ## How to Set Up the Agent Skill File
+
+        Generate this skill file for a repository so AI agents know how to use the CLI.
+
+        ```bash
+        # Write skill file to .github/skills/hex1b/SKILL.md
+        dotnet hex1b agent init
+
+        # Specify a different repo root
+        dotnet hex1b agent init --path /path/to/repo
+
+        # Overwrite an existing skill file
+        dotnet hex1b agent init --force
+
+        # Print to stdout instead of writing to disk
+        dotnet hex1b agent init --stdout
+        ```
+
+        ## Common Workflow: End-to-End Scripted Test
+
+        ```bash
+        # Launch the app
         ID=$(dotnet hex1b terminal start --json -- dotnet run --project src/MyApp | jq -r .id)
+
+        # Wait for it to be ready
         dotnet hex1b assert $ID --text-present "Main Menu" --timeout 15
+
+        # Navigate and interact
         dotnet hex1b keys $ID --key Enter
         dotnet hex1b assert $ID --text-present "Settings"
-        dotnet hex1b capture $ID --format svg --output screenshot.svg
+        dotnet hex1b keys $ID --text "new value"
+        dotnet hex1b keys $ID --key Enter
+
+        # Capture final state
+        dotnet hex1b capture screenshot $ID --format png --output result.png
+        dotnet hex1b capture screenshot $ID --format text
+
+        # Clean up
         dotnet hex1b terminal stop $ID
+        ```
+
+        ## Common Workflow: Record a Demo
+
+        ```bash
+        # Start with recording
+        ID=$(dotnet hex1b terminal start --json --record demo.cast -- dotnet run --project samples/MyApp | jq -r .id)
+
+        # Wait and interact
+        dotnet hex1b assert $ID --text-present "Ready" --timeout 15
+        dotnet hex1b keys $ID --key Tab
+        dotnet hex1b keys $ID --key Enter
+
+        # Take a screenshot at a key moment
+        dotnet hex1b capture screenshot $ID --format png --output highlight.png
+
+        # Stop recording and terminal
+        dotnet hex1b capture recording stop $ID
+        dotnet hex1b terminal stop $ID
+
+        # Play it back
+        dotnet hex1b capture recording playback --file demo.cast --player
         ```
 
         ## Tips
 
-        - Use `--json` with `jq` for scriptable output (e.g., `dotnet hex1b terminal list --json | jq '.[] | .id'`)
-        - Terminal IDs are PIDs — you can use a unique prefix instead of the full number
+        - Use `--json` with `jq` for scriptable output: `dotnet hex1b terminal list --json | jq '.[] | .id'`
+        - Terminal IDs are PIDs — use a unique prefix instead of the full number
         - `terminal list` automatically cleans up stale sockets from exited processes
-        - `capture --wait` is useful for waiting for async rendering before taking a screenshot
-        - Key names match .NET's `ConsoleKey` enum: `Enter`, `Tab`, `Escape`, `Backspace`, `UpArrow`, `DownArrow`, `LeftArrow`, `RightArrow`, `F1`–`F12`, `Home`, `End`, `PageUp`, `PageDown`, `Delete`, `Insert`, `Spacebar`, and single letters `A`–`Z`
+        - `capture screenshot --wait` is useful for waiting for async rendering before capturing
+        - Always use `assert` before interacting — never assume the app has rendered
+        - For PNG screenshots, `--output` is required since PNG is a binary format
+        - Recordings use the asciinema v2 `.cast` format and can be played with any compatible player
         """;
 }

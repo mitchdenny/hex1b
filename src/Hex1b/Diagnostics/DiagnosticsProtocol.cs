@@ -91,6 +91,12 @@ internal sealed class DiagnosticsRequest
     /// </summary>
     [JsonPropertyName("idleLimit")]
     public double? IdleLimit { get; set; }
+
+    /// <summary>
+    /// For "capture" method with "svg" or "html" format, overrides the font family used in rendering.
+    /// </summary>
+    [JsonPropertyName("fontFamily")]
+    public string? FontFamily { get; set; }
 }
 
 /// <summary>

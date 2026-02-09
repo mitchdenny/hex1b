@@ -46,9 +46,17 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Fonts/CaskaydiaCoveNerdFontMono-Regular.ttf" LogicalName="Hex1b.Tool.Fonts.CaskaydiaCoveNerdFontMono-Regular.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
+    <PackageReference Include="Svg.Skia" Version="2.0.0.4" />
     <PackageReference Include="System.CommandLine" Version="2.0.2" />
   </ItemGroup>
 
