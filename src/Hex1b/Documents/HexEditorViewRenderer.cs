@@ -100,8 +100,65 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         return AddressWidth + 1 + hexWidth + 1 + bytesPerRow;
     }
 
+    // ── Hex input handling ───────────────────────────────────────
+
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused)
+    public bool HandlesCharInput => true;
+
+    /// <inheritdoc />
+    public bool HandleCharInput(char c, EditorState state, ref char? pendingNibble, int viewportColumns)
+    {
+        if (state.IsReadOnly) return false;
+
+        var nibbleValue = HexCharToNibble(c);
+        if (nibbleValue < 0)
+        {
+            // Not a hex character — cancel any pending nibble and don't consume
+            pendingNibble = null;
+            return false;
+        }
+
+        if (pendingNibble is null)
+        {
+            // First nibble — store it, don't edit the document yet
+            pendingNibble = c;
+            return true;
+        }
+
+        // Second nibble — combine with first and commit the byte
+        var highNibble = HexCharToNibble(pendingNibble.Value);
+        var byteValue = (byte)((highNibble << 4) | nibbleValue);
+        pendingNibble = null;
+
+        CommitByte(state, byteValue, viewportColumns);
+        return true;
+    }
+
+    private void CommitByte(EditorState state, byte byteValue, int viewportColumns)
+    {
+        var newChar = (char)byteValue;
+        var pos = state.Cursor.Position;
+
+        if (pos.Value < state.Document.Length)
+        {
+            // Select the current character, then replace via InsertText
+            state.Cursor.SelectionAnchor = pos;
+            state.Cursor.Position = new DocumentOffset(pos.Value + 1);
+        }
+
+        state.InsertText(newChar.ToString());
+    }
+
+    private static int HexCharToNibble(char c) => c switch
+    {
+        >= '0' and <= '9' => c - '0',
+        >= 'a' and <= 'f' => c - 'a' + 10,
+        >= 'A' and <= 'F' => c - 'A' + 10,
+        _ => -1
+    };
+
+    /// <inheritdoc />
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null)
     {
         var (bytesPerRow, hasMidGroup) = CalculateLayout(viewport.Width);
         var theme = context.Theme;
@@ -170,9 +227,19 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             {
                 if (hasMidGroup && i == half) sb.Append(' ');
 
-                sb.Append(i < rowByteCount
-                    ? docBytes[rowByteStart + i].ToString("X2")
-                    : "  ");
+                var byteIdx = rowByteStart + i;
+                if (i < rowByteCount && pendingNibble.HasValue && byteIdx == cursorByteOffset)
+                {
+                    // Show pending nibble: e.g. "A_" instead of the current byte
+                    sb.Append(char.ToUpper(pendingNibble.Value));
+                    sb.Append('_');
+                }
+                else
+                {
+                    sb.Append(i < rowByteCount
+                        ? docBytes[rowByteStart + i].ToString("X2")
+                        : "  ");
+                }
 
                 if (i < bytesPerRow - 1 && !(hasMidGroup && i == half - 1))
                     sb.Append(' ');

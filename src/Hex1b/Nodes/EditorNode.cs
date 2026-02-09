@@ -21,6 +21,7 @@ public sealed class EditorNode : Hex1bNode
     private bool _showVerticalScrollbar;
     private bool _showHorizontalScrollbar;
     private bool _cursorDirty; // Set when cursor changes; cleared after Arrange adjusts scroll
+    private char? _pendingNibble; // For hex renderers: first nibble of partially-entered byte
     private IHex1bDocument? _subscribedDocument;
 
     /// <summary>
@@ -233,7 +234,7 @@ public sealed class EditorNode : Hex1bNode
         if (State == null) return;
 
         // Render text content at full bounds width — scrollbars render on top
-        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused);
+        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble);
 
         // Render scrollbars (self-rendered, not composed)
         if (_showVerticalScrollbar)
@@ -386,6 +387,29 @@ public sealed class EditorNode : Hex1bNode
 
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
+        // Let the view renderer intercept character input (e.g., hex byte editing)
+        if (text.Length == 1 && ViewRenderer.HandlesCharInput)
+        {
+            var nibbleBefore = _pendingNibble;
+            if (ViewRenderer.HandleCharInput(text[0], State, ref _pendingNibble, _viewportColumns))
+            {
+                if (_pendingNibble == null)
+                {
+                    // Byte was committed — trigger edit flow
+                    _cursorDirty = true;
+                    MarkDirty();
+                    if (TextChangedAction != null) await TextChangedAction(ctx);
+                }
+                else
+                {
+                    // First nibble stored — just redraw, don't mark edit
+                    MarkDirty();
+                }
+                return;
+            }
+        }
+
+        _pendingNibble = null;
         State.InsertText(text);
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
@@ -484,12 +508,14 @@ public sealed class EditorNode : Hex1bNode
 
     private void AfterMove()
     {
+        _pendingNibble = null;
         _cursorDirty = true;
         MarkDirty();
     }
 
     private void AfterEdit()
     {
+        _pendingNibble = null;
         _cursorDirty = true;
         MarkDirty();
     }
