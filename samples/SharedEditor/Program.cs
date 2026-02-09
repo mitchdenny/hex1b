@@ -8,6 +8,7 @@ var leftState = new EditorState(doc);
 var rightState = new EditorState(doc) { IsReadOnly = true };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDiagnostics()
     .WithHex1bApp((app, options) => ctx => ctx.HStack(h =>
     [
         h.Editor(leftState).FillWidth().FillHeight(),
