@@ -189,8 +189,9 @@ public sealed class EditorNode : Hex1bNode
     private void EnsureCursorVisible()
     {
         if (State == null) return;
-        // Track primary cursor for scroll
-        var cursorPos = State.Document.OffsetToPosition(State.Cursor.Position);
+        // Clamp cursor to document bounds (cursor may lag behind after bulk delete)
+        var offset = Math.Min(State.Cursor.Position.Value, State.Document.Length);
+        var cursorPos = State.Document.OffsetToPosition(new DocumentOffset(offset));
         var cursorLine = cursorPos.Line;
 
         if (cursorLine < _scrollOffset)
