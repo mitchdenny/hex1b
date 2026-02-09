@@ -37,7 +37,7 @@ internal sealed class TerminalHostCommand : BaseCommand
         var height = parseResult.GetValue(s_heightOption);
         var cwd = parseResult.GetValue(s_cwdOption);
         var record = parseResult.GetValue(s_recordOption);
-        var command = parseResult.GetValue(s_commandArgument) ?? ["/bin/bash"];
+        var command = parseResult.GetValue(s_commandArgument) is { Length: > 0 } cmd ? cmd : ["/bin/bash"];
 
         var config = new TerminalHostConfig
         {
