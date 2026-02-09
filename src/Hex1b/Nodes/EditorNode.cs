@@ -24,6 +24,9 @@ public sealed class EditorNode : Hex1bNode
     /// <summary>The editor state (shared between nodes that share state).</summary>
     public EditorState State { get; set; } = null!;
 
+    /// <summary>The view renderer that controls how document content is displayed.</summary>
+    public IEditorViewRenderer ViewRenderer { get; set; } = TextEditorViewRenderer.Instance;
+
     /// <summary>
     /// Internal action invoked when text content changes.
     /// </summary>
@@ -35,7 +38,8 @@ public sealed class EditorNode : Hex1bNode
         get => _scrollOffset;
         set
         {
-            var clamped = Math.Clamp(value, 1, Math.Max(1, State?.Document.LineCount ?? 1));
+            var maxLine = State != null ? ViewRenderer.GetTotalLines(State.Document) : 1;
+            var clamped = Math.Clamp(value, 1, Math.Max(1, maxLine));
             if (_scrollOffset != clamped)
             {
                 _scrollOffset = clamped;
@@ -179,225 +183,7 @@ public sealed class EditorNode : Hex1bNode
     {
         if (State == null) return;
 
-        var theme = context.Theme;
-        var fg = theme.Get(EditorTheme.ForegroundColor);
-        var bg = theme.Get(EditorTheme.BackgroundColor);
-        var cursorFg = theme.Get(EditorTheme.CursorForegroundColor);
-        var cursorBg = theme.Get(EditorTheme.CursorBackgroundColor);
-        var selFg = theme.Get(EditorTheme.SelectionForegroundColor);
-        var selBg = theme.Get(EditorTheme.SelectionBackgroundColor);
-
-        var doc = State.Document;
-
-        // Collect all cursor positions and selection ranges
-        var cursorPositions = new HashSet<(int Line, int Column)>();
-        // Selection ranges as (startOffset, endOffset) pairs — already sorted
-        var selectionRanges = new List<(int Start, int End)>();
-
-        if (IsFocused)
-        {
-            foreach (var cursor in State.Cursors)
-            {
-                var pos = doc.OffsetToPosition(cursor.Position);
-                cursorPositions.Add((pos.Line, pos.Column));
-
-                if (cursor.HasSelection)
-                {
-                    selectionRanges.Add((cursor.SelectionStart.Value, cursor.SelectionEnd.Value));
-                }
-            }
-        }
-
-        for (var viewLine = 0; viewLine < _viewportLines; viewLine++)
-        {
-            var docLine = _scrollOffset + viewLine;
-            var screenY = Bounds.Y + viewLine;
-            var screenX = Bounds.X;
-
-            if (docLine > doc.LineCount)
-            {
-                var emptyLine = "~".PadRight(_viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
-                continue;
-            }
-
-            var lineText = doc.GetLineText(docLine);
-
-            string displayText;
-            if (lineText.Length >= _viewportColumns)
-            {
-                displayText = lineText[.._viewportColumns];
-            }
-            else
-            {
-                displayText = lineText.PadRight(_viewportColumns);
-            }
-
-            // Build per-column cell type map for this line
-            var lineStartOffset = doc.PositionToOffset(new Documents.DocumentPosition(docLine, 1)).Value;
-            var lineEndOffset = lineStartOffset + lineText.Length;
-            var cellTypes = BuildCellTypes(displayText.Length, docLine, lineStartOffset, lineEndOffset,
-                cursorPositions, selectionRanges);
-
-            RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg,
-                cellTypes, null);
-        }
-    }
-
-    /// <summary>
-    /// Determines the visual type for each column in a line: normal, cursor, or selected.
-    /// Cursor takes priority over selection.
-    /// </summary>
-    private static CellType[]? BuildCellTypes(
-        int displayWidth,
-        int docLine,
-        int lineStartOffset,
-        int lineEndOffset,
-        HashSet<(int Line, int Column)> cursorPositions,
-        List<(int Start, int End)> selectionRanges)
-    {
-        // Quick check: any decorations on this line?
-        var hasCursor = false;
-        foreach (var (line, _) in cursorPositions)
-        {
-            if (line == docLine) { hasCursor = true; break; }
-        }
-
-        var hasSelection = false;
-        foreach (var (start, end) in selectionRanges)
-        {
-            // Selection overlaps this line if it starts before lineEnd and ends after lineStart
-            if (start < lineEndOffset + 1 && end > lineStartOffset)
-            {
-                hasSelection = true;
-                break;
-            }
-        }
-
-        if (!hasCursor && !hasSelection) return null;
-
-        var types = new CellType[displayWidth];
-
-        // Mark selected columns
-        if (hasSelection)
-        {
-            // Clamp selection to actual text length, not padded display width
-            var lineTextLength = lineEndOffset - lineStartOffset;
-
-            foreach (var (start, end) in selectionRanges)
-            {
-                // Convert document offsets to 0-based column indices on this line
-                // Clamp to both actual text length and display width (viewport may truncate)
-                var selStartCol = Math.Max(0, start - lineStartOffset);
-                var selEndCol = Math.Min(Math.Min(lineTextLength, displayWidth), end - lineStartOffset);
-
-                for (var col = selStartCol; col < selEndCol; col++)
-                {
-                    types[col] = CellType.Selected;
-                }
-            }
-        }
-
-        // Mark cursor columns (overrides selection)
-        if (hasCursor)
-        {
-            foreach (var (line, column) in cursorPositions)
-            {
-                if (line == docLine)
-                {
-                    var col = column - 1; // 0-based
-                    if (col >= 0 && col < displayWidth)
-                    {
-                        types[col] = CellType.Cursor;
-                    }
-                }
-            }
-        }
-
-        return types;
-    }
-
-    private enum CellType : byte
-    {
-        Normal = 0,
-        Selected = 1,
-        Cursor = 2
-    }
-
-    private void RenderLine(
-        Hex1bRenderContext context,
-        int x, int y,
-        string text,
-        Hex1bColor fg, Hex1bColor bg,
-        Hex1bColor cursorFg, Hex1bColor cursorBg,
-        Hex1bColor selFg, Hex1bColor selBg,
-        CellType[]? cellTypes,
-        int? _)
-    {
-        string output;
-
-        if (cellTypes != null)
-        {
-            var globalColors = context.Theme.GetGlobalColorCodes();
-            var resetToGlobal = context.Theme.GetResetToGlobalCodes();
-            var sb = new System.Text.StringBuilder(text.Length * 2);
-            sb.Append(globalColors);
-
-            var prevType = CellType.Normal;
-            sb.Append(fg.ToForegroundAnsi());
-            sb.Append(bg.ToBackgroundAnsi());
-
-            for (var i = 0; i < text.Length; i++)
-            {
-                var cellType = i < cellTypes.Length ? cellTypes[i] : CellType.Normal;
-
-                if (cellType != prevType)
-                {
-                    switch (cellType)
-                    {
-                        case CellType.Cursor:
-                            sb.Append(cursorFg.ToForegroundAnsi());
-                            sb.Append(cursorBg.ToBackgroundAnsi());
-                            break;
-                        case CellType.Selected:
-                            sb.Append(selFg.ToForegroundAnsi());
-                            sb.Append(selBg.ToBackgroundAnsi());
-                            break;
-                        case CellType.Normal:
-                            sb.Append(resetToGlobal);
-                            sb.Append(fg.ToForegroundAnsi());
-                            sb.Append(bg.ToBackgroundAnsi());
-                            break;
-                    }
-                    prevType = cellType;
-                }
-
-                sb.Append(text[i]);
-            }
-
-            // Reset at end if we were in a special mode
-            if (prevType != CellType.Normal)
-            {
-                sb.Append(resetToGlobal);
-                sb.Append(fg.ToForegroundAnsi());
-                sb.Append(bg.ToBackgroundAnsi());
-            }
-
-            output = sb.ToString();
-        }
-        else
-        {
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}";
-        }
-
-        if (context.CurrentLayoutProvider != null)
-        {
-            context.WriteClipped(x, y, output);
-        }
-        else
-        {
-            context.Write(output);
-        }
+        ViewRenderer.Render(context, State, Bounds, _scrollOffset, IsFocused);
     }
 
     private void EnsureCursorVisible()
@@ -564,21 +350,7 @@ public sealed class EditorNode : Hex1bNode
         var localX = absX - Bounds.X;
         var localY = absY - Bounds.Y;
 
-        if (localX < 0 || localY < 0 || localX >= _viewportColumns || localY >= _viewportLines)
-            return null;
-
-        var docLine = _scrollOffset + localY;
-        var doc = State.Document;
-
-        if (docLine > doc.LineCount)
-        {
-            // Clicked in the ~ area — clamp to end of document
-            return new DocumentOffset(doc.Length);
-        }
-
-        var lineText = doc.GetLineText(docLine);
-        var column = Math.Min(localX + 1, lineText.Length + 1); // 1-based, clamp to line end + 1
-        return doc.PositionToOffset(new Documents.DocumentPosition(docLine, column));
+        return ViewRenderer.HitTest(localX, localY, State, _viewportColumns, _viewportLines, _scrollOffset);
     }
 
     private void HandleMouseClick(InputBindingActionContext ctx)
@@ -653,7 +425,8 @@ public sealed class EditorNode : Hex1bNode
     private void ScrollDown()
     {
         if (State == null) return;
-        var maxScroll = Math.Max(1, State.Document.LineCount - _viewportLines + 1);
+        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var maxScroll = Math.Max(1, totalLines - _viewportLines + 1);
         if (_scrollOffset < maxScroll)
         {
             _scrollOffset = Math.Min(maxScroll, _scrollOffset + 3);
