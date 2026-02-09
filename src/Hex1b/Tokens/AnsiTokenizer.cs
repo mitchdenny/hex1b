@@ -333,8 +333,20 @@ public static class AnsiTokenizer
                 break;
                 
             case 'F':
-                // Cursor Previous Line (CPL)
-                tokens.Add(new CursorMoveToken(CursorMoveDirection.PreviousLine, ParseMoveCount(parameters)));
+                // CSI 1;m F = End key with modifiers (xterm), CSI n F = Cursor Previous Line (CPL)
+                {
+                    var fParts = string.IsNullOrEmpty(parameters) ? [] : parameters.Split(';');
+                    if (fParts.Length == 2
+                        && int.TryParse(fParts[0], out var fFirst) && fFirst == 1
+                        && int.TryParse(fParts[1], out var fMod) && fMod >= 2)
+                    {
+                        tokens.Add(new SpecialKeyToken(4, fMod));
+                    }
+                    else
+                    {
+                        tokens.Add(new CursorMoveToken(CursorMoveDirection.PreviousLine, ParseMoveCount(parameters)));
+                    }
+                }
                 break;
                 
             case 'G':
