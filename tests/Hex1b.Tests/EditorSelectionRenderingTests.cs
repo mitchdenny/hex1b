@@ -537,4 +537,41 @@ public class EditorSelectionRenderingTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task SelectAll_WithTextBeyondViewport_DoesNotCrash()
+    {
+        // Regression: selecting text longer than the viewport caused IndexOutOfRangeException
+        // in BuildCellTypes because selection range extended beyond the display width array.
+        var longText = "This is a long line that exceeds the viewport width easily";
+        var (node, workload, terminal, context, theme) = CreateEditor(longText, 20, 5);
+        var colors = GetThemeColors(theme);
+
+        // Select all (selection spans full document, but display is only 20 chars wide)
+        node.State.SelectAll();
+
+        // This must not throw IndexOutOfRangeException
+        node.Render(context);
+
+        // Wait for selection to appear on visible cells
+        var selVisible = new CellPatternSearcher()
+            .Find(ctx => ctx.X == 0 && ctx.Y == 0
+                      && ColorEquals(ctx.Cell.Background, colors.SelectionBg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(selVisible).HasMatches,
+                TimeSpan.FromSeconds(2), "selection visible on overflow line")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // All visible cells on the text line should have selection or cursor colors
+        var snapshot = terminal.CreateSnapshot();
+        for (int col = 0; col < 20; col++)
+        {
+            var cell = snapshot.GetCell(col, 0);
+            Assert.True(
+                ColorEquals(colors.SelectionBg, cell.Background) || ColorEquals(colors.CursorBg, cell.Background),
+                $"Cell ({col},0) should be selected or cursor, got bg={cell.Background}");
+        }
+    }
 }

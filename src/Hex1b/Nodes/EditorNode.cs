@@ -287,8 +287,9 @@ public sealed class EditorNode : Hex1bNode
             foreach (var (start, end) in selectionRanges)
             {
                 // Convert document offsets to 0-based column indices on this line
+                // Clamp to both actual text length and display width (viewport may truncate)
                 var selStartCol = Math.Max(0, start - lineStartOffset);
-                var selEndCol = Math.Min(lineTextLength, end - lineStartOffset);
+                var selEndCol = Math.Min(Math.Min(lineTextLength, displayWidth), end - lineStartOffset);
 
                 for (var col = selStartCol; col < selEndCol; col++)
                 {
