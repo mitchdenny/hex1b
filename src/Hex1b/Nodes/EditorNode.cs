@@ -50,7 +50,7 @@ public sealed class EditorNode : Hex1bNode
         get => _scrollOffset;
         set
         {
-            var maxLine = State != null ? ViewRenderer.GetTotalLines(State.Document) : 1;
+            var maxLine = State != null ? ViewRenderer.GetTotalLines(State.Document, Bounds.Width) : 1;
             var clamped = Math.Clamp(value, 1, Math.Max(1, maxLine));
             if (_scrollOffset != clamped)
             {
@@ -195,9 +195,9 @@ public sealed class EditorNode : Hex1bNode
         if (_scrollOffset == 0) _scrollOffset = 1;
 
         // Determine scrollbar visibility first (before computing content area)
-        var totalLines = State != null ? ViewRenderer.GetTotalLines(State.Document) : 0;
+        var totalLines = State != null ? ViewRenderer.GetTotalLines(State.Document, Bounds.Width) : 0;
         var maxLineWidth = State != null
-            ? ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, bounds.Height)
+            ? ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, bounds.Height, bounds.Width)
             : 0;
 
         _showVerticalScrollbar = totalLines > bounds.Height && bounds.Width > 1;
@@ -254,7 +254,7 @@ public sealed class EditorNode : Hex1bNode
 
     private (int thumbSize, int thumbStart) CalculateVerticalThumb()
     {
-        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var totalLines = ViewRenderer.GetTotalLines(State.Document, Bounds.Width);
         var trackHeight = _viewportLines;
         var thumbSize = Math.Max(1, (int)Math.Ceiling((double)trackHeight / totalLines * trackHeight));
         thumbSize = Math.Min(thumbSize, trackHeight);
@@ -269,7 +269,7 @@ public sealed class EditorNode : Hex1bNode
 
     private (int thumbSize, int thumbStart) CalculateHorizontalThumb()
     {
-        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines, _viewportColumns);
         var trackWidth = _viewportColumns;
         var thumbSize = Math.Max(1, (int)Math.Ceiling((double)trackWidth / maxWidth * trackWidth));
         thumbSize = Math.Min(thumbSize, trackWidth);
@@ -566,7 +566,7 @@ public sealed class EditorNode : Hex1bNode
         else if (localY >= thumbStart + thumbSize)
         {
             // Page down
-            var totalLines = ViewRenderer.GetTotalLines(State.Document);
+            var totalLines = ViewRenderer.GetTotalLines(State.Document, Bounds.Width);
             var maxScroll = Math.Max(1, totalLines - _viewportLines + 1);
             var pageSize = Math.Max(1, _viewportLines - 1);
             _scrollOffset = Math.Min(maxScroll, _scrollOffset + pageSize);
@@ -579,7 +579,7 @@ public sealed class EditorNode : Hex1bNode
     {
         if (State == null) return;
         var (thumbSize, thumbStart) = CalculateHorizontalThumb();
-        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines, _viewportColumns);
         var maxHScroll = Math.Max(0, maxWidth - _viewportColumns);
 
         if (localX < thumbStart)
@@ -670,7 +670,7 @@ public sealed class EditorNode : Hex1bNode
 
         // Thumb drag
         var startScrollOffset = _scrollOffset;
-        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var totalLines = ViewRenderer.GetTotalLines(State.Document, Bounds.Width);
         var maxScroll = Math.Max(1, totalLines - _viewportLines);
         var scrollRange = _viewportLines - thumbSize;
         var contentPerPixel = scrollRange > 0 ? (double)maxScroll / scrollRange : 0;
@@ -700,7 +700,7 @@ public sealed class EditorNode : Hex1bNode
 
         // Thumb drag
         var startHOffset = _horizontalScrollOffset;
-        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines, _viewportColumns);
         var maxHScroll = Math.Max(1, maxWidth - _viewportColumns);
         var scrollRange = _viewportColumns - thumbSize;
         var contentPerPixel = scrollRange > 0 ? (double)maxHScroll / scrollRange : 0;
@@ -729,7 +729,7 @@ public sealed class EditorNode : Hex1bNode
     private void ScrollDown()
     {
         if (State == null) return;
-        var totalLines = ViewRenderer.GetTotalLines(State.Document);
+        var totalLines = ViewRenderer.GetTotalLines(State.Document, Bounds.Width);
         var maxScroll = Math.Max(1, totalLines - _viewportLines + 1);
         if (_scrollOffset < maxScroll)
         {
@@ -750,7 +750,7 @@ public sealed class EditorNode : Hex1bNode
     private void ScrollRight()
     {
         if (State == null) return;
-        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines);
+        var maxWidth = ViewRenderer.GetMaxLineWidth(State.Document, _scrollOffset, _viewportLines, _viewportColumns);
         var maxHScroll = Math.Max(0, maxWidth - _viewportColumns);
         if (_horizontalScrollOffset < maxHScroll)
         {
