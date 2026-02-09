@@ -18,10 +18,17 @@ public sealed class EditorNode : Hex1bNode
     private int _horizontalScrollOffset; // First visible column (0-based)
     private int _viewportLines;
     private int _viewportColumns;
-    private bool _scrollSetByWheel; // Prevents EnsureCursorVisible from overriding wheel scroll
     private bool _showVerticalScrollbar;
     private bool _showHorizontalScrollbar;
+    private bool _cursorDirty; // Set when cursor changes; cleared after Arrange adjusts scroll
     private IHex1bDocument? _subscribedDocument;
+
+    /// <summary>
+    /// Marks that the cursor has changed and scroll should adjust to keep it visible
+    /// on the next Arrange pass. Called automatically by input handlers; exposed for
+    /// testing scenarios that modify EditorState directly.
+    /// </summary>
+    internal void NotifyCursorChanged() => _cursorDirty = true;
 
     /// <summary>The source widget that was reconciled into this node.</summary>
     public EditorWidget? SourceWidget { get; set; }
@@ -211,13 +218,14 @@ public sealed class EditorNode : Hex1bNode
         // Subscribe to document changes if not already
         SubscribeToDocument();
 
-        // Only auto-adjust scroll for cursor visibility when the scroll wasn't
-        // explicitly changed by mouse wheel (which should allow free scrolling)
-        if (!_scrollSetByWheel)
+        // Only adjust scroll for cursor visibility when a cursor-changing action
+        // occurred (AfterMove/AfterEdit set _cursorDirty). This prevents scrollbar
+        // interactions from being "flicked back" to the cursor on layout passes.
+        if (_cursorDirty)
         {
             EnsureCursorVisible();
+            _cursorDirty = false;
         }
-        _scrollSetByWheel = false;
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -476,13 +484,13 @@ public sealed class EditorNode : Hex1bNode
 
     private void AfterMove()
     {
-        EnsureCursorVisible();
+        _cursorDirty = true;
         MarkDirty();
     }
 
     private void AfterEdit()
     {
-        EnsureCursorVisible();
+        _cursorDirty = true;
         MarkDirty();
     }
 
@@ -564,7 +572,6 @@ public sealed class EditorNode : Hex1bNode
             _scrollOffset = Math.Min(maxScroll, _scrollOffset + pageSize);
         }
 
-        _scrollSetByWheel = true;
         MarkDirty();
     }
 
@@ -675,7 +682,6 @@ public sealed class EditorNode : Hex1bNode
                 {
                     var newOffset = (int)Math.Round(startScrollOffset - 1 + deltaY * contentPerPixel) + 1;
                     _scrollOffset = Math.Clamp(newOffset, 1, maxScroll + 1);
-                    _scrollSetByWheel = true;
                     MarkDirty();
                 }
             });
@@ -716,7 +722,6 @@ public sealed class EditorNode : Hex1bNode
         if (_scrollOffset > 1)
         {
             _scrollOffset = Math.Max(1, _scrollOffset - 3);
-            _scrollSetByWheel = true;
             MarkDirty();
         }
     }
@@ -729,7 +734,6 @@ public sealed class EditorNode : Hex1bNode
         if (_scrollOffset < maxScroll)
         {
             _scrollOffset = Math.Min(maxScroll, _scrollOffset + 3);
-            _scrollSetByWheel = true;
             MarkDirty();
         }
     }
