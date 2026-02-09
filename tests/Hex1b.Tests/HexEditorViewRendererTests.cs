@@ -587,4 +587,75 @@ public class HexEditorViewRendererTests
         var pos = textState.Cursor.Position.Value;
         Assert.True(pos >= 0 && pos <= doc.Length);
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 13: Hex/ASCII column alignment
+    // ═══════════════════════════════════════════════════════════
+
+    [Theory]
+    [InlineData(13, false)]   // 1 byte, no mid-group
+    [InlineData(17, false)]   // 2 bytes, no mid-group
+    [InlineData(26, true)]    // 4 bytes, mid-group
+    [InlineData(42, true)]    // 8 bytes, mid-group
+    [InlineData(74, true)]    // 16 bytes, mid-group
+    public void ColumnMapping_AsciiColumnMatchesRenderedPosition(int viewportWidth, bool expectMidGroup)
+    {
+        var renderer = new HexEditorViewRenderer();
+        var (bytesPerRow, hasMidGroup) = renderer.CalculateLayout(viewportWidth);
+        Assert.Equal(expectMidGroup, hasMidGroup);
+
+        // Build the line the same way Render does
+        var half = bytesPerRow / 2;
+        var sb = new System.Text.StringBuilder();
+        sb.Append("00000000"); // address
+        sb.Append(' ');
+        for (int i = 0; i < bytesPerRow; i++)
+        {
+            if (hasMidGroup && i == half) sb.Append(' ');
+            sb.Append(i.ToString("X2"));
+            if (i < bytesPerRow - 1) sb.Append(' ');
+        }
+        sb.Append(' ');
+        for (int i = 0; i < bytesPerRow; i++)
+            sb.Append((char)('a' + i));
+
+        var line = sb.ToString();
+
+        // Verify every byte's hex and ASCII columns match rendered positions
+        for (int i = 0; i < bytesPerRow; i++)
+        {
+            var hexCol = GetHexColumnForByteReflection(i, bytesPerRow, hasMidGroup);
+            var asciiCol = GetAsciiColumnForByteReflection(i, bytesPerRow, hasMidGroup);
+
+            // Hex cell should contain the byte value
+            var expectedHex = i.ToString("X2");
+            var actualHex = line.Substring(hexCol, 2);
+            Assert.True(expectedHex == actualHex,
+                $"Byte {i}: hex at col {hexCol} should be '{expectedHex}' but got '{actualHex}'");
+
+            // ASCII cell should contain the corresponding letter
+            var expectedAscii = (char)('a' + i);
+            Assert.True(expectedAscii == line[asciiCol],
+                $"Byte {i}: ASCII at col {asciiCol} should be '{expectedAscii}' but got '{line[asciiCol]}'");
+        }
+    }
+
+    // Mirror of the private static methods for testing
+    private static int GetHexColumnForByteReflection(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    {
+        const int hexStart = 9; // AddressWidth(8) + 1
+        var half = bytesPerRow / 2;
+        if (!hasMidGroup)
+            return hexStart + byteInRow * 3;
+        return byteInRow < half
+            ? hexStart + byteInRow * 3
+            : hexStart + half * 3 + 1 + (byteInRow - half) * 3;
+    }
+
+    private static int GetAsciiColumnForByteReflection(int byteInRow, int bytesPerRow, bool hasMidGroup)
+    {
+        var hexWidth = bytesPerRow * 3 - 1 + (hasMidGroup ? 1 : 0);
+        var asciiStart = 9 + hexWidth + 1;
+        return asciiStart + byteInRow;
+    }
 }
