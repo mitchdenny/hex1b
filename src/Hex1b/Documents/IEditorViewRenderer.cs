@@ -39,15 +39,17 @@ public interface IEditorViewRenderer
     /// <summary>
     /// Returns the total number of visual lines this renderer needs for the document.
     /// For text view, this equals the document line count.
-    /// For hex view, this depends on bytes per row and document length.
+    /// For hex view, this depends on bytes per row (which may adapt to viewport width).
     /// </summary>
-    int GetTotalLines(IHex1bDocument document);
+    /// <param name="document">The document being rendered.</param>
+    /// <param name="viewportColumns">Available width in columns. Responsive renderers use this to adapt layout.</param>
+    int GetTotalLines(IHex1bDocument document, int viewportColumns);
 
     /// <summary>
     /// Returns the maximum visual width (in columns) needed for any line.
     /// Used for horizontal scroll calculations.
     /// For text view, this is the longest line length.
-    /// For hex view, this is the fixed row width.
+    /// For hex view, this is the computed row width (always ≤ viewport, so no horizontal scroll).
     /// </summary>
-    int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines);
+    int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines, int viewportColumns);
 }

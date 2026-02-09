@@ -117,10 +117,10 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     }
 
     /// <inheritdoc />
-    public int GetTotalLines(IHex1bDocument document) => document.LineCount;
+    public int GetTotalLines(IHex1bDocument document, int viewportColumns) => document.LineCount;
 
     /// <inheritdoc />
-    public int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines)
+    public int GetMaxLineWidth(IHex1bDocument document, int scrollOffset, int viewportLines, int viewportColumns)
     {
         var maxWidth = 0;
         for (var line = scrollOffset; line <= Math.Min(scrollOffset + viewportLines - 1, document.LineCount); line++)
