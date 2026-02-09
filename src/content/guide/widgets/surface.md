@@ -113,13 +113,14 @@ The layer builder receives a `SurfaceLayerContext` that provides:
 
 ## Layer Types
 
-Surfaces support three types of layers, composited bottom-up:
+Surfaces support four types of layers, composited bottom-up:
 
 | Layer Type | Created With | Use Case |
 |------------|-------------|----------|
 | **Source** | `s.Layer(ISurfaceSource)` | Pre-rendered or externally managed surfaces |
 | **Draw** | `s.Layer(surface => { ... })` | Dynamic content drawn each frame |
 | **Computed** | `s.Layer(ctx => ...)` | Effects that depend on layers below |
+| **Widget** | `s.WidgetLayer(widget)` | Render a widget tree as a non-interactive layer |
 
 ### Draw Layers
 
@@ -158,6 +159,28 @@ The `ComputeContext` provides:
 - `X`, `Y` - Current cell position
 - `GetBelow()` - Get the composited cell from all layers below
 - `Width`, `Height` - Surface dimensions
+
+### Widget Layers
+
+Widget layers render an entire widget tree into a surface layer. The widget is reconciled, measured, arranged, and rendered each frame — but it does not receive input events, making it ideal for transition effects or non-interactive snapshots of a UI.
+
+```csharp
+ctx.Surface(s => [
+    // Render a bordered table as a compositable layer
+    s.WidgetLayer(ctx.Border(b => [
+        b.Table(data)
+            .Row((r, item, state) => [r.Cell(item.Name), r.Cell(item.Value)])
+    ], title: "Snapshot")),
+    // Apply a computed effect on top
+    s.Layer(SurfaceEffects.Dim(0.5))
+])
+```
+
+Widget layers participate in normal compositing — you can stack computed effects, draw layers, or other widget layers on top. This enables transition animations like fading, reveals, or dissolves over actual widget content.
+
+::: tip When to Use Widget Layers
+Use widget layers when you want to apply visual effects over real widget output without making it interactive. To make the content interactive again, swap the `Surface` widget for the actual widget tree.
+:::
 
 ## Mouse Interaction
 
@@ -205,6 +228,7 @@ Surfaces are ideal for:
 | Custom animations | Update layer content each frame |
 | Image display | Use sixel graphics with `CreateSixel()` |
 | Fog of war | Computed layer that masks based on visibility |
+| Transition effects | Widget layer + computed effects for reveals, fades |
 
 ## Sixel Graphics
 
