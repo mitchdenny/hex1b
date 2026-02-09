@@ -185,4 +185,80 @@ public class WidgetLayerTests
         // Should not throw
         node.Render(context);
     }
+
+    [Fact]
+    public void Render_WidgetLayerRemovedBetweenFrames_CleansUpStaleState()
+    {
+        // Frame 1: two widget layers
+        var node = new SurfaceNode
+        {
+            LayerBuilder = s =>
+            [
+                s.WidgetLayer(new TextBlockWidget("One")),
+                s.WidgetLayer(new TextBlockWidget("Two"))
+            ]
+        };
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        var surface1 = new Surface(80, 24);
+        node.Render(new SurfaceRenderContext(surface1));
+
+        // Frame 2: only one widget layer — should not throw and stale state is cleaned
+        node.LayerBuilder = s => [s.WidgetLayer(new TextBlockWidget("Only"))];
+
+        var surface2 = new Surface(80, 24);
+        node.Render(new SurfaceRenderContext(surface2));
+
+        Assert.Equal("O", surface2[0, 0].Character);
+        Assert.Equal("n", surface2[1, 0].Character);
+    }
+
+    [Fact]
+    public void Render_WidgetLayerWithVStack_RendersMultiLineLayout()
+    {
+        var node = new SurfaceNode
+        {
+            LayerBuilder = s => [s.WidgetLayer(new VStackWidget([
+                new TextBlockWidget("Line1"),
+                new TextBlockWidget("Line2"),
+            ]))]
+        };
+        node.Arrange(new Rect(0, 0, 10, 2));
+
+        var surface = new Surface(80, 24);
+        node.Render(new SurfaceRenderContext(surface));
+
+        Assert.Equal("L", surface[0, 0].Character);
+        Assert.Equal("L", surface[0, 1].Character);
+        Assert.Equal("2", surface[4, 1].Character);
+    }
+
+    [Fact]
+    public void Render_WidgetLayerComputedLayerReadsWidgetContent()
+    {
+        // Computed layer reads widget layer content and transforms foreground
+        var tintColor = Hex1bColor.Red;
+        var node = new SurfaceNode
+        {
+            LayerBuilder = s =>
+            [
+                s.WidgetLayer(new TextBlockWidget("Test")),
+                s.Layer(ctx =>
+                {
+                    var below = ctx.GetBelow();
+                    return below with { Foreground = tintColor };
+                })
+            ]
+        };
+        node.Arrange(new Rect(0, 0, 10, 1));
+
+        var surface = new Surface(80, 24);
+        node.Render(new SurfaceRenderContext(surface));
+
+        // Characters from widget layer, foreground replaced by computed layer
+        Assert.Equal("T", surface[0, 0].Character);
+        Assert.Equal(tintColor, surface[0, 0].Foreground);
+        Assert.Equal("e", surface[1, 0].Character);
+        Assert.Equal(tintColor, surface[1, 0].Foreground);
+    }
 }

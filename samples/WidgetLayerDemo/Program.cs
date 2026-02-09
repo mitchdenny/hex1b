@@ -24,11 +24,13 @@ var effects = new[]
     "Vignette",
     "Invert",
     "Braille Melt",
+    "Hack Reveal",
 };
-int selectedEffect = 7; // Default to Braille Melt
+int selectedEffect = 8; // Default to Hack Reveal
 bool animating = false;
 var animationStart = Stopwatch.GetTimestamp();
 var meltEffect = new MeltEffect();
+var hackRevealEffect = new HackRevealEffect();
 
 // ---------- Table data ----------
 
@@ -59,7 +61,7 @@ double GetProgress()
 {
     if (!animating) return 0;
     var elapsed = Stopwatch.GetElapsedTime(animationStart).TotalSeconds;
-    var duration = selectedEffect == 7 ? 3.0 : 2.0; // Melt gets more time
+    var duration = selectedEffect == 7 ? 3.0 : selectedEffect == 8 ? 4.0 : 2.0;
     return Math.Clamp(elapsed / duration, 0, 1);
 }
 
@@ -149,6 +151,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     .RedrawAfter(16)
                     .FillHeight();
                 }
+                else if (selectedEffect == 8) // Hack Reveal
+                {
+                    contentWidget = v.Surface(s =>
+                    {
+                        hackRevealEffect.Update(progress, s.Width, s.Height);
+                        return
+                        [
+                            s.WidgetLayer(BuildTableContent(v)),
+                            s.Layer(hackRevealEffect.GetCompute(progress))
+                        ];
+                    })
+                    .RedrawAfter(16)
+                    .FillHeight();
+                }
                 else
                 {
                     contentWidget = v.Surface(s =>
@@ -180,6 +196,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             {
                                 animationStart = Stopwatch.GetTimestamp();
                                 meltEffect.Reset();
+                                hackRevealEffect.Reset();
                             }
                         }),
                     h.Text($"  Progress: {progress:P0}")
