@@ -61,9 +61,13 @@ var financialData = new[]
 var liveRequests = new List<HourlyRequests>();
 var liveRandom = new Random();
 var liveStartTime = DateTime.Now;
+var lastLiveUpdate = DateTime.MinValue;
 void AddLivePoint()
 {
-    var elapsed = DateTime.Now - liveStartTime;
+    var now = DateTime.Now;
+    if ((now - lastLiveUpdate).TotalMilliseconds < 450) return;
+    lastLiveUpdate = now;
+    var elapsed = now - liveStartTime;
     var label = elapsed.ToString(@"mm\:ss");
     var baseline = 300 + 200 * Math.Sin(elapsed.TotalSeconds * 0.3);
     var noise = liveRandom.NextDouble() * 100 - 50;
@@ -71,8 +75,15 @@ void AddLivePoint()
     if (liveRequests.Count > 40) liveRequests.RemoveAt(0);
 }
 // Seed initial data
-for (int i = 0; i < 20; i++) { AddLivePoint(); liveStartTime -= TimeSpan.FromMilliseconds(500); }
-liveStartTime = DateTime.Now;
+for (int i = 20; i > 0; i--)
+{
+    var t = DateTime.Now - TimeSpan.FromMilliseconds(i * 500);
+    var elapsed = t - liveStartTime;
+    var label = elapsed.ToString(@"mm\:ss");
+    var baseline = 300 + 200 * Math.Sin(elapsed.TotalSeconds * 0.3);
+    var noise = liveRandom.NextDouble() * 100 - 50;
+    liveRequests.Add(new HourlyRequests(label, Math.Max(0, baseline + noise)));
+}
 var random = new Random(42);
 var heightWeight = Enumerable.Range(0, 60).Select(_ =>
 {
