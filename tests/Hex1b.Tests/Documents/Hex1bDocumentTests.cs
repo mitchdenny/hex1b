@@ -270,4 +270,125 @@ public class Hex1bDocumentTests
         Assert.Equal(1, doc.LineCount);
         Assert.Equal("", doc.GetLineText(1));
     }
+
+    // ── Byte API ────────────────────────────────────────────────
+
+    [Fact]
+    public void ByteCount_AsciiText_EqualsByteLength()
+    {
+        var doc = new Hex1bDocument("Hello");
+        Assert.Equal(5, doc.ByteCount);
+    }
+
+    [Fact]
+    public void ByteCount_MultiByte_ExceedsCharLength()
+    {
+        // © = C2 A9 (2 bytes), Length=1
+        var doc = new Hex1bDocument("©");
+        Assert.Equal(1, doc.Length);
+        Assert.Equal(2, doc.ByteCount);
+    }
+
+    [Fact]
+    public void GetBytes_ReturnsUtf8Encoding()
+    {
+        var doc = new Hex1bDocument("AB");
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(new byte[] { 0x41, 0x42 }, bytes);
+    }
+
+    [Fact]
+    public void GetBytes_Slice_ReturnsCorrectRange()
+    {
+        var doc = new Hex1bDocument("ABCD");
+        var bytes = doc.GetBytes(1, 2).ToArray();
+        Assert.Equal(new byte[] { 0x42, 0x43 }, bytes);
+    }
+
+    [Fact]
+    public void ByteConstructor_StoresRawBytes()
+    {
+        var raw = new byte[] { 0xAA, 0xBB, 0xCC };
+        var doc = new Hex1bDocument(raw);
+        Assert.Equal(3, doc.ByteCount);
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(raw, bytes);
+    }
+
+    [Fact]
+    public void ByteConstructor_InvalidUtf8_TextHasReplacementChars()
+    {
+        var raw = new byte[] { 0xAA, 0xBB };
+        var doc = new Hex1bDocument(raw);
+        // Invalid UTF-8 bytes produce U+FFFD replacement characters
+        Assert.Contains('\uFFFD', doc.GetText());
+        // But raw bytes are preserved
+        Assert.Equal(raw, doc.GetBytes().ToArray());
+    }
+
+    [Fact]
+    public void ApplyBytes_ReplaceSingleByte()
+    {
+        var doc = new Hex1bDocument("ABC");
+        // Replace 'B' (0x42) with 0xAA
+        doc.ApplyBytes(new ByteReplaceOperation(1, 1, [0xAA]));
+
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(3, bytes.Length);
+        Assert.Equal(0x41, bytes[0]); // 'A'
+        Assert.Equal(0xAA, bytes[1]); // replaced
+        Assert.Equal(0x43, bytes[2]); // 'C'
+    }
+
+    [Fact]
+    public void ApplyBytes_InsertBytes()
+    {
+        var doc = new Hex1bDocument("AC");
+        doc.ApplyBytes(new ByteInsertOperation(1, [0xBB, 0xCC]));
+
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(4, bytes.Length);
+        Assert.Equal(new byte[] { 0x41, 0xBB, 0xCC, 0x43 }, bytes);
+    }
+
+    [Fact]
+    public void ApplyBytes_DeleteBytes()
+    {
+        var doc = new Hex1bDocument("ABCD");
+        doc.ApplyBytes(new ByteDeleteOperation(1, 2));
+
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(new byte[] { 0x41, 0x44 }, bytes);
+        Assert.Equal("AD", doc.GetText());
+    }
+
+    [Fact]
+    public void ApplyBytes_FiresChangedEvent()
+    {
+        var doc = new Hex1bDocument("AB");
+        var fired = false;
+        doc.Changed += (_, _) => fired = true;
+
+        doc.ApplyBytes(new ByteReplaceOperation(0, 1, [0xFF]));
+        Assert.True(fired);
+    }
+
+    [Fact]
+    public void ApplyBytes_IncrementsVersion()
+    {
+        var doc = new Hex1bDocument("AB");
+        var v1 = doc.Version;
+        doc.ApplyBytes(new ByteReplaceOperation(0, 1, [0xFF]));
+        Assert.True(doc.Version > v1);
+    }
+
+    [Fact]
+    public void TextApi_WorksAfterByteEdit()
+    {
+        var doc = new Hex1bDocument("Hello");
+        doc.ApplyBytes(new ByteReplaceOperation(0, 1, [0x4A])); // H → J
+        Assert.Equal("Jello", doc.GetText());
+        Assert.Equal(5, doc.Length);
+        Assert.Equal(1, doc.LineCount);
+    }
 }
