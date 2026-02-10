@@ -124,11 +124,12 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
 
             for (int x = startX; x < endX && x < width; x++)
             {
-                surface[x, y] = new SurfaceCell(" ", null, color);
+                if (y >= 0 && y < surface.Height)
+                    surface[x, y] = new SurfaceCell(" ", null, color);
             }
 
             // Fractional right edge
-            if (endX < width)
+            if (endX < width && y >= 0 && y < surface.Height)
             {
                 var frac = xAccumulator - endX;
                 if (frac > 0.05)
@@ -155,14 +156,14 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
         for (int i = 0; i < segments.Count; i++)
         {
             var y = startY + i;
-            if (y >= height) break;
+            if (y >= surface.Height) break;
 
             var seg = segments[i];
             var color = colors[i % colors.Length];
 
             // Color swatch
-            surface[0, y] = new SurfaceCell("█", color, null);
-            surface[1, y] = new SurfaceCell(" ", null, null);
+            if (0 < surface.Width) surface[0, y] = new SurfaceCell("█", color, null);
+            if (1 < surface.Width) surface[1, y] = new SurfaceCell(" ", null, null);
 
             // Label
             var x = 2;
@@ -195,6 +196,7 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
+        if (y < 0 || y >= surface.Height) return;
         for (int i = 0; i < text.Length && x + i < surface.Width; i++)
         {
             if (x + i < 0) continue;

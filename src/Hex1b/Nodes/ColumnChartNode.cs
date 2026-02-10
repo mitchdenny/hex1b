@@ -503,6 +503,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
+        if (y < 0 || y >= surface.Height) return;
         for (int i = 0; i < text.Length && x + i < surface.Width; i++)
         {
             if (x + i < 0) continue;
