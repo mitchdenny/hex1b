@@ -404,6 +404,9 @@ public sealed class Hex1bDocument : IHex1bDocument
             throw new ArgumentOutOfRangeException(nameof(line), $"Line {line} is out of range [1..{LineCount}].");
     }
 
+    /// <summary>Validates internal piece tree consistency. Throws if corrupt.</summary>
+    internal void VerifyIntegrity() => _pieceTree.VerifyIntegrity();
+
     public DocumentDiagnosticInfo GetDiagnosticInfo()
     {
         const int maxPreviewBytes = 64;
