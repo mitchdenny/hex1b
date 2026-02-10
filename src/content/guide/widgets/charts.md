@@ -138,13 +138,13 @@ Display vertical columns for comparing values across categories.
 
 Use `ChartItem` for quick ad-hoc charts. The label and value selectors are pre-wired automatically:
 
-<CodeBlock lang="csharp" :code="columnBasicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="columnBasicCode" command="dotnet run" example="chart-column-basic" exampleTitle="Column Chart - Basic Usage" />
 
 ### Multi-Series
 
 Add multiple series for comparative analysis. Use `.Layout()` to control how series are arranged:
 
-<CodeBlock lang="csharp" :code="columnMultiSeriesCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="columnMultiSeriesCode" command="dotnet run" example="chart-column-multiseries" exampleTitle="Column Chart - Multi-Series" />
 
 ### Layouts
 
@@ -161,7 +161,7 @@ The `ChartLayout` enum controls how multi-series data is displayed:
 
 Display horizontal bars — the same data-binding API as `ColumnChart`, oriented horizontally. Bars automatically scale to fill available vertical space with fractional block character edges for sub-cell precision.
 
-<CodeBlock lang="csharp" :code="barBasicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="barBasicCode" command="dotnet run" example="chart-bar-basic" exampleTitle="Bar Chart - Basic Usage" />
 
 Bar charts support all the same layouts and multi-series features as column charts.
 
@@ -169,13 +169,13 @@ Bar charts support all the same layouts and multi-series features as column char
 
 Display a proportional segmented bar showing how parts contribute to a whole. Each segment's width is proportional to its value relative to the total. Unlike column and bar charts, breakdown charts only support a single series.
 
-<CodeBlock lang="csharp" :code="breakdownCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="breakdownCode" command="dotnet run" example="chart-breakdown" exampleTitle="Breakdown Chart" />
 
 ## Generic Data Binding
 
 All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`). Bind any data type by providing selector functions:
 
-<CodeBlock lang="csharp" :code="genericBindingCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="genericBindingCode" command="dotnet run" example="chart-bar-grouped" exampleTitle="Bar Chart - Grouped with Generic Binding" />
 
 ### Data Binding Approaches
 
