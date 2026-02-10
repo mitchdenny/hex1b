@@ -833,4 +833,169 @@ public class HexEditorViewRendererTests
         Assert.Equal(0xA9, bytes[1]); // © second byte unchanged
         Assert.Equal(0xBB, bytes[2]); // replaced
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 15: Byte-level navigation (HandleNavigation)
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public void HandleNavigation_Right_MovesByOneByte()
+    {
+        // "é" = C3 A9 (2 bytes), cursor starts at byte 0 (char 0)
+        var doc = new Hex1bDocument("é");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(0); // byte 0
+        state.ByteCursorOffset = 0;
+
+        var renderer = new HexEditorViewRenderer();
+        var handled = renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+
+        Assert.True(handled);
+        Assert.Equal(1, state.ByteCursorOffset); // now at byte 1
+        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 still maps to char 0 ("é")
+    }
+
+    [Fact]
+    public void HandleNavigation_Right_TraversesAllBytesInMultiByteChar()
+    {
+        // "é" = C3 A9 (2 bytes)
+        var doc = new Hex1bDocument("é");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(0);
+        state.ByteCursorOffset = 0;
+
+        var renderer = new HexEditorViewRenderer();
+
+        // Move right 3 times: byte 0 → byte 1 → byte 2 (end)
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 → char 0
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(2, state.ByteCursorOffset);
+        Assert.Equal(1, state.Cursor.Position.Value); // past "é" → doc.Length = 1
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(2, state.ByteCursorOffset); // clamped at totalBytes
+        Assert.Equal(1, state.Cursor.Position.Value); // stays at end
+    }
+
+    [Fact]
+    public void HandleNavigation_Left_MovesByOneByte()
+    {
+        // "AB" = 41 42 (2 bytes), cursor at byte 1 (char 1)
+        var doc = new Hex1bDocument("AB");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(1); // byte 1 = char 1
+        state.ByteCursorOffset = 1;
+
+        var renderer = new HexEditorViewRenderer();
+        var handled = renderer.HandleNavigation(CursorDirection.Left, state, extend: false);
+
+        Assert.True(handled);
+        Assert.Equal(0, state.ByteCursorOffset);
+        Assert.Equal(0, state.Cursor.Position.Value); // byte 0 = char 0
+    }
+
+    [Fact]
+    public void HandleNavigation_Right_ThreeByteChar_VisitsEachByte()
+    {
+        // "日" = E6 97 A5 (3 bytes)
+        var doc = new Hex1bDocument("日");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(0);
+        state.ByteCursorOffset = 0;
+
+        var renderer = new HexEditorViewRenderer();
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 still maps to char 0
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(2, state.ByteCursorOffset);
+        Assert.Equal(0, state.Cursor.Position.Value); // byte 2 still maps to char 0
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(3, state.ByteCursorOffset);
+        Assert.Equal(1, state.Cursor.Position.Value); // byte 3 → past "日" → doc.Length = 1
+    }
+
+    [Fact]
+    public void HandleNavigation_DoesNotHandleUpDown()
+    {
+        var doc = new Hex1bDocument("AB");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+
+        Assert.False(renderer.HandleNavigation(CursorDirection.Up, state, extend: false));
+        Assert.False(renderer.HandleNavigation(CursorDirection.Down, state, extend: false));
+    }
+
+    [Fact]
+    public void HandleNavigation_Right_InvalidBytes_OneBytePerMove()
+    {
+        // Raw bytes: each invalid byte is 1 char
+        var doc = new Hex1bDocument(new byte[] { 0xFE, 0xFF, 0x80 });
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(0);
+        state.ByteCursorOffset = 0;
+
+        var renderer = new HexEditorViewRenderer();
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.Equal(1, state.Cursor.Position.Value); // byte 1 → char 1
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(2, state.ByteCursorOffset);
+        Assert.Equal(2, state.Cursor.Position.Value); // byte 2 → char 2
+
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(3, state.ByteCursorOffset);
+        Assert.Equal(3, state.Cursor.Position.Value); // past end → doc.Length = 3
+    }
+
+    [Fact]
+    public void HandleNavigation_MixedContent_ByteByByte()
+    {
+        // "Aé" = 41 C3 A9 (3 bytes, 2 chars)
+        var doc = new Hex1bDocument("Aé");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(0); // byte 0 = char 0 ('A')
+        state.ByteCursorOffset = 0;
+
+        var renderer = new HexEditorViewRenderer();
+
+        // byte 0 → byte 1 (C3, maps to char 1 'é')
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.Equal(1, state.Cursor.Position.Value);
+
+        // byte 1 → byte 2 (A9, still char 1 'é')
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(2, state.ByteCursorOffset);
+        Assert.Equal(1, state.Cursor.Position.Value);
+
+        // byte 2 → byte 3 (past end)
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        Assert.Equal(3, state.ByteCursorOffset);
+        Assert.Equal(2, state.Cursor.Position.Value); // doc.Length = 2
+    }
+
+    [Fact]
+    public void HandleNavigation_WithoutByteCursorOffset_DerivesFromCharPosition()
+    {
+        // "AB" = 41 42, cursor at char 1 (byte 1)
+        var doc = new Hex1bDocument("AB");
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(1);
+        // ByteCursorOffset is null — should derive from char position
+
+        var renderer = new HexEditorViewRenderer();
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+
+        Assert.Equal(2, state.ByteCursorOffset); // byte 1 → byte 2 (end)
+        Assert.Equal(2, state.Cursor.Position.Value); // doc.Length
+    }
 }

@@ -23,6 +23,13 @@ public class EditorState
     public bool IsReadOnly { get; set; }
     public int TabSize { get; set; } = 4;
 
+    /// <summary>
+    /// Byte-level cursor offset for renderers that navigate at byte granularity (e.g., hex editor).
+    /// When non-null, this takes priority over the char-based cursor position for byte-oriented operations.
+    /// Reset to null when cursor is moved by non-byte-aware operations.
+    /// </summary>
+    public int? ByteCursorOffset { get; set; }
+
     public EditorState(IHex1bDocument document)
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
