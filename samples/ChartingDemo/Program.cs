@@ -69,6 +69,28 @@ var terminal = Hex1bTerminal.CreateBuilder()
                         r.Cell((item.Electronics + item.Clothing + item.Food).ToString("N0")),
                     ])
             ]),
+            tp.Tab("Stacked 100% Columns", t => [
+                t.ColumnChart(multiSeriesData)
+                    .Label(s => s.Month)
+                    .Series("Electronics", s => s.Electronics, blue)
+                    .Series("Clothing", s => s.Clothing, red)
+                    .Series("Food", s => s.Food, green)
+                    .WithMode(ChartMode.Stacked100)
+                    .WithTitle("Sales by Category (100% Stacked)")
+                    .FillHeight(),
+                t.Table<SalesRecord, VStackWidget>(multiSeriesData)
+                    .Header(h => [h.Cell("Month"), h.Cell("Electronics"), h.Cell("Clothing"), h.Cell("Food")])
+                    .Row((r, item, state) =>
+                    {
+                        var total = item.Electronics + item.Clothing + item.Food;
+                        return [
+                            r.Cell(item.Month),
+                            r.Cell($"{item.Electronics / total:P0}"),
+                            r.Cell($"{item.Clothing / total:P0}"),
+                            r.Cell($"{item.Food / total:P0}"),
+                        ];
+                    })
+            ]),
             tp.Tab("Grouped Columns", t => [
                 t.ColumnChart(multiSeriesData)
                     .Label(s => s.Month)
@@ -115,6 +137,28 @@ var terminal = Hex1bTerminal.CreateBuilder()
                         r.Cell(item.Food.ToString("N0")),
                         r.Cell((item.Electronics + item.Clothing + item.Food).ToString("N0")),
                     ])
+            ]),
+            tp.Tab("Stacked 100% Bars", t => [
+                t.BarChart(multiSeriesData)
+                    .Label(s => s.Month)
+                    .Series("Electronics", s => s.Electronics, blue)
+                    .Series("Clothing", s => s.Clothing, red)
+                    .Series("Food", s => s.Food, green)
+                    .WithMode(ChartMode.Stacked100)
+                    .WithTitle("Sales by Category (100% Stacked)")
+                    .FillHeight(),
+                t.Table<SalesRecord, VStackWidget>(multiSeriesData)
+                    .Header(h => [h.Cell("Month"), h.Cell("Electronics"), h.Cell("Clothing"), h.Cell("Food")])
+                    .Row((r, item, state) =>
+                    {
+                        var total = item.Electronics + item.Clothing + item.Food;
+                        return [
+                            r.Cell(item.Month),
+                            r.Cell($"{item.Electronics / total:P0}"),
+                            r.Cell($"{item.Clothing / total:P0}"),
+                            r.Cell($"{item.Food / total:P0}"),
+                        ];
+                    })
             ]),
             tp.Tab("Grouped Bars", t => [
                 t.BarChart(multiSeriesData)

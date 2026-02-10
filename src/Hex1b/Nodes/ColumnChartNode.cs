@@ -57,9 +57,14 @@ public sealed class ColumnChartNode<T> : Hex1bNode
         var chartHeight = height - titleHeight - labelHeight - valueHeight;
         if (chartHeight <= 0) return;
 
+        // For Stacked100 mode, normalize values to percentages
+        if (Mode == ChartMode.Stacked100)
+            resolved = NormalizeToPercent(resolved);
+
         // Build the scaler
-        var allValues = resolved.Categories.SelectMany(c => c.Values);
-        var scaler = ChartScaler.FromValues(allValues, chartHeight, Minimum, Maximum);
+        var scaler = Mode == ChartMode.Stacked100
+            ? new ChartScaler(0, 100, chartHeight)
+            : ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), chartHeight, Minimum, Maximum);
 
         // Get theme colors for series
         var seriesColors = ResolveSeriesColors(resolved.SeriesNames, context.Theme);
@@ -174,6 +179,23 @@ public sealed class ColumnChartNode<T> : Hex1bNode
 
     #endregion
 
+    /// <summary>
+    /// Normalizes category values to percentages of each category's total.
+    /// </summary>
+    private static ResolvedChartData NormalizeToPercent(ResolvedChartData data)
+    {
+        var categories = new List<ResolvedCategory>();
+        foreach (var cat in data.Categories)
+        {
+            var sum = cat.Values.Sum();
+            var normalized = sum > 0
+                ? cat.Values.Select(v => v / sum * 100.0).ToList()
+                : cat.Values.Select(_ => 0.0).ToList();
+            categories.Add(new(cat.Label, normalized));
+        }
+        return new(data.SeriesNames, categories);
+    }
+
     #region Drawing
 
     private void DrawGridLines(Surface surface, int topOffset, int chartHeight, int width, ChartScaler scaler)
@@ -230,6 +252,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
                     break;
 
                 case ChartMode.Stacked:
+                case ChartMode.Stacked100:
                     DrawStackedColumns(surface, category.Values, scaler, seriesColors,
                         catX, categoryWidth, topOffset, chartHeight);
                     break;
@@ -386,14 +409,16 @@ public sealed class ColumnChartNode<T> : Hex1bNode
                 var catX = i * (categoryWidth + spacing);
                 double displayValue;
 
-                if (Mode == ChartMode.Stacked)
+                if (Mode == ChartMode.Stacked || Mode == ChartMode.Stacked100)
                     displayValue = data.Categories[i].Values.Sum();
                 else if (Mode == ChartMode.Simple)
                     displayValue = data.Categories[i].Values[0];
                 else
                     continue; // Skip for grouped — too many values
 
-                var text = formatter(displayValue);
+                var text = Mode == ChartMode.Stacked100
+                    ? "100%"
+                    : formatter(displayValue);
                 if (text.Length > categoryWidth)
                     text = text[..categoryWidth];
                 var textX = catX + Math.Max(0, (categoryWidth - text.Length) / 2);

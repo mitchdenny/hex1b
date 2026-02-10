@@ -60,9 +60,14 @@ public sealed class BarChartNode<T> : Hex1bNode
         var chartHeight = height - titleHeight;
         if (chartHeight <= 0) return;
 
+        // For Stacked100 mode, normalize values to percentages
+        if (Mode == ChartMode.Stacked100)
+            resolved = NormalizeToPercent(resolved);
+
         // Build the scaler
-        var allValues = resolved.Categories.SelectMany(c => c.Values);
-        var scaler = ChartScaler.FromValues(allValues, barWidth, Minimum, Maximum);
+        var scaler = Mode == ChartMode.Stacked100
+            ? new ChartScaler(0, 100, barWidth)
+            : ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), barWidth, Minimum, Maximum);
 
         var seriesColors = ResolveSeriesColors(resolved.SeriesNames, context.Theme);
 
@@ -174,6 +179,20 @@ public sealed class BarChartNode<T> : Hex1bNode
 
     #endregion
 
+    private static ResolvedChartData NormalizeToPercent(ResolvedChartData data)
+    {
+        var categories = new List<ResolvedCategory>();
+        foreach (var cat in data.Categories)
+        {
+            var sum = cat.Values.Sum();
+            var normalized = sum > 0
+                ? cat.Values.Select(v => v / sum * 100.0).ToList()
+                : cat.Values.Select(_ => 0.0).ToList();
+            categories.Add(new(cat.Label, normalized));
+        }
+        return new(data.SeriesNames, categories);
+    }
+
     #region Drawing
 
     private void DrawGridLines(Surface surface, int labelWidth, int barWidth, int titleHeight, int chartHeight)
@@ -246,6 +265,7 @@ public sealed class BarChartNode<T> : Hex1bNode
                     break;
 
                 case ChartMode.Stacked:
+                case ChartMode.Stacked100:
                     DrawStackedBar(surface, category.Values, scaler, seriesColors,
                         labelWidth, catY, barWidth);
                     break;
@@ -380,14 +400,16 @@ public sealed class BarChartNode<T> : Hex1bNode
             if (ShowValues && valueWidth > 0)
             {
                 double displayValue;
-                if (Mode == ChartMode.Stacked)
+                if (Mode == ChartMode.Stacked || Mode == ChartMode.Stacked100)
                     displayValue = data.Categories[catIdx].Values.Sum();
                 else if (Mode == ChartMode.Simple)
                     displayValue = data.Categories[catIdx].Values[0];
                 else
                     continue;
 
-                var text = formatter(displayValue);
+                var text = Mode == ChartMode.Stacked100
+                    ? "100%"
+                    : formatter(displayValue);
                 var valX = labelWidth + barWidth + 1;
                 if (valX + text.Length <= totalWidth)
                     WriteText(surface, valX, catY, text, valueColor);
