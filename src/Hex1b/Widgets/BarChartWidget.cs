@@ -21,6 +21,9 @@ namespace Hex1b.Widgets;
 ///     .ShowValues()
 /// </code>
 /// </example>
+/// <seealso cref="ColumnChartWidget{T}"/>
+/// <seealso cref="TimeSeriesChartWidget{T}"/>
+/// <seealso cref="ScatterChartWidget{T}"/>
 public sealed record BarChartWidget<T> : Hex1bWidget
 {
     /// <summary>

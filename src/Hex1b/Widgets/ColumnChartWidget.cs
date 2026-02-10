@@ -38,6 +38,9 @@ namespace Hex1b.Widgets;
 ///     .Mode(ChartLayout.Grouped)
 /// </code>
 /// </example>
+/// <seealso cref="BarChartWidget{T}"/>
+/// <seealso cref="TimeSeriesChartWidget{T}"/>
+/// <seealso cref="ScatterChartWidget{T}"/>
 public sealed record ColumnChartWidget<T> : Hex1bWidget
 {
     /// <summary>

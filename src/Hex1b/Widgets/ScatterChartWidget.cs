@@ -14,6 +14,20 @@ namespace Hex1b.Widgets;
 /// Multiple series can be created via <see cref="GroupBy"/> to color-code groups.
 /// </para>
 /// </remarks>
+/// <example>
+/// <para>Create a scatter chart with grouped series:</para>
+/// <code>
+/// var app = new Hex1bApp(ctx =&gt;
+///     ctx.ScatterChart(data)
+///         .X(d =&gt; d.Height)
+///         .Y(d =&gt; d.Weight)
+///         .GroupBy(d =&gt; d.Category)
+///         .Title("Height vs Weight")
+/// );
+/// </code>
+/// </example>
+/// <seealso cref="TimeSeriesChartWidget{T}"/>
+/// <seealso cref="ColumnChartWidget{T}"/>
 public sealed record ScatterChartWidget<T> : Hex1bWidget
 {
     /// <summary>

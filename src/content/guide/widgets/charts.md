@@ -343,12 +343,47 @@ All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `Bre
 | `.Value(T → double)` | Single-series value extraction |
 | `.Series(name, T → double, color?)` | Multiple named series from flat/wide data |
 | `.GroupBy(T → string)` | Pivot long-form data into series at runtime |
+| `.X(T → double)` | X-axis numeric value (scatter charts) |
+| `.Y(T → double)` | Y-axis numeric value (scatter charts) |
 
 **Single series**: Use `.Label()` and `.Value()` together.
 
 **Multi-series (flat/wide)**: Use `.Label()` and multiple `.Series()` calls. Each series extracts a different property from the same data items.
 
 **Multi-series (long/normalized)**: Use `.Label()`, `.Value()`, and `.GroupBy()`. The group-by selector determines which series each data point belongs to.
+
+**Scatter charts**: Use `.X()` and `.Y()` for numeric axes. Optionally add `.GroupBy()` for color-coded series.
+
+## Animation
+
+Charts work well with live data. Use `.RedrawAfter(milliseconds)` to schedule periodic re-renders. The widget builder runs on each frame, so update your data source and the chart re-draws automatically:
+
+```csharp
+var liveData = new List<ChartItem>();
+var lastUpdate = DateTime.MinValue;
+
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        // Throttle data updates to one per interval
+        if ((DateTime.Now - lastUpdate).TotalMilliseconds >= 450)
+        {
+            lastUpdate = DateTime.Now;
+            liveData.Add(new ChartItem(DateTime.Now.ToString("ss"), Random.Shared.Next(100)));
+            if (liveData.Count > 40) liveData.RemoveAt(0);
+        }
+
+        return ctx.TimeSeriesChart(liveData.ToArray())
+            .Fill(FillStyle.Braille)
+            .Title("Live Data")
+            .RedrawAfter(500);
+    })
+    .Build();
+```
+
+::: tip
+`RedrawAfter` is a one-shot timer — it schedules a single re-render after the specified delay. Since the widget builder calls it on every frame, the effect is continuous animation. Throttle your data mutations to avoid adding points on re-renders triggered by resize or input events.
+:::
 
 ## API Reference
 

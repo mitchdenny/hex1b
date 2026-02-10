@@ -14,6 +14,23 @@ namespace Hex1b.Widgets;
 /// Multiple series are rendered on separate layers and composited with OR'd braille patterns.
 /// </para>
 /// </remarks>
+/// <example>
+/// <para>Create a basic time series chart:</para>
+/// <code>
+/// var data = new[]
+/// {
+///     new ChartItem("Jan", 2), new ChartItem("Feb", 4),
+///     new ChartItem("Mar", 9), new ChartItem("Apr", 14),
+/// };
+/// var app = new Hex1bApp(ctx =&gt;
+///     ctx.TimeSeriesChart(data)
+///         .Title("Temperature")
+///         .ShowGridLines()
+/// );
+/// </code>
+/// </example>
+/// <seealso cref="ScatterChartWidget{T}"/>
+/// <seealso cref="ColumnChartWidget{T}"/>
 public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
 {
     /// <summary>

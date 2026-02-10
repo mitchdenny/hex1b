@@ -25,6 +25,8 @@ namespace Hex1b.Widgets;
 ///     .Title("Disk Usage")
 /// </code>
 /// </example>
+/// <seealso cref="ColumnChartWidget{T}"/>
+/// <seealso cref="BarChartWidget{T}"/>
 public sealed record BreakdownChartWidget<T> : Hex1bWidget
 {
     /// <summary>
