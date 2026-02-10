@@ -677,10 +677,15 @@ public class EditorState
         if (group == null) return;
 
         // Apply inverse operations to revert the document
-        foreach (var inverse in group.InverseOperations)
+        Document.BeginBatch();
+        try
         {
-            Document.Apply(inverse, "undo");
+            foreach (var inverse in group.InverseOperations)
+            {
+                Document.Apply(inverse, "undo");
+            }
         }
+        finally { Document.EndBatch(); }
 
         // Restore cursor state from before the edit
         Cursors.Restore(group.CursorsBefore);
@@ -694,10 +699,15 @@ public class EditorState
         if (group == null) return;
 
         // Re-apply the original operations
-        foreach (var op in group.Operations)
+        Document.BeginBatch();
+        try
         {
-            Document.Apply(op, "redo");
+            foreach (var op in group.Operations)
+            {
+                Document.Apply(op, "redo");
+            }
         }
+        finally { Document.EndBatch(); }
 
         // Restore cursor state from after the edit
         if (group.CursorsAfter != null)
