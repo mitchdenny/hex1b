@@ -848,7 +848,7 @@ public class HexEditorViewRendererTests
         state.ByteCursorOffset = 0;
 
         var renderer = new HexEditorViewRenderer();
-        var handled = renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        var handled = renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
 
         Assert.True(handled);
         Assert.Equal(1, state.ByteCursorOffset); // now at byte 1
@@ -867,15 +867,15 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
 
         // Move right 3 times: byte 0 → byte 1 → byte 2 (end)
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(1, state.ByteCursorOffset);
         Assert.Equal(0, state.Cursor.Position.Value); // byte 1 → char 0
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(2, state.ByteCursorOffset);
         Assert.Equal(1, state.Cursor.Position.Value); // past "é" → doc.Length = 1
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(2, state.ByteCursorOffset); // clamped at totalBytes
         Assert.Equal(1, state.Cursor.Position.Value); // stays at end
     }
@@ -890,7 +890,7 @@ public class HexEditorViewRendererTests
         state.ByteCursorOffset = 1;
 
         var renderer = new HexEditorViewRenderer();
-        var handled = renderer.HandleNavigation(CursorDirection.Left, state, extend: false);
+        var handled = renderer.HandleNavigation(CursorDirection.Left, state, extend: false, 80);
 
         Assert.True(handled);
         Assert.Equal(0, state.ByteCursorOffset);
@@ -908,28 +908,100 @@ public class HexEditorViewRendererTests
 
         var renderer = new HexEditorViewRenderer();
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(1, state.ByteCursorOffset);
         Assert.Equal(0, state.Cursor.Position.Value); // byte 1 still maps to char 0
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(2, state.ByteCursorOffset);
         Assert.Equal(0, state.Cursor.Position.Value); // byte 2 still maps to char 0
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(3, state.ByteCursorOffset);
         Assert.Equal(1, state.Cursor.Position.Value); // byte 3 → past "日" → doc.Length = 1
     }
 
     [Fact]
-    public void HandleNavigation_DoesNotHandleUpDown()
+    public void HandleNavigation_UpDown_MovesByBytesPerRow()
     {
-        var doc = new Hex1bDocument("AB");
+        // Create content that spans multiple hex rows at 80 columns
+        // At 80 columns, CalculateLayout gives 16 bytes per row
+        var bytes = new byte[48]; // 3 rows of 16 bytes
+        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)(0x41 + (i % 26));
+        var doc = new Hex1bDocument(System.Text.Encoding.ASCII.GetString(bytes));
         var state = new EditorState(doc);
         var renderer = new HexEditorViewRenderer();
 
-        Assert.False(renderer.HandleNavigation(CursorDirection.Up, state, extend: false));
-        Assert.False(renderer.HandleNavigation(CursorDirection.Down, state, extend: false));
+        // Start at byte 0 (row 0, col 0)
+        state.ByteCursorOffset = 0;
+
+        // Down should move to byte 16 (row 1, col 0)
+        Assert.True(renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80));
+        Assert.Equal(16, state.ByteCursorOffset);
+
+        // Down again should move to byte 32 (row 2, col 0)
+        renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
+        Assert.Equal(32, state.ByteCursorOffset);
+
+        // Up should move back to byte 16 (row 1, col 0)
+        renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
+        Assert.Equal(16, state.ByteCursorOffset);
+
+        // Up again should move back to byte 0 (row 0, col 0)
+        renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
+        Assert.Equal(0, state.ByteCursorOffset);
+    }
+
+    [Fact]
+    public void HandleNavigation_Up_ClampsToZero()
+    {
+        var doc = new Hex1bDocument("ABCD");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        state.ByteCursorOffset = 2;
+
+        // Up from first row should clamp to byte 0
+        renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
+        Assert.Equal(0, state.ByteCursorOffset);
+    }
+
+    [Fact]
+    public void HandleNavigation_Down_ClampsToTotalBytes()
+    {
+        var doc = new Hex1bDocument("ABCD");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        state.ByteCursorOffset = 0;
+
+        // Down from first row with only 4 bytes (< bytesPerRow) should clamp to end
+        renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
+        Assert.Equal(4, state.ByteCursorOffset);
+    }
+
+    [Fact]
+    public void HandleNavigation_UpDown_PreservesColumnPosition()
+    {
+        // 48 bytes = 3 rows of 16 bytes at 80 columns
+        var bytes = new byte[48];
+        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)(0x41 + (i % 26));
+        var doc = new Hex1bDocument(System.Text.Encoding.ASCII.GetString(bytes));
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+
+        // Start at byte 5 (row 0, col 5)
+        state.ByteCursorOffset = 5;
+
+        // Down should move to byte 21 (row 1, col 5)
+        renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
+        Assert.Equal(21, state.ByteCursorOffset);
+
+        // Down again should move to byte 37 (row 2, col 5)
+        renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
+        Assert.Equal(37, state.ByteCursorOffset);
+
+        // Up should return to byte 21
+        renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
+        Assert.Equal(21, state.ByteCursorOffset);
     }
 
     [Fact]
@@ -943,15 +1015,15 @@ public class HexEditorViewRendererTests
 
         var renderer = new HexEditorViewRenderer();
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(1, state.ByteCursorOffset);
         Assert.Equal(1, state.Cursor.Position.Value); // byte 1 → char 1
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(2, state.ByteCursorOffset);
         Assert.Equal(2, state.Cursor.Position.Value); // byte 2 → char 2
 
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(3, state.ByteCursorOffset);
         Assert.Equal(3, state.Cursor.Position.Value); // past end → doc.Length = 3
     }
@@ -968,17 +1040,17 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
 
         // byte 0 → byte 1 (C3, maps to char 1 'é')
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(1, state.ByteCursorOffset);
         Assert.Equal(1, state.Cursor.Position.Value);
 
         // byte 1 → byte 2 (A9, still char 1 'é')
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(2, state.ByteCursorOffset);
         Assert.Equal(1, state.Cursor.Position.Value);
 
         // byte 2 → byte 3 (past end)
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.Equal(3, state.ByteCursorOffset);
         Assert.Equal(2, state.Cursor.Position.Value); // doc.Length = 2
     }
@@ -993,7 +1065,7 @@ public class HexEditorViewRendererTests
         // ByteCursorOffset is null — should derive from char position
 
         var renderer = new HexEditorViewRenderer();
-        renderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
 
         Assert.Equal(2, state.ByteCursorOffset); // byte 1 → byte 2 (end)
         Assert.Equal(2, state.Cursor.Position.Value); // doc.Length

@@ -470,28 +470,28 @@ public sealed class EditorNode : Hex1bNode
 
     private void MoveLeft()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: false))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Left);
         AfterMove();
     }
 
     private void MoveRight()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: false))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Right);
         AfterMove();
     }
 
     private void MoveUp()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: false))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Up);
         AfterMove();
     }
 
     private void MoveDown()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: false))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Down);
         AfterMove();
     }
@@ -508,28 +508,28 @@ public sealed class EditorNode : Hex1bNode
 
     private void SelectLeft()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: true))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: true, ViewportColumns))
             State.MoveCursor(CursorDirection.Left, extend: true);
         AfterMove();
     }
 
     private void SelectRight()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: true))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: true, ViewportColumns))
             State.MoveCursor(CursorDirection.Right, extend: true);
         AfterMove();
     }
 
     private void SelectUp()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: true))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: true, ViewportColumns))
             State.MoveCursor(CursorDirection.Up, extend: true);
         AfterMove();
     }
 
     private void SelectDown()
     {
-        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: true))
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: true, ViewportColumns))
             State.MoveCursor(CursorDirection.Down, extend: true);
         AfterMove();
     }

@@ -110,15 +110,17 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     public bool HandlesCharInput => true;
 
     /// <inheritdoc />
-    public bool HandleNavigation(CursorDirection direction, EditorState state, bool extend)
+    public bool HandleNavigation(CursorDirection direction, EditorState state, bool extend, int viewportColumns)
     {
-        if (direction is not (CursorDirection.Left or CursorDirection.Right))
+        if (direction is not (CursorDirection.Left or CursorDirection.Right
+                              or CursorDirection.Up or CursorDirection.Down))
             return false;
 
         var doc = state.Document;
         var totalBytes = doc.ByteCount;
         if (totalBytes == 0) return true;
 
+        var bytesPerRow = CalculateLayout(viewportColumns);
         var map = doc.GetByteMap();
 
         foreach (var cursor in state.Cursors)
@@ -140,15 +142,14 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                     : totalBytes;
             }
 
-            int targetByte;
-            if (direction == CursorDirection.Left)
+            int targetByte = direction switch
             {
-                targetByte = Math.Max(0, cursorByte - 1);
-            }
-            else
-            {
-                targetByte = Math.Min(totalBytes, cursorByte + 1);
-            }
+                CursorDirection.Left => Math.Max(0, cursorByte - 1),
+                CursorDirection.Right => Math.Min(totalBytes, cursorByte + 1),
+                CursorDirection.Up => Math.Max(0, cursorByte - bytesPerRow),
+                CursorDirection.Down => Math.Min(totalBytes, cursorByte + bytesPerRow),
+                _ => cursorByte
+            };
 
             if (targetByte < totalBytes)
             {
