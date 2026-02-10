@@ -170,26 +170,26 @@ public class DisplayWidthTests
     #region Known Problematic Characters
     
     /// <summary>
-    /// BMP characters render as 1-wide in terminals (text presentation by default).
-    /// Only SMP emoji (U+1F000+) and chars with VS16 (U+FE0F) are 2-wide.
+    /// These characters have been observed to cause alignment issues in FullAppDemo.
+    /// Each should return width 2 (emoji presentation).
     /// </summary>
     [Theory]
-    [InlineData("✅", 1)] // U+2705 White Heavy Check Mark — BMP, no VS16 = 1
-    [InlineData("❌", 1)] // U+274C Cross Mark — BMP, no VS16 = 1
-    [InlineData("⭐", 1)] // U+2B50 White Medium Star — BMP, no VS16 = 1
-    [InlineData("⚡", 1)] // U+26A1 High Voltage — BMP, no VS16 = 1
-    [InlineData("🔴", 2)] // U+1F534 Red Circle — SMP = 2
-    [InlineData("🟠", 2)] // U+1F7E0 Orange Circle — SMP = 2
-    [InlineData("🟡", 2)] // U+1F7E1 Yellow Circle — SMP = 2
-    [InlineData("🟢", 2)] // U+1F7E2 Green Circle — SMP = 2
-    [InlineData("🔵", 2)] // U+1F535 Blue Circle — SMP = 2
-    [InlineData("⚫", 1)] // U+26AB Black Circle — BMP, no VS16 = 1
-    [InlineData("⚪", 1)] // U+26AA White Circle — BMP, no VS16 = 1
-    [InlineData("⚠️", 2)] // U+26A0+FE0F Warning with VS16 = 2
-    [InlineData("ℹ️", 2)] // U+2139+FE0F Info with VS16 = 2
-    [InlineData("❓", 1)] // U+2753 Question Mark Ornament — BMP, no VS16 = 1
-    [InlineData("❗", 1)] // U+2757 Exclamation Mark — BMP, no VS16 = 1
-    public void GetGraphemeWidth_ProblematicEmoji_ReturnsExpected(string grapheme, int expectedWidth)
+    [InlineData("✅", 2)] // U+2705 White Heavy Check Mark
+    [InlineData("❌", 2)] // U+274C Cross Mark
+    [InlineData("⭐", 2)] // U+2B50 White Medium Star
+    [InlineData("⚡", 2)] // U+26A1 High Voltage
+    [InlineData("🔴", 2)] // U+1F534 Red Circle
+    [InlineData("🟠", 2)] // U+1F7E0 Orange Circle
+    [InlineData("🟡", 2)] // U+1F7E1 Yellow Circle
+    [InlineData("🟢", 2)] // U+1F7E2 Green Circle
+    [InlineData("🔵", 2)] // U+1F535 Blue Circle
+    [InlineData("⚫", 2)] // U+26AB Black Circle
+    [InlineData("⚪", 2)] // U+26AA White Circle
+    [InlineData("⚠️", 2)] // U+26A0+FE0F Warning with VS16
+    [InlineData("ℹ️", 2)] // U+2139+FE0F Info with VS16
+    [InlineData("❓", 2)] // U+2753 Question Mark Ornament
+    [InlineData("❗", 2)] // U+2757 Exclamation Mark
+    public void GetGraphemeWidth_ProblematicEmoji_ReturnsTwo(string grapheme, int expectedWidth)
     {
         var actualWidth = DisplayWidth.GetGraphemeWidth(grapheme);
         Assert.Equal(expectedWidth, actualWidth);
@@ -388,10 +388,10 @@ public class DisplayWidthTests
     
     [Theory]
     [InlineData("✓", 1)]  // Check Mark U+2713 - NO Emoji_Presentation, defaults to text
-    [InlineData("✔", 1)]  // Heavy Check Mark U+2714 - BMP, no VS16 = 1 in terminals
+    [InlineData("✔", 2)]  // Heavy Check Mark U+2714 - HAS Emoji_Presentation
     [InlineData("○", 1)]  // White Circle U+25CB - NO Emoji_Presentation
     [InlineData("●", 1)]  // Black Circle U+25CF - NO Emoji_Presentation
-    [InlineData("☑", 1)]  // Ballot Box with Check U+2611 - BMP, no VS16 = 1 in terminals
+    [InlineData("☑", 2)]  // Ballot Box with Check U+2611 - HAS Emoji_Presentation
     [InlineData("☐", 1)]  // Ballot Box U+2610 - NO Emoji_Presentation
     public void GetGraphemeWidth_CheckboxSymbols_ReturnsExpected(string symbol, int expectedWidth)
     {
