@@ -127,12 +127,11 @@ public class MultiCursorPerformanceTests
         // Log timing for diagnostics
         var ms = sw.ElapsedMilliseconds;
 
-        // This should complete in under 500ms on any reasonable machine.
-        // Before the fix, this takes 3-8 seconds due to 70× RebuildCaches.
-        // After the fix (batch mode), should be <200ms.
-        Assert.True(ms < 2000,
+        // With batch mode: single RebuildCaches call, typically <100ms.
+        // Use 500ms threshold for CI headroom.
+        Assert.True(ms < 500,
             $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
-            $"took {ms}ms — expected <2000ms. " +
+            $"took {ms}ms — expected <500ms. " +
             $"This likely means RebuildCaches is being called per-cursor instead of once.");
     }
 
@@ -151,12 +150,10 @@ public class MultiCursorPerformanceTests
 
         var ms = sw.ElapsedMilliseconds;
 
-        // Current behavior: ~2700ms due to per-cursor RebuildCaches.
-        // Target after batching fix: <500ms (single RebuildCaches call).
-        Assert.True(ms < 5000,
+        // With batch mode: single RebuildCaches call, typically <100ms.
+        Assert.True(ms < 500,
             $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
-            $"took {ms}ms — expected <5000ms (current baseline). " +
-            $"After batch fix, tighten to <500ms.");
+            $"took {ms}ms — expected <500ms.");
     }
 
     [Fact]
@@ -171,9 +168,9 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 2000,
+        Assert.True(ms < 500,
             $"Multi-cursor delete with {cursorCount} cursors on 100K-line doc " +
-            $"took {ms}ms — expected <2000ms.");
+            $"took {ms}ms — expected <500ms.");
     }
 
     [Fact]
@@ -195,9 +192,9 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 2000,
+        Assert.True(ms < 500,
             $"Multi-cursor insert with {cursorCount} cursors on 100K-line doc " +
-            $"took {ms}ms — expected <2000ms.");
+            $"took {ms}ms — expected <500ms.");
     }
 
     [Fact]

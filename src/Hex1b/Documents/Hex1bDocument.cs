@@ -13,14 +13,19 @@ public sealed class Hex1bDocument : IHex1bDocument
     private readonly List<byte> _addBuffer = new();
     private readonly PieceTree _pieceTree = new();
 
-    // Cached derived state — rebuilt after every edit
+    // Cached derived state — rebuilt after every edit (or deferred during batch)
     private string _cachedText = "";
     private byte[] _cachedBytes = [];
     private Utf8ByteMap? _cachedByteMap;
     private List<int> _lineStarts = new();
     private long _version;
+    private int _batchDepth;
+    private int _batchLengthDelta; // Tracks character-length changes during batch
+    private long _batchVersionStart; // Version before batch began
+    private List<EditOperation>? _batchApplied; // Accumulated ops during batch
+    private List<EditOperation>? _batchInverse;
 
-    public int Length => _cachedText.Length;
+    public int Length => _cachedText.Length + _batchLengthDelta;
     public int ByteCount => _pieceTree.TotalBytes;
     public int LineCount => _lineStarts.Count;
     public long Version => _version;
@@ -57,10 +62,58 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     public string GetText() => _cachedText;
 
+    // ── Batch editing ───────────────────────────────────────────
+
+    /// <summary>
+    /// Begins a batch of edits. While a batch is open, <see cref="RebuildCaches"/>
+    /// and <see cref="Changed"/> events are deferred until <see cref="EndBatch"/> is called.
+    /// Batches may be nested; only the outermost <see cref="EndBatch"/> triggers the rebuild.
+    /// <para>
+    /// This is critical for multi-cursor edits: without batching, each cursor's edit
+    /// triggers a full O(n) cache rebuild (assemble bytes + UTF-8 decode + line scan).
+    /// With batching, all piece-tree mutations happen first, then a single O(n) rebuild.
+    /// </para>
+    /// </summary>
+    public void BeginBatch()
+    {
+        if (_batchDepth++ == 0)
+        {
+            _batchVersionStart = _version;
+            _batchApplied = new List<EditOperation>();
+            _batchInverse = new List<EditOperation>();
+        }
+    }
+
+    /// <summary>
+    /// Ends a batch of edits. When the outermost batch ends, rebuilds all caches
+    /// once and fires a single <see cref="Changed"/> event.
+    /// </summary>
+    public void EndBatch()
+    {
+        if (_batchDepth <= 0) return;
+        if (--_batchDepth == 0)
+        {
+            var applied = _batchApplied ?? [];
+            var inverse = _batchInverse ?? [];
+            var previousVersion = _batchVersionStart;
+
+            _batchLengthDelta = 0;
+            _batchApplied = null;
+            _batchInverse = null;
+            RebuildCaches();
+
+            if (applied.Count > 0)
+            {
+                Changed?.Invoke(this, new DocumentChangedEventArgs(
+                    _version, previousVersion, applied, inverse, source: null));
+            }
+        }
+    }
+
     public string GetText(DocumentRange range)
     {
         if (range.IsEmpty) return string.Empty;
-        if (range.End.Value > Length)
+        if (range.End.Value > _cachedText.Length)
             throw new ArgumentOutOfRangeException(nameof(range));
 
         return _cachedText.Substring(range.Start.Value, range.Length);
@@ -160,11 +213,22 @@ public sealed class Hex1bDocument : IHex1bDocument
         }
 
         _version++;
-        RebuildCaches();
+
+        if (_batchDepth == 0)
+            RebuildCaches();
 
         var result = new EditResult(previousVersion, _version, applied, inverse);
-        Changed?.Invoke(this, new DocumentChangedEventArgs(
-            _version, previousVersion, applied, inverse, source));
+
+        if (_batchDepth == 0)
+        {
+            Changed?.Invoke(this, new DocumentChangedEventArgs(
+                _version, previousVersion, applied, inverse, source));
+        }
+        else
+        {
+            _batchApplied?.AddRange(applied);
+            _batchInverse?.AddRange(inverse);
+        }
 
         return result;
     }
@@ -237,6 +301,8 @@ public sealed class Hex1bDocument : IHex1bDocument
                 var byteOffset = CharOffsetToByteOffset(clampedOffset);
                 var textBytes = Encoding.UTF8.GetBytes(insert.Text);
                 InsertBytesInternal(byteOffset, textBytes);
+                if (_batchDepth > 0)
+                    _batchLengthDelta += insert.Text.Length;
                 var deleteInverse = new DeleteOperation(
                     new DocumentRange(new DocumentOffset(clampedOffset), new DocumentOffset(clampedOffset + insert.Text.Length)));
                 return (insert, deleteInverse);
@@ -254,6 +320,8 @@ public sealed class Hex1bDocument : IHex1bDocument
                 var byteStart = CharOffsetToByteOffset(range.Start.Value);
                 var byteEnd = CharOffsetToByteOffset(range.End.Value);
                 DeleteBytesInternal(byteStart, byteEnd - byteStart);
+                if (_batchDepth > 0)
+                    _batchLengthDelta -= range.Length;
                 var insertInverse = new InsertOperation(range.Start, deletedText);
                 return (delete, insertInverse);
             }
@@ -271,6 +339,8 @@ public sealed class Hex1bDocument : IHex1bDocument
                 if (byteEnd > byteStart) DeleteBytesInternal(byteStart, byteEnd - byteStart);
                 var textBytes = Encoding.UTF8.GetBytes(replace.NewText);
                 InsertBytesInternal(byteStart, textBytes);
+                if (_batchDepth > 0)
+                    _batchLengthDelta += replace.NewText.Length - range.Length;
                 var replaceInverse = new ReplaceOperation(
                     new DocumentRange(range.Start, range.Start + replace.NewText.Length),
                     replacedText);
