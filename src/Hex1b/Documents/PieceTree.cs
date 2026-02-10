@@ -295,36 +295,6 @@ internal sealed class PieceTree
     }
 
     /// <summary>
-    /// Visits pieces covering the byte range [byteOffset, byteOffset + count),
-    /// calling the action with (source, bufferStart, length) for each contributing slice.
-    /// Uses FindAt for O(log n) start, then walks in-order successors.
-    /// </summary>
-    public void ReadRange(int byteOffset, int count, Action<BufferSource, int, int> action)
-    {
-        if (count <= 0 || Root == null) return;
-
-        var end = byteOffset + count;
-        var (node, offsetInNode) = FindAt(byteOffset);
-        if (node == null) return;
-
-        // First node: may start partway through
-        var availableInNode = node.Length - offsetInNode;
-        var take = Math.Min(availableInNode, count);
-        action(node.Source, node.Start + offsetInNode, take);
-        var remaining = count - take;
-
-        // Walk in-order successors
-        var current = InOrderSuccessor(node);
-        while (remaining > 0 && current != null)
-        {
-            take = Math.Min(current.Length, remaining);
-            action(current.Source, current.Start, take);
-            remaining -= take;
-            current = InOrderSuccessor(current);
-        }
-    }
-
-    /// <summary>
     /// Collects all nodes in order for diagnostics/iteration.
     /// </summary>
     public List<(BufferSource Source, int Start, int Length)> ToList()
