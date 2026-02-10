@@ -11,7 +11,7 @@ public sealed class Hex1bDocument : IHex1bDocument
 {
     private readonly ReadOnlyMemory<byte> _originalBuffer;
     private readonly List<byte> _addBuffer = new();
-    private readonly List<Piece> _pieces = new();
+    private readonly PieceTree _pieceTree = new();
 
     // Cached derived state — rebuilt after every edit
     private string _cachedText = "";
@@ -19,7 +19,7 @@ public sealed class Hex1bDocument : IHex1bDocument
     private long _version;
 
     public int Length => _cachedText.Length;
-    public int ByteCount { get; private set; }
+    public int ByteCount => _pieceTree.TotalBytes;
     public int LineCount => _lineStarts.Count;
     public long Version => _version;
 
@@ -29,11 +29,10 @@ public sealed class Hex1bDocument : IHex1bDocument
     {
         var bytes = Encoding.UTF8.GetBytes(initialText);
         _originalBuffer = bytes.AsMemory();
-        ByteCount = bytes.Length;
 
         if (bytes.Length > 0)
         {
-            _pieces.Add(new Piece(BufferSource.Original, 0, bytes.Length));
+            _pieceTree.Insert(0, PieceTree.BufferSource.Original, 0, bytes.Length);
         }
 
         RebuildCaches();
@@ -45,11 +44,10 @@ public sealed class Hex1bDocument : IHex1bDocument
     public Hex1bDocument(byte[] initialBytes)
     {
         _originalBuffer = initialBytes.AsMemory();
-        ByteCount = initialBytes.Length;
 
         if (initialBytes.Length > 0)
         {
-            _pieces.Add(new Piece(BufferSource.Original, 0, initialBytes.Length));
+            _pieceTree.Insert(0, PieceTree.BufferSource.Original, 0, initialBytes.Length);
         }
 
         RebuildCaches();
@@ -211,69 +209,13 @@ public sealed class Hex1bDocument : IHex1bDocument
 
         var addStart = _addBuffer.Count;
         _addBuffer.AddRange(bytes);
-        var newPiece = new Piece(BufferSource.Added, addStart, bytes.Length);
-
-        if (_pieces.Count == 0)
-        {
-            _pieces.Add(newPiece);
-            ByteCount += bytes.Length;
-            return;
-        }
-
-        var (pieceIndex, offsetInPiece) = FindPieceAt(byteOffset);
-
-        if (pieceIndex == _pieces.Count)
-        {
-            _pieces.Add(newPiece);
-        }
-        else if (offsetInPiece == 0)
-        {
-            _pieces.Insert(pieceIndex, newPiece);
-        }
-        else if (offsetInPiece == _pieces[pieceIndex].Length)
-        {
-            _pieces.Insert(pieceIndex + 1, newPiece);
-        }
-        else
-        {
-            var existing = _pieces[pieceIndex];
-            var left = new Piece(existing.Source, existing.Start, offsetInPiece);
-            var right = new Piece(existing.Source, existing.Start + offsetInPiece, existing.Length - offsetInPiece);
-            _pieces[pieceIndex] = left;
-            _pieces.Insert(pieceIndex + 1, newPiece);
-            _pieces.Insert(pieceIndex + 2, right);
-        }
-
-        ByteCount += bytes.Length;
+        _pieceTree.Insert(byteOffset, PieceTree.BufferSource.Added, addStart, bytes.Length);
     }
 
     private void DeleteBytesInternal(int byteOffset, int length)
     {
         if (length == 0) return;
-
-        var end = byteOffset + length;
-        var (startPiece, startInPiece) = FindPieceAt(byteOffset);
-        var (endPiece, endInPiece) = FindPieceAt(end);
-
-        var newPieces = new List<Piece>();
-
-        if (startInPiece > 0)
-        {
-            var piece = _pieces[startPiece];
-            newPieces.Add(new Piece(piece.Source, piece.Start, startInPiece));
-        }
-
-        if (endPiece < _pieces.Count && endInPiece < _pieces[endPiece].Length)
-        {
-            var piece = _pieces[endPiece];
-            newPieces.Add(new Piece(piece.Source, piece.Start + endInPiece, piece.Length - endInPiece));
-        }
-
-        var removeCount = (endPiece < _pieces.Count ? endPiece + 1 : _pieces.Count) - startPiece;
-        _pieces.RemoveRange(startPiece, removeCount);
-        _pieces.InsertRange(startPiece, newPieces);
-
-        ByteCount -= length;
+        _pieceTree.Delete(byteOffset, length);
     }
 
     // ── Character-level operation dispatch ───────────────────────
@@ -331,24 +273,10 @@ public sealed class Hex1bDocument : IHex1bDocument
         return Encoding.UTF8.GetByteCount(_cachedText.AsSpan(0, charOffset));
     }
 
-    // ── Piece table helpers ─────────────────────────────────────
-
-    private (int PieceIndex, int OffsetInPiece) FindPieceAt(int byteOffset)
-    {
-        var current = 0;
-        for (var i = 0; i < _pieces.Count; i++)
-        {
-            if (byteOffset <= current + _pieces[i].Length)
-            {
-                return (i, byteOffset - current);
-            }
-            current += _pieces[i].Length;
-        }
-        return (_pieces.Count, 0);
-    }
+    // ── Piece tree helpers ────────────────────────────────────────
 
     /// <summary>
-    /// Copies bytes from the piece table into the destination array.
+    /// Copies bytes from the piece tree into the destination array.
     /// </summary>
     private void CopyBytesTo(byte[] dest, int byteOffset, int count)
     {
@@ -356,37 +284,37 @@ public sealed class Hex1bDocument : IHex1bDocument
         var destPos = 0;
         var current = 0;
 
-        foreach (var piece in _pieces)
+        _pieceTree.InOrderTraversal((source, start, length) =>
         {
-            if (remaining <= 0) break;
+            if (remaining <= 0) return;
 
-            var pieceEnd = current + piece.Length;
+            var pieceEnd = current + length;
             if (pieceEnd <= byteOffset)
             {
                 current = pieceEnd;
-                continue;
+                return;
             }
 
             var startInPiece = Math.Max(0, byteOffset - current);
-            var endInPiece = Math.Min(piece.Length, byteOffset + count - current);
+            var endInPiece = Math.Min(length, byteOffset + count - current);
             var copyCount = endInPiece - startInPiece;
 
-            if (piece.Source == BufferSource.Original)
+            if (source == PieceTree.BufferSource.Original)
             {
-                _originalBuffer.Span.Slice(piece.Start + startInPiece, copyCount).CopyTo(dest.AsSpan(destPos));
+                _originalBuffer.Span.Slice(start + startInPiece, copyCount).CopyTo(dest.AsSpan(destPos));
             }
             else
             {
                 for (var i = 0; i < copyCount; i++)
                 {
-                    dest[destPos + i] = _addBuffer[piece.Start + startInPiece + i];
+                    dest[destPos + i] = _addBuffer[start + startInPiece + i];
                 }
             }
 
             destPos += copyCount;
             remaining -= copyCount;
             current = pieceEnd;
-        }
+        });
     }
 
     /// <summary>
@@ -476,36 +404,34 @@ public sealed class Hex1bDocument : IHex1bDocument
             throw new ArgumentOutOfRangeException(nameof(line), $"Line {line} is out of range [1..{LineCount}].");
     }
 
-    private enum BufferSource { Original, Added }
-    private readonly record struct Piece(BufferSource Source, int Start, int Length);
-
     public DocumentDiagnosticInfo GetDiagnosticInfo()
     {
         const int maxPreviewBytes = 64;
-        var pieces = new List<PieceDiagnosticInfo>(_pieces.Count);
+        var pieceList = _pieceTree.ToList();
+        var pieces = new List<PieceDiagnosticInfo>(pieceList.Count);
 
-        for (var i = 0; i < _pieces.Count; i++)
+        for (var i = 0; i < pieceList.Count; i++)
         {
-            var piece = _pieces[i];
-            var previewLen = Math.Min(piece.Length, maxPreviewBytes);
+            var (source, start, length) = pieceList[i];
+            var previewLen = Math.Min(length, maxPreviewBytes);
             var preview = new byte[previewLen];
 
-            if (piece.Source == BufferSource.Original)
+            if (source == PieceTree.BufferSource.Original)
             {
-                _originalBuffer.Span.Slice(piece.Start, previewLen).CopyTo(preview);
+                _originalBuffer.Span.Slice(start, previewLen).CopyTo(preview);
             }
             else
             {
                 for (var j = 0; j < previewLen; j++)
-                    preview[j] = _addBuffer[piece.Start + j];
+                    preview[j] = _addBuffer[start + j];
             }
 
             pieces.Add(new PieceDiagnosticInfo
             {
                 Index = i,
-                Source = piece.Source == BufferSource.Original ? "Original" : "Added",
-                Start = piece.Start,
-                Length = piece.Length,
+                Source = source == PieceTree.BufferSource.Original ? "Original" : "Added",
+                Start = start,
+                Length = length,
                 PreviewBytes = preview,
                 PreviewText = Encoding.UTF8.GetString(preview)
             });
@@ -519,7 +445,9 @@ public sealed class Hex1bDocument : IHex1bDocument
             LineCount = LineCount,
             OriginalBufferSize = _originalBuffer.Length,
             AddBufferSize = _addBuffer.Count,
-            Pieces = pieces
+            Pieces = pieces,
+            PieceCount = _pieceTree.Count,
+            TreeRoot = _pieceTree.GetDiagnosticRoot()
         };
     }
 }
