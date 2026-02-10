@@ -56,17 +56,23 @@ var financialData = new[]
     new FinancialRecord("Nov", 200, 140), new FinancialRecord("Dec", 220, 150),
 };
 
-var requestVolume = new[]
-{
-    new HourlyRequests("00:00", 120), new HourlyRequests("02:00", 85),
-    new HourlyRequests("04:00", 60), new HourlyRequests("06:00", 180),
-    new HourlyRequests("08:00", 450), new HourlyRequests("10:00", 620),
-    new HourlyRequests("12:00", 580), new HourlyRequests("14:00", 550),
-    new HourlyRequests("16:00", 490), new HourlyRequests("18:00", 420),
-    new HourlyRequests("20:00", 310), new HourlyRequests("22:00", 190),
-};
 
-// Scatter data
+// Live request volume data (animated)
+var liveRequests = new List<HourlyRequests>();
+var liveRandom = new Random();
+var liveStartTime = DateTime.Now;
+void AddLivePoint()
+{
+    var elapsed = DateTime.Now - liveStartTime;
+    var label = elapsed.ToString(@"mm\:ss");
+    var baseline = 300 + 200 * Math.Sin(elapsed.TotalSeconds * 0.3);
+    var noise = liveRandom.NextDouble() * 100 - 50;
+    liveRequests.Add(new HourlyRequests(label, Math.Max(0, baseline + noise)));
+    if (liveRequests.Count > 40) liveRequests.RemoveAt(0);
+}
+// Seed initial data
+for (int i = 0; i < 20; i++) { AddLivePoint(); liveStartTime -= TimeSpan.FromMilliseconds(500); }
+liveStartTime = DateTime.Now;
 var random = new Random(42);
 var heightWeight = Enumerable.Range(0, 60).Select(_ =>
 {
@@ -261,15 +267,19 @@ var terminal = Hex1bTerminal.CreateBuilder()
                     .ShowGridLines()
                     .FillHeight(),
             ]),
-            tp.Tab("Area Fill", t => [
-                t.TimeSeriesChart(requestVolume)
+            tp.Tab("Area Fill", t =>
+            {
+                AddLivePoint();
+                var chart = t.TimeSeriesChart<HourlyRequests, VStackWidget>(liveRequests.ToArray())
                     .Label(d => d.Hour)
                     .Value(d => d.Requests)
                     .Fill(FillStyle.Braille)
-                    .Title("Request Volume (24h)")
+                    .Title("Live Request Volume")
                     .ShowGridLines()
-                    .FillHeight(),
-            ]),
+                    .FillHeight()
+                    .RedrawAfter(500);
+                return [chart];
+            }),
             tp.Tab("Scatter", t => [
                 t.ScatterChart(heightWeight)
                     .X(d => d.Height)
