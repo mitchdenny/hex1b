@@ -311,14 +311,26 @@ public class EditorState
             switch (direction)
             {
                 case CursorDirection.Left:
+                {
                     if (cursor.Position.Value > 0)
-                        cursor.Position = cursor.Position - 1;
+                    {
+                        var text = Document.GetText();
+                        var prev = GraphemeHelper.GetPreviousClusterBoundary(text, cursor.Position.Value);
+                        cursor.Position = new DocumentOffset(prev);
+                    }
                     break;
+                }
 
                 case CursorDirection.Right:
+                {
                     if (cursor.Position.Value < Document.Length)
-                        cursor.Position = cursor.Position + 1;
+                    {
+                        var text = Document.GetText();
+                        var next = GraphemeHelper.GetNextClusterBoundary(text, cursor.Position.Value);
+                        cursor.Position = new DocumentOffset(next);
+                    }
                     break;
+                }
 
                 case CursorDirection.Up:
                     MoveVertical(cursor, -1);

@@ -89,7 +89,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             // Build per-column cell type map for this line
             var lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
             var lineEndOffset = lineStartOffset + lineText.Length;
-            var cellTypes = BuildCellTypes(displayText.Length, docLine, lineStartOffset, lineEndOffset,
+            var cellTypes = BuildCellTypes(displayText, docLine, lineStartOffset, lineEndOffset,
                 cursorPositions, selectionRanges, horizontalScrollOffset);
 
             RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes);
@@ -141,7 +141,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     }
 
     private static CellType[]? BuildCellTypes(
-        int displayWidth,
+        string displayText,
         int docLine,
         int lineStartOffset,
         int lineEndOffset,
@@ -149,6 +149,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         List<(int Start, int End)> selectionRanges,
         int horizontalScrollOffset = 0)
     {
+        var displayWidth = displayText.Length;
         var hasCursor = false;
         foreach (var (line, _) in cursorPositions)
         {
@@ -203,6 +204,25 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             }
         }
 
+        // Extend cell types over surrogate pairs — both chars of a pair
+        // must share the same type to avoid splitting them during rendering
+        for (var i = 0; i < displayWidth - 1; i++)
+        {
+            if (char.IsHighSurrogate(displayText[i]) && char.IsLowSurrogate(displayText[i + 1]))
+            {
+                // Use the more significant type for the pair
+                if (types[i] != CellType.Normal || types[i + 1] != CellType.Normal)
+                {
+                    var pairType = types[i] != CellType.Normal ? types[i] : types[i + 1];
+                    if (types[i] == CellType.Cursor || types[i + 1] == CellType.Cursor)
+                        pairType = CellType.Cursor;
+                    types[i] = pairType;
+                    types[i + 1] = pairType;
+                }
+                i++; // skip low surrogate
+            }
+        }
+
         return types;
     }
 
@@ -231,6 +251,37 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             for (var i = 0; i < text.Length; i++)
             {
                 var cellType = i < cellTypes.Length ? cellTypes[i] : CellType.Normal;
+
+                // For surrogate pairs, use the cell type of the first char for both
+                if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+                {
+                    if (cellType != prevType)
+                    {
+                        switch (cellType)
+                        {
+                            case CellType.Cursor:
+                                sb.Append(cursorFg.ToForegroundAnsi());
+                                sb.Append(cursorBg.ToBackgroundAnsi());
+                                break;
+                            case CellType.Selected:
+                                sb.Append(selFg.ToForegroundAnsi());
+                                sb.Append(selBg.ToBackgroundAnsi());
+                                break;
+                            case CellType.Normal:
+                                sb.Append(resetToGlobal);
+                                sb.Append(fg.ToForegroundAnsi());
+                                sb.Append(bg.ToBackgroundAnsi());
+                                break;
+                        }
+                        prevType = cellType;
+                    }
+
+                    // Write surrogate pair as a unit
+                    sb.Append(text[i]);
+                    sb.Append(text[i + 1]);
+                    i++; // skip low surrogate
+                    continue;
+                }
 
                 if (cellType != prevType)
                 {
