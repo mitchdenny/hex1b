@@ -36,6 +36,7 @@ Widgets that respond to user input.
 
 Widgets for presenting information.
 
+- **[Charts](/guide/widgets/charts)** — Column charts, bar charts, and breakdown charts
 - **[Icon](/guide/widgets/icon)** — Single character or emoji display with optional click
 - **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
 - **[Notifications](/guide/widgets/notifications)** — Floating notifications with actions and drawer
