@@ -124,11 +124,135 @@ await terminal.RunAsync();
 
 record ServerMetric(string Host, double Cpu, double Memory);`
 
+const timeSeriesBasicCode = `using Hex1b;
+using Hex1b.Charts;
+
+var data = new[]
+{
+    new ChartItem("Jan", 2), new ChartItem("Feb", 4),
+    new ChartItem("Mar", 9), new ChartItem("Apr", 14),
+    new ChartItem("May", 18), new ChartItem("Jun", 22),
+    new ChartItem("Jul", 25), new ChartItem("Aug", 24),
+    new ChartItem("Sep", 20), new ChartItem("Oct", 14),
+    new ChartItem("Nov", 8), new ChartItem("Dec", 3),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.TimeSeriesChart(data)
+        .Title("Monthly Temperature (°C)")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();`
+
+const timeSeriesMultiCode = `using Hex1b;
+using Hex1b.Charts;
+using Hex1b.Theming;
+
+var data = new[]
+{
+    new FinRec("Jan", 120, 80), new FinRec("Feb", 135, 90),
+    new FinRec("Mar", 115, 95), new FinRec("Apr", 150, 100),
+    new FinRec("May", 140, 110), new FinRec("Jun", 170, 105),
+    new FinRec("Jul", 165, 115), new FinRec("Aug", 180, 120),
+    new FinRec("Sep", 175, 125), new FinRec("Oct", 190, 130),
+    new FinRec("Nov", 200, 140), new FinRec("Dec", 220, 150),
+};
+
+var blue = Hex1bColor.FromRgb(66, 133, 244);
+var red = Hex1bColor.FromRgb(234, 67, 53);
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.TimeSeriesChart(data)
+        .Label(d =&gt; d.Month)
+        .Series("Revenue", d =&gt; d.Revenue, blue)
+        .Series("Expenses", d =&gt; d.Expenses, red)
+        .Title("Revenue vs Expenses")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();
+
+record FinRec(string Month, double Revenue, double Expenses);`
+
+const timeSeriesFillCode = `using Hex1b;
+using Hex1b.Charts;
+
+var data = new[]
+{
+    new ChartItem("00:00", 120), new ChartItem("04:00", 60),
+    new ChartItem("08:00", 450), new ChartItem("12:00", 580),
+    new ChartItem("16:00", 490), new ChartItem("20:00", 310),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.TimeSeriesChart(data)
+        .Fill(FillStyle.Braille)
+        .Title("Request Volume (24h)")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();`
+
+const scatterBasicCode = `using Hex1b;
+using Hex1b.Charts;
+
+var random = new Random(42);
+var data = Enumerable.Range(0, 60).Select(_ =>
+{
+    var height = 150 + random.NextDouble() * 40;
+    var weight = (height - 100) * 0.8 + random.NextDouble() * 20 - 10;
+    return new Measurement(height, weight);
+}).ToArray();
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.ScatterChart(data)
+        .X(d =&gt; d.Height)
+        .Y(d =&gt; d.Weight)
+        .Title("Height vs Weight")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();
+
+record Measurement(double Height, double Weight);`
+
+const scatterGroupedCode = `using Hex1b;
+using Hex1b.Charts;
+
+var random = new Random(42);
+var data = Enumerable.Range(0, 90).Select(i =>
+{
+    var group = i &lt; 30 ? "Young" : i &lt; 60 ? "Middle" : "Senior";
+    var income = (group switch { "Young" => 30, "Middle" => 55, _ => 45 })
+        + random.NextDouble() * 30;
+    var spending = income * (0.5 + random.NextDouble() * 0.4);
+    return new DemoPoint(income, spending, group);
+}).ToArray();
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.ScatterChart(data)
+        .X(d =&gt; d.Income)
+        .Y(d =&gt; d.Spending)
+        .GroupBy(d =&gt; d.Group)
+        .Title("Income vs Spending by Age Group")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();
+
+record DemoPoint(double Income, double Spending, string Group);`
+
 </script>
 
 # Charts
 
-Visualize data with column charts, bar charts, and breakdown charts. All chart widgets use a generic data-binding pattern that works with any data type, with convenience overloads for ad-hoc data using `ChartItem`.
+Visualize data with column charts, bar charts, breakdown charts, time series line charts, and scatter plots. All chart widgets use a generic data-binding pattern that works with any data type, with convenience overloads for ad-hoc data using `ChartItem`.
 
 ## Column Chart
 
@@ -171,9 +295,43 @@ Display a proportional segmented bar showing how parts contribute to a whole. Ea
 
 <CodeBlock lang="csharp" :code="breakdownCode" command="dotnet run" example="chart-breakdown" exampleTitle="Breakdown Chart" />
 
+## Time Series Chart
+
+Plot one or more value series over an ordered X axis using braille characters for sub-cell precision line drawing. Each terminal cell provides a 2×4 dot grid (8 sub-pixels).
+
+### Basic Usage
+
+<CodeBlock lang="csharp" :code="timeSeriesBasicCode" command="dotnet run" example="chart-timeseries-basic" exampleTitle="Time Series - Basic" />
+
+### Multi-Series
+
+Add multiple series to compare trends. Lines are drawn independently and colors blend at intersection points:
+
+<CodeBlock lang="csharp" :code="timeSeriesMultiCode" command="dotnet run" example="chart-timeseries-multi" exampleTitle="Time Series - Multi-Series" />
+
+### Area Fill
+
+Use `.Fill()` to shade the area below the line. `FillStyle.Braille` fills with braille dots; `FillStyle.Solid` uses block characters:
+
+<CodeBlock lang="csharp" :code="timeSeriesFillCode" command="dotnet run" example="chart-timeseries-fill" exampleTitle="Time Series - Area Fill" />
+
+## Scatter Chart
+
+Plot independent (x, y) data points using braille dots. Points are NOT connected by lines — each plots a single dot. Both axes are numeric.
+
+### Basic Usage
+
+<CodeBlock lang="csharp" :code="scatterBasicCode" command="dotnet run" example="chart-scatter-basic" exampleTitle="Scatter Chart - Basic" />
+
+### Grouped Series
+
+Use `.GroupBy()` to color-code data points by category:
+
+<CodeBlock lang="csharp" :code="scatterGroupedCode" command="dotnet run" example="chart-scatter-grouped" exampleTitle="Scatter Chart - Grouped" />
+
 ## Generic Data Binding
 
-All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`). Bind any data type by providing selector functions:
+All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`, `TimeSeriesChartWidget<T>`, `ScatterChartWidget<T>`). Bind any data type by providing selector functions:
 
 <CodeBlock lang="csharp" :code="genericBindingCode" command="dotnet run" example="chart-bar-grouped" exampleTitle="Bar Chart - Grouped with Generic Binding" />
 
@@ -221,12 +379,42 @@ All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `Bre
 | `.ShowValues(bool)` | Show absolute values in legend |
 | `.ShowPercentages(bool)` | Show percentages in legend |
 
+### Time Series Methods
+
+| Method | Description |
+|--------|-------------|
+| `.Label(T → string)` | X-axis label selector |
+| `.Value(T → double)` | Single-series Y value selector |
+| `.Series(name, T → double, color?)` | Add a named Y series |
+| `.Fill(FillStyle)` | Area fill: `Solid` (block chars) or `Braille` (dot fill) |
+| `.Title(string)` | Chart title |
+| `.ShowValues(bool)` | Display Y values at data points |
+| `.ShowGridLines(bool)` | Display horizontal grid lines |
+| `.Min(double)` / `.Max(double)` | Explicit Y-axis range |
+| `.Range(min, max)` | Explicit Y-axis range |
+| `.FormatValue(double → string)` | Custom Y value formatter |
+
+### Scatter Chart Methods
+
+| Method | Description |
+|--------|-------------|
+| `.X(T → double)` | X-axis value selector |
+| `.Y(T → double)` | Y-axis value selector |
+| `.GroupBy(T → string)` | Series grouping selector |
+| `.Title(string)` | Chart title |
+| `.ShowGridLines(bool)` | Display grid lines |
+| `.XRange(min, max)` | Explicit X-axis range |
+| `.YRange(min, max)` | Explicit Y-axis range |
+| `.FormatX(double → string)` | Custom X value formatter |
+| `.FormatY(double → string)` | Custom Y value formatter |
+
 ### Rendering Details
 
 Charts render using the [Surface](/guide/widgets/surface) API internally. They use Unicode block characters for sub-cell precision:
 
 - **Column charts**: Vertical blocks (`▁▂▃▄▅▆▇█`) for fractional top edges
 - **Bar charts**: Horizontal blocks (`▏▎▍▌▋▊▉█`) for fractional right edges, vertical blocks for bar height edges
+- **Time series &amp; scatter charts**: Braille characters (`U+2800–U+28FF`) with a 2×4 dot grid per cell for sub-cell point and line plotting
 - **Stacked segments**: Complementary foreground/background colors at segment boundaries for smooth visual transitions
 
 ## Related Widgets

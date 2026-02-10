@@ -37,6 +37,53 @@ var blue = Hex1bColor.FromRgb(66, 133, 244);
 var red = Hex1bColor.FromRgb(234, 67, 53);
 var green = Hex1bColor.FromRgb(52, 168, 83);
 
+// Time series data
+var temperatureData = new[]
+{
+    new MonthlyTemp("Jan", 2), new MonthlyTemp("Feb", 4), new MonthlyTemp("Mar", 9),
+    new MonthlyTemp("Apr", 14), new MonthlyTemp("May", 18), new MonthlyTemp("Jun", 22),
+    new MonthlyTemp("Jul", 25), new MonthlyTemp("Aug", 24), new MonthlyTemp("Sep", 20),
+    new MonthlyTemp("Oct", 14), new MonthlyTemp("Nov", 8), new MonthlyTemp("Dec", 3),
+};
+
+var financialData = new[]
+{
+    new FinancialRecord("Jan", 120, 80), new FinancialRecord("Feb", 135, 90),
+    new FinancialRecord("Mar", 115, 95), new FinancialRecord("Apr", 150, 100),
+    new FinancialRecord("May", 140, 110), new FinancialRecord("Jun", 170, 105),
+    new FinancialRecord("Jul", 165, 115), new FinancialRecord("Aug", 180, 120),
+    new FinancialRecord("Sep", 175, 125), new FinancialRecord("Oct", 190, 130),
+    new FinancialRecord("Nov", 200, 140), new FinancialRecord("Dec", 220, 150),
+};
+
+var requestVolume = new[]
+{
+    new HourlyRequests("00:00", 120), new HourlyRequests("02:00", 85),
+    new HourlyRequests("04:00", 60), new HourlyRequests("06:00", 180),
+    new HourlyRequests("08:00", 450), new HourlyRequests("10:00", 620),
+    new HourlyRequests("12:00", 580), new HourlyRequests("14:00", 550),
+    new HourlyRequests("16:00", 490), new HourlyRequests("18:00", 420),
+    new HourlyRequests("20:00", 310), new HourlyRequests("22:00", 190),
+};
+
+// Scatter data
+var random = new Random(42);
+var heightWeight = Enumerable.Range(0, 60).Select(_ =>
+{
+    var height = 150 + random.NextDouble() * 40;
+    var weight = (height - 100) * 0.8 + random.NextDouble() * 20 - 10;
+    return new Measurement(height, weight);
+}).ToArray();
+
+var ageGroupData = Enumerable.Range(0, 90).Select(i =>
+{
+    var group = i < 30 ? "Young" : i < 60 ? "Middle" : "Senior";
+    var income = (group switch { "Young" => 30, "Middle" => 55, _ => 45 })
+        + random.NextDouble() * 30;
+    var spending = income * (0.5 + random.NextDouble() * 0.4);
+    return new DemographicPoint(income, spending, group);
+}).ToArray();
+
 var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
         ctx.TabPanel(tp => [
@@ -196,6 +243,49 @@ var terminal = Hex1bTerminal.CreateBuilder()
                             r.Cell($"{pct:F1}%"),
                         ];
                     })
+            ]),
+            tp.Tab("Time Series", t => [
+                t.TimeSeriesChart(temperatureData)
+                    .Label(d => d.Month)
+                    .Value(d => d.Temp)
+                    .Title("Monthly Temperature (°C)")
+                    .ShowGridLines()
+                    .FillHeight(),
+            ]),
+            tp.Tab("Multi-Series", t => [
+                t.TimeSeriesChart(financialData)
+                    .Label(d => d.Month)
+                    .Series("Revenue", d => d.Revenue, blue)
+                    .Series("Expenses", d => d.Expenses, red)
+                    .Title("Revenue vs Expenses")
+                    .ShowGridLines()
+                    .FillHeight(),
+            ]),
+            tp.Tab("Area Fill", t => [
+                t.TimeSeriesChart(requestVolume)
+                    .Label(d => d.Hour)
+                    .Value(d => d.Requests)
+                    .Fill(FillStyle.Braille)
+                    .Title("Request Volume (24h)")
+                    .ShowGridLines()
+                    .FillHeight(),
+            ]),
+            tp.Tab("Scatter", t => [
+                t.ScatterChart(heightWeight)
+                    .X(d => d.Height)
+                    .Y(d => d.Weight)
+                    .Title("Height vs Weight")
+                    .ShowGridLines()
+                    .FillHeight(),
+            ]),
+            tp.Tab("Scatter (Grouped)", t => [
+                t.ScatterChart(ageGroupData)
+                    .X(d => d.Income)
+                    .Y(d => d.Spending)
+                    .GroupBy(d => d.Group)
+                    .Title("Income vs Spending by Age Group")
+                    .ShowGridLines()
+                    .FillHeight(),
             ])
         ])
     )
@@ -205,3 +295,8 @@ var terminal = Hex1bTerminal.CreateBuilder()
 await terminal.RunAsync();
 
 record SalesRecord(string Month, double Electronics, double Clothing, double Food);
+record MonthlyTemp(string Month, double Temp);
+record FinancialRecord(string Month, double Revenue, double Expenses);
+record HourlyRequests(string Hour, double Requests);
+record Measurement(double Height, double Weight);
+record DemographicPoint(double Income, double Spending, string Group);
