@@ -14,7 +14,7 @@ internal sealed class KeysCommand : BaseCommand
     private readonly TerminalClient _client;
 
     private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
-    private static readonly Option<string?> s_keyOption = new("--key") { Description = "Named key (Enter, Tab, Escape, F1, ArrowUp, etc.)" };
+    private static readonly Option<string?> s_keyOption = new("--key") { Description = "Named key (Enter, Tab, Escape, F1, UpArrow, etc.)" };
     private static readonly Option<string?> s_textOption = new("--text") { Description = "Type text as keystrokes" };
     private static readonly Option<bool> s_ctrlOption = new("--ctrl") { Description = "Ctrl modifier" };
     private static readonly Option<bool> s_shiftOption = new("--shift") { Description = "Shift modifier" };
