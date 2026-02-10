@@ -172,11 +172,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         if (hasSelection)
         {
             var lineTextLength = lineEndOffset - lineStartOffset;
+            // Selection past end-of-line should only highlight up to 1 char past content (the newline)
+            var maxSelCol = lineTextLength + 1 - horizontalScrollOffset;
 
             foreach (var (start, end) in selectionRanges)
             {
                 var selStartCol = Math.Max(0, start - lineStartOffset - horizontalScrollOffset);
-                var selEndCol = Math.Min(displayWidth, end - lineStartOffset - horizontalScrollOffset);
+                var selEndCol = Math.Min(Math.Min(displayWidth, maxSelCol), end - lineStartOffset - horizontalScrollOffset);
 
                 for (var col = selStartCol; col < selEndCol; col++)
                 {

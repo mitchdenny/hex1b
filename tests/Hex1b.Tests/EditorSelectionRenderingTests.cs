@@ -575,6 +575,155 @@ public class EditorSelectionRenderingTests
         }
     }
 
+    // ── Multi-line selection does NOT highlight past end-of-line ──
+
+    [Fact]
+    public async Task Render_MultiLineSelectAll_DoesNotHighlightPastEndOfLine()
+    {
+        // "Hi\nBye" — select all, verify padding past line content is NOT highlighted.
+        var (node, workload, terminal, context, theme) = CreateEditor("Hi\nBye", 20, 5);
+        var colors = GetThemeColors(theme);
+
+        node.State.SelectAll();
+        node.Render(context);
+
+        var selPattern = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "H"
+                      && ColorEquals(ctx.Cell.Foreground, colors.SelectionFg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "H selected")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Row 0 "Hi\n": cols 0,1 = content, col 2 = newline indicator, cols 3-19 = NOT highlighted
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'H' should be selected");
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1 'i' should be selected");
+        // Col 2 may be selected (newline indicator) — that's fine
+        // But cols 4+ MUST NOT be selected
+        for (int col = 4; col < 20; col++)
+        {
+            var cell = snapshot.GetCell(col, 0);
+            Assert.False(ColorEquals(colors.SelectionBg, cell.Background),
+                $"Row 0 col {col} should NOT have selection bg (past 'Hi\\n')");
+        }
+
+        // Row 1 "Bye": cursor is at end of doc (col 3), cols 4+ MUST NOT be selected
+        for (int col = 4; col < 20; col++)
+        {
+            var cell = snapshot.GetCell(col, 1);
+            Assert.False(ColorEquals(colors.SelectionBg, cell.Background),
+                $"Row 1 col {col} should NOT have selection bg (past 'Bye')");
+        }
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_MultiLineVaryingLengths_NoExcessHighlight()
+    {
+        // "AB\nC\nDEFG" — select from start through "C\n" (offset 0 to 5)
+        var (node, workload, terminal, context, theme) = CreateEditor("AB\nC\nDEFG", 20, 5);
+        var colors = GetThemeColors(theme);
+
+        // Select "AB\nC\n" — anchor=0, cursor=5 (start of line 3)
+        node.State.Cursor.SelectionAnchor = new DocumentOffset(0);
+        node.State.Cursor.Position = new DocumentOffset(5);
+
+        node.Render(context);
+
+        var selPattern = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "A"
+                      && ColorEquals(ctx.Cell.Foreground, colors.SelectionFg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "A selected")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Row 0 "AB": cols 0,1 selected, col 2 = newline, cols 3+ NOT selected
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0");
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1");
+        for (int col = 4; col < 20; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
+                $"Row 0 col {col} should NOT be selected (past 'AB\\n')");
+        }
+
+        // Row 1 "C": col 0 selected, col 1 = newline, cols 2+ NOT selected
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 1).Background), "Row 1 col 0");
+        for (int col = 3; col < 20; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
+                $"Row 1 col {col} should NOT be selected (past 'C\\n')");
+        }
+
+        // Row 2 "DEFG": cursor at col 0, rest NOT selected
+        for (int col = 1; col < 20; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background),
+                $"Row 2 col {col} should NOT be selected (unselected line)");
+        }
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_EmptyLineInSelection_OnlyHighlightsNewline()
+    {
+        // "A\n\nB" — empty middle line
+        var (node, workload, terminal, context, theme) = CreateEditor("A\n\nB", 15, 5);
+        var colors = GetThemeColors(theme);
+
+        node.State.SelectAll();
+        node.Render(context);
+
+        var selPattern = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "A"
+                      && ColorEquals(ctx.Cell.Foreground, colors.SelectionFg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "A selected")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Row 0 "A": col 0 selected, col 1 = newline indicator, cols 2+ NOT selected
+        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'A'");
+        for (int col = 3; col < 15; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
+                $"Row 0 col {col} should NOT be selected");
+        }
+
+        // Row 1 "": empty line — col 0 may be newline indicator, cols 1+ NOT selected
+        for (int col = 2; col < 15; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
+                $"Row 1 col {col} should NOT be selected (empty line)");
+        }
+
+        // Row 2 "B": cols 1+ NOT selected
+        for (int col = 2; col < 15; col++)
+        {
+            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background),
+                $"Row 2 col {col} should NOT be selected");
+        }
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
     [Fact]
     public void SelectAll_ThenDelete_DoesNotCrashOnArrange()
     {
