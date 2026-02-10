@@ -94,6 +94,7 @@ var activeTab = 0;
 
 // Open multibyte samples by default for testing
 OpenFile("docs/multibyte-samples.bin");
+OpenFile("README.md");
 
 // ── Build file tree structure ─────────────────────────────────
 var rootEntry = FileEntry.ScanDirectory(workspaceDir, workspaceDir);
@@ -194,14 +195,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 var tabName = Path.GetFileName(tabPath);
                                 var (_, textState, hexState) = openDocs[tabPath];
 
-                                tabs.Add(tc.Tab(tabName, content =>
+                                var tab = tc.Tab(tabName, content =>
                                 [
                                     content.HSplitter(
                                         edLeft => [edLeft.Editor(textState).FillWidth().FillHeight()],
                                         edRight => [edRight.Editor(hexState)
                                             .WithViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
                                             .FillWidth().FillHeight()]).FillWidth().FillHeight()
-                                ]));
+                                ]);
+
+                                if (i == activeTab)
+                                    tab = tab.Selected();
+
+                                tabs.Add(tab);
                             }
                             return tabs;
                         })
