@@ -467,7 +467,10 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var rowByteStart = row * bytesPerRow;
 
         if (rowByteStart >= totalBytes)
+        {
+            state.ByteCursorOffset = totalBytes;
             return new DocumentOffset(doc.Length);
+        }
 
         var byteIndex = GetByteIndexFromColumn(localX, bytesPerRow);
         if (byteIndex < 0) byteIndex = 0;
@@ -475,12 +478,16 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var targetByte = Math.Min(rowByteStart + byteIndex, totalBytes);
 
         if (targetByte >= totalBytes)
+        {
+            state.ByteCursorOffset = totalBytes;
             return new DocumentOffset(doc.Length);
+        }
 
         // Use Utf8ByteMap built from actual bytes for correct byte→char mapping
         var map = new Utf8ByteMap(doc.GetBytes().Span);
         var (charIndex, _) = map.ByteToChar(targetByte);
 
+        state.ByteCursorOffset = targetByte;
         return new DocumentOffset(Math.Min(charIndex, doc.Length));
     }
 

@@ -287,6 +287,7 @@ public class EditorState
     /// <summary>Move all cursors in a direction. With extend, selection is extended.</summary>
     public void MoveCursor(CursorDirection direction, bool extend = false)
     {
+        ByteCursorOffset = null; // Clear byte-level tracking for char-level moves
         foreach (var cursor in Cursors)
         {
             // For Left/Right without extend: collapse selection to boundary
