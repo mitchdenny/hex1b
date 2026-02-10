@@ -30,19 +30,21 @@ public static class GraphemeHelper
         if (index > text.Length)
             index = text.Length;
 
-        // Find all cluster boundaries
-        var boundaries = GetClusterBoundaries(text);
-        
-        // Find the largest boundary that is less than index
-        int result = 0;
-        foreach (var boundary in boundaries)
+        // Scan backward from index to find the previous cluster boundary.
+        // Most grapheme clusters are 1-2 chars; combining sequences rarely exceed 8.
+        // We scan a small window backward rather than the entire string.
+        var scanStart = Math.Max(0, index - 8);
+        var scanText = text.Substring(scanStart, index - scanStart);
+        var enumerator = StringInfo.GetTextElementEnumerator(scanText);
+        int lastBoundary = 0;
+        while (enumerator.MoveNext())
         {
-            if (boundary < index)
-                result = boundary;
-            else
+            var nextBoundary = enumerator.ElementIndex + ((string)enumerator.Current).Length;
+            if (nextBoundary >= scanText.Length)
                 break;
+            lastBoundary = nextBoundary;
         }
-        return result;
+        return scanStart + lastBoundary;
     }
 
     /// <summary>
@@ -60,14 +62,15 @@ public static class GraphemeHelper
         if (index < 0)
             index = 0;
 
-        // Find all cluster boundaries
-        var boundaries = GetClusterBoundaries(text);
-        
-        // Find the smallest boundary that is greater than index
-        foreach (var boundary in boundaries)
+        // Scan forward from index to find the next cluster boundary.
+        // Most grapheme clusters are 1-2 chars; combining sequences rarely exceed 8.
+        var scanEnd = Math.Min(text.Length, index + 8);
+        var scanText = text.Substring(index, scanEnd - index);
+        var enumerator = StringInfo.GetTextElementEnumerator(scanText);
+        if (enumerator.MoveNext())
         {
-            if (boundary > index)
-                return boundary;
+            var cluster = (string)enumerator.Current;
+            return index + cluster.Length;
         }
         return text.Length;
     }

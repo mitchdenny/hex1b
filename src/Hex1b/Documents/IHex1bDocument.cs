@@ -31,6 +31,13 @@ public interface IHex1bDocument
     /// <summary>Get a slice of the document's byte content.</summary>
     ReadOnlyMemory<byte> GetBytes(int byteOffset, int count);
 
+    /// <summary>
+    /// Returns a cached byte↔char mapping for the current document content.
+    /// The default implementation builds a new map on each call; implementations
+    /// should cache and invalidate on edit for performance.
+    /// </summary>
+    Utf8ByteMap GetByteMap() => new Utf8ByteMap(GetBytes().Span);
+
     /// <summary>Get the text of a single line (1-based).</summary>
     string GetLineText(int line);
 

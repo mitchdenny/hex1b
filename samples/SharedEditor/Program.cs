@@ -50,6 +50,12 @@ AddLine([0xFF, 0xFE, 0x00, 0x00], "UTF-32 LE BOM");
 
 File.WriteAllBytes(Path.Combine(workspaceDir, "docs", "multibyte-samples.bin"), multiByteContent.ToArray());
 
+// Generate a large file (100,000+ lines) for stress testing
+var largeSb = new System.Text.StringBuilder();
+for (int i = 0; i < 100_001; i++)
+    largeSb.AppendLine($"Line {i,6}: The quick brown fox jumps over the lazy dog. Lorem ipsum dolor sit amet.");
+File.WriteAllText(Path.Combine(workspaceDir, "docs", "large-file.txt"), largeSb.ToString());
+
 foreach (var (path, content) in sampleFiles)
 {
     var fullPath = Path.Combine(workspaceDir, path);
@@ -240,8 +246,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             ],
                             diagPane =>
                             [
-                                diagPane.Text(" DOCUMENT INTERNALS").ContentHeight(),
-                                diagPane.DocumentDiagnosticPanel(activeDoc).FillHeight(),
+                                // diagPane.Text(" DOCUMENT INTERNALS").ContentHeight(),
+                                // diagPane.DocumentDiagnosticPanel(activeDoc).FillHeight(),
                             ]
                         , leftWidth: 80).FillWidth().FillHeight()
                     ];
