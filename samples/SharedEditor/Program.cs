@@ -60,6 +60,7 @@ foreach (var (path, content) in sampleFiles)
 // Track open documents and tabs
 var openDocs = new Dictionary<string, (Hex1bDocument doc, EditorState textState, EditorState hexState)>();
 var openTabs = new List<string>(); // ordered list of open file paths (relative)
+var editorModes = new Dictionary<string, int>(); // 0 = Code, 1 = Hex
 var activeTab = 0;
 
 (Hex1bDocument doc, EditorState textState, EditorState hexState) OpenFile(string relativePath)
@@ -86,6 +87,7 @@ var activeTab = 0;
     if (!openTabs.Contains(relativePath))
     {
         openTabs.Add(relativePath);
+        editorModes[relativePath] = 0; // default to Code view
     }
 
     activeTab = openTabs.IndexOf(relativePath);
@@ -184,35 +186,64 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         ];
                     }
 
+                    // Get active document for diagnostic panel
+                    var activeDocPath = openTabs[activeTab];
+                    var activeDoc = openDocs[activeDocPath].doc;
+
                     return
                     [
-                        right.TabPanel(tc =>
-                        {
-                            var tabs = new List<TabItemWidget>();
-                            for (var i = 0; i < openTabs.Count; i++)
-                            {
-                                var tabPath = openTabs[i];
-                                var tabName = Path.GetFileName(tabPath);
-                                var (_, textState, hexState) = openDocs[tabPath];
+                        right.HSplitter(
+                            editorPane =>
+                            [
+                                editorPane.TabPanel(tc =>
+                                {
+                                    var tabs = new List<TabItemWidget>();
+                                    for (var i = 0; i < openTabs.Count; i++)
+                                    {
+                                        var tabPath = openTabs[i];
+                                        var tabName = Path.GetFileName(tabPath);
+                                        var (_, textState, hexState) = openDocs[tabPath];
+                                        var mode = editorModes.GetValueOrDefault(tabPath, 0);
+                                        var capturedPath = tabPath;
 
-                                var tab = tc.Tab(tabName, content =>
-                                [
-                                    content.HSplitter(
-                                        edLeft => [edLeft.Editor(textState).FillWidth().FillHeight()],
-                                        edRight => [edRight.Editor(hexState)
-                                            .WithViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
-                                            .FillWidth().FillHeight()]).FillWidth().FillHeight()
-                                ]);
+                                        var tab = tc.Tab(tabName, content =>
+                                        {
+                                            var widgets = new List<Hex1bWidget>();
 
-                                if (i == activeTab)
-                                    tab = tab.Selected();
+                                            widgets.Add(content.ToggleSwitch(["Code", "Hex"], mode)
+                                                .OnSelectionChanged(e => { editorModes[capturedPath] = e.SelectedIndex; })
+                                                .ContentHeight());
 
-                                tabs.Add(tab);
-                            }
-                            return tabs;
-                        })
-                        .OnSelectionChanged(e => { activeTab = e.SelectedIndex; })
-                        .FillWidth().FillHeight()
+                                            if (mode == 0)
+                                            {
+                                                widgets.Add(content.Editor(textState).FillWidth().FillHeight());
+                                            }
+                                            else
+                                            {
+                                                widgets.Add(content.Editor(hexState)
+                                                    .WithViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
+                                                    .FillWidth().FillHeight());
+                                            }
+
+                                            return widgets;
+                                        });
+
+                                        if (i == activeTab)
+                                            tab = tab.Selected();
+
+                                        tabs.Add(tab);
+                                    }
+                                    return tabs;
+                                })
+                                .OnSelectionChanged(e => { activeTab = e.SelectedIndex; })
+                                .FillWidth().FillHeight()
+                            ],
+                            diagPane =>
+                            [
+                                diagPane.Text(" DOCUMENT INTERNALS").ContentHeight(),
+                                diagPane.DocumentDiagnosticPanel(activeDoc).FillHeight(),
+                            ]
+                        , leftWidth: 80).FillWidth().FillHeight()
                     ];
                 },
                 leftWidth: 28).FillWidth().FillHeight(),

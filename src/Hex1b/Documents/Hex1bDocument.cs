@@ -478,4 +478,48 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     private enum BufferSource { Original, Added }
     private readonly record struct Piece(BufferSource Source, int Start, int Length);
+
+    public DocumentDiagnosticInfo GetDiagnosticInfo()
+    {
+        const int maxPreviewBytes = 64;
+        var pieces = new List<PieceDiagnosticInfo>(_pieces.Count);
+
+        for (var i = 0; i < _pieces.Count; i++)
+        {
+            var piece = _pieces[i];
+            var previewLen = Math.Min(piece.Length, maxPreviewBytes);
+            var preview = new byte[previewLen];
+
+            if (piece.Source == BufferSource.Original)
+            {
+                _originalBuffer.Span.Slice(piece.Start, previewLen).CopyTo(preview);
+            }
+            else
+            {
+                for (var j = 0; j < previewLen; j++)
+                    preview[j] = _addBuffer[piece.Start + j];
+            }
+
+            pieces.Add(new PieceDiagnosticInfo
+            {
+                Index = i,
+                Source = piece.Source == BufferSource.Original ? "Original" : "Added",
+                Start = piece.Start,
+                Length = piece.Length,
+                PreviewBytes = preview,
+                PreviewText = Encoding.UTF8.GetString(preview)
+            });
+        }
+
+        return new DocumentDiagnosticInfo
+        {
+            Version = _version,
+            CharCount = Length,
+            ByteCount = ByteCount,
+            LineCount = LineCount,
+            OriginalBufferSize = _originalBuffer.Length,
+            AddBufferSize = _addBuffer.Count,
+            Pieces = pieces
+        };
+    }
 }

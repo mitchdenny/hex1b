@@ -54,4 +54,10 @@ public interface IHex1bDocument
 
     /// <summary>Fired after any edit is applied (character or byte level).</summary>
     event EventHandler<DocumentChangedEventArgs>? Changed;
+
+    /// <summary>
+    /// Returns a diagnostic snapshot of the document's internal structure.
+    /// Returns null if the implementation does not support diagnostics.
+    /// </summary>
+    DocumentDiagnosticInfo? GetDiagnosticInfo() => null;
 }
