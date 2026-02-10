@@ -31,5 +31,12 @@ public static class EditorTheme
     /// when <see cref="HexEditorViewRenderer.HighlightMultiByteChars"/> is enabled.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> MultiByteBackgroundColor =
-        new($"{nameof(EditorTheme)}.{nameof(MultiByteBackgroundColor)}", () => Hex1bColor.FromRgb(50, 50, 50));
+        new($"{nameof(EditorTheme)}.{nameof(MultiByteBackgroundColor)}", () => Hex1bColor.FromRgb(200, 200, 200));
+
+    /// <summary>
+    /// Foreground color for bytes that are part of a multi-byte UTF-8 character
+    /// when <see cref="HexEditorViewRenderer.HighlightMultiByteChars"/> is enabled.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> MultiByteForegroundColor =
+        new($"{nameof(EditorTheme)}.{nameof(MultiByteForegroundColor)}", () => Hex1bColor.Black);
 }

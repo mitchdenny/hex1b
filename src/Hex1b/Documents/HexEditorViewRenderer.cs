@@ -306,22 +306,29 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
             if (isFocused)
             {
-                // Apply multi-byte highlights first (lowest priority)
-                if (HighlightMultiByteChars)
+                // Apply multi-byte highlights for the cursor's group only (lowest priority)
+                if (HighlightMultiByteChars && cursorByteOffset >= rowByteStart && cursorByteOffset < rowByteStart + rowByteCount)
                 {
-                    for (int i = 0; i < rowByteCount; i++)
+                    var cursorLocalByte = cursorByteOffset;
+                    if (cursorLocalByte < byteMap.TotalBytes)
                     {
-                        var byteIdx = rowByteStart + i;
-                        if (byteIdx < byteMap.TotalBytes)
+                        var (cursorCharIdx, _) = byteMap.ByteToChar(cursorLocalByte);
+                        var groupLen = byteMap.CharByteLength(cursorCharIdx);
+                        if (groupLen > 1)
                         {
-                            var (charIdx, _) = byteMap.ByteToChar(byteIdx);
-                            if (byteMap.CharByteLength(charIdx) > 1)
+                            var groupStartByte = byteMap.CharToByteStart(cursorCharIdx);
+                            for (int b = 0; b < groupLen; b++)
                             {
-                                var hexCol = GetHexColumnForByte(i, bytesPerRow);
-                                var asciiCol = GetAsciiColumnForByte(i, bytesPerRow);
-                                SetCellRange(cellColors, hexCol, 2, CellColorType.MultiByte, line.Length);
-                                if (asciiCol < line.Length)
-                                    cellColors[asciiCol] = CellColorType.MultiByte;
+                                var byteIdx = groupStartByte + b;
+                                var localIdx = byteIdx - rowByteStart;
+                                if (localIdx >= 0 && localIdx < rowByteCount)
+                                {
+                                    var hexCol = GetHexColumnForByte(localIdx, bytesPerRow);
+                                    var asciiCol = GetAsciiColumnForByte(localIdx, bytesPerRow);
+                                    SetCellRange(cellColors, hexCol, 2, CellColorType.MultiByte, line.Length);
+                                    if (asciiCol < line.Length)
+                                        cellColors[asciiCol] = CellColorType.MultiByte;
+                                }
                             }
                         }
                     }
@@ -359,8 +366,11 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             var multiByteBg = HighlightMultiByteChars
                 ? theme.Get(EditorTheme.MultiByteBackgroundColor)
                 : bg;
+            var multiByteFg = HighlightMultiByteChars
+                ? theme.Get(EditorTheme.MultiByteForegroundColor)
+                : fg;
 
-            RenderColoredLine(context, screenX, screenY, line, fg, bg, cursorFg, cursorBg, selFg, selBg, multiByteBg, cellColors);
+            RenderColoredLine(context, screenX, screenY, line, fg, bg, cursorFg, cursorBg, selFg, selBg, multiByteFg, multiByteBg, cellColors);
         }
     }
 
@@ -475,7 +485,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         Hex1bColor fg, Hex1bColor bg,
         Hex1bColor cursorFg, Hex1bColor cursorBg,
         Hex1bColor selFg, Hex1bColor selBg,
-        Hex1bColor multiByteBg,
+        Hex1bColor multiByteFg, Hex1bColor multiByteBg,
         CellColorType[] cellColors)
     {
         var hasDecorations = false;
@@ -516,7 +526,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                         sb.Append(selBg.ToBackgroundAnsi());
                         break;
                     case CellColorType.MultiByte:
-                        sb.Append(fg.ToForegroundAnsi());
+                        sb.Append(multiByteFg.ToForegroundAnsi());
                         sb.Append(multiByteBg.ToBackgroundAnsi());
                         break;
                     case CellColorType.Normal:
