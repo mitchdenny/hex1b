@@ -65,9 +65,20 @@ public sealed class BarChartNode<T> : Hex1bNode
             resolved = NormalizeToPercent(resolved);
 
         // Build the scaler
-        var scaler = Mode == ChartMode.Stacked100
-            ? new ChartScaler(0, 100, barWidth)
-            : ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), barWidth, Minimum, Maximum);
+        ChartScaler scaler;
+        if (Mode == ChartMode.Stacked100)
+        {
+            scaler = new ChartScaler(0, 100, barWidth);
+        }
+        else if (Mode == ChartMode.Stacked)
+        {
+            var stackedSums = resolved.Categories.Select(c => c.Values.Sum());
+            scaler = ChartScaler.FromValues(stackedSums, barWidth, Minimum, Maximum);
+        }
+        else
+        {
+            scaler = ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), barWidth, Minimum, Maximum);
+        }
 
         var seriesColors = ResolveSeriesColors(resolved.SeriesNames, context.Theme);
 

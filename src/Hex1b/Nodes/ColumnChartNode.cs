@@ -62,9 +62,20 @@ public sealed class ColumnChartNode<T> : Hex1bNode
             resolved = NormalizeToPercent(resolved);
 
         // Build the scaler
-        var scaler = Mode == ChartMode.Stacked100
-            ? new ChartScaler(0, 100, chartHeight)
-            : ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), chartHeight, Minimum, Maximum);
+        ChartScaler scaler;
+        if (Mode == ChartMode.Stacked100)
+        {
+            scaler = new ChartScaler(0, 100, chartHeight);
+        }
+        else if (Mode == ChartMode.Stacked)
+        {
+            var stackedSums = resolved.Categories.Select(c => c.Values.Sum());
+            scaler = ChartScaler.FromValues(stackedSums, chartHeight, Minimum, Maximum);
+        }
+        else
+        {
+            scaler = ChartScaler.FromValues(resolved.Categories.SelectMany(c => c.Values), chartHeight, Minimum, Maximum);
+        }
 
         // Get theme colors for series
         var seriesColors = ResolveSeriesColors(resolved.SeriesNames, context.Theme);
