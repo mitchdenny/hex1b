@@ -172,8 +172,8 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         if (hasSelection)
         {
             var lineTextLength = lineEndOffset - lineStartOffset;
-            // Selection past end-of-line should only highlight up to 1 char past content (the newline)
-            var maxSelCol = lineTextLength + 1 - horizontalScrollOffset;
+            // Selection should not highlight past the last printable character on the line
+            var maxSelCol = lineTextLength - horizontalScrollOffset;
 
             foreach (var (start, end) in selectionRanges)
             {

@@ -599,12 +599,10 @@ public class EditorSelectionRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        // Row 0 "Hi\n": cols 0,1 = content, col 2 = newline indicator, cols 3-19 = NOT highlighted
+        // Row 0 "Hi\n": cols 0,1 = content selected, cols 2+ = NOT highlighted (no newline indicator)
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'H' should be selected");
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1 'i' should be selected");
-        // Col 2 may be selected (newline indicator) — that's fine
-        // But cols 4+ MUST NOT be selected
-        for (int col = 4; col < 20; col++)
+        for (int col = 2; col < 20; col++)
         {
             var cell = snapshot.GetCell(col, 0);
             Assert.False(ColorEquals(colors.SelectionBg, cell.Background),
@@ -648,18 +646,18 @@ public class EditorSelectionRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        // Row 0 "AB": cols 0,1 selected, col 2 = newline, cols 3+ NOT selected
+        // Row 0 "AB": cols 0,1 selected, cols 2+ NOT selected
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0");
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1");
-        for (int col = 4; col < 20; col++)
+        for (int col = 2; col < 20; col++)
         {
             Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
                 $"Row 0 col {col} should NOT be selected (past 'AB\\n')");
         }
 
-        // Row 1 "C": col 0 selected, col 1 = newline, cols 2+ NOT selected
+        // Row 1 "C": col 0 selected, cols 1+ NOT selected
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 1).Background), "Row 1 col 0");
-        for (int col = 3; col < 20; col++)
+        for (int col = 1; col < 20; col++)
         {
             Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
                 $"Row 1 col {col} should NOT be selected (past 'C\\n')");
@@ -698,16 +696,16 @@ public class EditorSelectionRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        // Row 0 "A": col 0 selected, col 1 = newline indicator, cols 2+ NOT selected
+        // Row 0 "A": col 0 selected, cols 1+ NOT selected
         Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'A'");
-        for (int col = 3; col < 15; col++)
+        for (int col = 1; col < 15; col++)
         {
             Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
                 $"Row 0 col {col} should NOT be selected");
         }
 
-        // Row 1 "": empty line — col 0 may be newline indicator, cols 1+ NOT selected
-        for (int col = 2; col < 15; col++)
+        // Row 1 "": empty line — no content, cols 0+ NOT selected
+        for (int col = 0; col < 15; col++)
         {
             Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
                 $"Row 1 col {col} should NOT be selected (empty line)");
