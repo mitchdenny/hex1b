@@ -20,6 +20,36 @@ var sampleFiles = new Dictionary<string, string>
     [".gitignore"] = "bin/\nobj/\n*.user\n.vs/\n*.swp",
 };
 
+// Multi-byte sample written as raw bytes to exercise every UTF-8 byte width
+var multiByteContent = new List<byte>();
+void AddLine(byte[] bytes, string comment)
+{
+    multiByteContent.AddRange(System.Text.Encoding.UTF8.GetBytes($"# {comment}\n"));
+    multiByteContent.AddRange(bytes);
+    multiByteContent.Add((byte)'\n');
+}
+// 1-byte ASCII
+AddLine("Hello ASCII"u8.ToArray(), "1-byte: ASCII (U+0000..U+007F)");
+// 2-byte sequences: Latin, Greek, Cyrillic
+AddLine(System.Text.Encoding.UTF8.GetBytes("café résumé naïve"), "2-byte: Latin extended");
+AddLine(System.Text.Encoding.UTF8.GetBytes("Ελληνικά Кириллица"), "2-byte: Greek & Cyrillic");
+// 3-byte sequences: CJK, symbols, BMP
+AddLine(System.Text.Encoding.UTF8.GetBytes("日本語 中文 한국어"), "3-byte: CJK");
+AddLine(System.Text.Encoding.UTF8.GetBytes("★ ♠ ♣ ♥ ♦ ⚡ ☀ ☁"), "3-byte: Symbols");
+AddLine(System.Text.Encoding.UTF8.GetBytes("₿ € £ ¥ ₹"), "3-byte: Currency");
+// 4-byte sequences: emoji, supplementary
+AddLine(System.Text.Encoding.UTF8.GetBytes("😀 🎉 🚀 🌍 🔥 💻 🧪"), "4-byte: Emoji");
+AddLine(System.Text.Encoding.UTF8.GetBytes("𐍈 𝄞 𝕳𝖊𝖑𝖑𝖔"), "4-byte: Gothic & Math");
+// Mixed widths in one line
+AddLine(System.Text.Encoding.UTF8.GetBytes("A café in 東京 costs €5 🍣"), "Mixed: 1/2/3/4-byte");
+// Raw invalid bytes for hex editor testing
+AddLine([0xFE, 0xFF, 0x80, 0xBF, 0xC0, 0xC1, 0xF8, 0xFC], "Invalid UTF-8 bytes");
+// BOM markers
+AddLine([0xEF, 0xBB, 0xBF, 0x42, 0x4F, 0x4D], "UTF-8 BOM + 'BOM'");
+AddLine([0xFF, 0xFE, 0x00, 0x00], "UTF-32 LE BOM");
+
+File.WriteAllBytes(Path.Combine(workspaceDir, "docs", "multibyte-samples.bin"), multiByteContent.ToArray());
+
 foreach (var (path, content) in sampleFiles)
 {
     var fullPath = Path.Combine(workspaceDir, path);
@@ -37,8 +67,17 @@ var activeTab = 0;
     if (!openDocs.ContainsKey(relativePath))
     {
         var fullPath = Path.Combine(workspaceDir, relativePath);
-        var content = File.Exists(fullPath) ? File.ReadAllText(fullPath) : "";
-        var doc = new Hex1bDocument(content);
+        Hex1bDocument doc;
+        if (relativePath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+        {
+            var bytes = File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : [];
+            doc = new Hex1bDocument(bytes);
+        }
+        else
+        {
+            var content = File.Exists(fullPath) ? File.ReadAllText(fullPath) : "";
+            doc = new Hex1bDocument(content);
+        }
         var textState = new EditorState(doc);
         var hexState = new EditorState(doc);
         openDocs[relativePath] = (doc, textState, hexState);
@@ -53,8 +92,8 @@ var activeTab = 0;
     return openDocs[relativePath];
 }
 
-// Open README by default
-OpenFile("README.md");
+// Open multibyte samples by default for testing
+OpenFile("docs/multibyte-samples.bin");
 
 // ── Build file tree structure ─────────────────────────────────
 var rootEntry = FileEntry.ScanDirectory(workspaceDir, workspaceDir);
@@ -160,7 +199,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     content.HSplitter(
                                         edLeft => [edLeft.Editor(textState).FillWidth().FillHeight()],
                                         edRight => [edRight.Editor(hexState)
-                                            .WithViewRenderer(HexEditorViewRenderer.Instance)
+                                            .WithViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
                                             .FillWidth().FillHeight()]).FillWidth().FillHeight()
                                 ]));
                             }
@@ -229,6 +268,7 @@ static IEnumerable<TreeItemWidget> BuildTreeItems(TreeContext tc, List<FileEntry
                 _ when entry.Name.EndsWith(".cs") => "🔷",
                 _ when entry.Name.EndsWith(".md") => "📝",
                 _ when entry.Name.EndsWith(".json") => "⚙️",
+                _ when entry.Name.EndsWith(".bin") => "🔢",
                 _ => "📄",
             };
             yield return tc.Item(entry.Name).Icon(icon);
