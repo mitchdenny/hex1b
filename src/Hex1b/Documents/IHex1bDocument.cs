@@ -59,6 +59,18 @@ public interface IHex1bDocument
     /// <summary>Apply a byte-level edit operation directly on the byte buffer.</summary>
     EditResult ApplyBytes(ByteEditOperation operation, string? source = null);
 
+    /// <summary>
+    /// Begin a batch of edits. Cache rebuilds and change events are deferred
+    /// until the matching <see cref="EndBatch"/> call. Batches may be nested.
+    /// </summary>
+    void BeginBatch() { }
+
+    /// <summary>
+    /// End a batch of edits. When the outermost batch ends, caches are rebuilt
+    /// and a change event is fired.
+    /// </summary>
+    void EndBatch() { }
+
     /// <summary>Fired after any edit is applied (character or byte level).</summary>
     event EventHandler<DocumentChangedEventArgs>? Changed;
 

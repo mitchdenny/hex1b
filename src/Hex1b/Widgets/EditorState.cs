@@ -59,33 +59,38 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
-
-            if (cursor.HasSelection)
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
             {
-                var range = cursor.SelectionRange;
-                // Clamp range to document bounds (can be stale after rapid concurrent edits)
-                var clampedEnd = Math.Min(range.End.Value, Document.Length);
-                var clampedStart = Math.Min(range.Start.Value, clampedEnd);
-                range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+                var docLenBefore = Document.Length;
 
-                var result = Document.Apply(new ReplaceOperation(range, text));
-                CollectOps(result, ops);
-                cursor.Position = new DocumentOffset(Math.Min(range.Start.Value + text.Length, Document.Length));
-                cursor.ClearSelection();
-            }
-            else
-            {
-                var pos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
-                var result = Document.Apply(new InsertOperation(pos, text));
-                CollectOps(result, ops);
-                cursor.Position = new DocumentOffset(Math.Min(pos.Value + text.Length, Document.Length));
-            }
+                if (cursor.HasSelection)
+                {
+                    var range = cursor.SelectionRange;
+                    // Clamp range to document bounds (can be stale after rapid concurrent edits)
+                    var clampedEnd = Math.Min(range.End.Value, Document.Length);
+                    var clampedStart = Math.Min(range.Start.Value, clampedEnd);
+                    range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
 
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+                    var result = Document.Apply(new ReplaceOperation(range, text));
+                    CollectOps(result, ops);
+                    cursor.Position = new DocumentOffset(Math.Min(range.Start.Value + text.Length, Document.Length));
+                    cursor.ClearSelection();
+                }
+                else
+                {
+                    var pos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    var result = Document.Apply(new InsertOperation(pos, text));
+                    CollectOps(result, ops);
+                    cursor.Position = new DocumentOffset(Math.Min(pos.Value + text.Length, Document.Length));
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, coalescable);
@@ -100,30 +105,35 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
 
-            if (cursor.HasSelection)
-            {
-                DeleteCursorSelection(cursor, ops);
-            }
-            else if (cursor.Position.Value > 0)
-            {
-                var pos = Math.Min(cursor.Position.Value, Document.Length);
-                if (pos <= 0) continue;
-                var deleteStart = new DocumentOffset(pos - 1);
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, new DocumentOffset(pos))));
-                CollectOps(result, ops);
-                cursor.Position = deleteStart;
-            }
-            else
-            {
-                continue;
-            }
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value > 0)
+                {
+                    var pos = Math.Min(cursor.Position.Value, Document.Length);
+                    if (pos <= 0) continue;
+                    var deleteStart = new DocumentOffset(pos - 1);
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, new DocumentOffset(pos))));
+                    CollectOps(result, ops);
+                    cursor.Position = deleteStart;
+                }
+                else
+                {
+                    continue;
+                }
 
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -138,29 +148,34 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
 
-            if (cursor.HasSelection)
-            {
-                DeleteCursorSelection(cursor, ops);
-            }
-            else if (cursor.Position.Value < Document.Length)
-            {
-                var pos = Math.Min(cursor.Position.Value, Document.Length);
-                if (pos >= Document.Length) continue;
-                var deleteEnd = new DocumentOffset(Math.Min(pos + 1, Document.Length));
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(new DocumentOffset(pos), deleteEnd)));
-                CollectOps(result, ops);
-            }
-            else
-            {
-                continue;
-            }
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value < Document.Length)
+                {
+                    var pos = Math.Min(cursor.Position.Value, Document.Length);
+                    if (pos >= Document.Length) continue;
+                    var deleteEnd = new DocumentOffset(Math.Min(pos + 1, Document.Length));
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(new DocumentOffset(pos), deleteEnd)));
+                    CollectOps(result, ops);
+                }
+                else
+                {
+                    continue;
+                }
 
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -175,37 +190,42 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
-
-            if (cursor.HasSelection)
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
             {
-                DeleteCursorSelection(cursor, ops);
-            }
-            else if (cursor.Position.Value > 0)
-            {
-                if (Document.Length == 0) continue;
-                var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
-                var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
-                if (colInLine < 0) colInLine = 0;
-                var wordBoundary = GraphemeHelper.GetPreviousWordBoundary(lineText, colInLine);
-                var deleteStart = new DocumentOffset(lineStartOffset + wordBoundary);
+                var docLenBefore = Document.Length;
 
-                if (deleteStart == cursor.Position) continue;
-                var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
-                if (deleteStart >= clampedCursorPos) continue;
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, clampedCursorPos)));
-                CollectOps(result, ops);
-                cursor.Position = deleteStart;
-            }
-            else
-            {
-                continue;
-            }
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value > 0)
+                {
+                    if (Document.Length == 0) continue;
+                    var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+                    var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                    if (colInLine < 0) colInLine = 0;
+                    var wordBoundary = GraphemeHelper.GetPreviousWordBoundary(lineText, colInLine);
+                    var deleteStart = new DocumentOffset(lineStartOffset + wordBoundary);
 
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+                    if (deleteStart == cursor.Position) continue;
+                    var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    if (deleteStart >= clampedCursorPos) continue;
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, clampedCursorPos)));
+                    CollectOps(result, ops);
+                    cursor.Position = deleteStart;
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -220,35 +240,40 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
-
-            if (cursor.HasSelection)
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
             {
-                DeleteCursorSelection(cursor, ops);
-            }
-            else if (cursor.Position.Value < Document.Length)
-            {
-                if (Document.Length == 0) continue;
-                var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
-                var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
-                if (colInLine < 0) colInLine = 0;
-                var wordBoundary = GraphemeHelper.GetNextWordBoundary(lineText, colInLine);
-                var deleteEnd = new DocumentOffset(Math.Min(lineStartOffset + wordBoundary, Document.Length));
+                var docLenBefore = Document.Length;
 
-                var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
-                if (deleteEnd <= clampedCursorPos) continue;
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(clampedCursorPos, deleteEnd)));
-                CollectOps(result, ops);
-            }
-            else
-            {
-                continue;
-            }
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value < Document.Length)
+                {
+                    if (Document.Length == 0) continue;
+                    var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+                    var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                    if (colInLine < 0) colInLine = 0;
+                    var wordBoundary = GraphemeHelper.GetNextWordBoundary(lineText, colInLine);
+                    var deleteEnd = new DocumentOffset(Math.Min(lineStartOffset + wordBoundary, Document.Length));
 
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+                    var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    if (deleteEnd <= clampedCursorPos) continue;
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(clampedCursorPos, deleteEnd)));
+                    CollectOps(result, ops);
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -263,39 +288,44 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        foreach (var (cursor, idx) in Cursors.InReverseOrder())
+        Document.BeginBatch();
+        try
         {
-            var docLenBefore = Document.Length;
-
-            cursor.ClearSelection();
-            cursor.Clamp(Document.Length);
-            if (Document.Length == 0) continue;
-            var pos = Document.OffsetToPosition(cursor.Position);
-            var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
-
-            DocumentOffset lineEnd;
-            if (pos.Line < Document.LineCount)
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
             {
-                lineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line + 1, 1));
-            }
-            else
-            {
-                lineEnd = new DocumentOffset(Document.Length);
-                if (pos.Line > 1)
+                var docLenBefore = Document.Length;
+
+                cursor.ClearSelection();
+                cursor.Clamp(Document.Length);
+                if (Document.Length == 0) continue;
+                var pos = Document.OffsetToPosition(cursor.Position);
+                var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+
+                DocumentOffset lineEnd;
+                if (pos.Line < Document.LineCount)
                 {
-                    var prevLineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
-                    lineStart = prevLineEnd - 1;
+                    lineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line + 1, 1));
                 }
+                else
+                {
+                    lineEnd = new DocumentOffset(Document.Length);
+                    if (pos.Line > 1)
+                    {
+                        var prevLineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+                        lineStart = prevLineEnd - 1;
+                    }
+                }
+
+                if (lineStart == lineEnd) continue;
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(lineStart, lineEnd)));
+                CollectOps(result, ops);
+                cursor.Position = lineStart;
+                cursor.Clamp(Document.Length);
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
-
-            if (lineStart == lineEnd) continue;
-            var result = Document.Apply(new DeleteOperation(new DocumentRange(lineStart, lineEnd)));
-            CollectOps(result, ops);
-            cursor.Position = lineStart;
-            cursor.Clamp(Document.Length);
-
-            AdjustProcessedCursors(idx, Document.Length - docLenBefore);
         }
+        finally { Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
