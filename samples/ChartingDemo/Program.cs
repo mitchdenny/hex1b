@@ -48,7 +48,7 @@ var terminal = Hex1bTerminal.CreateBuilder()
                 t.Table<ChartItem, VStackWidget>(monthlySales)
                     .Header(h => [h.Cell("Month"), h.Cell("Sales")])
                     .Row((r, item, state) => [r.Cell(item.Label), r.Cell(item.Value.ToString("N0"))])
-            ]).Selected(),
+            ]),
             tp.Tab("Stacked Columns", t => [
                 t.ColumnChart(multiSeriesData)
                     .Label(s => s.Month)
