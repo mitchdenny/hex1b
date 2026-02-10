@@ -48,9 +48,50 @@ public static class DocumentDiagnosticPanelExtensions
             sub.Item($"Added: {info.AddBufferSize:N0} bytes"),
         ]).Expanded();
 
-        // Piece table
-        yield return tc.Item($"🧩 Pieces ({info.Pieces.Count})", sub =>
-            BuildPieceItems(sub, info.Pieces)).Expanded();
+        // Piece tree structure
+        yield return tc.Item($"🌳 Piece Tree ({info.PieceCount} nodes)", sub =>
+            BuildTreeStructure(sub, info.TreeRoot)).Expanded();
+
+        // Flat piece list (in-order)
+        yield return tc.Item($"📋 Pieces in order ({info.Pieces.Count})", sub =>
+            BuildPieceItems(sub, info.Pieces));
+    }
+
+    private static IEnumerable<TreeItemWidget> BuildTreeStructure(
+        TreeContext tc, PieceTreeDiagnosticNode? root)
+    {
+        if (root == null)
+        {
+            yield return tc.Item("(empty)");
+            yield break;
+        }
+
+        yield return BuildTreeNode(tc, root, "Root");
+    }
+
+    private static TreeItemWidget BuildTreeNode(
+        TreeContext tc, PieceTreeDiagnosticNode node, string position)
+    {
+        var colorIcon = node.Color == "Red" ? "🔴" : "⚫";
+        var sourceIcon = node.Source == "Original" ? "📦" : "✏️";
+        var label = $"{colorIcon} {position}: {sourceIcon} {node.Source} @{node.Start} len={node.Length} (left={node.LeftSubtreeSize})";
+
+        if (node.Left == null && node.Right == null)
+            return tc.Item(label);
+
+        return tc.Item(label, sub =>
+        {
+            var children = new List<TreeItemWidget>();
+            if (node.Left != null)
+                children.Add(BuildTreeNode(sub, node.Left, "L"));
+            else
+                children.Add(sub.Item("L: (nil)"));
+            if (node.Right != null)
+                children.Add(BuildTreeNode(sub, node.Right, "R"));
+            else
+                children.Add(sub.Item("R: (nil)"));
+            return children;
+        }).Expanded();
     }
 
     private static IEnumerable<TreeItemWidget> BuildPieceItems(

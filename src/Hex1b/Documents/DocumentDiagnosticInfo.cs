@@ -23,8 +23,14 @@ public sealed class DocumentDiagnosticInfo
     /// <summary>Size of the add (append-only) buffer in bytes.</summary>
     public int AddBufferSize { get; init; }
 
-    /// <summary>Ordered list of pieces in the piece table.</summary>
+    /// <summary>Ordered list of pieces in the piece table (in-order traversal).</summary>
     public IReadOnlyList<PieceDiagnosticInfo> Pieces { get; init; } = [];
+
+    /// <summary>Number of pieces in the tree.</summary>
+    public int PieceCount { get; init; }
+
+    /// <summary>Root of the red-black piece tree for structure visualization.</summary>
+    public PieceTreeDiagnosticNode? TreeRoot { get; init; }
 }
 
 /// <summary>
