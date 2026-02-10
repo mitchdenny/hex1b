@@ -31,9 +31,12 @@ public static class GraphemeHelper
             index = text.Length;
 
         // Scan backward from index to find the previous cluster boundary.
-        // Most grapheme clusters are 1-2 chars; combining sequences rarely exceed 8.
-        // We scan a small window backward rather than the entire string.
-        var scanStart = Math.Max(0, index - 8);
+        // Unicode grapheme clusters are unbounded in theory (base + N combining
+        // marks), but real-world clusters never exceed ~25 UTF-16 chars (emoji
+        // ZWJ families with skin tones). We use 64 as a generous ceiling — if
+        // an adversarial cluster exceeds this, the cursor lands mid-cluster
+        // (cosmetic glitch, not a crash).
+        var scanStart = Math.Max(0, index - 64);
         var scanText = text.Substring(scanStart, index - scanStart);
         var enumerator = StringInfo.GetTextElementEnumerator(scanText);
         int lastBoundary = 0;
@@ -63,8 +66,9 @@ public static class GraphemeHelper
             index = 0;
 
         // Scan forward from index to find the next cluster boundary.
-        // Most grapheme clusters are 1-2 chars; combining sequences rarely exceed 8.
-        var scanEnd = Math.Min(text.Length, index + 8);
+        // 64 chars is generous for any real-world grapheme cluster; see
+        // backward scan comment for rationale.
+        var scanEnd = Math.Min(text.Length, index + 64);
         var scanText = text.Substring(index, scanEnd - index);
         var enumerator = StringInfo.GetTextElementEnumerator(scanText);
         if (enumerator.MoveNext())
