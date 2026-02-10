@@ -239,15 +239,20 @@ public sealed class BarChartNode<T> : Hex1bNode
         var seriesCount = data.SeriesNames.Count;
         if (categoryCount == 0) return;
 
-        // Calculate row layout
+        // Calculate row layout — bars can be multiple rows tall
+        int rowsPerSeries;
         int rowsPerCategory;
         switch (Mode)
         {
             case ChartMode.Grouped:
-                rowsPerCategory = seriesCount;
+                // Allocate space for N sub-bars per category
+                var totalGroupedSlots = categoryCount * seriesCount;
+                rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / totalGroupedSlots);
+                rowsPerCategory = rowsPerSeries * seriesCount;
                 break;
             default:
-                rowsPerCategory = 1;
+                rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / categoryCount);
+                rowsPerCategory = rowsPerSeries;
                 break;
         }
 
@@ -255,12 +260,16 @@ public sealed class BarChartNode<T> : Hex1bNode
         var totalRows = categoryCount * rowsPerCategory + (categoryCount - 1) * spacing;
         var startY = titleHeight;
 
-        // If not enough space, reduce spacing
         if (totalRows > chartHeight)
         {
             spacing = 0;
             totalRows = categoryCount * rowsPerCategory;
         }
+
+        // Use fractional height when bars don't divide evenly
+        double exactBarHeight = (double)(chartHeight - Math.Max(0, categoryCount - 1) * spacing) / categoryCount;
+        if (Mode == ChartMode.Grouped)
+            exactBarHeight /= seriesCount;
 
         for (int catIdx = 0; catIdx < categoryCount; catIdx++)
         {
@@ -271,65 +280,89 @@ public sealed class BarChartNode<T> : Hex1bNode
             switch (Mode)
             {
                 case ChartMode.Simple:
-                    DrawSimpleBar(surface, category.Values[0], scaler, seriesColors[0],
-                        labelWidth, catY, barWidth);
+                    DrawThickBar(surface, category.Values[0], scaler, seriesColors[0],
+                        labelWidth, catY, barWidth, rowsPerSeries, exactBarHeight);
                     break;
 
                 case ChartMode.Stacked:
                 case ChartMode.Stacked100:
-                    DrawStackedBar(surface, category.Values, scaler, seriesColors,
-                        labelWidth, catY, barWidth);
+                    DrawThickStackedBar(surface, category.Values, scaler, seriesColors,
+                        labelWidth, catY, barWidth, rowsPerSeries, exactBarHeight);
                     break;
 
                 case ChartMode.Grouped:
                     for (int si = 0; si < category.Values.Count && si < seriesCount; si++)
                     {
-                        var rowY = catY + si;
+                        var rowY = catY + si * rowsPerSeries;
                         if (rowY >= startY + chartHeight) break;
-                        DrawSimpleBar(surface, category.Values[si], scaler, seriesColors[si % seriesColors.Length],
-                            labelWidth, rowY, barWidth);
+                        DrawThickBar(surface, category.Values[si], scaler, seriesColors[si % seriesColors.Length],
+                            labelWidth, rowY, barWidth, rowsPerSeries, exactBarHeight);
                     }
                     break;
             }
         }
     }
 
-    private static void DrawSimpleBar(
+    private static void DrawThickBar(
         Surface surface, double value, ChartScaler scaler, Hex1bColor color,
-        int startX, int y, int maxWidth)
+        int startX, int topY, int maxWidth, int barRows, double exactHeight)
     {
-        if (y >= surface.Height) return;
-
         var scaledWidth = scaler.Scale(value);
         var (wholeCells, remainder) = FractionalBlocks.Decompose(scaledWidth);
 
-        // Draw full cells
-        for (int col = 0; col < wholeCells && col < maxWidth; col++)
+        // Draw full-height rows for the bar
+        for (int row = 0; row < barRows; row++)
         {
-            var x = startX + col;
-            if (x < surface.Width)
-                surface[x, y] = new SurfaceCell("█", color, null);
-        }
+            var y = topY + row;
+            if (y >= surface.Height) break;
 
-        // Draw fractional right edge
-        if (remainder > 0.05 && wholeCells < maxWidth)
-        {
-            var x = startX + wholeCells;
-            if (x < surface.Width)
+            bool isTopEdge = row == 0;
+            bool isBottomEdge = row == barRows - 1;
+            var bottomFrac = exactHeight - (int)exactHeight;
+
+            // Use fractional vertical block for the bottom edge row
+            if (isBottomEdge && bottomFrac > 0.05 && bottomFrac < 0.95)
             {
-                var blockChar = FractionalBlocks.Horizontal(remainder);
-                surface[x, y] = new SurfaceCell(blockChar, color, null);
+                // Upper fraction block — fills from bottom, so this gives a partial bottom row
+                var blockChar = FractionalBlocks.Vertical(1.0 - bottomFrac);
+                for (int col = 0; col < wholeCells && col < maxWidth; col++)
+                {
+                    var x = startX + col;
+                    if (x < surface.Width)
+                        surface[x, y] = new SurfaceCell(blockChar, color, null);
+                }
+                if (remainder > 0.05 && wholeCells < maxWidth)
+                {
+                    var x = startX + wholeCells;
+                    if (x < surface.Width)
+                        surface[x, y] = new SurfaceCell(FractionalBlocks.Horizontal(remainder), color, null);
+                }
+            }
+            else
+            {
+                // Full row
+                for (int col = 0; col < wholeCells && col < maxWidth; col++)
+                {
+                    var x = startX + col;
+                    if (x < surface.Width)
+                        surface[x, y] = new SurfaceCell("█", color, null);
+                }
+                // Fractional right edge
+                if (remainder > 0.05 && wholeCells < maxWidth)
+                {
+                    var x = startX + wholeCells;
+                    if (x < surface.Width)
+                        surface[x, y] = new SurfaceCell(FractionalBlocks.Horizontal(remainder), color, null);
+                }
             }
         }
     }
 
-    private static void DrawStackedBar(
+    private static void DrawThickStackedBar(
         Surface surface, IReadOnlyList<double> values, ChartScaler scaler, Hex1bColor[] colors,
-        int startX, int y, int maxWidth)
+        int startX, int topY, int maxWidth, int barRows, double exactHeight)
     {
-        if (y >= surface.Height) return;
-
-        // Pre-compute each segment's scaled bounds
+        // Pre-compute segments
         var segments = new List<(double left, double right, Hex1bColor color)>();
         double cumulativeValue = scaler.Minimum;
         for (int si = 0; si < values.Count; si++)
@@ -343,40 +376,41 @@ public sealed class BarChartNode<T> : Hex1bNode
             segments.Add((leftScaled, rightScaled, colors[si % colors.Length]));
         }
 
-        for (int segIdx = 0; segIdx < segments.Count; segIdx++)
+        for (int row = 0; row < barRows; row++)
         {
-            var (leftScaled, rightScaled, color) = segments[segIdx];
-            var leftCol = (int)leftScaled;
-            var rightCol = (int)rightScaled;
+            var y = topY + row;
+            if (y >= surface.Height) break;
 
-            for (int col = leftCol; col <= rightCol && col < maxWidth; col++)
+            for (int segIdx = 0; segIdx < segments.Count; segIdx++)
             {
-                var x = startX + col;
-                if (x >= surface.Width) break;
+                var (leftScaled, rightScaled, color) = segments[segIdx];
+                var leftCol = (int)leftScaled;
+                var rightCol = (int)rightScaled;
 
-                if (col == leftCol && col == rightCol)
+                for (int col = leftCol; col <= rightCol && col < maxWidth; col++)
                 {
-                    // Segment fits within one cell
-                    var frac = rightScaled - leftScaled;
-                    if (frac < 0.05) continue;
-                    var leftFrac = leftScaled - leftCol;
-                    Hex1bColor? prevColor = segIdx > 0 ? segments[segIdx - 1].color : null;
-                    var blockChar = FractionalBlocks.Horizontal(Math.Min(1.0, leftFrac + frac));
-                    surface[x, y] = new SurfaceCell(blockChar, color, prevColor);
-                }
-                else if (col == rightCol)
-                {
-                    // Right edge — fractional fill
-                    var rightFrac = rightScaled - rightCol;
-                    if (rightFrac < 0.05) continue;
-                    // At the boundary: fg = this segment, bg = next segment (if any)
-                    Hex1bColor? nextColor = segIdx < segments.Count - 1 ? segments[segIdx + 1].color : null;
-                    var blockChar = FractionalBlocks.Horizontal(rightFrac);
-                    surface[x, y] = new SurfaceCell(blockChar, color, nextColor);
-                }
-                else
-                {
-                    surface[x, y] = new SurfaceCell("█", color, null);
+                    var x = startX + col;
+                    if (x >= surface.Width) break;
+
+                    if (col == leftCol && col == rightCol)
+                    {
+                        var frac = rightScaled - leftScaled;
+                        if (frac < 0.05) continue;
+                        Hex1bColor? prevColor = segIdx > 0 ? segments[segIdx - 1].color : null;
+                        var blockChar = FractionalBlocks.Horizontal(Math.Min(1.0, (leftScaled - leftCol) + frac));
+                        surface[x, y] = new SurfaceCell(blockChar, color, prevColor);
+                    }
+                    else if (col == rightCol)
+                    {
+                        var rightFrac = rightScaled - rightCol;
+                        if (rightFrac < 0.05) continue;
+                        Hex1bColor? nextColor = segIdx < segments.Count - 1 ? segments[segIdx + 1].color : null;
+                        surface[x, y] = new SurfaceCell(FractionalBlocks.Horizontal(rightFrac), color, nextColor);
+                    }
+                    else
+                    {
+                        surface[x, y] = new SurfaceCell("█", color, null);
+                    }
                 }
             }
         }
@@ -407,10 +441,23 @@ public sealed class BarChartNode<T> : Hex1bNode
         // Category labels (left column) and values (right)
         var categoryCount = data.Categories.Count;
         var seriesCount = data.SeriesNames.Count;
-        int rowsPerCategory = Mode == ChartMode.Grouped ? seriesCount : 1;
-        var spacing = 1;
 
-        // Recalc spacing if tight
+        // Match the layout from DrawBars
+        int rowsPerSeries;
+        int rowsPerCategory;
+        if (Mode == ChartMode.Grouped)
+        {
+            var totalGroupedSlots = categoryCount * seriesCount;
+            rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / totalGroupedSlots);
+            rowsPerCategory = rowsPerSeries * seriesCount;
+        }
+        else
+        {
+            rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / categoryCount);
+            rowsPerCategory = rowsPerSeries;
+        }
+
+        var spacing = 1;
         var totalRows = categoryCount * rowsPerCategory + (categoryCount - 1) * spacing;
         if (totalRows > chartHeight) spacing = 0;
 
@@ -425,7 +472,9 @@ public sealed class BarChartNode<T> : Hex1bNode
             var label = data.Categories[catIdx].Label;
             if (label.Length > labelWidth - 1)
                 label = label[..(labelWidth - 1)];
-            WriteText(surface, 0, catY, label, labelColor);
+            // Center label vertically within the bar's rows
+            var labelY = catY + rowsPerCategory / 2;
+            WriteText(surface, 0, labelY, label, labelColor);
 
             // Value (right of bar)
             if (ShowValues && valueWidth > 0)
@@ -443,7 +492,7 @@ public sealed class BarChartNode<T> : Hex1bNode
                     : formatter(displayValue);
                 var valX = labelWidth + barWidth + 1;
                 if (valX + text.Length <= totalWidth)
-                    WriteText(surface, valX, catY, text, valueColor);
+                    WriteText(surface, valX, labelY, text, valueColor);
             }
         }
     }
