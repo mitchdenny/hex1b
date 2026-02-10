@@ -22,7 +22,7 @@ namespace Hex1b.Widgets;
 /// <code>
 /// ctx.BreakdownChart([new("Data", 42), new("Packages", 18), new("Temp", 9)])
 ///     .ShowPercentages()
-///     .WithTitle("Disk Usage")
+///     .Title("Disk Usage")
 /// </code>
 /// </example>
 public sealed record BreakdownChartWidget<T> : Hex1bWidget
@@ -45,17 +45,17 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Gets whether to display absolute values in the legend.
     /// </summary>
-    public bool ShowValues { get; init; }
+    internal bool IsShowingValues { get; init; }
 
     /// <summary>
     /// Gets whether to display percentages in the legend.
     /// </summary>
-    public bool ShowPercentages { get; init; }
+    internal bool IsShowingPercentages { get; init; }
 
     /// <summary>
     /// Gets the optional chart title displayed above the bar.
     /// </summary>
-    public string? Title { get; init; }
+    internal string? ChartTitle { get; init; }
 
     #region Fluent Methods
 
@@ -74,20 +74,20 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Sets whether to display absolute values in the legend.
     /// </summary>
-    public BreakdownChartWidget<T> WithShowValues(bool show = true)
-        => this with { ShowValues = show };
+    public BreakdownChartWidget<T> ShowValues(bool show = true)
+        => this with { IsShowingValues = show };
 
     /// <summary>
     /// Sets whether to display percentages in the legend.
     /// </summary>
-    public BreakdownChartWidget<T> WithShowPercentages(bool show = true)
-        => this with { ShowPercentages = show };
+    public BreakdownChartWidget<T> ShowPercentages(bool show = true)
+        => this with { IsShowingPercentages = show };
 
     /// <summary>
     /// Sets the chart title displayed above the bar.
     /// </summary>
-    public BreakdownChartWidget<T> WithTitle(string title)
-        => this with { Title = title };
+    public BreakdownChartWidget<T> Title(string title)
+        => this with { ChartTitle = title };
 
     #endregion
 
@@ -100,9 +100,9 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
         node.Data = Data;
         node.LabelSelector = LabelSelector;
         node.ValueSelector = ValueSelector;
-        node.ShowValues = ShowValues;
-        node.ShowPercentages = ShowPercentages;
-        node.Title = Title;
+        node.ShowValues = IsShowingValues;
+        node.ShowPercentages = IsShowingPercentages;
+        node.Title = ChartTitle;
 
         return Task.FromResult<Hex1bNode>(node);
     }

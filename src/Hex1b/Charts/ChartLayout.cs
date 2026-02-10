@@ -3,7 +3,7 @@ namespace Hex1b.Charts;
 /// <summary>
 /// Specifies how multi-series data is displayed in a chart.
 /// </summary>
-public enum ChartMode
+public enum ChartLayout
 {
     /// <summary>
     /// Single series — one bar/column per category.

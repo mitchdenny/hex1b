@@ -35,7 +35,7 @@ namespace Hex1b.Widgets;
 ///     .Label(s => s.Month)
 ///     .Series("Electronics", s => s.Electronics, Colors.Blue)
 ///     .Series("Clothing", s => s.Clothing, Colors.Red)
-///     .Mode(ChartMode.Grouped)
+///     .Mode(ChartLayout.Grouped)
 /// </code>
 /// </example>
 public sealed record ColumnChartWidget<T> : Hex1bWidget
@@ -68,7 +68,7 @@ public sealed record ColumnChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Gets the chart display mode.
     /// </summary>
-    public ChartMode Mode { get; init; } = ChartMode.Simple;
+    internal ChartLayout ChartLayout { get; init; } = ChartLayout.Simple;
 
     /// <summary>
     /// Gets the explicit minimum value for the chart axis. When null, auto-derived from data.
@@ -83,17 +83,17 @@ public sealed record ColumnChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Gets whether to display numeric values above each column.
     /// </summary>
-    public bool ShowValues { get; init; }
+    internal bool IsShowingValues { get; init; }
 
     /// <summary>
     /// Gets whether to display horizontal grid lines.
     /// </summary>
-    public bool ShowGridLines { get; init; }
+    internal bool IsShowingGridLines { get; init; }
 
     /// <summary>
     /// Gets the optional chart title displayed above the chart area.
     /// </summary>
-    public string? Title { get; init; }
+    internal string? ChartTitle { get; init; }
 
     /// <summary>
     /// Gets the optional custom formatter for displaying numeric values.
@@ -148,20 +148,20 @@ public sealed record ColumnChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Sets whether to display numeric values above each column.
     /// </summary>
-    public ColumnChartWidget<T> WithShowValues(bool show = true)
-        => this with { ShowValues = show };
+    public ColumnChartWidget<T> ShowValues(bool show = true)
+        => this with { IsShowingValues = show };
 
     /// <summary>
     /// Sets whether to display horizontal grid lines.
     /// </summary>
-    public ColumnChartWidget<T> WithShowGridLines(bool show = true)
-        => this with { ShowGridLines = show };
+    public ColumnChartWidget<T> ShowGridLines(bool show = true)
+        => this with { IsShowingGridLines = show };
 
     /// <summary>
     /// Sets the chart title displayed above the chart area.
     /// </summary>
-    public ColumnChartWidget<T> WithTitle(string title)
-        => this with { Title = title };
+    public ColumnChartWidget<T> Title(string title)
+        => this with { ChartTitle = title };
 
     /// <summary>
     /// Sets a custom formatter for displaying numeric values.
@@ -172,8 +172,8 @@ public sealed record ColumnChartWidget<T> : Hex1bWidget
     /// <summary>
     /// Sets the chart display mode.
     /// </summary>
-    public ColumnChartWidget<T> WithMode(ChartMode mode)
-        => this with { Mode = mode };
+    public ColumnChartWidget<T> Layout(ChartLayout layout)
+        => this with { ChartLayout = layout };
 
     #endregion
 
@@ -188,12 +188,12 @@ public sealed record ColumnChartWidget<T> : Hex1bWidget
         node.ValueSelector = ValueSelector;
         node.SeriesDefs = SeriesDefs;
         node.GroupBySelector = GroupBySelector;
-        node.Mode = Mode;
+        node.Mode = ChartLayout;
         node.Minimum = Minimum;
         node.Maximum = Maximum;
-        node.ShowValues = ShowValues;
-        node.ShowGridLines = ShowGridLines;
-        node.Title = Title;
+        node.ShowValues = IsShowingValues;
+        node.ShowGridLines = IsShowingGridLines;
+        node.Title = ChartTitle;
         node.ValueFormatter = ValueFormatter;
 
         return Task.FromResult<Hex1bNode>(node);

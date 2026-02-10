@@ -19,7 +19,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
     public Func<T, double>? ValueSelector { get; set; }
     public IReadOnlyList<ChartSeriesDef<T>>? SeriesDefs { get; set; }
     public Func<T, string>? GroupBySelector { get; set; }
-    public ChartMode Mode { get; set; }
+    public ChartLayout Mode { get; set; }
     public double? Minimum { get; set; }
     public double? Maximum { get; set; }
     public bool ShowValues { get; set; }
@@ -58,16 +58,16 @@ public sealed class ColumnChartNode<T> : Hex1bNode
         if (chartHeight <= 0) return;
 
         // For Stacked100 mode, normalize values to percentages
-        if (Mode == ChartMode.Stacked100)
+        if (Mode == ChartLayout.Stacked100)
             resolved = NormalizeToPercent(resolved);
 
         // Build the scaler
         ChartScaler scaler;
-        if (Mode == ChartMode.Stacked100)
+        if (Mode == ChartLayout.Stacked100)
         {
             scaler = new ChartScaler(0, 100, chartHeight);
         }
-        else if (Mode == ChartMode.Stacked)
+        else if (Mode == ChartLayout.Stacked)
         {
             var stackedSums = resolved.Categories.Select(c => c.Values.Sum());
             scaler = ChartScaler.FromValues(stackedSums, chartHeight, Minimum, Maximum);
@@ -257,18 +257,18 @@ public sealed class ColumnChartNode<T> : Hex1bNode
 
             switch (Mode)
             {
-                case ChartMode.Simple:
+                case ChartLayout.Simple:
                     DrawSimpleColumn(surface, category.Values[0], scaler, seriesColors[0],
                         catX, categoryWidth, topOffset, chartHeight);
                     break;
 
-                case ChartMode.Stacked:
-                case ChartMode.Stacked100:
+                case ChartLayout.Stacked:
+                case ChartLayout.Stacked100:
                     DrawStackedColumns(surface, category.Values, scaler, seriesColors,
                         catX, categoryWidth, topOffset, chartHeight);
                     break;
 
-                case ChartMode.Grouped:
+                case ChartLayout.Grouped:
                     DrawGroupedColumns(surface, category.Values, scaler, seriesColors,
                         catX, categoryWidth, topOffset, chartHeight, seriesCount);
                     break;
@@ -483,14 +483,14 @@ public sealed class ColumnChartNode<T> : Hex1bNode
                 var catX = i * (categoryWidth + spacing);
                 double displayValue;
 
-                if (Mode == ChartMode.Stacked || Mode == ChartMode.Stacked100)
+                if (Mode == ChartLayout.Stacked || Mode == ChartLayout.Stacked100)
                     displayValue = data.Categories[i].Values.Sum();
-                else if (Mode == ChartMode.Simple)
+                else if (Mode == ChartLayout.Simple)
                     displayValue = data.Categories[i].Values[0];
                 else
                     continue; // Skip for grouped — too many values
 
-                var text = Mode == ChartMode.Stacked100
+                var text = Mode == ChartLayout.Stacked100
                     ? "100%"
                     : formatter(displayValue);
                 if (text.Length > categoryWidth)

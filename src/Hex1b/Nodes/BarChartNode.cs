@@ -19,7 +19,7 @@ public sealed class BarChartNode<T> : Hex1bNode
     public Func<T, double>? ValueSelector { get; set; }
     public IReadOnlyList<ChartSeriesDef<T>>? SeriesDefs { get; set; }
     public Func<T, string>? GroupBySelector { get; set; }
-    public ChartMode Mode { get; set; }
+    public ChartLayout Mode { get; set; }
     public double? Minimum { get; set; }
     public double? Maximum { get; set; }
     public bool ShowValues { get; set; }
@@ -61,16 +61,16 @@ public sealed class BarChartNode<T> : Hex1bNode
         if (chartHeight <= 0) return;
 
         // For Stacked100 mode, normalize values to percentages
-        if (Mode == ChartMode.Stacked100)
+        if (Mode == ChartLayout.Stacked100)
             resolved = NormalizeToPercent(resolved);
 
         // Build the scaler
         ChartScaler scaler;
-        if (Mode == ChartMode.Stacked100)
+        if (Mode == ChartLayout.Stacked100)
         {
             scaler = new ChartScaler(0, 100, barWidth);
         }
-        else if (Mode == ChartMode.Stacked)
+        else if (Mode == ChartLayout.Stacked)
         {
             var stackedSums = resolved.Categories.Select(c => c.Values.Sum());
             scaler = ChartScaler.FromValues(stackedSums, barWidth, Minimum, Maximum);
@@ -244,7 +244,7 @@ public sealed class BarChartNode<T> : Hex1bNode
         int rowsPerCategory;
         switch (Mode)
         {
-            case ChartMode.Grouped:
+            case ChartLayout.Grouped:
                 // Allocate space for N sub-bars per category
                 var totalGroupedSlots = categoryCount * seriesCount;
                 rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / totalGroupedSlots);
@@ -268,7 +268,7 @@ public sealed class BarChartNode<T> : Hex1bNode
 
         // Use fractional height when bars don't divide evenly
         double exactBarHeight = (double)(chartHeight - Math.Max(0, categoryCount - 1) * spacing) / categoryCount;
-        if (Mode == ChartMode.Grouped)
+        if (Mode == ChartLayout.Grouped)
             exactBarHeight /= seriesCount;
 
         for (int catIdx = 0; catIdx < categoryCount; catIdx++)
@@ -279,18 +279,18 @@ public sealed class BarChartNode<T> : Hex1bNode
 
             switch (Mode)
             {
-                case ChartMode.Simple:
+                case ChartLayout.Simple:
                     DrawThickBar(surface, category.Values[0], scaler, seriesColors[0],
                         labelWidth, catY, barWidth, rowsPerSeries, exactBarHeight);
                     break;
 
-                case ChartMode.Stacked:
-                case ChartMode.Stacked100:
+                case ChartLayout.Stacked:
+                case ChartLayout.Stacked100:
                     DrawThickStackedBar(surface, category.Values, scaler, seriesColors,
                         labelWidth, catY, barWidth, rowsPerSeries, exactBarHeight);
                     break;
 
-                case ChartMode.Grouped:
+                case ChartLayout.Grouped:
                     for (int si = 0; si < category.Values.Count && si < seriesCount; si++)
                     {
                         var rowY = catY + si * rowsPerSeries;
@@ -445,7 +445,7 @@ public sealed class BarChartNode<T> : Hex1bNode
         // Match the layout from DrawBars
         int rowsPerSeries;
         int rowsPerCategory;
-        if (Mode == ChartMode.Grouped)
+        if (Mode == ChartLayout.Grouped)
         {
             var totalGroupedSlots = categoryCount * seriesCount;
             rowsPerSeries = Math.Max(1, (chartHeight - (categoryCount - 1)) / totalGroupedSlots);
@@ -480,14 +480,14 @@ public sealed class BarChartNode<T> : Hex1bNode
             if (ShowValues && valueWidth > 0)
             {
                 double displayValue;
-                if (Mode == ChartMode.Stacked || Mode == ChartMode.Stacked100)
+                if (Mode == ChartLayout.Stacked || Mode == ChartLayout.Stacked100)
                     displayValue = data.Categories[catIdx].Values.Sum();
-                else if (Mode == ChartMode.Simple)
+                else if (Mode == ChartLayout.Simple)
                     displayValue = data.Categories[catIdx].Values[0];
                 else
                     continue;
 
-                var text = Mode == ChartMode.Stacked100
+                var text = Mode == ChartLayout.Stacked100
                     ? "100%"
                     : formatter(displayValue);
                 var valX = labelWidth + barWidth + 1;

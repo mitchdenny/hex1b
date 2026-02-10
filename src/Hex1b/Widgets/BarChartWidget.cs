@@ -40,8 +40,8 @@ public sealed record BarChartWidget<T> : Hex1bWidget
     /// <inheritdoc cref="ColumnChartWidget{T}.GroupBySelector"/>
     internal Func<T, string>? GroupBySelector { get; init; }
 
-    /// <inheritdoc cref="ColumnChartWidget{T}.Mode"/>
-    public ChartMode Mode { get; init; } = ChartMode.Simple;
+    /// <inheritdoc cref="ColumnChartWidget{T}.ChartLayout"/>
+    internal ChartLayout ChartLayout { get; init; } = ChartLayout.Simple;
 
     /// <inheritdoc cref="ColumnChartWidget{T}.Minimum"/>
     public double? Minimum { get; init; }
@@ -50,13 +50,13 @@ public sealed record BarChartWidget<T> : Hex1bWidget
     public double? Maximum { get; init; }
 
     /// <inheritdoc cref="ColumnChartWidget{T}.ShowValues"/>
-    public bool ShowValues { get; init; }
+    internal bool IsShowingValues { get; init; }
 
     /// <inheritdoc cref="ColumnChartWidget{T}.ShowGridLines"/>
-    public bool ShowGridLines { get; init; }
+    internal bool IsShowingGridLines { get; init; }
 
     /// <inheritdoc cref="ColumnChartWidget{T}.Title"/>
-    public string? Title { get; init; }
+    internal string? ChartTitle { get; init; }
 
     /// <inheritdoc cref="ColumnChartWidget{T}.ValueFormatter"/>
     public Func<double, string>? ValueFormatter { get; init; }
@@ -89,25 +89,25 @@ public sealed record BarChartWidget<T> : Hex1bWidget
     public BarChartWidget<T> Range(double min, double max)
         => this with { Minimum = min, Maximum = max };
 
-    /// <inheritdoc cref="ColumnChartWidget{T}.WithShowValues"/>
-    public BarChartWidget<T> WithShowValues(bool show = true)
-        => this with { ShowValues = show };
+    /// <inheritdoc cref="ColumnChartWidget{T}.ShowValues"/>
+    public BarChartWidget<T> ShowValues(bool show = true)
+        => this with { IsShowingValues = show };
 
-    /// <inheritdoc cref="ColumnChartWidget{T}.WithShowGridLines"/>
-    public BarChartWidget<T> WithShowGridLines(bool show = true)
-        => this with { ShowGridLines = show };
+    /// <inheritdoc cref="ColumnChartWidget{T}.ShowGridLines"/>
+    public BarChartWidget<T> ShowGridLines(bool show = true)
+        => this with { IsShowingGridLines = show };
 
-    /// <inheritdoc cref="ColumnChartWidget{T}.WithTitle"/>
-    public BarChartWidget<T> WithTitle(string title)
-        => this with { Title = title };
+    /// <inheritdoc cref="ColumnChartWidget{T}.Title"/>
+    public BarChartWidget<T> Title(string title)
+        => this with { ChartTitle = title };
 
     /// <inheritdoc cref="ColumnChartWidget{T}.FormatValue"/>
     public BarChartWidget<T> FormatValue(Func<double, string> formatter)
         => this with { ValueFormatter = formatter };
 
-    /// <inheritdoc cref="ColumnChartWidget{T}.WithMode"/>
-    public BarChartWidget<T> WithMode(ChartMode mode)
-        => this with { Mode = mode };
+    /// <inheritdoc cref="ColumnChartWidget{T}.Layout"/>
+    public BarChartWidget<T> Layout(ChartLayout layout)
+        => this with { ChartLayout = layout };
 
     #endregion
 
@@ -122,12 +122,12 @@ public sealed record BarChartWidget<T> : Hex1bWidget
         node.ValueSelector = ValueSelector;
         node.SeriesDefs = SeriesDefs;
         node.GroupBySelector = GroupBySelector;
-        node.Mode = Mode;
+        node.Mode = ChartLayout;
         node.Minimum = Minimum;
         node.Maximum = Maximum;
-        node.ShowValues = ShowValues;
-        node.ShowGridLines = ShowGridLines;
-        node.Title = Title;
+        node.ShowValues = IsShowingValues;
+        node.ShowGridLines = IsShowingGridLines;
+        node.Title = ChartTitle;
         node.ValueFormatter = ValueFormatter;
 
         return Task.FromResult<Hex1bNode>(node);
