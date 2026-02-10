@@ -310,21 +310,22 @@ public sealed class BarChartNode<T> : Hex1bNode
         var scaledWidth = scaler.Scale(value);
         var (wholeCells, remainder) = FractionalBlocks.Decompose(scaledWidth);
 
-        // Draw full-height rows for the bar
+        // Only draw rows that fall within the exact bar height
+        var wholeBarRows = (int)exactHeight;
+        var barFrac = exactHeight - wholeBarRows;
+
         for (int row = 0; row < barRows; row++)
         {
             var y = topY + row;
             if (y >= surface.Height) break;
 
-            bool isTopEdge = row == 0;
-            bool isBottomEdge = row == barRows - 1;
-            var bottomFrac = exactHeight - (int)exactHeight;
+            // Skip rows beyond the exact height (avoid black stripe artifacts)
+            if (row > wholeBarRows) break;
 
-            // Use fractional vertical block for the bottom edge row
-            if (isBottomEdge && bottomFrac > 0.05 && bottomFrac < 0.95)
+            if (row == wholeBarRows && barFrac > 0.05)
             {
-                // Upper fraction block — fills from bottom, so this gives a partial bottom row
-                var blockChar = FractionalBlocks.Vertical(1.0 - bottomFrac);
+                // Fractional bottom edge — partial height row using upper block
+                var blockChar = FractionalBlocks.Vertical(1.0 - barFrac);
                 for (int col = 0; col < wholeCells && col < maxWidth; col++)
                 {
                     var x = startX + col;
@@ -347,7 +348,6 @@ public sealed class BarChartNode<T> : Hex1bNode
                     if (x < surface.Width)
                         surface[x, y] = new SurfaceCell("█", color, null);
                 }
-                // Fractional right edge
                 if (remainder > 0.05 && wholeCells < maxWidth)
                 {
                     var x = startX + wholeCells;
