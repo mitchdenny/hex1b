@@ -68,4 +68,12 @@ public interface IEditorViewRenderer
     /// ref parameter holds per-editor-instance state managed by the caller.
     /// </summary>
     bool HandleCharInput(char c, EditorState state, ref char? pendingNibble, int viewportColumns) => false;
+
+    /// <summary>
+    /// Handles cursor navigation for this renderer.
+    /// Returns <c>true</c> if the renderer handled the navigation (e.g., byte-level
+    /// movement in hex mode), in which case the default character-level navigation
+    /// is skipped.
+    /// </summary>
+    bool HandleNavigation(CursorDirection direction, EditorState state, bool extend) => false;
 }

@@ -468,10 +468,33 @@ public sealed class EditorNode : Hex1bNode
 
     // --- Input handlers: navigation ---
 
-    private void MoveLeft() { State.MoveCursor(CursorDirection.Left); AfterMove(); }
-    private void MoveRight() { State.MoveCursor(CursorDirection.Right); AfterMove(); }
-    private void MoveUp() { State.MoveCursor(CursorDirection.Up); AfterMove(); }
-    private void MoveDown() { State.MoveCursor(CursorDirection.Down); AfterMove(); }
+    private void MoveLeft()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: false))
+            State.MoveCursor(CursorDirection.Left);
+        AfterMove();
+    }
+
+    private void MoveRight()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: false))
+            State.MoveCursor(CursorDirection.Right);
+        AfterMove();
+    }
+
+    private void MoveUp()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: false))
+            State.MoveCursor(CursorDirection.Up);
+        AfterMove();
+    }
+
+    private void MoveDown()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: false))
+            State.MoveCursor(CursorDirection.Down);
+        AfterMove();
+    }
     private void MoveToLineStart() { State.MoveToLineStart(); AfterMove(); }
     private void MoveToLineEnd() { State.MoveToLineEnd(); AfterMove(); }
     private void MoveToDocumentStart() { State.MoveToDocumentStart(); AfterMove(); }
@@ -483,10 +506,33 @@ public sealed class EditorNode : Hex1bNode
 
     // --- Input handlers: selection ---
 
-    private void SelectLeft() { State.MoveCursor(CursorDirection.Left, extend: true); AfterMove(); }
-    private void SelectRight() { State.MoveCursor(CursorDirection.Right, extend: true); AfterMove(); }
-    private void SelectUp() { State.MoveCursor(CursorDirection.Up, extend: true); AfterMove(); }
-    private void SelectDown() { State.MoveCursor(CursorDirection.Down, extend: true); AfterMove(); }
+    private void SelectLeft()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: true))
+            State.MoveCursor(CursorDirection.Left, extend: true);
+        AfterMove();
+    }
+
+    private void SelectRight()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: true))
+            State.MoveCursor(CursorDirection.Right, extend: true);
+        AfterMove();
+    }
+
+    private void SelectUp()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: true))
+            State.MoveCursor(CursorDirection.Up, extend: true);
+        AfterMove();
+    }
+
+    private void SelectDown()
+    {
+        if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: true))
+            State.MoveCursor(CursorDirection.Down, extend: true);
+        AfterMove();
+    }
     private void SelectToLineStart() { State.MoveToLineStart(extend: true); AfterMove(); }
     private void SelectToLineEnd() { State.MoveToLineEnd(extend: true); AfterMove(); }
     private void SelectToDocumentStart() { State.MoveToDocumentStart(extend: true); AfterMove(); }

@@ -110,6 +110,66 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     public bool HandlesCharInput => true;
 
     /// <inheritdoc />
+    public bool HandleNavigation(CursorDirection direction, EditorState state, bool extend)
+    {
+        if (direction is not (CursorDirection.Left or CursorDirection.Right))
+            return false;
+
+        var doc = state.Document;
+        var totalBytes = doc.ByteCount;
+        if (totalBytes == 0) return true;
+
+        var map = new Utf8ByteMap(doc.GetBytes().Span);
+
+        foreach (var cursor in state.Cursors)
+        {
+            if (extend)
+                cursor.EnsureSelectionAnchor();
+
+            // Use byte cursor offset if available, otherwise derive from char position
+            int cursorByte;
+            if (state.ByteCursorOffset is int bco)
+            {
+                cursorByte = Math.Clamp(bco, 0, totalBytes);
+            }
+            else
+            {
+                var cursorCharPos = Math.Min(cursor.Position.Value, map.CharCount);
+                cursorByte = cursorCharPos < map.CharCount
+                    ? map.CharToByteStart(cursorCharPos)
+                    : totalBytes;
+            }
+
+            int targetByte;
+            if (direction == CursorDirection.Left)
+            {
+                targetByte = Math.Max(0, cursorByte - 1);
+            }
+            else
+            {
+                targetByte = Math.Min(totalBytes, cursorByte + 1);
+            }
+
+            if (targetByte < totalBytes)
+            {
+                var (charIdx, _) = map.ByteToChar(targetByte);
+                cursor.Position = new DocumentOffset(charIdx);
+            }
+            else
+            {
+                cursor.Position = new DocumentOffset(doc.Length);
+            }
+
+            state.ByteCursorOffset = targetByte;
+
+            if (!extend)
+                cursor.ClearSelection();
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc />
     public bool HandleCharInput(char c, EditorState state, ref char? pendingNibble, int viewportColumns)
     {
         if (state.IsReadOnly) return false;
@@ -143,12 +203,20 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var doc = state.Document;
         var totalBytes = doc.ByteCount;
 
-        // Map cursor's character position to byte offset using actual document bytes
-        var cursorCharPos = state.Cursor.Position.Value;
-        var map = new Utf8ByteMap(doc.GetBytes().Span);
-        var cursorByteOffset = cursorCharPos < map.CharCount
-            ? map.CharToByteStart(cursorCharPos)
-            : totalBytes;
+        // Use byte cursor offset if available, otherwise derive from char position
+        int cursorByteOffset;
+        if (state.ByteCursorOffset is int bco)
+        {
+            cursorByteOffset = Math.Clamp(bco, 0, totalBytes);
+        }
+        else
+        {
+            var cursorCharPos = state.Cursor.Position.Value;
+            var map = new Utf8ByteMap(doc.GetBytes().Span);
+            cursorByteOffset = cursorCharPos < map.CharCount
+                ? map.CharToByteStart(cursorCharPos)
+                : totalBytes;
+        }
 
         if (cursorByteOffset >= totalBytes)
         {
@@ -157,6 +225,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             var newText = doc.GetText();
             state.Cursor.Position = new DocumentOffset(newText.Length);
             state.Cursor.ClearSelection();
+            state.ByteCursorOffset = totalBytes + 1;
             return;
         }
 
@@ -176,6 +245,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             state.Cursor.Position = new DocumentOffset(doc.GetText().Length);
         }
         state.Cursor.ClearSelection();
+        state.ByteCursorOffset = targetByteAfterEdit;
     }
 
     private static int HexCharToNibble(char c) => c switch
@@ -212,10 +282,18 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
         if (isFocused)
         {
-            var cursorDocOffset = Math.Min(state.Cursor.Position.Value, byteMap.CharCount);
-            cursorByteOffset = cursorDocOffset < byteMap.CharCount
-                ? byteMap.CharToByteStart(cursorDocOffset)
-                : totalBytes;
+            // Use byte cursor offset if available (set by HandleNavigation)
+            if (state.ByteCursorOffset is int bco)
+            {
+                cursorByteOffset = Math.Clamp(bco, 0, totalBytes);
+            }
+            else
+            {
+                var cursorDocOffset = Math.Min(state.Cursor.Position.Value, byteMap.CharCount);
+                cursorByteOffset = cursorDocOffset < byteMap.CharCount
+                    ? byteMap.CharToByteStart(cursorDocOffset)
+                    : totalBytes;
+            }
 
             foreach (var cursor in state.Cursors)
             {
@@ -324,8 +402,10 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                                 if (localIdx >= 0 && localIdx < rowByteCount)
                                 {
                                     var hexCol = GetHexColumnForByte(localIdx, bytesPerRow);
+                                    // Include the trailing space between bytes (length 3) except for the last byte in the group
+                                    var hexLen = (b < groupLen - 1) ? 3 : 2;
+                                    SetCellRange(cellColors, hexCol, hexLen, CellColorType.MultiByte, line.Length);
                                     var asciiCol = GetAsciiColumnForByte(localIdx, bytesPerRow);
-                                    SetCellRange(cellColors, hexCol, 2, CellColorType.MultiByte, line.Length);
                                     if (asciiCol < line.Length)
                                         cellColors[asciiCol] = CellColorType.MultiByte;
                                 }
