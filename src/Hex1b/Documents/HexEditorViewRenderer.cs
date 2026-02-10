@@ -37,6 +37,14 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     public bool ShowAscii { get; init; } = true;
 
     /// <summary>
+    /// When enabled, bytes that belong to multi-byte UTF-8 characters are rendered
+    /// with a distinct background color to visually indicate character boundaries.
+    /// The focused byte within a multi-byte group uses the cursor color; the other
+    /// bytes in the same character use the multi-byte highlight color.
+    /// </summary>
+    public bool HighlightMultiByteChars { get; init; } = false;
+
+    /// <summary>
     /// Shared singleton instance with default settings (fluid layout, 1–16 bytes/row, ASCII enabled).
     /// </summary>
     public static HexEditorViewRenderer Instance { get; } = new();
@@ -133,20 +141,19 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     private void CommitByte(EditorState state, byte byteValue, int viewportColumns)
     {
         var doc = state.Document;
-        var docText = doc.GetText();
         var totalBytes = doc.ByteCount;
 
-        // Map cursor's character position to byte offset
+        // Map cursor's character position to byte offset using actual document bytes
         var cursorCharPos = state.Cursor.Position.Value;
-        var cursorByteOffset = cursorCharPos >= docText.Length
-            ? totalBytes
-            : System.Text.Encoding.UTF8.GetByteCount(docText.AsSpan(0, cursorCharPos));
+        var map = new Utf8ByteMap(doc.GetBytes().Span);
+        var cursorByteOffset = cursorCharPos < map.CharCount
+            ? map.CharToByteStart(cursorCharPos)
+            : totalBytes;
 
         if (cursorByteOffset >= totalBytes)
         {
             // Append at end — use byte API to insert the raw byte
             doc.ApplyBytes(new ByteInsertOperation(totalBytes, [byteValue]));
-            // Advance cursor past the new byte
             var newText = doc.GetText();
             state.Cursor.Position = new DocumentOffset(newText.Length);
             state.Cursor.ClearSelection();
@@ -157,17 +164,16 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         doc.ApplyBytes(new ByteReplaceOperation(cursorByteOffset, 1, [byteValue]));
 
         // Position cursor after the replaced byte
-        var afterText = doc.GetText();
         var targetByteAfterEdit = cursorByteOffset + 1;
         if (targetByteAfterEdit < doc.ByteCount)
         {
-            var map = new Utf8ByteMap(afterText);
-            var (nextCharIdx, _) = map.ByteToChar(targetByteAfterEdit);
+            var newMap = new Utf8ByteMap(doc.GetBytes().Span);
+            var (nextCharIdx, _) = newMap.ByteToChar(targetByteAfterEdit);
             state.Cursor.Position = new DocumentOffset(nextCharIdx);
         }
         else
         {
-            state.Cursor.Position = new DocumentOffset(afterText.Length);
+            state.Cursor.Position = new DocumentOffset(doc.GetText().Length);
         }
         state.Cursor.ClearSelection();
     }
@@ -193,28 +199,34 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var selBg = theme.Get(EditorTheme.SelectionBackgroundColor);
 
         var doc = state.Document;
-        var docText = doc.GetText();
         var docBytesMemory = doc.GetBytes();
         var docBytes = docBytesMemory.Span;
         var totalBytes = docBytes.Length;
 
-        // Collect selection ranges for highlight
+        // Build byte↔char map from actual document bytes
+        var byteMap = new Utf8ByteMap(docBytes);
+
+        // Collect selection ranges for highlight (in byte offsets)
         var selectionRanges = new List<(int Start, int End)>();
         int cursorByteOffset = -1;
 
         if (isFocused)
         {
-            var cursorDocOffset = state.Cursor.Position.Value;
-            cursorByteOffset = System.Text.Encoding.UTF8.GetByteCount(docText.AsSpan(0, Math.Min(cursorDocOffset, docText.Length)));
+            var cursorDocOffset = Math.Min(state.Cursor.Position.Value, byteMap.CharCount);
+            cursorByteOffset = cursorDocOffset < byteMap.CharCount
+                ? byteMap.CharToByteStart(cursorDocOffset)
+                : totalBytes;
 
             foreach (var cursor in state.Cursors)
             {
                 if (cursor.HasSelection)
                 {
-                    var startByte = System.Text.Encoding.UTF8.GetByteCount(
-                        docText.AsSpan(0, Math.Min(cursor.SelectionStart.Value, docText.Length)));
-                    var endByte = System.Text.Encoding.UTF8.GetByteCount(
-                        docText.AsSpan(0, Math.Min(cursor.SelectionEnd.Value, docText.Length)));
+                    var selStart = Math.Min(cursor.SelectionStart.Value, byteMap.CharCount);
+                    var selEnd = Math.Min(cursor.SelectionEnd.Value, byteMap.CharCount);
+                    var startByte = selStart < byteMap.CharCount
+                        ? byteMap.CharToByteStart(selStart) : totalBytes;
+                    var endByte = selEnd < byteMap.CharCount
+                        ? byteMap.CharToByteStart(selEnd) : totalBytes;
                     selectionRanges.Add((startByte, endByte));
                 }
             }
@@ -294,6 +306,28 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
             if (isFocused)
             {
+                // Apply multi-byte highlights first (lowest priority)
+                if (HighlightMultiByteChars)
+                {
+                    for (int i = 0; i < rowByteCount; i++)
+                    {
+                        var byteIdx = rowByteStart + i;
+                        if (byteIdx < byteMap.TotalBytes)
+                        {
+                            var (charIdx, _) = byteMap.ByteToChar(byteIdx);
+                            if (byteMap.CharByteLength(charIdx) > 1)
+                            {
+                                var hexCol = GetHexColumnForByte(i, bytesPerRow);
+                                var asciiCol = GetAsciiColumnForByte(i, bytesPerRow);
+                                SetCellRange(cellColors, hexCol, 2, CellColorType.MultiByte, line.Length);
+                                if (asciiCol < line.Length)
+                                    cellColors[asciiCol] = CellColorType.MultiByte;
+                            }
+                        }
+                    }
+                }
+
+                // Apply selection and cursor (higher priority, overwrites multi-byte)
                 for (int i = 0; i < rowByteCount; i++)
                 {
                     var byteIdx = rowByteStart + i;
@@ -322,7 +356,11 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                 }
             }
 
-            RenderColoredLine(context, screenX, screenY, line, fg, bg, cursorFg, cursorBg, selFg, selBg, cellColors);
+            var multiByteBg = HighlightMultiByteChars
+                ? theme.Get(EditorTheme.MultiByteBackgroundColor)
+                : bg;
+
+            RenderColoredLine(context, screenX, screenY, line, fg, bg, cursorFg, cursorBg, selFg, selBg, multiByteBg, cellColors);
         }
     }
 
@@ -334,7 +372,6 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
         var bytesPerRow = CalculateLayout(viewportColumns);
         var doc = state.Document;
-        var docText = doc.GetText();
         var totalBytes = doc.ByteCount;
         var row = (scrollOffset - 1) + localY;
         var rowByteStart = row * bytesPerRow;
@@ -350,8 +387,8 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         if (targetByte >= totalBytes)
             return new DocumentOffset(doc.Length);
 
-        // Use Utf8ByteMap for correct byte→char mapping (handles continuation bytes)
-        var map = new Utf8ByteMap(docText);
+        // Use Utf8ByteMap built from actual bytes for correct byte→char mapping
+        var map = new Utf8ByteMap(doc.GetBytes().Span);
         var (charIndex, _) = map.ByteToChar(targetByte);
 
         return new DocumentOffset(Math.Min(charIndex, doc.Length));
@@ -412,7 +449,8 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     {
         Normal = 0,
         Selected = 1,
-        Cursor = 2
+        Cursor = 2,
+        MultiByte = 3
     }
 
     private static void SetCellRange(CellColorType[] cells, int start, int length, CellColorType type, int maxLen)
@@ -437,6 +475,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         Hex1bColor fg, Hex1bColor bg,
         Hex1bColor cursorFg, Hex1bColor cursorBg,
         Hex1bColor selFg, Hex1bColor selBg,
+        Hex1bColor multiByteBg,
         CellColorType[] cellColors)
     {
         var hasDecorations = false;
@@ -475,6 +514,10 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
                     case CellColorType.Selected:
                         sb.Append(selFg.ToForegroundAnsi());
                         sb.Append(selBg.ToBackgroundAnsi());
+                        break;
+                    case CellColorType.MultiByte:
+                        sb.Append(fg.ToForegroundAnsi());
+                        sb.Append(multiByteBg.ToBackgroundAnsi());
                         break;
                     case CellColorType.Normal:
                         sb.Append(resetToGlobal);

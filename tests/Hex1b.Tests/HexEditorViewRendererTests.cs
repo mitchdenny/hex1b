@@ -685,4 +685,152 @@ public class HexEditorViewRendererTests
         var asciiStart = 10 + hexWidth + 2;
         return asciiStart + byteInRow;
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 14: Comprehensive hex byte navigation
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// For any arbitrary byte written at position 0, the cursor must advance
+    /// to byte 1 (not skip ahead due to UTF-8 re-encoding mismatch).
+    /// </summary>
+    [Theory]
+    [InlineData(0x00)]
+    [InlineData(0x41)]  // 'A' — valid ASCII
+    [InlineData(0x7F)]  // DEL — valid ASCII
+    [InlineData(0x80)]  // Continuation byte
+    [InlineData(0xAA)]  // Continuation byte (the original bug)
+    [InlineData(0xBF)]  // Continuation byte
+    [InlineData(0xC0)]  // Overlong
+    [InlineData(0xC2)]  // Start of 2-byte seq (truncated)
+    [InlineData(0xE0)]  // Start of 3-byte seq (truncated)
+    [InlineData(0xF0)]  // Start of 4-byte seq (truncated)
+    [InlineData(0xFE)]  // Invalid
+    [InlineData(0xFF)]  // Invalid
+    public void CommitByte_CursorAdvancesToNextByte(byte byteValue)
+    {
+        // Start with "ABCD" (4 ASCII bytes), write byteValue at byte 0
+        var doc = new Hex1bDocument("ABCD");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        char? nibble = null;
+
+        var hi = byteValue >> 4;
+        var lo = byteValue & 0x0F;
+        renderer.HandleCharInput("0123456789ABCDEF"[hi], state, ref nibble, 80);
+        renderer.HandleCharInput("0123456789ABCDEF"[lo], state, ref nibble, 80);
+
+        // The byte was written correctly
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(byteValue, bytes[0]);
+
+        // Cursor should be at the char that owns byte 1, which is 'B' (unchanged)
+        var map = new Utf8ByteMap(doc.GetBytes().Span);
+        var (expectedCharIdx, _) = map.ByteToChar(1);
+        Assert.Equal(expectedCharIdx, state.Cursor.Position.Value);
+    }
+
+    /// <summary>
+    /// After writing an invalid byte, every subsequent byte should be reachable
+    /// via sequential HitTest. Simulates clicking each hex cell in the first row.
+    /// </summary>
+    [Fact]
+    public void HitTest_AfterInvalidByteEdit_AllBytesReachable()
+    {
+        // Write 0xAA at byte 0 of "Hello" → bytes [AA 65 6C 6C 6F]
+        var doc = new Hex1bDocument("Hello");
+        doc.ApplyBytes(new ByteReplaceOperation(0, 1, [0xAA]));
+
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        var bytesPerRow = renderer.CalculateLayout(80);
+
+        var totalBytes = doc.ByteCount;
+        var reachedBytes = new HashSet<int>();
+
+        for (int byteIdx = 0; byteIdx < Math.Min(totalBytes, bytesPerRow); byteIdx++)
+        {
+            // Hex column for this byte
+            var hexCol = 10 + byteIdx * 3; // AddressWidth(8) + Sep(2) + byteIdx * 3
+            var result = renderer.HitTest(hexCol, 0, state, 80, 10, 1, 0);
+
+            Assert.NotNull(result);
+            // Map the char offset back to a byte to verify it's the right one
+            var map = new Utf8ByteMap(doc.GetBytes().Span);
+            var charIdx = result.Value.Value;
+            if (charIdx < map.CharCount)
+            {
+                var byteStart = map.CharToByteStart(charIdx);
+                reachedBytes.Add(byteStart);
+            }
+        }
+
+        // Every byte in the row should be reachable (either directly or as part of a multi-byte char)
+        for (int b = 0; b < totalBytes; b++)
+        {
+            var map = new Utf8ByteMap(doc.GetBytes().Span);
+            var (ownerChar, _) = map.ByteToChar(b);
+            var ownerByteStart = map.CharToByteStart(ownerChar);
+            Assert.Contains(ownerByteStart, reachedBytes);
+        }
+    }
+
+    /// <summary>
+    /// After writing multiple invalid bytes, cursor navigation via CommitByte
+    /// visits each byte sequentially without skipping.
+    /// </summary>
+    [Fact]
+    public void CommitByte_SequentialEdits_CursorVisitsEveryByte()
+    {
+        // Start with 4-byte ASCII doc, replace each byte with an invalid byte
+        var doc = new Hex1bDocument("ABCD");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+
+        byte[] targetBytes = [0xAA, 0xBB, 0xCC, 0xDD];
+
+        for (int i = 0; i < 4; i++)
+        {
+            char? nibble = null;
+            var hi = targetBytes[i] >> 4;
+            var lo = targetBytes[i] & 0x0F;
+
+            // Verify cursor is at the char owning byte i before edit
+            var mapBefore = new Utf8ByteMap(doc.GetBytes().Span);
+            var (expectedChar, _) = mapBefore.ByteToChar(i);
+            Assert.Equal(expectedChar, state.Cursor.Position.Value);
+
+            renderer.HandleCharInput("0123456789ABCDEF"[hi], state, ref nibble, 80);
+            renderer.HandleCharInput("0123456789ABCDEF"[lo], state, ref nibble, 80);
+        }
+
+        // All 4 bytes should be exactly what we typed
+        Assert.Equal(targetBytes, doc.GetBytes().ToArray());
+    }
+
+    /// <summary>
+    /// Multi-byte character followed by invalid byte: cursor must not skip the invalid byte.
+    /// </summary>
+    [Fact]
+    public void CommitByte_AfterMultibyteChar_CursorPositionCorrect()
+    {
+        // "©X" = bytes [C2 A9 58]. Replace byte 2 (X) with 0xBB
+        var doc = new Hex1bDocument("©X");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+
+        // Move cursor to char 1 (which is 'X', byte 2)
+        state.MoveCursor(CursorDirection.Right);
+        Assert.Equal(1, state.Cursor.Position.Value);
+
+        char? nibble = null;
+        renderer.HandleCharInput('B', state, ref nibble, 80);
+        renderer.HandleCharInput('B', state, ref nibble, 80);
+
+        var bytes = doc.GetBytes().ToArray();
+        Assert.Equal(3, bytes.Length);
+        Assert.Equal(0xC2, bytes[0]); // © first byte unchanged
+        Assert.Equal(0xA9, bytes[1]); // © second byte unchanged
+        Assert.Equal(0xBB, bytes[2]); // replaced
+    }
 }
