@@ -66,16 +66,22 @@ public class EditorState
             if (cursor.HasSelection)
             {
                 var range = cursor.SelectionRange;
+                // Clamp range to document bounds (can be stale after rapid concurrent edits)
+                var clampedEnd = Math.Min(range.End.Value, Document.Length);
+                var clampedStart = Math.Min(range.Start.Value, clampedEnd);
+                range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+
                 var result = Document.Apply(new ReplaceOperation(range, text));
                 CollectOps(result, ops);
-                cursor.Position = range.Start + text.Length;
+                cursor.Position = new DocumentOffset(Math.Min(range.Start.Value + text.Length, Document.Length));
                 cursor.ClearSelection();
             }
             else
             {
-                var result = Document.Apply(new InsertOperation(cursor.Position, text));
+                var pos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                var result = Document.Apply(new InsertOperation(pos, text));
                 CollectOps(result, ops);
-                cursor.Position = cursor.Position + text.Length;
+                cursor.Position = new DocumentOffset(Math.Min(pos.Value + text.Length, Document.Length));
             }
 
             AdjustProcessedCursors(idx, Document.Length - docLenBefore);
@@ -104,8 +110,9 @@ public class EditorState
             }
             else if (cursor.Position.Value > 0)
             {
-                var deleteStart = new DocumentOffset(cursor.Position.Value - 1);
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, cursor.Position)));
+                var pos = Math.Min(cursor.Position.Value, Document.Length);
+                var deleteStart = new DocumentOffset(pos - 1);
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, new DocumentOffset(pos))));
                 CollectOps(result, ops);
                 cursor.Position = deleteStart;
             }
@@ -140,8 +147,9 @@ public class EditorState
             }
             else if (cursor.Position.Value < Document.Length)
             {
-                var deleteEnd = new DocumentOffset(cursor.Position.Value + 1);
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(cursor.Position, deleteEnd)));
+                var pos = Math.Min(cursor.Position.Value, Document.Length);
+                var deleteEnd = new DocumentOffset(Math.Min(pos + 1, Document.Length));
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(new DocumentOffset(pos), deleteEnd)));
                 CollectOps(result, ops);
             }
             else
@@ -296,11 +304,11 @@ public class EditorState
                 switch (direction)
                 {
                     case CursorDirection.Left:
-                        cursor.Position = cursor.SelectionStart;
+                        cursor.Position = new DocumentOffset(Math.Min(cursor.SelectionStart.Value, Document.Length));
                         cursor.ClearSelection();
                         continue;
                     case CursorDirection.Right:
-                        cursor.Position = cursor.SelectionEnd;
+                        cursor.Position = new DocumentOffset(Math.Min(cursor.SelectionEnd.Value, Document.Length));
                         cursor.ClearSelection();
                         continue;
                 }
@@ -670,6 +678,18 @@ public class EditorState
     {
         if (!cursor.HasSelection) return;
         var range = cursor.SelectionRange;
+        // Clamp range to document bounds (can be stale after rapid concurrent edits)
+        var clampedEnd = Math.Min(range.End.Value, Document.Length);
+        var clampedStart = Math.Min(range.Start.Value, clampedEnd);
+        range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+
+        if (range.IsEmpty)
+        {
+            cursor.Position = range.Start;
+            cursor.ClearSelection();
+            return;
+        }
+
         var result = Document.Apply(new DeleteOperation(range));
         CollectOps(result, ops);
         cursor.Position = range.Start;

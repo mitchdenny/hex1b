@@ -37,6 +37,37 @@ internal sealed class PieceTree
     public int TotalBytes { get; private set; }
 
     /// <summary>
+    /// Validates internal consistency of the piece tree. Throws if corrupt.
+    /// </summary>
+    internal void VerifyIntegrity()
+    {
+        var (actualCount, actualBytes) = VerifyNode(Root, null);
+        if (actualCount != Count)
+            throw new InvalidOperationException($"Count mismatch: tracked={Count}, actual={actualCount}");
+        if (actualBytes != TotalBytes)
+            throw new InvalidOperationException($"TotalBytes mismatch: tracked={TotalBytes}, actual={actualBytes}");
+    }
+
+    private static (int nodeCount, int totalBytes) VerifyNode(Node? node, Node? expectedParent)
+    {
+        if (node == null) return (0, 0);
+        if (node.Parent != expectedParent)
+            throw new InvalidOperationException($"Parent pointer mismatch for node (src={node.Source}, start={node.Start}, len={node.Length})");
+        if (node.Length < 0)
+            throw new InvalidOperationException($"Negative length: {node.Length}");
+
+        var (leftCount, leftBytes) = VerifyNode(node.Left, node);
+        var (rightCount, rightBytes) = VerifyNode(node.Right, node);
+
+        if (node.LeftSubtreeSize != leftBytes)
+            throw new InvalidOperationException(
+                $"LeftSubtreeSize mismatch: cached={node.LeftSubtreeSize}, actual={leftBytes} " +
+                $"(node: src={node.Source}, start={node.Start}, len={node.Length})");
+
+        return (leftCount + 1 + rightCount, leftBytes + node.Length + rightBytes);
+    }
+
+    /// <summary>
     /// Finds the node containing the given byte offset and returns the offset within that node.
     /// Returns (null, 0) if the tree is empty or offset equals TotalBytes (append position).
     /// </summary>
@@ -150,89 +181,71 @@ internal sealed class PieceTree
 
         var end = byteOffset + deleteLength;
 
-        // Find start node
+        // Special case: delete within a single node (split)
         var (startNode, startOffset) = FindAt(byteOffset);
         if (startNode == null) return;
 
-        // Collect nodes to process
-        var nodesToRemove = new List<Node>();
-        Node? firstPartialStart = null;
-        int firstPartialNewLength = 0;
-        Node? lastPartialEnd = null;
-        int lastPartialNewStart = 0;
-        int lastPartialNewLength = 0;
+        var startNodeByteOffset = byteOffset - startOffset;
+        var startNodeEnd = startNodeByteOffset + startNode.Length;
 
-        // Walk in-order from startNode
-        var node = startNode;
-        var currentByteOffset = byteOffset - startOffset; // byte offset of start of startNode
-
-        while (node != null && currentByteOffset < end)
+        if (startNodeByteOffset < byteOffset && startNodeEnd > end)
         {
-            var nodeEnd = currentByteOffset + node.Length;
+            // Delete range is entirely within this node — split into left + right
+            var leftLen = byteOffset - startNodeByteOffset;
+            var rightStart = startNode.Start + (end - startNodeByteOffset);
+            var rightLen = startNodeEnd - end;
 
-            if (currentByteOffset >= byteOffset && nodeEnd <= end)
-            {
-                // Entire node is within delete range
-                nodesToRemove.Add(node);
-            }
-            else if (currentByteOffset < byteOffset && nodeEnd > end)
-            {
-                // Delete range is entirely within this node — split into left + right
-                var leftLen = byteOffset - currentByteOffset;
-                var rightStart = node.Start + (end - currentByteOffset);
-                var rightLen = nodeEnd - end;
+            var shrinkage = startNode.Length - leftLen;
+            startNode.Length = leftLen;
+            TotalBytes -= shrinkage;
+            UpdateSubtreeSizesUp(startNode.Parent);
 
-                // Shrink node to left portion, subtract the middle (deleted) + right
-                var shrinkage = node.Length - leftLen;
-                node.Length = leftLen;
-                TotalBytes -= shrinkage;
-                UpdateSubtreeSizesUp(node.Parent);
-
-                // Re-add the right portion
-                InsertAfter(node, node.Source, rightStart, rightLen);
-                // TotalBytes is now correct: lost shrinkage, gained rightLen
-                // shrinkage = deleteLength + rightLen, so net = -deleteLength ✓
-                return; // skip the final TotalBytes -= deleteLength
-            }
-            else if (currentByteOffset < byteOffset)
-            {
-                // Partial start — trim right side
-                firstPartialStart = node;
-                firstPartialNewLength = byteOffset - currentByteOffset;
-            }
-            else if (nodeEnd > end)
-            {
-                // Partial end — trim left side
-                lastPartialEnd = node;
-                lastPartialNewStart = node.Start + (end - currentByteOffset);
-                lastPartialNewLength = nodeEnd - end;
-            }
-
-            currentByteOffset = nodeEnd;
-            node = InOrderSuccessor(node);
+            InsertAfter(startNode, startNode.Source, rightStart, rightLen);
+            return;
         }
 
-        // Apply partial trims
-        if (firstPartialStart != null)
-        {
-            firstPartialStart.Length = firstPartialNewLength;
-            UpdateSubtreeSizes(firstPartialStart);
-        }
+        // General case: collect surviving pieces, rebuild tree.
+        // This avoids RemoveNode successor-substitution bugs when removing
+        // multiple adjacent nodes.
+        var surviving = new List<(BufferSource Source, int Start, int Length)>();
+        var current = 0;
 
-        if (lastPartialEnd != null)
+        InOrderTraversal((source, start, length) =>
         {
-            lastPartialEnd.Start = lastPartialNewStart;
-            lastPartialEnd.Length = lastPartialNewLength;
-            UpdateSubtreeSizes(lastPartialEnd);
-        }
+            var pieceEnd = current + length;
 
-        // Remove fully deleted nodes
-        foreach (var n in nodesToRemove)
+            if (pieceEnd <= byteOffset || current >= end)
+            {
+                // Entirely outside delete range — keep
+                surviving.Add((source, start, length));
+            }
+            else
+            {
+                if (current < byteOffset)
+                {
+                    // Left portion survives
+                    surviving.Add((source, start, byteOffset - current));
+                }
+                if (pieceEnd > end)
+                {
+                    // Right portion survives
+                    var rightOffset = end - current;
+                    surviving.Add((source, start + rightOffset, pieceEnd - end));
+                }
+            }
+
+            current = pieceEnd;
+        });
+
+        // Rebuild tree from surviving pieces
+        Root = null;
+        Count = 0;
+        TotalBytes = 0;
+
+        foreach (var (source, start, length) in surviving)
         {
-            RemoveNode(n);
+            Insert(TotalBytes, source, start, length);
         }
-
-        TotalBytes -= deleteLength;
     }
 
     /// <summary>
