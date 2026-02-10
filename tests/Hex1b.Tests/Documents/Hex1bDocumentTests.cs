@@ -391,4 +391,69 @@ public class Hex1bDocumentTests
         Assert.Equal(5, doc.Length);
         Assert.Equal(1, doc.LineCount);
     }
+
+    // ── Diagnostic info ─────────────────────────────────────────
+
+    [Fact]
+    public void GetDiagnosticInfo_NewDocument_ReturnsOnePiece()
+    {
+        var doc = new Hex1bDocument("Hello");
+        var info = doc.GetDiagnosticInfo();
+
+        Assert.NotNull(info);
+        Assert.Equal(0, info.Version);
+        Assert.Equal(5, info.CharCount);
+        Assert.Equal(5, info.ByteCount);
+        Assert.Equal(1, info.LineCount);
+        Assert.Equal(5, info.OriginalBufferSize);
+        Assert.Equal(0, info.AddBufferSize);
+        Assert.Single(info.Pieces);
+
+        var piece = info.Pieces[0];
+        Assert.Equal(0, piece.Index);
+        Assert.Equal("Original", piece.Source);
+        Assert.Equal(0, piece.Start);
+        Assert.Equal(5, piece.Length);
+        Assert.Equal("Hello", piece.PreviewText);
+    }
+
+    [Fact]
+    public void GetDiagnosticInfo_AfterEdit_ShowsMultiplePieces()
+    {
+        var doc = new Hex1bDocument("Hello World");
+        doc.Apply(new InsertOperation(new DocumentOffset(5), " Beautiful"));
+        var info = doc.GetDiagnosticInfo();
+
+        Assert.NotNull(info);
+        Assert.Equal(1, info.Version);
+        Assert.True(info.Pieces.Count > 1, "Should have multiple pieces after edit");
+        Assert.True(info.AddBufferSize > 0, "Add buffer should have content after insert");
+
+        // At least one piece should be from the Added buffer
+        Assert.Contains(info.Pieces, p => p.Source == "Added");
+    }
+
+    [Fact]
+    public void GetDiagnosticInfo_EmptyDocument_ReturnsNoPieces()
+    {
+        var doc = new Hex1bDocument();
+        var info = doc.GetDiagnosticInfo();
+
+        Assert.NotNull(info);
+        Assert.Equal(0, info.CharCount);
+        Assert.Equal(0, info.ByteCount);
+        Assert.Empty(info.Pieces);
+    }
+
+    [Fact]
+    public void GetDiagnosticInfo_MultiByte_ByteCountDiffersFromCharCount()
+    {
+        var doc = new Hex1bDocument("café");
+        var info = doc.GetDiagnosticInfo();
+
+        Assert.NotNull(info);
+        Assert.Equal(4, info.CharCount); // c, a, f, é
+        Assert.True(info.ByteCount > info.CharCount, "Multi-byte chars should increase byte count");
+        Assert.Equal(5, info.ByteCount); // é is 2 bytes in UTF-8
+    }
 }
