@@ -13,11 +13,14 @@ public sealed class Hex1bDocument : IHex1bDocument
     private readonly List<byte> _addBuffer = new();
     private readonly PieceTree _pieceTree = new();
 
-    // Cached derived state — rebuilt after every edit (or deferred during batch)
+    // Cached derived state — lazily rebuilt after edits, or fully rebuilt after batch
     private string _cachedText = "";
     private byte[] _cachedBytes = [];
     private Utf8ByteMap? _cachedByteMap;
-    private List<int> _lineStarts = new();
+    private List<int> _lineStartChars = new();  // char offsets of line starts
+    private List<int> _lineStartBytes = new();  // byte offsets of line starts (parallel)
+    private bool _textDirty;
+    private bool _bytesDirty;
     private long _version;
     private int _batchDepth;
     private int _batchLengthDelta; // Tracks character-length changes during batch
@@ -25,9 +28,22 @@ public sealed class Hex1bDocument : IHex1bDocument
     private List<EditOperation>? _batchApplied; // Accumulated ops during batch
     private List<EditOperation>? _batchInverse;
 
-    public int Length => Math.Max(0, _cachedText.Length + _batchLengthDelta);
+    public int Length
+    {
+        get
+        {
+            if (_batchDepth > 0)
+                return Math.Max(0, _cachedText.Length + _batchLengthDelta);
+            // Outside batch: line starts are authoritative for Length calculation
+            // Length = start of last line + length of last line content
+            // But we need the actual char count. Use piece tree byte count + decode if dirty.
+            if (_textDirty)
+                EnsureTextValid();
+            return _cachedText.Length;
+        }
+    }
     public int ByteCount => _pieceTree.TotalBytes;
-    public int LineCount => _lineStarts.Count;
+    public int LineCount => _lineStartChars.Count;
     public long Version => _version;
 
     public event EventHandler<DocumentChangedEventArgs>? Changed;
@@ -60,7 +76,11 @@ public sealed class Hex1bDocument : IHex1bDocument
         RebuildCaches();
     }
 
-    public string GetText() => _cachedText;
+    public string GetText()
+    {
+        EnsureTextValid();
+        return _cachedText;
+    }
 
     // ── Batch editing ───────────────────────────────────────────
 
@@ -78,6 +98,9 @@ public sealed class Hex1bDocument : IHex1bDocument
     {
         if (_batchDepth++ == 0)
         {
+            // Ensure caches are valid before batch starts — batch edits
+            // read from _cachedText for char→byte conversion and deleted text.
+            EnsureTextValid();
             _batchVersionStart = _version;
             _batchApplied = new List<EditOperation>();
             _batchInverse = new List<EditOperation>();
@@ -113,6 +136,7 @@ public sealed class Hex1bDocument : IHex1bDocument
     public string GetText(DocumentRange range)
     {
         if (range.IsEmpty) return string.Empty;
+        EnsureTextValid();
         if (range.End.Value > _cachedText.Length)
             throw new ArgumentOutOfRangeException(nameof(range));
 
@@ -121,6 +145,7 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     public ReadOnlyMemory<byte> GetBytes()
     {
+        EnsureBytesValid();
         return _cachedBytes;
     }
 
@@ -129,6 +154,7 @@ public sealed class Hex1bDocument : IHex1bDocument
         if (byteOffset < 0 || count < 0 || byteOffset + count > ByteCount)
             throw new ArgumentOutOfRangeException();
 
+        EnsureBytesValid();
         return _cachedBytes.AsMemory(byteOffset, count);
     }
 
@@ -138,26 +164,27 @@ public sealed class Hex1bDocument : IHex1bDocument
     /// </summary>
     public Utf8ByteMap GetByteMap()
     {
+        EnsureBytesValid();
         return _cachedByteMap ??= new Utf8ByteMap(_cachedBytes);
     }
 
     public string GetLineText(int line)
     {
         ValidateLine(line);
-        var startOffset = _lineStarts[line - 1];
-        int endOffset;
+        var byteStart = _lineStartBytes[line - 1];
+        int byteEnd;
 
         if (line < LineCount)
         {
-            endOffset = _lineStarts[line];
-            var text = _cachedText.Substring(startOffset, endOffset - startOffset);
+            byteEnd = _lineStartBytes[line];
+            var text = ReadTextFromPieces(byteStart, byteEnd - byteStart);
             if (text.EndsWith("\r\n")) return text[..^2];
             if (text.EndsWith('\n')) return text[..^1];
             return text;
         }
 
-        endOffset = Length;
-        return _cachedText.Substring(startOffset, endOffset - startOffset);
+        byteEnd = ByteCount;
+        return ReadTextFromPieces(byteStart, byteEnd - byteStart);
     }
 
     public int GetLineLength(int line)
@@ -171,24 +198,29 @@ public sealed class Hex1bDocument : IHex1bDocument
         if (offset.Value > Length)
             throw new ArgumentOutOfRangeException(nameof(offset));
 
-        var line = 1;
-        for (var i = _lineStarts.Count - 1; i >= 0; i--)
+        // Binary search: _lineStartChars is sorted ascending
+        var idx = _lineStartChars.BinarySearch(offset.Value);
+        int line;
+        if (idx >= 0)
         {
-            if (_lineStarts[i] <= offset.Value)
-            {
-                line = i + 1;
-                break;
-            }
+            // Exact match — this offset is the start of a line
+            line = idx + 1;
+        }
+        else
+        {
+            // ~idx is the index of the first element greater than offset.Value
+            // so the line containing this offset is at index (~idx - 1)
+            line = ~idx; // ~idx - 1 + 1
         }
 
-        var column = offset.Value - _lineStarts[line - 1] + 1;
+        var column = offset.Value - _lineStartChars[line - 1] + 1;
         return new DocumentPosition(line, column);
     }
 
     public DocumentOffset PositionToOffset(DocumentPosition position)
     {
         ValidateLine(position.Line);
-        var lineStart = _lineStarts[position.Line - 1];
+        var lineStart = _lineStartChars[position.Line - 1];
         return new DocumentOffset(lineStart + position.Column - 1);
     }
 
@@ -215,7 +247,14 @@ public sealed class Hex1bDocument : IHex1bDocument
         _version++;
 
         if (_batchDepth == 0)
-            RebuildCaches();
+        {
+            // Piece tree was mutated — mark caches stale before rebuilding line starts
+            _bytesDirty = true;
+            _textDirty = true;
+            _cachedByteMap = null;
+            // Rebuild line starts from bytes (ensures _cachedBytes is rebuilt)
+            RebuildLineStartsFromPieces();
+        }
 
         var result = new EditResult(previousVersion, _version, applied, inverse);
 
@@ -240,6 +279,7 @@ public sealed class Hex1bDocument : IHex1bDocument
         var previousVersion = _version;
 
         // Convert to char-level inverse for undo compatibility
+        EnsureTextValid();
         var textBefore = _cachedText;
 
         switch (operation)
@@ -314,8 +354,6 @@ public sealed class Hex1bDocument : IHex1bDocument
 
             case DeleteOperation delete:
             {
-                // Clamp range to cached text bounds (stale during batch, but
-                // correct for positions below all prior reverse-order edits)
                 var clampedEnd = Math.Min(delete.Range.End.Value, textLength);
                 var clampedStart = Math.Min(delete.Range.Start.Value, clampedEnd);
                 var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
@@ -333,7 +371,6 @@ public sealed class Hex1bDocument : IHex1bDocument
 
             case ReplaceOperation replace:
             {
-                // Clamp range to cached text bounds
                 var clampedEnd = Math.Min(replace.Range.End.Value, textLength);
                 var clampedStart = Math.Min(replace.Range.Start.Value, clampedEnd);
                 var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
@@ -358,57 +395,119 @@ public sealed class Hex1bDocument : IHex1bDocument
     }
 
     /// <summary>
-    /// Converts a character offset in the current cached text to a byte offset.
+    /// Converts a character offset to a byte offset.
+    /// Uses line starts for O(log L + line_length) instead of O(n).
+    /// During batch mode, falls back to cached text scan.
     /// </summary>
     private int CharOffsetToByteOffset(int charOffset)
     {
         if (charOffset <= 0) return 0;
-        if (charOffset >= _cachedText.Length) return ByteCount;
-        return Encoding.UTF8.GetByteCount(_cachedText.AsSpan(0, charOffset));
+
+        // During batch, _lineStartChars is stale — fall back to cached text
+        if (_batchDepth > 0)
+        {
+            if (charOffset >= _cachedText.Length) return ByteCount;
+            return Encoding.UTF8.GetByteCount(_cachedText.AsSpan(0, charOffset));
+        }
+
+        // Quick check: if text isn't dirty and offset is at/past end, return ByteCount
+        if (!_textDirty && charOffset >= _cachedText.Length) return ByteCount;
+
+        // Binary search to find which line contains this char offset
+        var lineIdx = _lineStartChars.BinarySearch(charOffset);
+        int lineIndex;
+        if (lineIdx >= 0)
+        {
+            // Exact match on a line start
+            return _lineStartBytes[lineIdx];
+        }
+        else
+        {
+            // ~lineIdx is the first line start AFTER charOffset
+            lineIndex = ~lineIdx - 1;
+        }
+
+        if (lineIndex < 0) lineIndex = 0;
+
+        var lineCharStart = _lineStartChars[lineIndex];
+        var lineByteStart = _lineStartBytes[lineIndex];
+        var charsIntoLine = charOffset - lineCharStart;
+
+        if (charsIntoLine == 0)
+            return lineByteStart;
+
+        // Read the line's bytes from pieces and count UTF-8 chars up to the offset
+        int lineByteEnd;
+        if (lineIndex + 1 < _lineStartBytes.Count)
+            lineByteEnd = _lineStartBytes[lineIndex + 1];
+        else
+            lineByteEnd = ByteCount;
+
+        var lineByteLength = lineByteEnd - lineByteStart;
+        if (lineByteLength <= 0) return lineByteStart;
+
+        var lineBytes = new byte[lineByteLength];
+        CopyBytesTo(lineBytes, lineByteStart, lineByteLength);
+
+        // Walk UTF-8 byte sequences counting chars until we reach the target
+        var bytePos = 0;
+        var charCount = 0;
+        while (bytePos < lineByteLength && charCount < charsIntoLine)
+        {
+            var b = lineBytes[bytePos];
+            int seqLen;
+            if (b < 0x80) seqLen = 1;
+            else if (b < 0xC0) seqLen = 1; // continuation byte (invalid lead) → replacement char
+            else if (b < 0xE0) seqLen = 2;
+            else if (b < 0xF0) seqLen = 3;
+            else seqLen = 4;
+
+            // Validate continuation bytes exist
+            if (bytePos + seqLen > lineByteLength)
+                seqLen = 1; // truncated sequence → one replacement char
+
+            bytePos += seqLen;
+            charCount++;
+        }
+
+        return lineByteStart + bytePos;
     }
 
     // ── Piece tree helpers ────────────────────────────────────────
 
     /// <summary>
     /// Copies bytes from the piece tree into the destination array.
+    /// Uses PieceTree.ReadRange for O(log n) start.
     /// </summary>
     private void CopyBytesTo(byte[] dest, int byteOffset, int count)
     {
-        var remaining = count;
         var destPos = 0;
-        var current = 0;
-
-        _pieceTree.InOrderTraversal((source, start, length) =>
+        _pieceTree.ReadRange(byteOffset, count, (source, start, length) =>
         {
-            if (remaining <= 0) return;
-
-            var pieceEnd = current + length;
-            if (pieceEnd <= byteOffset)
-            {
-                current = pieceEnd;
-                return;
-            }
-
-            var startInPiece = Math.Max(0, byteOffset - current);
-            var endInPiece = Math.Min(length, byteOffset + count - current);
-            var copyCount = endInPiece - startInPiece;
-
             if (source == PieceTree.BufferSource.Original)
             {
-                _originalBuffer.Span.Slice(start + startInPiece, copyCount).CopyTo(dest.AsSpan(destPos));
+                _originalBuffer.Span.Slice(start, length).CopyTo(dest.AsSpan(destPos));
             }
             else
             {
-                for (var i = 0; i < copyCount; i++)
-                {
-                    dest[destPos + i] = _addBuffer[start + startInPiece + i];
-                }
+                for (var i = 0; i < length; i++)
+                    dest[destPos + i] = _addBuffer[start + i];
             }
 
-            destPos += copyCount;
-            remaining -= copyCount;
-            current = pieceEnd;
+            destPos += length;
         });
+    }
+
+    /// <summary>
+    /// Reads bytes from the piece tree for a byte range and decodes as UTF-8.
+    /// O(log n + byteCount) — avoids materializing the full document.
+    /// </summary>
+    private string ReadTextFromPieces(int byteOffset, int byteCount)
+    {
+        if (byteCount <= 0) return string.Empty;
+        var buffer = new byte[byteCount];
+        CopyBytesTo(buffer, byteOffset, byteCount);
+        return Encoding.UTF8.GetString(buffer);
     }
 
     /// <summary>
@@ -421,25 +520,97 @@ public sealed class Hex1bDocument : IHex1bDocument
         return result;
     }
 
+    // ── Line starts management ───────────────────────────────────
+
+    /// <summary>
+    /// Rebuilds line starts by scanning bytes from the piece tree directly.
+    /// Avoids materializing _cachedText. O(n) single-pass scan.
+    /// Uses Encoding.UTF8.GetCharCount on each line segment for accuracy with
+    /// malformed UTF-8 (matches .NET's decoder behavior for replacement chars).
+    /// </summary>
+    private void RebuildLineStartsFromPieces()
+    {
+        EnsureBytesValid();
+
+        _lineStartChars = [0];
+        _lineStartBytes = [0];
+
+        var lastByteOffset = 0;
+        var charPos = 0;
+        for (var i = 0; i < _cachedBytes.Length; i++)
+        {
+            if (_cachedBytes[i] == (byte)'\n')
+            {
+                // Count chars in [lastByteOffset, i+1) using actual UTF-8 decoder
+                charPos += Encoding.UTF8.GetCharCount(_cachedBytes, lastByteOffset, i + 1 - lastByteOffset);
+                lastByteOffset = i + 1;
+                _lineStartBytes.Add(i + 1);
+                _lineStartChars.Add(charPos);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Invalidates cached text and bytes so they are lazily rebuilt on next access.
+    /// Line starts remain valid (rebuilt from pieces).
+    /// </summary>
+    /// <summary>Ensures <c>_cachedBytes</c> is up-to-date with the piece tree.</summary>
+    private void EnsureBytesValid()
+    {
+        if (!_bytesDirty) return;
+        _cachedBytes = AssembleBytes();
+        _bytesDirty = false;
+    }
+
+    /// <summary>Ensures <c>_cachedText</c> is up-to-date with the piece tree.</summary>
+    private void EnsureTextValid()
+    {
+        if (!_textDirty) return;
+        // Build text directly from pieces — avoids double O(n) via bytes
+        if (_bytesDirty)
+        {
+            _cachedBytes = AssembleBytes();
+            _bytesDirty = false;
+            _cachedText = Encoding.UTF8.GetString(_cachedBytes);
+        }
+        else
+        {
+            _cachedText = Encoding.UTF8.GetString(_cachedBytes);
+        }
+        _textDirty = false;
+    }
+
     /// <summary>
     /// Rebuilds all cached derived state from bytes: text, line starts.
+    /// Used after batch edits and byte-level edits.
     /// </summary>
     private void RebuildCaches()
     {
         _cachedBytes = AssembleBytes();
+        _bytesDirty = false;
         _cachedText = Encoding.UTF8.GetString(_cachedBytes);
-        _cachedByteMap = null; // Invalidate — rebuilt lazily on demand
+        _textDirty = false;
+        _cachedByteMap = null;
         RebuildLineStarts();
     }
 
     private void RebuildLineStarts()
     {
-        _lineStarts = [0];
+        _lineStartChars = [0];
+        _lineStartBytes = [0];
+        for (var i = 0; i < _cachedBytes.Length; i++)
+        {
+            if (_cachedBytes[i] == (byte)'\n')
+            {
+                _lineStartBytes.Add(i + 1);
+            }
+        }
+
         for (var i = 0; i < _cachedText.Length; i++)
         {
             if (_cachedText[i] == '\n')
             {
-                _lineStarts.Add(i + 1);
+                _lineStartChars.Add(i + 1);
             }
         }
     }

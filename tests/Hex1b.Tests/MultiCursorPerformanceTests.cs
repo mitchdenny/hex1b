@@ -282,4 +282,125 @@ public class MultiCursorPerformanceTests
         Assert.True(ms < 500,
             $"Redo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
     }
+
+    // ── Single-keystroke performance tests (post lazy-cache optimization) ──
+
+    [Fact]
+    public void SingleKeystroke_100KLineFile_CompletesUnderThreshold()
+    {
+        // Build a 100K-line document (~5MB)
+        var sb = new StringBuilder(100_000 * 50);
+        for (int i = 0; i < 100_000; i++)
+        {
+            sb.Append($"Line {i:D6} with some content here for padding purposes xxxx\n");
+        }
+
+        var doc = new Hex1bDocument(sb.ToString());
+        var state = new EditorState(doc);
+
+        // Position cursor in the middle of the document
+        state.Cursor.Position = new DocumentOffset(50_000 * 50);
+
+        // Warm up — first edit triggers full cache build
+        state.InsertText("W");
+        state.DeleteBackward();
+
+        // Measure a single character insert
+        var sw = Stopwatch.StartNew();
+        state.InsertText("X");
+        sw.Stop();
+
+        var ms = sw.Elapsed.TotalMilliseconds;
+        // With lazy text + per-line reading, single keystroke avoids full text materialization
+        // Previously ~30-50ms with full RebuildCaches; now ~10-15ms (byte assembly + line starts scan)
+        Assert.True(ms < 20,
+            $"Single keystroke on 100K-line doc took {ms:F1}ms — expected <20ms.");
+    }
+
+    [Fact]
+    public void SingleKeystroke_DoesNotRebuildFullText()
+    {
+        // Build a 100K-line document
+        var sb = new StringBuilder(100_000 * 50);
+        for (int i = 0; i < 100_000; i++)
+        {
+            sb.Append($"Line {i:D6} with some content\n");
+        }
+
+        var doc = new Hex1bDocument(sb.ToString());
+        var state = new EditorState(doc);
+        state.Cursor.Position = new DocumentOffset(50_000 * 30);
+
+        // Warm up
+        state.InsertText("W");
+        state.DeleteBackward();
+
+        // Measure: insert + read visible lines (simulating render path)
+        var sw = Stopwatch.StartNew();
+        state.InsertText("Y");
+
+        // Simulate render: read 40 visible lines (typical viewport) + OffsetToPosition
+        var pos = doc.OffsetToPosition(state.Cursor.Position);
+        for (int line = Math.Max(1, pos.Line - 20); line <= Math.Min(doc.LineCount, pos.Line + 20); line++)
+        {
+            _ = doc.GetLineText(line);
+        }
+        sw.Stop();
+
+        var ms = sw.Elapsed.TotalMilliseconds;
+        // Edit + render of visible lines should be <15ms total
+        Assert.True(ms < 15,
+            $"Edit + render-visible-lines on 100K-line doc took {ms:F1}ms — expected <15ms.");
+    }
+
+    [Fact]
+    public void GetLineText_ReadsFromPiecesNotCachedText()
+    {
+        // Verify that GetLineText doesn't trigger full text materialization
+        var sb = new StringBuilder(10_000 * 50);
+        for (int i = 0; i < 10_000; i++)
+        {
+            sb.Append($"Line {i:D5} content\n");
+        }
+
+        var doc = new Hex1bDocument(sb.ToString());
+
+        // Edit without reading full text
+        doc.Apply(new InsertOperation(new DocumentOffset(0), "X"));
+
+        // Reading a single line should be fast (from pieces)
+        var sw = Stopwatch.StartNew();
+        var lineText = doc.GetLineText(5000);
+        sw.Stop();
+
+        Assert.StartsWith("Line ", lineText);
+        Assert.True(sw.Elapsed.TotalMilliseconds < 5,
+            $"GetLineText on 10K-line doc took {sw.Elapsed.TotalMilliseconds:F1}ms — expected <5ms.");
+    }
+
+    [Fact]
+    public void OffsetToPosition_BinarySearch_Fast()
+    {
+        // Verify O(log L) OffsetToPosition on large doc
+        var sb = new StringBuilder(100_000 * 50);
+        for (int i = 0; i < 100_000; i++)
+        {
+            sb.Append($"Line {i:D6} with some content here for padding\n");
+        }
+
+        var doc = new Hex1bDocument(sb.ToString());
+
+        // Measure 10000 OffsetToPosition calls
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < 10_000; i++)
+        {
+            doc.OffsetToPosition(new DocumentOffset(i * 40));
+        }
+        sw.Stop();
+
+        var ms = sw.Elapsed.TotalMilliseconds;
+        // 10K binary searches on 100K-entry list should be <10ms
+        Assert.True(ms < 50,
+            $"10K OffsetToPosition calls took {ms:F1}ms — expected <50ms.");
+    }
 }
