@@ -111,6 +111,7 @@ public class EditorState
             else if (cursor.Position.Value > 0)
             {
                 var pos = Math.Min(cursor.Position.Value, Document.Length);
+                if (pos <= 0) continue;
                 var deleteStart = new DocumentOffset(pos - 1);
                 var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, new DocumentOffset(pos))));
                 CollectOps(result, ops);
@@ -148,6 +149,7 @@ public class EditorState
             else if (cursor.Position.Value < Document.Length)
             {
                 var pos = Math.Min(cursor.Position.Value, Document.Length);
+                if (pos >= Document.Length) continue;
                 var deleteEnd = new DocumentOffset(Math.Min(pos + 1, Document.Length));
                 var result = Document.Apply(new DeleteOperation(new DocumentRange(new DocumentOffset(pos), deleteEnd)));
                 CollectOps(result, ops);
@@ -183,13 +185,17 @@ public class EditorState
             }
             else if (cursor.Position.Value > 0)
             {
+                if (Document.Length == 0) continue;
                 var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
-                var colInLine = cursor.Position.Value - lineStartOffset;
+                var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                if (colInLine < 0) colInLine = 0;
                 var wordBoundary = GraphemeHelper.GetPreviousWordBoundary(lineText, colInLine);
                 var deleteStart = new DocumentOffset(lineStartOffset + wordBoundary);
 
                 if (deleteStart == cursor.Position) continue;
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, cursor.Position)));
+                var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                if (deleteStart >= clampedCursorPos) continue;
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, clampedCursorPos)));
                 CollectOps(result, ops);
                 cursor.Position = deleteStart;
             }
@@ -224,13 +230,16 @@ public class EditorState
             }
             else if (cursor.Position.Value < Document.Length)
             {
+                if (Document.Length == 0) continue;
                 var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
-                var colInLine = cursor.Position.Value - lineStartOffset;
+                var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                if (colInLine < 0) colInLine = 0;
                 var wordBoundary = GraphemeHelper.GetNextWordBoundary(lineText, colInLine);
-                var deleteEnd = new DocumentOffset(lineStartOffset + wordBoundary);
+                var deleteEnd = new DocumentOffset(Math.Min(lineStartOffset + wordBoundary, Document.Length));
 
-                if (deleteEnd == cursor.Position) continue;
-                var result = Document.Apply(new DeleteOperation(new DocumentRange(cursor.Position, deleteEnd)));
+                var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                if (deleteEnd <= clampedCursorPos) continue;
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(clampedCursorPos, deleteEnd)));
                 CollectOps(result, ops);
             }
             else
@@ -259,6 +268,8 @@ public class EditorState
             var docLenBefore = Document.Length;
 
             cursor.ClearSelection();
+            cursor.Clamp(Document.Length);
+            if (Document.Length == 0) continue;
             var pos = Document.OffsetToPosition(cursor.Position);
             var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
 
@@ -716,6 +727,11 @@ public class EditorState
     {
         if (ops.Count == 0) return;
 
+        // Clamp all cursor positions and anchors to current document bounds.
+        // Anchors can become stale when edits shrink the document and the
+        // cursor had anchor==position (invisible selection, not cleared by edit paths).
+        Cursors.ClampAll(Document.Length);
+
         var versionAfter = Document.Version;
 
         if (coalescable && ops.Count == 1)
@@ -757,7 +773,8 @@ public class EditorState
 
     private string GetLineTextForCursor(DocumentCursor cursor, out int lineStartOffset)
     {
-        var pos = Document.OffsetToPosition(cursor.Position);
+        var clampedPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+        var pos = Document.OffsetToPosition(clampedPos);
         var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
         lineStartOffset = lineStart.Value;
         return Document.GetLineText(pos.Line);

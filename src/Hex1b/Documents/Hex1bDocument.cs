@@ -226,34 +226,46 @@ public sealed class Hex1bDocument : IHex1bDocument
         {
             case InsertOperation insert:
             {
-                var byteOffset = CharOffsetToByteOffset(insert.Offset.Value);
+                var clampedOffset = Math.Min(insert.Offset.Value, Length);
+                var byteOffset = CharOffsetToByteOffset(clampedOffset);
                 var textBytes = Encoding.UTF8.GetBytes(insert.Text);
                 InsertBytesInternal(byteOffset, textBytes);
                 var deleteInverse = new DeleteOperation(
-                    new DocumentRange(insert.Offset, insert.Offset + insert.Text.Length));
+                    new DocumentRange(new DocumentOffset(clampedOffset), new DocumentOffset(clampedOffset + insert.Text.Length)));
                 return (insert, deleteInverse);
             }
 
             case DeleteOperation delete:
             {
-                var deletedText = GetText(delete.Range);
-                var byteStart = CharOffsetToByteOffset(delete.Range.Start.Value);
-                var byteEnd = CharOffsetToByteOffset(delete.Range.End.Value);
+                // Clamp range to current document bounds (can be stale from undo after byte ops)
+                var clampedEnd = Math.Min(delete.Range.End.Value, Length);
+                var clampedStart = Math.Min(delete.Range.Start.Value, clampedEnd);
+                var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+                if (range.IsEmpty) return (delete, new InsertOperation(range.Start, ""));
+
+                var deletedText = GetText(range);
+                var byteStart = CharOffsetToByteOffset(range.Start.Value);
+                var byteEnd = CharOffsetToByteOffset(range.End.Value);
                 DeleteBytesInternal(byteStart, byteEnd - byteStart);
-                var insertInverse = new InsertOperation(delete.Range.Start, deletedText);
+                var insertInverse = new InsertOperation(range.Start, deletedText);
                 return (delete, insertInverse);
             }
 
             case ReplaceOperation replace:
             {
-                var replacedText = GetText(replace.Range);
-                var byteStart = CharOffsetToByteOffset(replace.Range.Start.Value);
-                var byteEnd = CharOffsetToByteOffset(replace.Range.End.Value);
-                DeleteBytesInternal(byteStart, byteEnd - byteStart);
+                // Clamp range to current document bounds
+                var clampedEnd = Math.Min(replace.Range.End.Value, Length);
+                var clampedStart = Math.Min(replace.Range.Start.Value, clampedEnd);
+                var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+
+                var replacedText = range.IsEmpty ? "" : GetText(range);
+                var byteStart = CharOffsetToByteOffset(range.Start.Value);
+                var byteEnd = CharOffsetToByteOffset(range.End.Value);
+                if (byteEnd > byteStart) DeleteBytesInternal(byteStart, byteEnd - byteStart);
                 var textBytes = Encoding.UTF8.GetBytes(replace.NewText);
                 InsertBytesInternal(byteStart, textBytes);
                 var replaceInverse = new ReplaceOperation(
-                    new DocumentRange(replace.Range.Start, replace.Range.Start + replace.NewText.Length),
+                    new DocumentRange(range.Start, range.Start + replace.NewText.Length),
                     replacedText);
                 return (replace, replaceInverse);
             }
