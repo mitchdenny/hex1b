@@ -45,10 +45,7 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
         node.SourceWidget = this;
         node.State = State;
 
-        if (Renderer != null)
-        {
-            node.ViewRenderer = Renderer;
-        }
+        node.ViewRenderer = Renderer ?? TextEditorViewRenderer.Instance;
 
         if (TextChangedHandler != null)
         {
