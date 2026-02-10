@@ -59,7 +59,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -90,7 +91,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, coalescable);
@@ -105,7 +106,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -133,7 +135,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -148,7 +150,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -175,7 +178,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -190,7 +193,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -225,7 +229,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -240,7 +244,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -273,7 +278,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -288,7 +293,8 @@ public class EditorState
         var versionBefore = Document.Version;
         var ops = new List<(EditOperation Op, EditOperation Inverse)>();
 
-        Document.BeginBatch();
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var (cursor, idx) in Cursors.InReverseOrder())
@@ -325,7 +331,7 @@ public class EditorState
                 AdjustProcessedCursors(idx, Document.Length - docLenBefore);
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         Cursors.MergeOverlapping();
         FinishEditBatch(ops, cursorsBefore, versionBefore, false);
@@ -677,7 +683,8 @@ public class EditorState
         if (group == null) return;
 
         // Apply inverse operations to revert the document
-        Document.BeginBatch();
+        var useBatch = group.InverseOperations.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var inverse in group.InverseOperations)
@@ -685,7 +692,7 @@ public class EditorState
                 Document.Apply(inverse, "undo");
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         // Restore cursor state from before the edit
         Cursors.Restore(group.CursorsBefore);
@@ -699,7 +706,8 @@ public class EditorState
         if (group == null) return;
 
         // Re-apply the original operations
-        Document.BeginBatch();
+        var useBatch = group.Operations.Count > 1;
+        if (useBatch) Document.BeginBatch();
         try
         {
             foreach (var op in group.Operations)
@@ -707,7 +715,7 @@ public class EditorState
                 Document.Apply(op, "redo");
             }
         }
-        finally { Document.EndBatch(); }
+        finally { if (useBatch) Document.EndBatch(); }
 
         // Restore cursor state from after the edit
         if (group.CursorsAfter != null)
