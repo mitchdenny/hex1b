@@ -132,50 +132,44 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
     private void CommitByte(EditorState state, byte byteValue, int viewportColumns)
     {
-        var docText = state.Document.GetText();
-        var docBytes = System.Text.Encoding.UTF8.GetBytes(docText);
-        var map = new Utf8ByteMap(docText);
+        var doc = state.Document;
+        var docText = doc.GetText();
+        var totalBytes = doc.ByteCount;
 
-        // The cursor's character position maps to a byte offset
+        // Map cursor's character position to byte offset
         var cursorCharPos = state.Cursor.Position.Value;
-        var cursorByteOffset = cursorCharPos < map.CharCount
-            ? map.CharToByteStart(cursorCharPos)
-            : map.TotalBytes;
+        var cursorByteOffset = cursorCharPos >= docText.Length
+            ? totalBytes
+            : System.Text.Encoding.UTF8.GetByteCount(docText.AsSpan(0, cursorCharPos));
 
-        if (cursorByteOffset >= docBytes.Length)
+        if (cursorByteOffset >= totalBytes)
         {
-            // Append at end
-            state.InsertText(((char)byteValue).ToString());
+            // Append at end — use byte API to insert the raw byte
+            doc.ApplyBytes(new ByteInsertOperation(totalBytes, [byteValue]));
+            // Advance cursor past the new byte
+            var newText = doc.GetText();
+            state.Cursor.Position = new DocumentOffset(newText.Length);
+            state.Cursor.ClearSelection();
             return;
         }
 
-        // Find which character owns this byte
-        var (charIndex, _) = map.ByteToChar(cursorByteOffset);
-        var charByteStart = map.CharToByteStart(charIndex);
-        var charByteLen = map.CharByteLength(charIndex);
+        // Replace the single byte directly — no UTF-8 round-trip corruption
+        doc.ApplyBytes(new ByteReplaceOperation(cursorByteOffset, 1, [byteValue]));
 
-        // Replace the target byte within the character's UTF-8 sequence
-        var modifiedBytes = docBytes.AsSpan(charByteStart, charByteLen).ToArray();
-        modifiedBytes[cursorByteOffset - charByteStart] = byteValue;
-
-        // Decode the modified bytes (may produce U+FFFD for invalid UTF-8)
-        var newText = System.Text.Encoding.UTF8.GetString(modifiedBytes);
-
-        // Replace the character in the document
-        state.Cursor.SelectionAnchor = new DocumentOffset(charIndex);
-        state.Cursor.Position = new DocumentOffset(charIndex + 1);
-        state.InsertText(newText);
-
-        // Position cursor after the replaced byte (advance by 1 byte in the new text)
-        // The replaced char may now be multiple chars; advance to the byte after the edited one
-        var newMap = new Utf8ByteMap(state.Document.GetText());
+        // Position cursor after the replaced byte
+        var afterText = doc.GetText();
         var targetByteAfterEdit = cursorByteOffset + 1;
-        if (targetByteAfterEdit < newMap.TotalBytes)
+        if (targetByteAfterEdit < doc.ByteCount)
         {
-            var (nextCharIdx, _) = newMap.ByteToChar(targetByteAfterEdit);
+            var map = new Utf8ByteMap(afterText);
+            var (nextCharIdx, _) = map.ByteToChar(targetByteAfterEdit);
             state.Cursor.Position = new DocumentOffset(nextCharIdx);
-            state.Cursor.ClearSelection();
         }
+        else
+        {
+            state.Cursor.Position = new DocumentOffset(afterText.Length);
+        }
+        state.Cursor.ClearSelection();
     }
 
     private static int HexCharToNibble(char c) => c switch
@@ -200,7 +194,8 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
 
         var doc = state.Document;
         var docText = doc.GetText();
-        var docBytes = System.Text.Encoding.UTF8.GetBytes(docText);
+        var docBytesMemory = doc.GetBytes();
+        var docBytes = docBytesMemory.Span;
         var totalBytes = docBytes.Length;
 
         // Collect selection ranges for highlight
@@ -340,19 +335,19 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var bytesPerRow = CalculateLayout(viewportColumns);
         var doc = state.Document;
         var docText = doc.GetText();
-        var docBytes = System.Text.Encoding.UTF8.GetBytes(docText);
+        var totalBytes = doc.ByteCount;
         var row = (scrollOffset - 1) + localY;
         var rowByteStart = row * bytesPerRow;
 
-        if (rowByteStart >= docBytes.Length)
+        if (rowByteStart >= totalBytes)
             return new DocumentOffset(doc.Length);
 
         var byteIndex = GetByteIndexFromColumn(localX, bytesPerRow);
         if (byteIndex < 0) byteIndex = 0;
 
-        var targetByte = Math.Min(rowByteStart + byteIndex, docBytes.Length);
+        var targetByte = Math.Min(rowByteStart + byteIndex, totalBytes);
 
-        if (targetByte >= docBytes.Length)
+        if (targetByte >= totalBytes)
             return new DocumentOffset(doc.Length);
 
         // Use Utf8ByteMap for correct byte→char mapping (handles continuation bytes)
@@ -366,8 +361,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
     public int GetTotalLines(IHex1bDocument document, int viewportColumns)
     {
         var bytesPerRow = CalculateLayout(viewportColumns);
-        var docText = document.GetText();
-        var byteCount = System.Text.Encoding.UTF8.GetByteCount(docText);
+        var byteCount = document.ByteCount;
         return Math.Max(1, (byteCount + bytesPerRow - 1) / bytesPerRow);
     }
 

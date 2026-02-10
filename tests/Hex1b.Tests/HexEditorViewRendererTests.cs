@@ -470,6 +470,61 @@ public class HexEditorViewRendererTests
         Assert.Equal(1, state.Cursor.Position.Value); // Advanced past 'X'
     }
 
+    [Fact]
+    public void CommitByte_ArbitraryByte_PreservedExactly()
+    {
+        // Typing 0xAA in the hex editor must produce exactly byte 0xAA in the document.
+        // 0xAA is a UTF-8 continuation byte — previously this was corrupted to EF BF BD (U+FFFD).
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        renderer.HandleCharInput('A', state, ref nibble, 80);
+        renderer.HandleCharInput('A', state, ref nibble, 80);
+
+        var bytes = state.Document.GetBytes().ToArray();
+        Assert.Single(bytes);
+        Assert.Equal(0xAA, bytes[0]);
+    }
+
+    [Theory]
+    [InlineData(0x80)]  // Continuation byte
+    [InlineData(0xBF)]  // Continuation byte
+    [InlineData(0xC0)]  // Overlong
+    [InlineData(0xFE)]  // Invalid UTF-8
+    [InlineData(0xFF)]  // Invalid UTF-8
+    [InlineData(0x00)]  // Null byte
+    public void CommitByte_InvalidUtf8Byte_PreservedExactly(byte expected)
+    {
+        var (renderer, state) = SetupHexInput("X");
+        char? nibble = null;
+
+        var hi = expected >> 4;
+        var lo = expected & 0x0F;
+        renderer.HandleCharInput("0123456789ABCDEF"[hi], state, ref nibble, 80);
+        renderer.HandleCharInput("0123456789ABCDEF"[lo], state, ref nibble, 80);
+
+        var bytes = state.Document.GetBytes().ToArray();
+        Assert.Single(bytes);
+        Assert.Equal(expected, bytes[0]);
+    }
+
+    [Fact]
+    public void CommitByte_ByteAppendAtEnd_PreservedExactly()
+    {
+        // Append byte 0xAA at end of document
+        var doc = new Hex1bDocument("");
+        var state = new EditorState(doc);
+        var renderer = new HexEditorViewRenderer();
+        char? nibble = null;
+
+        renderer.HandleCharInput('A', state, ref nibble, 80);
+        renderer.HandleCharInput('A', state, ref nibble, 80);
+
+        var bytes = state.Document.GetBytes().ToArray();
+        Assert.Single(bytes);
+        Assert.Equal(0xAA, bytes[0]);
+    }
+
     // ═══════════════════════════════════════════════════════════
     // SECTION 11: HitTest with multi-byte characters
     // ═══════════════════════════════════════════════════════════
