@@ -246,8 +246,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             ],
                             diagPane =>
                             [
-                                // diagPane.Text(" DOCUMENT INTERNALS").ContentHeight(),
-                                // diagPane.DocumentDiagnosticPanel(activeDoc).FillHeight(),
+                                diagPane.Text(" DOCUMENT INTERNALS").ContentHeight(),
+                                diagPane.DocumentDiagnosticPanel(activeDoc).FillHeight(),
                             ]
                         , leftWidth: 80).FillWidth().FillHeight()
                     ];
