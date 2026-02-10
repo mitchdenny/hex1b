@@ -329,6 +329,8 @@ public sealed class BarChartNode<T> : Hex1bNode
     {
         if (y >= surface.Height) return;
 
+        // Pre-compute each segment's scaled bounds
+        var segments = new List<(double left, double right, Hex1bColor color)>();
         double cumulativeValue = scaler.Minimum;
         for (int si = 0; si < values.Count; si++)
         {
@@ -338,26 +340,44 @@ public sealed class BarChartNode<T> : Hex1bNode
             var leftScaled = scaler.Scale(cumulativeValue);
             cumulativeValue += segmentValue;
             var rightScaled = scaler.Scale(cumulativeValue);
+            segments.Add((leftScaled, rightScaled, colors[si % colors.Length]));
+        }
 
+        for (int segIdx = 0; segIdx < segments.Count; segIdx++)
+        {
+            var (leftScaled, rightScaled, color) = segments[segIdx];
             var leftCol = (int)leftScaled;
             var rightCol = (int)rightScaled;
-            var color = colors[si % colors.Length];
 
             for (int col = leftCol; col <= rightCol && col < maxWidth; col++)
             {
                 var x = startX + col;
                 if (x >= surface.Width) break;
 
-                var blockChar = "█";
-                // Fractional right edge
-                if (col == rightCol)
+                if (col == leftCol && col == rightCol)
                 {
-                    var frac = rightScaled - rightCol;
-                    if (frac > 0.05 && frac < 0.95)
-                        blockChar = FractionalBlocks.Horizontal(frac);
+                    // Segment fits within one cell
+                    var frac = rightScaled - leftScaled;
+                    if (frac < 0.05) continue;
+                    var leftFrac = leftScaled - leftCol;
+                    Hex1bColor? prevColor = segIdx > 0 ? segments[segIdx - 1].color : null;
+                    var blockChar = FractionalBlocks.Horizontal(Math.Min(1.0, leftFrac + frac));
+                    surface[x, y] = new SurfaceCell(blockChar, color, prevColor);
                 }
-
-                surface[x, y] = new SurfaceCell(blockChar, color, null);
+                else if (col == rightCol)
+                {
+                    // Right edge — fractional fill
+                    var rightFrac = rightScaled - rightCol;
+                    if (rightFrac < 0.05) continue;
+                    // At the boundary: fg = this segment, bg = next segment (if any)
+                    Hex1bColor? nextColor = segIdx < segments.Count - 1 ? segments[segIdx + 1].color : null;
+                    var blockChar = FractionalBlocks.Horizontal(rightFrac);
+                    surface[x, y] = new SurfaceCell(blockChar, color, nextColor);
+                }
+                else
+                {
+                    surface[x, y] = new SurfaceCell("█", color, null);
+                }
             }
         }
     }

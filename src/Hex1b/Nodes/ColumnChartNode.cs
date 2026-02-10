@@ -293,7 +293,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
             }
         }
 
-        // Draw fractional top cell
+        // Draw fractional top cell — foreground = column color, background = null (transparent)
         if (remainder > 0.05 && wholeCells < chartHeight)
         {
             var y = topOffset + chartHeight - 1 - wholeCells;
@@ -309,7 +309,8 @@ public sealed class ColumnChartNode<T> : Hex1bNode
         Surface surface, IReadOnlyList<double> values, ChartScaler scaler, Hex1bColor[] colors,
         int x, int columnWidth, int topOffset, int chartHeight)
     {
-        // Stack values: each segment starts where the previous one ended
+        // Pre-compute each segment's scaled bounds
+        var segments = new List<(double bottom, double top, Hex1bColor color)>();
         double cumulativeValue = scaler.Minimum;
         for (int si = 0; si < values.Count; si++)
         {
@@ -319,35 +320,97 @@ public sealed class ColumnChartNode<T> : Hex1bNode
             var bottomScaled = scaler.Scale(cumulativeValue);
             cumulativeValue += segmentValue;
             var topScaled = scaler.Scale(cumulativeValue);
+            segments.Add((bottomScaled, topScaled, colors[si % colors.Length]));
+        }
 
+        // Render each segment with fractional transitions
+        for (int segIdx = 0; segIdx < segments.Count; segIdx++)
+        {
+            var (bottomScaled, topScaled, color) = segments[segIdx];
             var bottomRow = (int)bottomScaled;
             var topRow = (int)topScaled;
-            var color = colors[si % colors.Length];
+
+            // The color of the segment below (for fractional boundary blending)
+            Hex1bColor? belowColor = segIdx > 0 ? segments[segIdx - 1].color : null;
 
             for (int row = bottomRow; row <= topRow && row < chartHeight; row++)
             {
                 var y = topOffset + chartHeight - 1 - row;
                 if (y < topOffset || y >= topOffset + chartHeight) continue;
 
-                var blockChar = "█";
-                // Fractional top edge
-                if (row == topRow)
+                if (row == bottomRow && row == topRow)
                 {
-                    var frac = topScaled - topRow;
-                    if (frac > 0.05 && frac < 0.95)
-                        blockChar = FractionalBlocks.Vertical(frac);
+                    // Segment fits entirely within one cell
+                    var frac = topScaled - bottomScaled;
+                    if (frac < 0.05) continue;
+                    var bottomFrac = bottomScaled - bottomRow;
+                    // Use vertical block for the fraction, with bg = below segment color
+                    var blockChar = FractionalBlocks.Vertical(Math.Min(1.0, bottomFrac + frac));
+                    if (bottomFrac > 0.05 && belowColor.HasValue)
+                    {
+                        // Transition cell: this segment's block on top of below segment's color
+                        var transBlock = FractionalBlocks.Vertical(bottomFrac + frac);
+                        for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                            surface[x + col, y] = new SurfaceCell(transBlock, color, belowColor.Value);
+                    }
+                    else
+                    {
+                        for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                            surface[x + col, y] = new SurfaceCell(blockChar, color, null);
+                    }
                 }
-                // Fractional bottom edge
-                if (row == bottomRow && si > 0)
+                else if (row == bottomRow)
                 {
-                    var frac = bottomScaled - bottomRow;
-                    if (frac > 0.05)
-                        continue; // Skip partial bottom cells, previous segment handles it
+                    // Bottom edge of this segment
+                    var bottomFrac = bottomScaled - bottomRow;
+                    if (bottomFrac > 0.05 && belowColor.HasValue)
+                    {
+                        // Transition cell: full block with below color as bg shows through fractional char
+                        // Vertical block fills from bottom — use full block, below segment owns this cell
+                        continue; // Let the segment below handle this shared cell
+                    }
+                    else
+                    {
+                        for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                            surface[x + col, y] = new SurfaceCell("█", color, null);
+                    }
                 }
+                else if (row == topRow)
+                {
+                    // Top edge — fractional fill
+                    var topFrac = topScaled - topRow;
+                    if (topFrac < 0.05) continue;
+                    var blockChar = FractionalBlocks.Vertical(topFrac);
+                    for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                        surface[x + col, y] = new SurfaceCell(blockChar, color, null);
+                }
+                else
+                {
+                    // Full interior cell
+                    for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                        surface[x + col, y] = new SurfaceCell("█", color, null);
+                }
+            }
 
-                for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+            // Handle the transition cell at the top of this segment for the segment above
+            // The segment above will see this segment's color via belowColor
+            // But we need to draw the fractional top of THIS segment with the ABOVE segment's bg
+            if (segIdx < segments.Count - 1)
+            {
+                var topFrac = topScaled - (int)topScaled;
+                if (topFrac > 0.05 && topFrac < 0.95)
                 {
-                    surface[x + col, y] = new SurfaceCell(blockChar, color, null);
+                    var aboveColor = segments[segIdx + 1].color;
+                    var row = (int)topScaled;
+                    var y = topOffset + chartHeight - 1 - row;
+                    if (y >= topOffset && y < topOffset + chartHeight)
+                    {
+                        // This cell: bottom portion = this segment, top portion = above segment (or empty)
+                        // Vertical block char fills from bottom: fg = this segment, bg = above segment
+                        var blockChar = FractionalBlocks.Vertical(topFrac);
+                        for (int col = 0; col < columnWidth && x + col < surface.Width; col++)
+                            surface[x + col, y] = new SurfaceCell(blockChar, color, aboveColor);
+                    }
                 }
             }
         }
