@@ -25,7 +25,7 @@ public sealed class Hex1bDocument : IHex1bDocument
     private List<EditOperation>? _batchApplied; // Accumulated ops during batch
     private List<EditOperation>? _batchInverse;
 
-    public int Length => _cachedText.Length + _batchLengthDelta;
+    public int Length => Math.Max(0, _cachedText.Length + _batchLengthDelta);
     public int ByteCount => _pieceTree.TotalBytes;
     public int LineCount => _lineStarts.Count;
     public long Version => _version;
@@ -293,11 +293,15 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     private (EditOperation Applied, EditOperation Inverse) ApplyOneCharOp(EditOperation operation)
     {
+        // During a batch, _cachedText is stale. All text reads and char→byte
+        // conversions use _cachedText, so clamp against its actual length.
+        var textLength = _cachedText.Length;
+
         switch (operation)
         {
             case InsertOperation insert:
             {
-                var clampedOffset = Math.Min(insert.Offset.Value, Length);
+                var clampedOffset = Math.Min(insert.Offset.Value, textLength);
                 var byteOffset = CharOffsetToByteOffset(clampedOffset);
                 var textBytes = Encoding.UTF8.GetBytes(insert.Text);
                 InsertBytesInternal(byteOffset, textBytes);
@@ -310,8 +314,9 @@ public sealed class Hex1bDocument : IHex1bDocument
 
             case DeleteOperation delete:
             {
-                // Clamp range to current document bounds (can be stale from undo after byte ops)
-                var clampedEnd = Math.Min(delete.Range.End.Value, Length);
+                // Clamp range to cached text bounds (stale during batch, but
+                // correct for positions below all prior reverse-order edits)
+                var clampedEnd = Math.Min(delete.Range.End.Value, textLength);
                 var clampedStart = Math.Min(delete.Range.Start.Value, clampedEnd);
                 var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
                 if (range.IsEmpty) return (delete, new InsertOperation(range.Start, ""));
@@ -328,8 +333,8 @@ public sealed class Hex1bDocument : IHex1bDocument
 
             case ReplaceOperation replace:
             {
-                // Clamp range to current document bounds
-                var clampedEnd = Math.Min(replace.Range.End.Value, Length);
+                // Clamp range to cached text bounds
+                var clampedEnd = Math.Min(replace.Range.End.Value, textLength);
                 var clampedStart = Math.Min(replace.Range.Start.Value, clampedEnd);
                 var range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
 

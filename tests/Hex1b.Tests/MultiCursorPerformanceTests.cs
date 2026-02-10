@@ -240,4 +240,46 @@ public class MultiCursorPerformanceTests
         Assert.True(singleRebuildMs < 500,
             $"Single Apply (including RebuildCaches) took {singleRebuildMs}ms");
     }
+
+    [Fact]
+    public void MultiCursorUndo_70Cursors_100KLines_Performance()
+    {
+        var (state, cursorCount) = SetupMultiCursorScenario(
+            lineCount: 100_000, cursorCount: 70, targetWord: "TARGET");
+
+        // Perform the edit first
+        state.InsertText("X");
+        Assert.Contains("X word", state.Document.GetText());
+
+        // Measure undo
+        var sw = Stopwatch.StartNew();
+        state.Undo();
+        sw.Stop();
+
+        var ms = sw.ElapsedMilliseconds;
+        Assert.True(ms < 500,
+            $"Undo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
+
+        // Verify undo restored the text
+        Assert.Contains("TARGET", state.Document.GetText());
+    }
+
+    [Fact]
+    public void MultiCursorRedo_70Cursors_100KLines_Performance()
+    {
+        var (state, cursorCount) = SetupMultiCursorScenario(
+            lineCount: 100_000, cursorCount: 70, targetWord: "TARGET");
+
+        state.InsertText("X");
+        state.Undo();
+
+        // Measure redo
+        var sw = Stopwatch.StartNew();
+        state.Redo();
+        sw.Stop();
+
+        var ms = sw.ElapsedMilliseconds;
+        Assert.True(ms < 500,
+            $"Redo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
+    }
 }
