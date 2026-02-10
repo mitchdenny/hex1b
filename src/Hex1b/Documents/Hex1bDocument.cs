@@ -15,6 +15,8 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     // Cached derived state — rebuilt after every edit
     private string _cachedText = "";
+    private byte[] _cachedBytes = [];
+    private Utf8ByteMap? _cachedByteMap;
     private List<int> _lineStarts = new();
     private long _version;
 
@@ -66,9 +68,7 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     public ReadOnlyMemory<byte> GetBytes()
     {
-        var result = new byte[ByteCount];
-        CopyBytesTo(result, 0, ByteCount);
-        return result;
+        return _cachedBytes;
     }
 
     public ReadOnlyMemory<byte> GetBytes(int byteOffset, int count)
@@ -76,9 +76,16 @@ public sealed class Hex1bDocument : IHex1bDocument
         if (byteOffset < 0 || count < 0 || byteOffset + count > ByteCount)
             throw new ArgumentOutOfRangeException();
 
-        var result = new byte[count];
-        CopyBytesTo(result, byteOffset, count);
-        return result;
+        return _cachedBytes.AsMemory(byteOffset, count);
+    }
+
+    /// <summary>
+    /// Returns a cached byte↔char mapping. The map is lazily rebuilt when the
+    /// document changes and reused across calls within the same document version.
+    /// </summary>
+    public Utf8ByteMap GetByteMap()
+    {
+        return _cachedByteMap ??= new Utf8ByteMap(_cachedBytes);
     }
 
     public string GetLineText(int line)
@@ -344,8 +351,9 @@ public sealed class Hex1bDocument : IHex1bDocument
     /// </summary>
     private void RebuildCaches()
     {
-        var bytes = AssembleBytes();
-        _cachedText = Encoding.UTF8.GetString(bytes);
+        _cachedBytes = AssembleBytes();
+        _cachedText = Encoding.UTF8.GetString(_cachedBytes);
+        _cachedByteMap = null; // Invalidate — rebuilt lazily on demand
         RebuildLineStarts();
     }
 

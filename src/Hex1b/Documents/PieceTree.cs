@@ -118,8 +118,17 @@ internal sealed class PieceTree
 
         if (byteOffset >= TotalBytes)
         {
-            // Append at end
+            // Append at end — try extending the rightmost node first
             var rightmost = GetRightmost(Root);
+            if (rightmost.Source == source && rightmost.Start + rightmost.Length == start)
+            {
+                // Consecutive in the same buffer — just extend
+                rightmost.Length += length;
+                TotalBytes += length;
+                UpdateSubtreeSizesUp(rightmost.Parent);
+                return;
+            }
+
             var newNode = new Node(source, start, length, NodeColor.Red)
             {
                 Parent = rightmost
@@ -181,16 +190,15 @@ internal sealed class PieceTree
 
         var end = byteOffset + deleteLength;
 
-        // Special case: delete within a single node (split)
         var (startNode, startOffset) = FindAt(byteOffset);
         if (startNode == null) return;
 
         var startNodeByteOffset = byteOffset - startOffset;
         var startNodeEnd = startNodeByteOffset + startNode.Length;
 
+        // Fast path 1: delete is entirely within one node — split into left + right
         if (startNodeByteOffset < byteOffset && startNodeEnd > end)
         {
-            // Delete range is entirely within this node — split into left + right
             var leftLen = byteOffset - startNodeByteOffset;
             var rightStart = startNode.Start + (end - startNodeByteOffset);
             var rightLen = startNodeEnd - end;
@@ -204,9 +212,37 @@ internal sealed class PieceTree
             return;
         }
 
+        // Fast path 2: trim start of a node (delete covers the beginning)
+        if (startNodeByteOffset == byteOffset && startNodeEnd > end)
+        {
+            var trimAmount = end - startNodeByteOffset;
+            startNode.Start += trimAmount;
+            startNode.Length -= trimAmount;
+            TotalBytes -= trimAmount;
+            UpdateSubtreeSizesUp(startNode.Parent);
+            return;
+        }
+
+        // Fast path 3: trim end of a node (delete covers the tail)
+        if (startNodeByteOffset < byteOffset && startNodeEnd == end)
+        {
+            var trimAmount = startNodeEnd - byteOffset;
+            startNode.Length -= trimAmount;
+            TotalBytes -= trimAmount;
+            UpdateSubtreeSizesUp(startNode.Parent);
+            return;
+        }
+
+        // Fast path 4: delete exactly one complete node — safe single RemoveNode
+        if (startNodeByteOffset == byteOffset && startNodeEnd == end)
+        {
+            RemoveNode(startNode);
+            TotalBytes -= deleteLength;
+            return;
+        }
+
         // General case: collect surviving pieces, rebuild tree.
-        // This avoids RemoveNode successor-substitution bugs when removing
-        // multiple adjacent nodes.
+        // Used for deletes spanning 3+ nodes (rare in practice).
         var surviving = new List<(BufferSource Source, int Start, int Length)>();
         var current = 0;
 
@@ -216,19 +252,14 @@ internal sealed class PieceTree
 
             if (pieceEnd <= byteOffset || current >= end)
             {
-                // Entirely outside delete range — keep
                 surviving.Add((source, start, length));
             }
             else
             {
                 if (current < byteOffset)
-                {
-                    // Left portion survives
                     surviving.Add((source, start, byteOffset - current));
-                }
                 if (pieceEnd > end)
                 {
-                    // Right portion survives
                     var rightOffset = end - current;
                     surviving.Add((source, start + rightOffset, pieceEnd - end));
                 }
@@ -237,7 +268,6 @@ internal sealed class PieceTree
             current = pieceEnd;
         });
 
-        // Rebuild tree from surviving pieces
         Root = null;
         Count = 0;
         TotalBytes = 0;
@@ -664,6 +694,52 @@ internal sealed class PieceTree
     {
         if (node == null) return 0;
         return node.LeftSubtreeSize + node.Length + SubtreeSize(node.Right);
+    }
+
+    private static Node? InOrderPredecessor(Node node)
+    {
+        if (node.Left != null)
+            return GetRightmost(node.Left);
+
+        var parent = node.Parent;
+        while (parent != null && node == parent.Left)
+        {
+            node = parent;
+            parent = parent.Parent;
+        }
+        return parent;
+    }
+
+    /// <summary>
+    /// Tries to merge a node with its in-order predecessor and successor
+    /// if they reference consecutive ranges in the same buffer.
+    /// This prevents piece count from growing unbounded during byte-level edits.
+    /// </summary>
+    private void TryMergeWithNeighbors(Node node)
+    {
+        // Try merge with successor first
+        var succ = InOrderSuccessor(node);
+        if (succ != null &&
+            succ.Source == node.Source &&
+            succ.Start == node.Start + node.Length)
+        {
+            // Absorb successor into node
+            node.Length += succ.Length;
+            RemoveNode(succ);
+            UpdateSubtreeSizesUp(node.Parent);
+        }
+
+        // Try merge with predecessor
+        var pred = InOrderPredecessor(node);
+        if (pred != null &&
+            pred.Source == node.Source &&
+            pred.Start + pred.Length == node.Start)
+        {
+            // Absorb node into predecessor
+            pred.Length += node.Length;
+            RemoveNode(node);
+            UpdateSubtreeSizesUp(pred.Parent);
+        }
     }
 }
 

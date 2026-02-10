@@ -119,7 +119,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var totalBytes = doc.ByteCount;
         if (totalBytes == 0) return true;
 
-        var map = new Utf8ByteMap(doc.GetBytes().Span);
+        var map = doc.GetByteMap();
 
         foreach (var cursor in state.Cursors)
         {
@@ -212,7 +212,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         else
         {
             var cursorCharPos = state.Cursor.Position.Value;
-            var map = new Utf8ByteMap(doc.GetBytes().Span);
+            var map = doc.GetByteMap();
             cursorByteOffset = cursorCharPos < map.CharCount
                 ? map.CharToByteStart(cursorCharPos)
                 : totalBytes;
@@ -236,7 +236,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var targetByteAfterEdit = cursorByteOffset + 1;
         if (targetByteAfterEdit < doc.ByteCount)
         {
-            var newMap = new Utf8ByteMap(doc.GetBytes().Span);
+            var newMap = doc.GetByteMap();
             var (nextCharIdx, _) = newMap.ByteToChar(targetByteAfterEdit);
             state.Cursor.Position = new DocumentOffset(nextCharIdx);
         }
@@ -273,8 +273,8 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         var docBytes = docBytesMemory.Span;
         var totalBytes = docBytes.Length;
 
-        // Build byte↔char map from actual document bytes
-        var byteMap = new Utf8ByteMap(docBytes);
+        // Reuse cached byte↔char map
+        var byteMap = doc.GetByteMap();
 
         // Collect selection ranges for highlight (in byte offsets)
         var selectionRanges = new List<(int Start, int End)>();
@@ -483,8 +483,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
             return new DocumentOffset(doc.Length);
         }
 
-        // Use Utf8ByteMap built from actual bytes for correct byte→char mapping
-        var map = new Utf8ByteMap(doc.GetBytes().Span);
+        var map = doc.GetByteMap();
         var (charIndex, _) = map.ByteToChar(targetByte);
 
         state.ByteCursorOffset = targetByte;
