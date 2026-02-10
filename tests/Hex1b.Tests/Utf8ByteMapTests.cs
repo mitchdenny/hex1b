@@ -177,42 +177,48 @@ public class Utf8ByteMapTests
     }
 
     // ═══════════════════════════════════════════════════════════
-    // SECTION 4: GetCharBytes
+    // SECTION 4: Byte slice extraction via CharToByteStart + CharByteLength
     // ═══════════════════════════════════════════════════════════
 
     [Fact]
-    public void GetCharBytes_AsciiChar_ReturnsSingleByte()
+    public void CharByteSlice_AsciiChar_ReturnsSingleByte()
     {
         var text = "ABC";
         var map = new Utf8ByteMap(text);
         var allBytes = Encoding.UTF8.GetBytes(text);
 
-        var bytes = map.GetCharBytes(1, allBytes); // 'B'
+        var start = map.CharToByteStart(1);
+        var len = map.CharByteLength(1);
+        var bytes = allBytes.AsSpan(start, len);
         Assert.Equal(1, bytes.Length);
         Assert.Equal((byte)'B', bytes[0]);
     }
 
     [Fact]
-    public void GetCharBytes_TwoByteChar_ReturnsBothBytes()
+    public void CharByteSlice_TwoByteChar_ReturnsBothBytes()
     {
         var text = "©";
         var map = new Utf8ByteMap(text);
         var allBytes = Encoding.UTF8.GetBytes(text);
 
-        var bytes = map.GetCharBytes(0, allBytes);
+        var start = map.CharToByteStart(0);
+        var len = map.CharByteLength(0);
+        var bytes = allBytes.AsSpan(start, len);
         Assert.Equal(2, bytes.Length);
         Assert.Equal(0xC2, bytes[0]);
         Assert.Equal(0xA9, bytes[1]);
     }
 
     [Fact]
-    public void GetCharBytes_BOM_ReturnsThreeBytes()
+    public void CharByteSlice_BOM_ReturnsThreeBytes()
     {
         var text = "\uFEFF";
         var map = new Utf8ByteMap(text);
         var allBytes = Encoding.UTF8.GetBytes(text);
 
-        var bytes = map.GetCharBytes(0, allBytes);
+        var start = map.CharToByteStart(0);
+        var len = map.CharByteLength(0);
+        var bytes = allBytes.AsSpan(start, len);
         Assert.Equal(3, bytes.Length);
         Assert.Equal(0xEF, bytes[0]);
         Assert.Equal(0xBB, bytes[1]);
@@ -265,6 +271,133 @@ public class Utf8ByteMapTests
                 Assert.Equal(c, charIdx);
                 Assert.Equal(b - start, byteWithin);
             }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTION 6: Raw byte constructor — invalid UTF-8
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public void RawBytes_SingleInvalidByte_OneCharOneSourceByte()
+    {
+        // 0xAA is an invalid continuation byte → 1 replacement char consuming 1 source byte
+        var map = new Utf8ByteMap(new byte[] { 0xAA });
+        Assert.Equal(1, map.TotalBytes);
+        Assert.Equal(1, map.CharCount);
+        Assert.Equal(0, map.CharToByteStart(0));
+        Assert.Equal(1, map.CharByteLength(0));
+    }
+
+    [Fact]
+    public void RawBytes_InvalidByteThenAscii_EachByteIsOneChar()
+    {
+        // [0xAA, 0x20, 0x48] → 3 chars, each 1 source byte
+        var bytes = new byte[] { 0xAA, 0x20, 0x48 };
+        var map = new Utf8ByteMap(bytes);
+
+        Assert.Equal(3, map.TotalBytes);
+        Assert.Equal(3, map.CharCount);
+
+        for (int i = 0; i < 3; i++)
+        {
+            Assert.Equal(i, map.CharToByteStart(i));
+            Assert.Equal(1, map.CharByteLength(i));
+            var (charIdx, byteWithin) = map.ByteToChar(i);
+            Assert.Equal(i, charIdx);
+            Assert.Equal(0, byteWithin);
+        }
+    }
+
+    [Fact]
+    public void RawBytes_InvalidByteAfterValidMultibyte_CorrectMapping()
+    {
+        // © = C2 A9 (valid 2-byte), then 0xBB (invalid), then 'X' (41)
+        var bytes = new byte[] { 0xC2, 0xA9, 0xBB, 0x41 };
+        var map = new Utf8ByteMap(bytes);
+
+        Assert.Equal(4, map.TotalBytes);
+        Assert.Equal(3, map.CharCount);
+
+        // Char 0: © at bytes 0-1 (2 source bytes)
+        Assert.Equal(0, map.CharToByteStart(0));
+        Assert.Equal(2, map.CharByteLength(0));
+
+        // Char 1: replacement at byte 2 (1 source byte)
+        Assert.Equal(2, map.CharToByteStart(1));
+        Assert.Equal(1, map.CharByteLength(1));
+
+        // Char 2: 'X' at byte 3 (1 source byte)
+        Assert.Equal(3, map.CharToByteStart(2));
+        Assert.Equal(1, map.CharByteLength(2));
+    }
+
+    [Fact]
+    public void RawBytes_TruncatedMultibyte_ConsumesAvailableBytes()
+    {
+        // 0xC2 alone is a truncated 2-byte sequence → 1 replacement char, 1 source byte
+        var bytes = new byte[] { 0xC2 };
+        var map = new Utf8ByteMap(bytes);
+
+        Assert.Equal(1, map.TotalBytes);
+        Assert.Equal(1, map.CharCount);
+        Assert.Equal(0, map.CharToByteStart(0));
+        Assert.Equal(1, map.CharByteLength(0));
+    }
+
+    [Fact]
+    public void RawBytes_AllInvalidBytes_EachIsOneChar()
+    {
+        // All continuation bytes without leaders
+        var bytes = new byte[] { 0x80, 0x90, 0xA0, 0xBF, 0xFE, 0xFF };
+        var map = new Utf8ByteMap(bytes);
+
+        Assert.Equal(6, map.TotalBytes);
+        Assert.Equal(6, map.CharCount);
+
+        for (int i = 0; i < 6; i++)
+        {
+            Assert.Equal(i, map.CharToByteStart(i));
+            Assert.Equal(1, map.CharByteLength(i));
+        }
+    }
+
+    [Theory]
+    [InlineData(0x00)]
+    [InlineData(0x41)]
+    [InlineData(0x7F)]
+    [InlineData(0x80)]
+    [InlineData(0xAA)]
+    [InlineData(0xBF)]
+    [InlineData(0xC0)]
+    [InlineData(0xFE)]
+    [InlineData(0xFF)]
+    public void RawBytes_AnySingleByte_ProducesExactlyOneChar(byte b)
+    {
+        var map = new Utf8ByteMap(new byte[] { b });
+        Assert.Equal(1, map.TotalBytes);
+        Assert.Equal(1, map.CharCount);
+        Assert.Equal(0, map.CharToByteStart(0));
+        Assert.Equal(1, map.CharByteLength(0));
+    }
+
+    [Fact]
+    public void RawBytes_ByteToChar_EveryByteNavigable()
+    {
+        // Mixed valid and invalid: [0xAA, 0xC2, 0xA9, 0xBB, 0x41]
+        // Expected: char 0 = byte 0 (invalid), char 1 = bytes 1-2 (©), char 2 = byte 3 (invalid), char 3 = byte 4 ('A')
+        var bytes = new byte[] { 0xAA, 0xC2, 0xA9, 0xBB, 0x41 };
+        var map = new Utf8ByteMap(bytes);
+
+        Assert.Equal(5, map.TotalBytes);
+        Assert.Equal(4, map.CharCount);
+
+        // Every single byte maps to a char and can be reached
+        for (int b = 0; b < map.TotalBytes; b++)
+        {
+            var (charIdx, _) = map.ByteToChar(b);
+            Assert.True(charIdx >= 0 && charIdx < map.CharCount,
+                $"Byte {b} (0x{bytes[b]:X2}) should map to a valid char index, got {charIdx}");
         }
     }
 }
