@@ -150,7 +150,7 @@ public class TextEditorMultiByteTests
 
         // Now simulate hex navigation — HandleNavigation should work
         var hexRenderer = new HexEditorViewRenderer();
-        var handled = hexRenderer.HandleNavigation(CursorDirection.Right, state, extend: false);
+        var handled = hexRenderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
         Assert.True(handled);
 
         // ByteCursorOffset should now be set

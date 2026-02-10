@@ -75,5 +75,9 @@ public interface IEditorViewRenderer
     /// movement in hex mode), in which case the default character-level navigation
     /// is skipped.
     /// </summary>
-    bool HandleNavigation(CursorDirection direction, EditorState state, bool extend) => false;
+    /// <param name="direction">The cursor direction.</param>
+    /// <param name="state">The editor state.</param>
+    /// <param name="extend">Whether to extend the selection.</param>
+    /// <param name="viewportColumns">Available width in columns for responsive layout.</param>
+    bool HandleNavigation(CursorDirection direction, EditorState state, bool extend, int viewportColumns) => false;
 }
