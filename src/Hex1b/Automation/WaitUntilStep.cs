@@ -17,7 +17,8 @@ public sealed record WaitUntilStep(
         CancellationToken ct)
     {
         var timeProvider = options.TimeProvider ?? TimeProvider.System;
-        var deadline = timeProvider.GetUtcNow() + Timeout;
+        var effectiveTimeout = Timeout * options.TimeoutMultiplier;
+        var deadline = timeProvider.GetUtcNow() + effectiveTimeout;
 
         while (timeProvider.GetUtcNow() < deadline)
         {
@@ -36,7 +37,7 @@ public sealed record WaitUntilStep(
         var finalSnapshot = terminal.CreateSnapshot();
         var description = Description ?? PredicateExpression ?? "condition";
         throw new WaitUntilTimeoutException(
-            Timeout,
+            effectiveTimeout,
             description,
             finalSnapshot,
             CallerFilePath,
