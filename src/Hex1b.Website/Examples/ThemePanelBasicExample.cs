@@ -66,7 +66,7 @@ public class ThemePanelBasicExample(ILogger<ThemePanelBasicExample> logger) : He
                     b.Text(""),
                     b.Text("  Data Path:"),
                     b.TextBox(state.DataPath).OnTextChanged(e => state.DataPath = e.NewText)
-                ], title: "⚙ Settings"),
+                ]).Title("⚙ Settings"),
                 
                 v.Text(""),
                 
@@ -96,7 +96,7 @@ public class ThemePanelBasicExample(ILogger<ThemePanelBasicExample> logger) : He
                             state.ConfirmDelete = false;
                             state.FactoryReset = false;
                         })
-                    ], title: "⚠ DANGER ZONE")
+                    ]).Title("⚠ DANGER ZONE")
                 ]),
                 
                 v.Text(""),

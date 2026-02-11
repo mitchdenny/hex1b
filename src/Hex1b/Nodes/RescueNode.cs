@@ -206,7 +206,7 @@ public sealed class RescueNode : Hex1bNode, ILayoutProvider
         
         return ctx.Border(b => [
             b.VStack(v => BuildFallbackContent(v, ctx)).Fill()
-        ], title: title);
+        ]).Title(title);
     }
 
     /// <summary>

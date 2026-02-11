@@ -858,7 +858,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.List(items), "Menu")
+                ctx.Border(ctx.List(items)).Title("Menu")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1050,7 +1050,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.VStack(v => [
                     v.Text("Welcome"),
-                    v.Border(ctx.List(items), "Options"),
+                    v.Border(ctx.List(items)).Title("Options"),
                     v.Button("OK").OnClick(_ => Task.CompletedTask)
                 ])
             ),
@@ -1472,7 +1472,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(b => [
                     b.List(items).FixedHeight(3) // Constrain list to 3 rows
-                ], title: "Fruits")
+                ]).Title("Fruits")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1506,7 +1506,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(b => [
                     b.List(items).FixedHeight(3) // Constrain list to 3 rows
-                ], title: "Fruits")
+                ]).Title("Fruits")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
         );
@@ -1581,7 +1581,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(b => [
                     b.List(items).FixedHeight(5) // Only show 5 items at a time
-                ], title: "Long List (20 items)")
+                ]).Title("Long List (20 items)")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1623,7 +1623,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(b => [
                     b.List(items).FixedHeight(5) // Only show 5 items at a time
-                ], title: "Long List (20 items)")
+                ]).Title("Long List (20 items)")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
         );
@@ -1661,7 +1661,7 @@ public class ListNodeTests
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(b => [
                     b.List(items).FixedHeight(5) // Only show 5 items at a time
-                ], title: "Click After Scroll")
+                ]).Title("Click After Scroll")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
         );

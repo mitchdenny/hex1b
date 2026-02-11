@@ -47,7 +47,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
                 new SeparatorWidget(),
                 b.List(Format()).OnItemActivated(e =>
                     items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
-            ], title: "📋 Todo"),
+            ]).Title("📋 Todo"),
             new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
         );
 

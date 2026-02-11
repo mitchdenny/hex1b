@@ -79,9 +79,8 @@ try
                     content.Text("Tip: Hover over links to see the URL in your terminal."),
                     content.Text("     Press Enter or click to activate a link."),
                     content.Text("     Use Tab/Shift+Tab to navigate between links."),
-                ]),
-                title: "OSC 8 Hyperlinks"
-            ).Fill(),
+                ])
+            ).Title("OSC 8 Hyperlinks").Fill(),
             
             // InfoBar at the bottom
             root.InfoBar([

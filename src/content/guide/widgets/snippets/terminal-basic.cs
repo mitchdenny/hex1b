@@ -13,9 +13,8 @@ _ = terminal.RunAsync();
 await using var app = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => 
         ctx.Border(
-            ctx.Terminal(bashHandle),
-            title: "Embedded Terminal"
-        ))
+            ctx.Terminal(bashHandle)
+        ).Title("Embedded Terminal"))
     .Build();
 
 await app.RunAsync();

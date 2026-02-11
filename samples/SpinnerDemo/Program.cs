@@ -81,7 +81,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             inner.Text($"Current theme: {currentThemeConfig.Name}"),
                             inner.Text($"Spinner style: {GetSpinnerStyleName(currentThemeConfig.Name)}")
                         ])
-                    ], title: "Themed Spinner Panel")
+                    ]).Title("Themed Spinner Panel")
                 ]
             ),
 

@@ -170,9 +170,8 @@ try
                         BuildScenarioPanel(right),
                     ],
                     leftWidth: 20
-                ),
-                title: "Mouse & Keyboard Test"
-            ).Fill(),
+                )
+            ).Title("Mouse & Keyboard Test").Fill(),
             
             // InfoBar at the bottom with instructions
             root.InfoBar([

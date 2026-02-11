@@ -62,9 +62,8 @@ try
                         content.Text(""),
                         content.Text("Try clicking different menu buttons - each menu appears"),
                         content.Text("directly below its trigger button."),
-                    ]),
-                    title: "Main Content"
-                ).Fill(),
+                    ])
+                ).Title("Main Content").Fill(),
                 
                 main.InfoBar([
                     "Tab", "Navigate",
@@ -131,9 +130,8 @@ Hex1bWidget BuildSearchPopup<TParent>(WidgetContext<TParent> ctx, PopupStack pop
                     }
                     
                     return widgets.ToArray();
-                }).FixedWidth(40),
-                title: "🔍 Search (Ctrl+S)"
-            )
+                }).FixedWidth(40)
+            ).Title("🔍 Search (Ctrl+S)")
         )
     );
 }
@@ -160,9 +158,8 @@ Hex1bWidget BuildFileMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups
                 m.Button(" Save As...  ").OnClick(_ => popups.Clear()),
                 m.Text("─────────────"),
                 m.Button(" Exit        ").OnClick(_ => popups.Clear()),
-            ]),
-            title: "File"
-        ).FixedWidth(17)
+            ])
+        ).Title("File").FixedWidth(17)
     );
 }
 
@@ -178,9 +175,8 @@ Hex1bWidget BuildRecentMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popu
                 m.Button(" code.cs        ").OnClick(_ => popups.Clear()),
                 m.Text("────────────────"),
                 m.Button(" More...      ► ").OnClick(e => e.Popups.PushAnchored(e.Node, AnchorPosition.Right, () => BuildMoreRecentMenu(ctx, popups))),
-            ]),
-            title: "Recent"
-        ).FixedWidth(20)
+            ])
+        ).Title("Recent").FixedWidth(20)
     );
 }
 
@@ -194,9 +190,8 @@ Hex1bWidget BuildMoreRecentMenu<TParent>(WidgetContext<TParent> ctx, PopupStack 
                 m.Button(" project.sln  ").OnClick(_ => popups.Clear()),
                 m.Button(" notes.txt    ").OnClick(_ => popups.Clear()),
                 m.Button(" config.json  ").OnClick(_ => popups.Clear()),
-            ]),
-            title: "More Recent"
-        ).FixedWidth(18)
+            ])
+        ).Title("More Recent").FixedWidth(18)
     );
 }
 
@@ -213,9 +208,8 @@ Hex1bWidget BuildEditMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups
                 m.Button(" Cut         ").OnClick(_ => { onAction("Cut"); popups.Clear(); }),
                 m.Button(" Copy        ").OnClick(_ => { onAction("Copy"); popups.Clear(); }),
                 m.Button(" Paste       ").OnClick(_ => { onAction("Paste"); popups.Clear(); }),
-            ]),
-            title: "Edit"
-        ).FixedWidth(17)
+            ])
+        ).Title("Edit").FixedWidth(17)
     );
 }
 
@@ -230,9 +224,8 @@ Hex1bWidget BuildViewMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups
                 m.Button(" Zoom Out    ").OnClick(_ => { onAction("Zoom Out"); popups.Clear(); }),
                 m.Text("─────────────"),
                 m.Button(" Full Screen ").OnClick(_ => { onAction("Full Screen"); popups.Clear(); }),
-            ]),
-            title: "View"
-        ).FixedWidth(17)
+            ])
+        ).Title("View").FixedWidth(17)
     );
 }
 
@@ -245,9 +238,8 @@ Hex1bWidget BuildHelpMenu<TParent>(WidgetContext<TParent> ctx, PopupStack popups
             ctx.VStack(m => [
                 m.Button(" Documentation ").OnClick(_ => { onAction("Documentation"); popups.Clear(); }),
                 m.Button(" About         ").OnClick(_ => { onAction("About"); popups.Clear(); }),
-            ]),
-            title: "Help"
-        ).FixedWidth(18)
+            ])
+        ).Title("Help").FixedWidth(18)
     );
 }
 
@@ -374,9 +366,8 @@ Hex1bWidget BuildOpenFileDialog<TParent>(WidgetContext<TParent> ctx, PopupStack 
                                     popups.Pop();
                                 }),
                         ]).ContentHeight(),
-                    ]),
-                    title: "📂 Open File"
-                )
+                    ])
+                ).Title("📂 Open File")
             ).FixedWidth(60).FixedHeight(20)
         )
     ).Transparent(); // Transparent backdrop, but modal (no click-away)

@@ -56,8 +56,7 @@ public class MouseExample : IGalleryExample
                     }),
                     new TextBlockWidget(""),
                     new TextBlockWidget("The yellow cursor shows mouse position.")
-                ]),
-                "Mouse Test"
-            );
+                ])
+            ).Title("Mouse Test");
     }
 }

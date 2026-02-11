@@ -60,7 +60,7 @@ public class RescueCustomFallbackExample(ILogger<RescueCustomFallbackExample> lo
                     inner.Text(""),
                     inner.Button("🔄 Try Again").OnClick(_ => rescue.Reset()),
                 ])
-            ], title: "Oops!"))
+            ]).Title("Oops!"))
             .OnReset(_ => state.ShouldThrow = false);
         };
     }

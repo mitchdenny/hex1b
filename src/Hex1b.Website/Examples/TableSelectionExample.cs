@@ -58,7 +58,7 @@ public class TableSelectionExample(ILogger<TableSelectionExample> logger) : Hex1
                     v.Text(""),
                     v.Text($"Completed: {items.Count(i => i.IsComplete)} / {items.Count}")
                 ])
-            ], title: "Task List with Selection");
+            ]).Title("Task List with Selection");
         };
     }
 

@@ -31,7 +31,7 @@ public class InfoBarSpinnerExample(ILogger<InfoBarSpinnerExample> logger) : Hex1
             return ctx.VStack(v => [
                 v.Border(b => [
                     b.Text("Background operation in progress...")
-                ], title: "Activity Indicator").FillHeight(),
+                ]).Title("Activity Indicator").FillHeight(),
                 v.InfoBar(s => [
                     s.Section(x => x.HStack(h => [
                         h.Spinner(SpinnerStyle.Dots),

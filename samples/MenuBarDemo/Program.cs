@@ -179,9 +179,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 
                 content.Text(""),
                 content.Text("  Keyboard: Tab to navigate, Enter/Space to activate"),
-            ]),
-            title: "Main Content"
-        ).Fill(),
+            ])
+        ).Title("Main Content").Fill(),
         
         // Status bar
         main.InfoBar([

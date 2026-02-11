@@ -15,4 +15,4 @@ ctx.Border(b => [
             h.Slider(90).Fill()
         ])
     ])
-], title: "Settings")
+]).Title("Settings")

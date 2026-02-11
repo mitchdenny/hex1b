@@ -29,7 +29,7 @@ public static class AlignExtensions
     /// ctx.Align(Alignment.Right, ctx.Button("OK"))
     /// 
     /// // Center a dialog
-    /// ctx.Align(Alignment.Center, ctx.Border(b =&gt; [...], title: "Dialog"))
+    /// ctx.Align(Alignment.Center, ctx.Border(b =&gt; [...]).Title("Dialog"))
     /// </code>
     /// </example>
     public static AlignWidget Align<TParent>(

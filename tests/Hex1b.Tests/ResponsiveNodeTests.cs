@@ -662,9 +662,8 @@ public class ResponsiveNodeTests
                     ctx.Responsive(r => [
                         r.WhenMinWidth(100, r => r.Text("Wide")),
                         r.Otherwise(r => r.Text("Narrow"))
-                    ]),
-                    "Container"
-                )
+                    ])
+                ).Title("Container")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

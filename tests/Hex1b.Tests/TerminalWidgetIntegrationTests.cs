@@ -71,9 +71,8 @@ public class TerminalWidgetIntegrationTests
                     return ctx => new VStackWidget([
                         new TextBlockWidget("Terminal Widget Test"),
                         new BorderWidget(
-                            new TerminalWidget(handle),
-                            Title: "Inner Terminal"
-                        )
+                            new TerminalWidget(handle)
+                        ).Title("Inner Terminal")
                     ]).Fill();
                 })
                 .WithHeadless()

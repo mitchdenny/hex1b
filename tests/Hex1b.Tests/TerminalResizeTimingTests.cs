@@ -366,9 +366,8 @@ public class TerminalResizeTimingTests
             }
             
             return ctx.Border(
-                ctx.Terminal(activeSession.handle).Fill(),
-                title: $"Terminal {activeSession.id}"
-            ).Fill();
+                ctx.Terminal(activeSession.handle).Fill()
+            ).Title($"Terminal {activeSession.id}").Fill();
         }
         
         using var app = new Hex1bApp(

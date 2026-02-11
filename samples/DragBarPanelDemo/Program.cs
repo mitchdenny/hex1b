@@ -36,9 +36,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         center.Text("  Tab to navigate between focusable elements."),
                         center.Text(""),
                         center.Button("Exit").OnClick(e => e.Context.RequestStop())
-                    ]),
-                    title: "Content"
-                ).Fill(),
+                    ])
+                ).Title("Content").Fill(),
 
                 // Right panel — resizable via drag bar on its left edge (auto-detected)
                 main.DragBarPanel(

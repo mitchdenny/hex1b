@@ -54,7 +54,7 @@ public class SplitButtonMultipleExample(ILogger<SplitButtonMultipleExample> logg
                            .SecondaryAction("Urgent", _ => state.Priority = "Urgent")
                     ])
                 ])
-            ], title: "Task Manager");
+            ]).Title("Task Manager");
         };
     }
 }

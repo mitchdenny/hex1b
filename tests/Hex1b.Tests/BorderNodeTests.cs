@@ -853,7 +853,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Text("Content"), title: "My Panel")
+                ctx.Border(ctx.Text("Content")).Title("My Panel")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -888,7 +888,7 @@ public class BorderNodeTests
                     v.Text("Line 1"),
                     v.Text("Line 2"),
                     v.Text("Line 3")
-                ], title: "List")
+                ]).Title("List")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -922,7 +922,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.TextBox(text).OnTextChanged(args => text = args.NewText), title: "Input")
+                ctx.Border(ctx.TextBox(text).OnTextChanged(args => text = args.NewText)).Title("Input")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -952,9 +952,8 @@ public class BorderNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.Border(
-                    ctx.Border(ctx.Text("Nested"), title: "Inner"),
-                    title: "Outer"
-                )
+                    ctx.Border(ctx.Text("Nested")).Title("Inner")
+                ).Title("Outer")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -986,7 +985,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Text("VeryLongContentText"), title: "VeryLongTitleText")
+                ctx.Border(ctx.Text("VeryLongContentText")).Title("VeryLongTitleText")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1019,8 +1018,8 @@ public class BorderNodeTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.HStack(h => [
-                    h.Border(ctx.Text("Left"), title: "L"),
-                    h.Border(ctx.Text("Right"), title: "R")
+                    h.Border(ctx.Text("Left")).Title("L"),
+                    h.Border(ctx.Text("Right")).Title("R")
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1055,7 +1054,7 @@ public class BorderNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.Border(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; }), title: "Actions")
+                ctx.Border(ctx.Button("Click Me").OnClick(_ => { clicked = true; return Task.CompletedTask; })).Title("Actions")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1087,7 +1086,7 @@ public class BorderNodeTests
                 ctx.Border(v => [
                     v.Button("First").OnClick(_ => { clickedButton = "First"; return Task.CompletedTask; }),
                     v.Button("Second").OnClick(_ => { clickedButton = "Second"; return Task.CompletedTask; })
-                ], title: "Buttons")
+                ]).Title("Buttons")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

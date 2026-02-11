@@ -44,9 +44,8 @@ public class DragBarBasicExample(ILogger<DragBarBasicExample> logger) : Hex1bExa
                         main.Text("  This area fills the remaining space.").Wrap(),
                         main.Text("  Resize the sidebar by dragging the").Wrap(),
                         main.Text("  handle or using arrow keys.").Wrap()
-                    ]),
-                    title: "Content"
-                ).Fill()
+                    ])
+                ).Title("Content").Fill()
             ]);
         };
     }

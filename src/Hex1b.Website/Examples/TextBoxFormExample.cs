@@ -45,7 +45,7 @@ public class TextBoxFormExample(ILogger<TextBoxFormExample> logger) : Hex1bExamp
                             state.Submitted = false;
                         })
                     ])
-                ], title: "Confirmation");
+                ]).Title("Confirmation");
             }
 
             return ctx.Border(b => [
@@ -70,7 +70,7 @@ public class TextBoxFormExample(ILogger<TextBoxFormExample> logger) : Hex1bExamp
                     v.Text(""),
                     v.Text("Use Tab to navigate between fields")
                 ])
-            ], title: "Registration Form");
+            ]).Title("Registration Form");
         };
     }
 }

@@ -409,9 +409,8 @@ public class Osc8HyperlinkTests
                     v.Text(""),
                     v.Hyperlink("Project Repository", "https://github.com/mitchdenny/hex1b"),
                     v.Hyperlink("Issue Tracker", "https://github.com/mitchdenny/hex1b/issues")
-                ]),
-                title: "Resources"
-            ),
+                ])
+            ).Title("Resources"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -705,9 +704,8 @@ public class Osc8HyperlinkTests
             ctx => ctx.Border(
                 ctx.VStack(v => [
                     v.Hyperlink("This is a very long hyperlink that exceeds the border", "https://example.com")
-                ]),
-                title: "Tiny"
-            ),
+                ])
+            ).Title("Tiny"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -881,7 +879,7 @@ public class Osc8HyperlinkTests
                 v.Border(b => [
                     b.Hyperlink("This is a very long hyperlink that will be clipped", "https://example.com/clipped"),
                     b.Text("Some normal text here")
-                ], "Clipped Box").FixedWidth(20).FixedHeight(4),
+                ]).Title("Clipped Box").FixedWidth(20).FixedHeight(4),
                 
                 v.Text("Text outside the clipped area")
             ]),

@@ -188,7 +188,7 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
                 border.Text("Inner bordered region:"),
                 border.Text(innerText).Wrap(),
                 border.Text("More nested content here that should wrap nicely within the border.").Wrap(),
-            ], title: "Nested"),
+            ]).Title("Nested"),
             v.Text(""),
             v.Text("Content after the nested region.").Wrap(),
         ]);
@@ -207,18 +207,18 @@ public class LayoutExample(ILogger<LayoutExample> logger) : Hex1bExample
             v.Border(border => [
                 border.Text("Normal content inside"),
                 border.Text("the border widget."),
-            ], title: "Simple"),
+            ]).Title("Simple"),
             v.Text(""),
             v.Border(border => [
                 border.Text("Wide content that overflows:"),
                 border.Text(wideContent),
                 border.Text("═══════════════════════════════════════════════════════════════════"),
-            ], title: "Overflow"),
+            ]).Title("Overflow"),
             v.Text(""),
             v.Border(border => [
                 border.Text("Wrapped content inside:").Wrap(),
                 border.Text(wideContent).Wrap(),
-            ], title: "Wrapped"),
+            ]).Title("Wrapped"),
         ]);
     }
 }

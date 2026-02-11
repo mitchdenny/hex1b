@@ -54,7 +54,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 b.Text(""),
                 b.Text("The InfoBar patterns below demonstrate the builder API."),
                 b.Text("Use ↑↓ to select different patterns.")
-            ], title: "Content").Fill(),
+            ]).Title("Content").Fill(),
 
             // Render the selected InfoBar pattern
             RenderInfoBarPattern(v, selectedPattern, currentMode, fileName, encoding, lineNumber, columnNumber)

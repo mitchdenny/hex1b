@@ -242,9 +242,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             idx => notificationsIndex = idx,
                             idx => autoSaveIndex = idx,
                             msg => { lastAction = msg; statusMessage = msg; })
-                    ]),
-                    title: currentView
-                ).Fill(),
+                    ])
+                ).Title(currentView).Fill(),
 
                 // RIGHT SIDEBAR - Details Panel
                 content.Drawer()

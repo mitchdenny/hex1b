@@ -51,9 +51,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 })
                             ]).FixedHeight(1),
                             console.Terminal(consoleHandle).Fill()
-                        ]),
-                        title: "Console (Click outside to close)"
-                    ).FixedHeight(12)
+                        ])
+                    ).Title("Console (Click outside to close)").FixedHeight(12)
                 ])
                 .OnCollapsed(() => { lastAction = "Console closed (click-away)"; }),
             
@@ -116,9 +115,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             buttons.Text("  "),
                             buttons.Button("Exit").OnClick(e => e.Context.RequestStop())
                         ]).FixedHeight(1)
-                    ]),
-                    title: "Content"
-                ).Fill(),
+                    ])
+                ).Title("Content").Fill(),
                 
                 // RIGHT DRAWER (last in HStack - expands Left)
                 content.Drawer()
@@ -172,9 +170,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             output.Text(" [INFO] Building project..."),
                             output.Text(" [INFO] Compilation successful"),
                             output.Text(" [INFO] 0 warnings, 0 errors")
-                        ]),
-                        title: "Output"
-                    ).FixedHeight(10)
+                        ])
+                    ).Title("Output").FixedHeight(10)
                 ]),
             
             // Status bar

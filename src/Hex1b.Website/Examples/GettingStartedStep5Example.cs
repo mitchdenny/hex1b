@@ -89,7 +89,7 @@ public class GettingStartedStep5Example(ILogger<GettingStartedStep5Example> logg
                         .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
                     b.Text(""),
                     b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex))
-                ], title: "My Todos").Fill(),
+                ]).Title("My Todos").Fill(),
                 v.InfoBar("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
             ]);
         };

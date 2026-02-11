@@ -59,7 +59,7 @@ public class ListActivateExample(ILogger<ListActivateExample> logger) : Hex1bExa
                     v.List(state.GetFormattedItems())
                         .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
                 ])
-            ], title: "Todo List");
+            ]).Title("Todo List");
         };
     }
 }

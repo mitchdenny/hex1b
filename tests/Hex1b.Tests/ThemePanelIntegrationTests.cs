@@ -230,16 +230,16 @@ public class ThemePanelIntegrationTests : IDisposable
 
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
-                v.Border(ctx.Text("Default Border"), title: "Normal"),
+                v.Border(ctx.Text("Default Border")).Title("Normal"),
                 v.Text(""),
                 v.ThemePanel(
                     theme => theme
                         .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(255, 165, 0))
                         .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(255, 255, 0)),
-                    ctx.Border(ctx.Text("Orange Border"), title: "Themed")
+                    ctx.Border(ctx.Text("Orange Border")).Title("Themed")
                 ),
                 v.Text(""),
-                v.Border(ctx.Text("Still Default"), title: "After")
+                v.Border(ctx.Text("Still Default")).Title("After")
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -621,9 +621,8 @@ public class ThemePanelIntegrationTests : IDisposable
                         inner.Text("Inside Border"),
                         inner.Button("Orange Button")
                     ])
-                ),
-                title: "Themed Content"
-            ),
+                )
+            ).Title("Themed Content"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -918,9 +917,8 @@ public class ThemePanelIntegrationTests : IDisposable
                             inner.Button("Themed Button 1 (Blue focus)"),
                             inner.Button("Themed Button 2 (Blue focus)")
                         ])
-                    ),
-                    title: "ThemePanel Boundary"
-                ),
+                    )
+                ).Title("ThemePanel Boundary"),
                 v.Text(""),
                 v.Button("Another Default Button")
             ]),
@@ -1006,14 +1004,12 @@ public class ThemePanelIntegrationTests : IDisposable
                                         inner.Text("Inner ThemePanel: Red buttons"),
                                         inner.Button("Red Inner 1"),
                                         inner.Button("Red Inner 2")
-                                    ]),
-                                    title: "Nested Panel"
-                                )
+                                    ])
+                                ).Title("Nested Panel")
                             ),
                             outer.Button("Blue Outer 2")
-                        ]),
-                        title: "Outer Panel"
-                    )
+                        ])
+                    ).Title("Outer Panel")
                 )
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -1086,7 +1082,7 @@ public class ThemePanelIntegrationTests : IDisposable
                         theme => theme
                             .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(100, 200, 100))
                             .Set(BorderTheme.TitleColor, Hex1bColor.FromRgb(150, 255, 150)),
-                        ctx.Border(ctx.Text("System Dashboard - All Systems Operational"), title: "Status")
+                        ctx.Border(ctx.Text("System Dashboard - All Systems Operational")).Title("Status")
                     ),
                     main.Text(""),
                     // Action buttons - primary theme
@@ -1182,9 +1178,8 @@ public class ThemePanelIntegrationTests : IDisposable
                             .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.FromRgb(255, 255, 255)),
                         ctx.Button("Submit Registration")
                     )
-                ]),
-                title: "Registration"
-            ),
+                ])
+            ).Title("Registration"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 

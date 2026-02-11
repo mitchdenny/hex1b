@@ -51,9 +51,8 @@ async Task RunConsoleMode()
                         })
                         .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
                         .Height(SizeHint.Fixed(FirefliesDemo.HeightCells))
-                        .RedrawAfter(50),
-                        title: demos[selectedDemo]
-                    )
+                        .RedrawAfter(50)
+                    ).Title(demos[selectedDemo])
                     .FixedWidth(FirefliesDemo.RequiredWidth)
                     .FixedHeight(FirefliesDemo.RequiredHeight),
                     v.Center(vc => 
@@ -126,9 +125,8 @@ async Task RunWebMode(string[] args)
                             })
                             .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
                             .Height(SizeHint.Fixed(FirefliesDemo.HeightCells))
-                            .RedrawAfter(50),
-                            title: demos[selectedDemo]
-                        )
+                            .RedrawAfter(50)
+                        ).Title(demos[selectedDemo])
                         .FixedWidth(FirefliesDemo.RequiredWidth)
                         .FixedHeight(FirefliesDemo.RequiredHeight),
                         v.Center(vc => 

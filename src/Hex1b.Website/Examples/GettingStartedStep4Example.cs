@@ -67,7 +67,7 @@ public class GettingStartedStep4Example(ILogger<GettingStartedStep4Example> logg
                     ]),
                     new SeparatorWidget(),
                     b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
-                ], title: "📋 Todo").Fill(),
+                ]).Title("📋 Todo").Fill(),
                 v.InfoBar("Tab: Focus next  Space: Toggle")
             ]);
         };

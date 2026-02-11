@@ -46,9 +46,8 @@ public class ScrollInfiniteExample(ILogger<ScrollInfiniteExample> logger) : Hex1
                             loadedItems.AddRange(newItems);
                             status = $"Loaded batch {loadCount}!";
                         }
-                    }),
-                    title: "Infinite Scroll"
-                )
+                    })
+                ).Title("Infinite Scroll")
             ]);
         };
     }

@@ -9,6 +9,5 @@ bashHandle.WindowTitleChanged += title =>
 
 // Use the title in your widget tree
 ctx.Border(
-    ctx.Terminal(bashHandle),
-    title: bashHandle.WindowTitle ?? "Terminal"
-);
+    ctx.Terminal(bashHandle)
+).Title(bashHandle.WindowTitle ?? "Terminal");

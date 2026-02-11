@@ -46,7 +46,7 @@ public class PickerInitialExample(ILogger<PickerInitialExample> logger) : Hex1bE
                     v.Text(""),
                     v.Text($"Order: {size} priority {priority}")
                 ])
-            ], title: "Order Form");
+            ]).Title("Order Form");
         };
     }
 }

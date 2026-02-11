@@ -30,9 +30,8 @@ public class DragBarVerticalExample(ILogger<DragBarVerticalExample> logger) : He
                         main.Text(""),
                         main.Text("  The panel below can be resized").Wrap(),
                         main.Text("  by dragging its top handle.").Wrap()
-                    ]),
-                    title: "Editor"
-                ).Fill(),
+                    ])
+                ).Title("Editor").Fill(),
 
                 v.DragBarPanel(
                     v.VStack(panel => [

@@ -37,7 +37,7 @@ public class PickerBasicExample(ILogger<PickerBasicExample> logger) : Hex1bExamp
                         h.Picker(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
                     ])
                 ])
-            ], title: "Fruit Picker");
+            ]).Title("Fruit Picker");
         };
     }
 }

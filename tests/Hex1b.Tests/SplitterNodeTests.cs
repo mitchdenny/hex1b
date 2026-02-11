@@ -961,9 +961,8 @@ public class SplitterNodeTests
                         ctx.Text("Left"),
                         ctx.Text("Right"),
                         leftWidth: 20
-                    ),
-                    "Split View"
-                )
+                    )
+                ).Title("Split View")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -1599,9 +1598,8 @@ public class SplitterNodeTests
                         ctx.Text("Top"),
                         ctx.Text("Bottom"),
                         topHeight: 4
-                    ),
-                    "Vertical Split"
-                )
+                    )
+                ).Title("Vertical Split")
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

@@ -135,7 +135,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         copiedChar = row.Glyph;
                     })
                     .Fill()
-            ], title: $"{currentBlock.Name} ({characters.Count} chars)").FillHeight(),
+            ]).Title($"{currentBlock.Name} ({characters.Count} chars)").FillHeight(),
             v.Text(""),
             
             // Status bar

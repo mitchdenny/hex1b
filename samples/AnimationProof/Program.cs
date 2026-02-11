@@ -38,7 +38,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     isLoading = !isLoading;
                     app.Invalidate();
                 })
-        ], title: "✅ Animation Test"),
+        ]).Title("✅ Animation Test"),
         
         v.Text(""),
         
@@ -58,7 +58,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ]).Expanded().Icon("🏠"),
                 t.Item("Standalone Item").Icon("📄")
             ])
-        ], title: "✅ Static Tree"),
+        ]).Title("✅ Static Tree"),
         
         v.Text(""),
         
@@ -95,7 +95,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         return serverChildren;
                     })
             ])
-        ], title: "🔄 Externalized Loading Test"),
+        ]).Title("🔄 Externalized Loading Test"),
         
         v.Text(""),
         v.Separator(),

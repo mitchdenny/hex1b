@@ -49,7 +49,7 @@ public class ListLongExample(ILogger<ListLongExample> logger) : Hex1bExample
                     v.Text(""),
                     v.List(countries).FixedHeight(10)
                 ])
-            ], title: "Country Selector");
+            ]).Title("Country Selector");
         };
     }
 }

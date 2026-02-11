@@ -177,9 +177,8 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
                                     buttons.Button("Close").OnClick(_ => RemoveTerminal(session))
                                 ])
                             ]))
-                        ])),
-                    title: title
-                );
+                        ]))
+                ).Title(title);
             }
 
             // Build main content
@@ -193,9 +192,8 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
                                 inner.Text("No terminals running"),
                                 inner.Text(""),
                                 inner.Text("Use File → New Terminal or Ctrl+N")
-                            ]),
-                            title: "Welcome"
-                        )
+                            ])
+                        ).Title("Welcome")
                     ).Fill();
                 }
 
