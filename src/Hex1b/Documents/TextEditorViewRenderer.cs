@@ -76,15 +76,8 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 scrolledLine = lineText;
             }
 
-            string displayText;
-            if (scrolledLine.Length >= viewportColumns)
-            {
-                displayText = scrolledLine[..viewportColumns];
-            }
-            else
-            {
-                displayText = scrolledLine.PadRight(viewportColumns);
-            }
+            // Fit to viewport by display width: truncate at boundary, pad remaining with spaces
+            var displayText = FitToDisplayWidth(scrolledLine, viewportColumns);
 
             // Build per-column cell type map for this line
             var lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
@@ -112,7 +105,28 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         }
 
         var lineText = doc.GetLineText(docLine);
-        var column = Math.Min(localX + horizontalScrollOffset + 1, lineText.Length + 1); // 1-based, clamp to line end + 1
+
+        // Convert display column (localX) to char position, accounting for wide characters
+        var scrolledText = horizontalScrollOffset < lineText.Length
+            ? lineText[horizontalScrollOffset..]
+            : "";
+
+        var charIndex = 0;
+        var displayCol = 0;
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(scrolledText);
+        while (enumerator.MoveNext())
+        {
+            var grapheme = (string)enumerator.Current;
+            var gw = DisplayWidth.GetGraphemeWidth(grapheme);
+
+            if (displayCol + gw > localX)
+                break;
+
+            displayCol += gw;
+            charIndex += grapheme.Length;
+        }
+
+        var column = Math.Min(charIndex + horizontalScrollOffset + 1, lineText.Length + 1);
         return doc.PositionToOffset(new DocumentPosition(docLine, column));
     }
 
@@ -125,13 +139,30 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         var maxWidth = 0;
         for (var line = scrollOffset; line <= Math.Min(scrollOffset + viewportLines - 1, document.LineCount); line++)
         {
-            var lineLen = document.GetLineText(line).Length;
-            if (lineLen > maxWidth) maxWidth = lineLen;
+            var lineWidth = DisplayWidth.GetStringWidth(document.GetLineText(line));
+            if (lineWidth > maxWidth) maxWidth = lineWidth;
         }
         return maxWidth;
     }
 
     // ── Cell type logic (extracted from EditorNode) ──────────────
+
+    /// <summary>
+    /// Truncates text to fit within targetWidth display columns and pads remaining space.
+    /// Wide characters that don't fully fit at the boundary are excluded.
+    /// </summary>
+    private static string FitToDisplayWidth(string text, int targetWidth)
+    {
+        if (targetWidth <= 0)
+            return "";
+
+        if (string.IsNullOrEmpty(text))
+            return new string(' ', targetWidth);
+
+        var (sliced, cols, _, _) = DisplayWidth.SliceByDisplayWidth(text, 0, targetWidth);
+        var padding = targetWidth - cols;
+        return padding > 0 ? sliced + new string(' ', padding) : sliced;
+    }
 
     private enum CellType : byte
     {

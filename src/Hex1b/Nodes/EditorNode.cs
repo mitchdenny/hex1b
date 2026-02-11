@@ -350,14 +350,36 @@ public sealed class EditorNode : Hex1bNode
             _scrollOffset = cursorLine - _viewportLines + 1;
         }
 
-        // Horizontal visibility
+        // Horizontal visibility — use display widths for viewport comparison
         if (cursorColumn < _horizontalScrollOffset)
         {
             _horizontalScrollOffset = cursorColumn;
         }
-        else if (cursorColumn >= _horizontalScrollOffset + _viewportColumns)
+        else
         {
-            _horizontalScrollOffset = cursorColumn - _viewportColumns + 1;
+            var lineText = State.Document.GetLineText(cursorLine);
+            var scrollStart = Math.Min(_horizontalScrollOffset, lineText.Length);
+            var cursorEnd = Math.Min(cursorColumn, lineText.Length);
+            var cursorDisplayCol = scrollStart < cursorEnd
+                ? DisplayWidth.GetStringWidth(lineText[scrollStart..cursorEnd])
+                : 0;
+
+            if (cursorDisplayCol >= _viewportColumns)
+            {
+                // Advance scroll offset until cursor fits within viewport
+                var excess = cursorDisplayCol - _viewportColumns + 1;
+                var newOffset = _horizontalScrollOffset;
+                var skipped = 0;
+                var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(
+                    lineText[scrollStart..cursorEnd]);
+                while (enumerator.MoveNext() && skipped < excess)
+                {
+                    var grapheme = (string)enumerator.Current;
+                    skipped += DisplayWidth.GetGraphemeWidth(grapheme);
+                    newOffset += grapheme.Length;
+                }
+                _horizontalScrollOffset = newOffset;
+            }
         }
     }
 
