@@ -17,8 +17,7 @@ public static class InteractableExtensions
     /// <code>
     /// ctx.Interactable(ic =>
     ///     ic.VStack(v => [
-    ///         v.Text("Tile content")
-    ///             .Foreground(ic.IsFocused ? Hex1bColor.White : Hex1bColor.Gray),
+    ///         v.Text("Tile content"),
     ///     ])
     /// ).OnClick(args => DoSomething())
     /// </code>

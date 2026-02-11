@@ -13,8 +13,7 @@ namespace Hex1b.Widgets;
 /// <code>
 /// ctx.Interactable(ic =>
 ///     ic.VStack(v => [
-///         v.Text("Resource: API")
-///             .Foreground(ic.IsFocused ? Hex1bColor.White : Hex1bColor.Gray),
+///         v.Text("Resource: API"),
 ///         v.Text("Status: Running"),
 ///     ])
 /// )

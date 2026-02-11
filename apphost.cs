@@ -103,6 +103,10 @@ var widgetLayerDemo = builder.AddCSharpApp("widget-layer-demo", "./samples/Widge
 var chartingDemo = builder.AddCSharpApp("charting-demo", "./samples/ChartingDemo")
     .ExcludeFromManifest();
 
+// Interactable demo
+var interactableDemo = builder.AddCSharpApp("interactable-demo", "./samples/InteractableDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
