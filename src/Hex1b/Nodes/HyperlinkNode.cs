@@ -129,11 +129,6 @@ public sealed class HyperlinkNode : Hex1bNode
             
             // Left click activates the link
             bindings.Mouse(MouseButton.Left).Action(ClickAction, "Click link");
-            
-            // Ctrl+Click also activates the link (for terminals like Kitty and xterm
-            // that forward Ctrl+Click to the app when mouse tracking is enabled,
-            // rather than handling OSC 8 hyperlinks natively like VTE/GNOME Terminal)
-            bindings.Mouse(MouseButton.Left).Ctrl().Action(ClickAction, "Ctrl+Click link");
         }
     }
 
