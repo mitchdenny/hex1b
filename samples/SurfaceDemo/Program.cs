@@ -19,7 +19,7 @@ await RunConsoleMode();
 
 async Task RunConsoleMode()
 {
-    var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Fluid", "Sixel (Experimental)" };
+    var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Fluid", "Flag", "Sixel (Experimental)" };
     var selectedDemo = 0;
     var random = new Random();
     var fireflies = FirefliesDemo.CreateFireflies();
@@ -46,7 +46,8 @@ async Task RunConsoleMode()
                             7 => RadarDemo.BuildLayers(s, random),
                             8 => SmartMatterDemo.BuildLayers(s, random),
                             9 => FluidDemo.BuildLayers(s, random),
-                            10 => SixelDemo.BuildLayers(s, random),
+                            10 => FlagDemo.BuildLayers(s),
+                            11 => SixelDemo.BuildLayers(s, random),
                             _ => FirefliesDemo.BuildLayers(s, fireflies)
                         })
                         .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
@@ -94,7 +95,7 @@ async Task RunWebMode(string[] args)
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await using var presentation = new WebSocketPresentationAdapter(webSocket, 120, 40, enableMouse: true);
         
-        var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Fluid", "Sixel (Experimental)" };
+        var demos = new[] { "Fireflies", "Gradient", "Noise", "Slime Mold", "Snow", "Shadows", "Gravity", "Radar", "Smart Matter", "Fluid", "Flag", "Sixel (Experimental)" };
         var selectedDemo = 0;
         var random = new Random();
         var fireflies = FirefliesDemo.CreateFireflies();
@@ -121,7 +122,8 @@ async Task RunWebMode(string[] args)
                                 7 => RadarDemo.BuildLayers(s, random),
                                 8 => SmartMatterDemo.BuildLayers(s, random),
                                 9 => FluidDemo.BuildLayers(s, random),
-                                10 => SixelDemo.BuildLayers(s, random),
+                                10 => FlagDemo.BuildLayers(s),
+                                11 => SixelDemo.BuildLayers(s, random),
                                 _ => FirefliesDemo.BuildLayers(s, fireflies)
                             })
                             .Width(SizeHint.Fixed(FirefliesDemo.WidthCells))
