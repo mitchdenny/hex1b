@@ -102,7 +102,7 @@ var ageGroupData = Enumerable.Range(0, 90).Select(i =>
 }).ToArray();
 
 // Stacked area state
-var stackedFillStyle = FillStyle.Braille;
+var stackedFillStyle = FillStyle.Solid;
 
 // Three-series data for stacked area
 var regionData = new[]
@@ -116,6 +116,7 @@ var regionData = new[]
 };
 
 var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDiagnostics()
     .WithHex1bApp((app, options) => ctx =>
         ctx.TabPanel(tp => [
             tp.Tab("Simple Columns", t => [
@@ -323,14 +324,6 @@ var terminal = Hex1bTerminal.CreateBuilder()
                     .FillHeight(),
             ]),
             tp.Tab("Stacked Area", t => [
-                t.HStack(h => [
-                    h.Text("Fill Style: "),
-                    h.ToggleSwitch(["Braille", "Solid"], stackedFillStyle == FillStyle.Braille ? 0 : 1)
-                        .OnSelectionChanged(e =>
-                        {
-                            stackedFillStyle = e.SelectedIndex == 0 ? FillStyle.Braille : FillStyle.Solid;
-                        }),
-                ]),
                 t.TimeSeriesChart(regionData)
                     .Label(d => d.Month)
                     .Series("North", d => d.North, blue)
