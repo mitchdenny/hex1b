@@ -162,6 +162,7 @@ builder.Services.AddSingleton<IGalleryExample, ChartBreakdownExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesMultiExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesFillExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesStackedExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartScatterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartScatterGroupedExample>();
 

@@ -101,6 +101,20 @@ var ageGroupData = Enumerable.Range(0, 90).Select(i =>
     return new DemographicPoint(income, spending, group);
 }).ToArray();
 
+// Stacked area state
+var stackedFillStyle = FillStyle.Braille;
+
+// Three-series data for stacked area
+var regionData = new[]
+{
+    new RegionSales("Jan", 40, 25, 15), new RegionSales("Feb", 45, 30, 20),
+    new RegionSales("Mar", 38, 35, 25), new RegionSales("Apr", 55, 32, 18),
+    new RegionSales("May", 48, 40, 30), new RegionSales("Jun", 60, 38, 22),
+    new RegionSales("Jul", 52, 45, 28), new RegionSales("Aug", 58, 42, 35),
+    new RegionSales("Sep", 50, 48, 30), new RegionSales("Oct", 65, 40, 25),
+    new RegionSales("Nov", 55, 50, 32), new RegionSales("Dec", 70, 45, 28),
+};
+
 var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
         ctx.TabPanel(tp => [
@@ -307,6 +321,26 @@ var terminal = Hex1bTerminal.CreateBuilder()
                     .Title("Income vs Spending by Age Group")
                     .ShowGridLines()
                     .FillHeight(),
+            ]),
+            tp.Tab("Stacked Area", t => [
+                t.HStack(h => [
+                    h.Text("Fill Style: "),
+                    h.ToggleSwitch(["Braille", "Solid"], stackedFillStyle == FillStyle.Braille ? 0 : 1)
+                        .OnSelectionChanged(e =>
+                        {
+                            stackedFillStyle = e.SelectedIndex == 0 ? FillStyle.Braille : FillStyle.Solid;
+                        }),
+                ]),
+                t.TimeSeriesChart(regionData)
+                    .Label(d => d.Month)
+                    .Series("North", d => d.North, blue)
+                    .Series("South", d => d.South, red)
+                    .Series("West", d => d.West, green)
+                    .Layout(ChartLayout.Stacked)
+                    .Fill(stackedFillStyle)
+                    .Title("Regional Sales (Stacked)")
+                    .ShowGridLines()
+                    .FillHeight(),
             ])
         ])
     )
@@ -321,3 +355,4 @@ record FinancialRecord(string Month, double Revenue, double Expenses);
 record HourlyRequests(string Hour, double Requests);
 record Measurement(double Height, double Weight);
 record DemographicPoint(double Income, double Spending, string Group);
+record RegionSales(string Month, double North, double South, double West);

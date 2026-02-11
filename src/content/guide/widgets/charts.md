@@ -197,6 +197,41 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();`
 
+const timeSeriesStackedCode = `using Hex1b;
+using Hex1b.Charts;
+using Hex1b.Theming;
+
+var data = new[]
+{
+    new RegionSales("Jan", 40, 25, 15), new RegionSales("Feb", 45, 30, 20),
+    new RegionSales("Mar", 38, 35, 25), new RegionSales("Apr", 55, 32, 18),
+    new RegionSales("May", 48, 40, 30), new RegionSales("Jun", 60, 38, 22),
+    new RegionSales("Jul", 52, 45, 28), new RegionSales("Aug", 58, 42, 35),
+    new RegionSales("Sep", 50, 48, 30), new RegionSales("Oct", 65, 40, 25),
+    new RegionSales("Nov", 55, 50, 32), new RegionSales("Dec", 70, 45, 28),
+};
+
+var blue = Hex1bColor.FromRgb(66, 133, 244);
+var red = Hex1bColor.FromRgb(234, 67, 53);
+var green = Hex1bColor.FromRgb(52, 168, 83);
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) =&gt; ctx =&gt; ctx.TimeSeriesChart(data)
+        .Label(d =&gt; d.Month)
+        .Series("North", d =&gt; d.North, blue)
+        .Series("South", d =&gt; d.South, red)
+        .Series("West", d =&gt; d.West, green)
+        .Layout(ChartLayout.Stacked)
+        .Fill(FillStyle.Braille)
+        .Title("Regional Sales (Stacked)")
+        .ShowGridLines()
+    )
+    .Build();
+
+await terminal.RunAsync();
+
+record RegionSales(string Month, double North, double South, double West);`
+
 const scatterBasicCode = `using Hex1b;
 using Hex1b.Charts;
 
@@ -315,6 +350,12 @@ Use `.Fill()` to shade the area below the line. `FillStyle.Braille` fills with b
 
 <CodeBlock lang="csharp" :code="timeSeriesFillCode" command="dotnet run" example="chart-timeseries-fill" exampleTitle="Time Series - Area Fill" />
 
+### Stacked Area
+
+Use `.Layout(ChartLayout.Stacked)` with `.Fill()` to create stacked area charts. Each series' area sits on top of the previous, showing cumulative totals. Switch between `FillStyle.Braille` (dot-based) and `FillStyle.Solid` (block-character) rendering:
+
+<CodeBlock lang="csharp" :code="timeSeriesStackedCode" command="dotnet run" example="chart-timeseries-stacked" exampleTitle="Time Series - Stacked Area" />
+
 ## Scatter Chart
 
 Plot independent (x, y) data points using braille dots. Points are NOT connected by lines — each plots a single dot. Both axes are numeric.
@@ -422,6 +463,7 @@ var terminal = Hex1bTerminal.CreateBuilder()
 | `.Value(T → double)` | Single-series Y value selector |
 | `.Series(name, T → double, color?)` | Add a named Y series |
 | `.Fill(FillStyle)` | Area fill: `Solid` (block chars) or `Braille` (dot fill) |
+| `.Layout(ChartLayout)` | `Stacked` for cumulative stacked areas |
 | `.Title(string)` | Chart title |
 | `.ShowValues(bool)` | Display Y values at data points |
 | `.ShowGridLines(bool)` | Display horizontal grid lines |

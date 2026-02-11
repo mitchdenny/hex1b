@@ -19,6 +19,7 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     public bool ShowValues { get; set; }
     public bool ShowGridLines { get; set; } = true;
     public FillStyle FillStyle { get; set; } = FillStyle.None;
+    public ChartLayout Layout { get; set; } = ChartLayout.Simple;
     public double? Minimum { get; set; }
     public double? Maximum { get; set; }
     public Func<double, string>? ValueFormatter { get; set; }
@@ -55,109 +56,55 @@ public class TimeSeriesChartNode<T> : Hex1bNode
         var chartLeft = yLabelWidth;
         var chartTop = titleHeight;
 
-        // Compute Y scaler from all series values
-        var allValues = series.SelectMany(s => s.Values);
-        ChartScaler yScaler;
-        if (FillStyle != FillStyle.None && !Minimum.HasValue)
-            yScaler = ChartScaler.FromValues(allValues, chartHeight, 0, Maximum);
-        else
-            yScaler = ChartScaler.FromValues(allValues, chartHeight, Minimum, Maximum);
+        var isStacked = Layout == ChartLayout.Stacked && series.Count > 1;
 
-        // Get colors
+        // Compute cumulative values for stacked mode
+        var pointCount = series[0].Values.Count;
+        double[][] cumulative = null!;
+        if (isStacked)
+        {
+            cumulative = new double[series.Count][];
+            for (int si = 0; si < series.Count; si++)
+            {
+                cumulative[si] = new double[pointCount];
+                for (int i = 0; i < pointCount; i++)
+                {
+                    cumulative[si][i] = series[si].Values[i]
+                        + (si > 0 ? cumulative[si - 1][i] : 0);
+                }
+            }
+        }
+
+        // Compute Y scaler
+        ChartScaler yScaler;
+        if (isStacked)
+        {
+            var maxCumulative = cumulative[series.Count - 1].Max();
+            yScaler = ChartScaler.FromValues([0, maxCumulative], chartHeight, 0, Maximum);
+        }
+        else
+        {
+            var allValues = series.SelectMany(s => s.Values);
+            if (FillStyle != FillStyle.None && !Minimum.HasValue)
+                yScaler = ChartScaler.FromValues(allValues, chartHeight, 0, Maximum);
+            else
+                yScaler = ChartScaler.FromValues(allValues, chartHeight, Minimum, Maximum);
+        }
+
         var colors = ResolveSeriesColors(series);
 
-        // Create surface
         CellMetrics cellMetrics = CellMetrics.Default;
         if (context is SurfaceRenderContext surfaceCtx)
             cellMetrics = surfaceCtx.CellMetrics;
         var surface = new Surface(width, height, cellMetrics);
 
-        // Grid lines
         if (ShowGridLines)
             AxisRenderer.DrawHorizontalGridLines(surface, yScaler, chartLeft, chartWidth, chartTop, chartHeight);
 
-        // Render each series with braille
-        for (int si = 0; si < series.Count; si++)
-        {
-            var s = series[si];
-            var color = colors[si];
-            var canvas = new BrailleCanvas(chartWidth, chartHeight);
-            var pointCount = s.Values.Count;
-            if (pointCount == 0) continue;
-
-            // Map data points to dot coordinates
-            var dotXs = new int[pointCount];
-            var dotYs = new int[pointCount];
-            for (int i = 0; i < pointCount; i++)
-            {
-                var xFrac = pointCount > 1 ? (double)i / (pointCount - 1) : 0.5;
-                dotXs[i] = (int)Math.Round(xFrac * (canvas.DotWidth - 1));
-                var yScaled = yScaler.Scale(s.Values[i]);
-                dotYs[i] = canvas.DotHeight - 1 - (int)Math.Round(yScaled / chartHeight * (canvas.DotHeight - 1));
-                dotYs[i] = Math.Clamp(dotYs[i], 0, canvas.DotHeight - 1);
-            }
-
-            // Draw lines between consecutive points
-            for (int i = 0; i < pointCount - 1; i++)
-                canvas.DrawLine(dotXs[i], dotYs[i], dotXs[i + 1], dotYs[i + 1]);
-
-            // Area fill (single series only, or first series)
-            if (FillStyle != FillStyle.None && (series.Count == 1 || si == 0))
-            {
-                if (FillStyle == FillStyle.Braille)
-                {
-                    // Fill below line with braille dots
-                    for (int i = 0; i < pointCount; i++)
-                    {
-                        canvas.FillBelow(dotXs[i], dotYs[i]);
-                        // Fill between points too
-                        if (i < pointCount - 1)
-                        {
-                            var steps = Math.Abs(dotXs[i + 1] - dotXs[i]);
-                            for (int step = 0; step <= steps; step++)
-                            {
-                                var t = steps > 0 ? (double)step / steps : 0;
-                                var fx = dotXs[i] + t * (dotXs[i + 1] - dotXs[i]);
-                                var fy = dotYs[i] + t * (dotYs[i + 1] - dotYs[i]);
-                                canvas.FillBelow((int)Math.Round(fx), (int)Math.Round(fy));
-                            }
-                        }
-                    }
-                }
-                else if (FillStyle == FillStyle.Solid)
-                {
-                    // Solid fill rendered with block chars (not braille)
-                    DrawSolidFill(surface, s.Values, yScaler, color, chartLeft, chartTop, chartWidth, chartHeight);
-                }
-            }
-
-            // Composite braille canvas onto surface
-            for (int cy = 0; cy < canvas.CellHeight; cy++)
-            for (int cx = 0; cx < canvas.CellWidth; cx++)
-            {
-                var ch = canvas.GetCell(cx, cy);
-                if (ch is null) continue;
-
-                var sx = chartLeft + cx;
-                var sy = chartTop + cy;
-                if (sx >= surface.Width || sy >= surface.Height) continue;
-
-                // OR braille patterns if cell already has braille content
-                var existing = surface[sx, sy];
-                if (existing.Character is not null && existing.Character.Length == 1
-                    && existing.Character[0] >= '\u2800' && existing.Character[0] <= '\u28FF')
-                {
-                    // OR the patterns, blend the colors
-                    var merged = (char)(existing.Character[0] | ch.Value);
-                    var blendedFg = BlendColors(existing.Foreground, color);
-                    surface[sx, sy] = new SurfaceCell(merged.ToString(), blendedFg, existing.Background);
-                }
-                else
-                {
-                    surface[sx, sy] = new SurfaceCell(ch.Value.ToString(), color, null);
-                }
-            }
-        }
+        if (isStacked)
+            RenderStacked(surface, series, cumulative, yScaler, colors, chartLeft, chartTop, chartWidth, chartHeight);
+        else
+            RenderOverlaid(surface, series, yScaler, colors, chartLeft, chartTop, chartWidth, chartHeight);
 
         // Y-axis labels
         AxisRenderer.DrawYAxis(surface, yScaler, yLabelWidth, chartTop, chartHeight, ValueFormatter);
@@ -185,6 +132,128 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     }
 
     public override IEnumerable<Hex1bNode> GetChildren() { yield break; }
+
+    #region Rendering Modes
+
+    private void RenderOverlaid(
+        Surface surface, List<SeriesData> series, ChartScaler yScaler, Hex1bColor[] colors,
+        int chartLeft, int chartTop, int chartWidth, int chartHeight)
+    {
+        for (int si = 0; si < series.Count; si++)
+        {
+            var s = series[si];
+            var color = colors[si];
+            var canvas = new BrailleCanvas(chartWidth, chartHeight);
+            var pointCount = s.Values.Count;
+            if (pointCount == 0) continue;
+
+            var dotXs = new int[pointCount];
+            var dotYs = new int[pointCount];
+            for (int i = 0; i < pointCount; i++)
+            {
+                var xFrac = pointCount > 1 ? (double)i / (pointCount - 1) : 0.5;
+                dotXs[i] = (int)Math.Round(xFrac * (canvas.DotWidth - 1));
+                var yScaled = yScaler.Scale(s.Values[i]);
+                dotYs[i] = canvas.DotHeight - 1 - (int)Math.Round(yScaled / chartHeight * (canvas.DotHeight - 1));
+                dotYs[i] = Math.Clamp(dotYs[i], 0, canvas.DotHeight - 1);
+            }
+
+            for (int i = 0; i < pointCount - 1; i++)
+                canvas.DrawLine(dotXs[i], dotYs[i], dotXs[i + 1], dotYs[i + 1]);
+
+            // Area fill (single series only, or first series)
+            if (FillStyle != FillStyle.None && (series.Count == 1 || si == 0))
+            {
+                if (FillStyle == FillStyle.Braille)
+                    FillBrailleBelow(canvas, dotXs, dotYs, pointCount);
+                else if (FillStyle == FillStyle.Solid)
+                    DrawSolidFill(surface, s.Values, yScaler, color, chartLeft, chartTop, chartWidth, chartHeight);
+            }
+
+            CompositeBraille(surface, canvas, color, chartLeft, chartTop);
+        }
+    }
+
+    private void RenderStacked(
+        Surface surface, List<SeriesData> series, double[][] cumulative, ChartScaler yScaler,
+        Hex1bColor[] colors, int chartLeft, int chartTop, int chartWidth, int chartHeight)
+    {
+        var pointCount = series[0].Values.Count;
+        if (pointCount == 0) return;
+
+        // Render from bottom (first series) to top (last series)
+        for (int si = 0; si < series.Count; si++)
+        {
+            var color = colors[si];
+            var topValues = cumulative[si];
+            var bottomValues = si > 0 ? cumulative[si - 1] : null;
+
+            if (FillStyle == FillStyle.Braille || FillStyle == FillStyle.None)
+            {
+                // Braille mode: draw line + fill between boundaries with braille dots
+                var canvas = new BrailleCanvas(chartWidth, chartHeight);
+
+                var dotXs = new int[pointCount];
+                var topDotYs = new int[pointCount];
+                var bottomDotYs = new int[pointCount];
+                for (int i = 0; i < pointCount; i++)
+                {
+                    var xFrac = pointCount > 1 ? (double)i / (pointCount - 1) : 0.5;
+                    dotXs[i] = (int)Math.Round(xFrac * (canvas.DotWidth - 1));
+
+                    var topScaled = yScaler.Scale(topValues[i]);
+                    topDotYs[i] = canvas.DotHeight - 1 - (int)Math.Round(topScaled / chartHeight * (canvas.DotHeight - 1));
+                    topDotYs[i] = Math.Clamp(topDotYs[i], 0, canvas.DotHeight - 1);
+
+                    if (bottomValues is not null)
+                    {
+                        var botScaled = yScaler.Scale(bottomValues[i]);
+                        bottomDotYs[i] = canvas.DotHeight - 1 - (int)Math.Round(botScaled / chartHeight * (canvas.DotHeight - 1));
+                        bottomDotYs[i] = Math.Clamp(bottomDotYs[i], 0, canvas.DotHeight - 1);
+                    }
+                    else
+                    {
+                        bottomDotYs[i] = canvas.DotHeight - 1;
+                    }
+                }
+
+                // Draw top boundary line
+                for (int i = 0; i < pointCount - 1; i++)
+                    canvas.DrawLine(dotXs[i], topDotYs[i], dotXs[i + 1], topDotYs[i + 1]);
+
+                // Fill between top and bottom boundaries
+                if (FillStyle == FillStyle.Braille)
+                {
+                    for (int i = 0; i < pointCount; i++)
+                    {
+                        FillBrailleBetween(canvas, dotXs[i], topDotYs[i], bottomDotYs[i]);
+                        if (i < pointCount - 1)
+                        {
+                            var steps = Math.Abs(dotXs[i + 1] - dotXs[i]);
+                            for (int step = 1; step < steps; step++)
+                            {
+                                var t = (double)step / steps;
+                                var fx = (int)Math.Round(dotXs[i] + t * (dotXs[i + 1] - dotXs[i]));
+                                var ftop = (int)Math.Round(topDotYs[i] + t * (topDotYs[i + 1] - topDotYs[i]));
+                                var fbot = (int)Math.Round(bottomDotYs[i] + t * (bottomDotYs[i + 1] - bottomDotYs[i]));
+                                FillBrailleBetween(canvas, fx, ftop, fbot);
+                            }
+                        }
+                    }
+                }
+
+                CompositeBraille(surface, canvas, color, chartLeft, chartTop);
+            }
+            else if (FillStyle == FillStyle.Solid)
+            {
+                // Solid mode: fill cells between boundaries with fractional blocks
+                DrawStackedSolidFill(surface, topValues, bottomValues, yScaler, color,
+                    chartLeft, chartTop, chartWidth, chartHeight, pointCount);
+            }
+        }
+    }
+
+    #endregion
 
     #region Data Resolution
 
@@ -218,6 +287,126 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     #endregion
 
     #region Drawing Helpers
+
+    private static void CompositeBraille(Surface surface, BrailleCanvas canvas, Hex1bColor color,
+        int chartLeft, int chartTop)
+    {
+        for (int cy = 0; cy < canvas.CellHeight; cy++)
+        for (int cx = 0; cx < canvas.CellWidth; cx++)
+        {
+            var ch = canvas.GetCell(cx, cy);
+            if (ch is null) continue;
+            var sx = chartLeft + cx;
+            var sy = chartTop + cy;
+            if (sx >= surface.Width || sy >= surface.Height) continue;
+
+            var existing = surface[sx, sy];
+            if (existing.Character is not null && existing.Character.Length == 1
+                && existing.Character[0] >= '\u2800' && existing.Character[0] <= '\u28FF')
+            {
+                var merged = (char)(existing.Character[0] | ch.Value);
+                var blendedFg = BlendColors(existing.Foreground, color);
+                surface[sx, sy] = new SurfaceCell(merged.ToString(), blendedFg, existing.Background);
+            }
+            else
+            {
+                surface[sx, sy] = new SurfaceCell(ch.Value.ToString(), color, null);
+            }
+        }
+    }
+
+    private static void FillBrailleBelow(BrailleCanvas canvas, int[] dotXs, int[] dotYs, int pointCount)
+    {
+        for (int i = 0; i < pointCount; i++)
+        {
+            canvas.FillBelow(dotXs[i], dotYs[i]);
+            if (i < pointCount - 1)
+            {
+                var steps = Math.Abs(dotXs[i + 1] - dotXs[i]);
+                for (int step = 0; step <= steps; step++)
+                {
+                    var t = steps > 0 ? (double)step / steps : 0;
+                    var fx = dotXs[i] + t * (dotXs[i + 1] - dotXs[i]);
+                    var fy = dotYs[i] + t * (dotYs[i + 1] - dotYs[i]);
+                    canvas.FillBelow((int)Math.Round(fx), (int)Math.Round(fy));
+                }
+            }
+        }
+    }
+
+    private static void FillBrailleBetween(BrailleCanvas canvas, int dotX, int topDotY, int bottomDotY)
+    {
+        if (dotX < 0 || dotX >= canvas.DotWidth) return;
+        for (int y = Math.Max(0, topDotY); y <= Math.Min(canvas.DotHeight - 1, bottomDotY); y++)
+            canvas.SetDot(dotX, y);
+    }
+
+    private static void DrawStackedSolidFill(
+        Surface surface, double[] topValues, double[]? bottomValues, ChartScaler yScaler,
+        Hex1bColor color, int chartLeft, int chartTop, int chartWidth, int chartHeight, int pointCount)
+    {
+        var fillColor = Hex1bColor.FromRgb(
+            (byte)Math.Min(255, color.R / 2 + 30),
+            (byte)Math.Min(255, color.G / 2 + 30),
+            (byte)Math.Min(255, color.B / 2 + 30));
+
+        for (int cx = 0; cx < chartWidth && chartLeft + cx < surface.Width; cx++)
+        {
+            // Interpolate top and bottom values at this cell X
+            var xFrac = chartWidth > 1 ? (double)cx / (chartWidth - 1) : 0.5;
+            var dataIdx = xFrac * (pointCount - 1);
+            var idx0 = (int)Math.Floor(dataIdx);
+            var idx1 = Math.Min(idx0 + 1, pointCount - 1);
+            var lerp = dataIdx - idx0;
+
+            var topVal = topValues[idx0] + lerp * (topValues[idx1] - topValues[idx0]);
+            var botVal = bottomValues is not null
+                ? bottomValues[idx0] + lerp * (bottomValues[idx1] - bottomValues[idx0])
+                : 0;
+
+            var topScaled = yScaler.Scale(topVal);
+            var botScaled = yScaler.Scale(botVal);
+
+            // Convert to cell rows (0 = top of chart area)
+            var topExact = chartHeight - 1 - topScaled;
+            var botExact = chartHeight - 1 - botScaled;
+            var topRow = (int)Math.Floor(topExact);
+            var botRow = (int)Math.Floor(botExact);
+
+            var sx = chartLeft + cx;
+
+            // Fill full cells between top and bottom
+            for (int row = Math.Max(0, topRow + 1); row < Math.Min(chartHeight, botRow); row++)
+            {
+                var sy = chartTop + row;
+                if (sy >= surface.Height) continue;
+                surface[sx, sy] = new SurfaceCell("█", fillColor, null);
+            }
+
+            // Fractional top edge
+            if (topRow >= 0 && topRow < chartHeight)
+            {
+                var topFrac = topExact - topRow;
+                var blockChar = FractionalBlocks.Vertical(1.0 - topFrac);
+                var sy = chartTop + topRow;
+                if (sy < surface.Height && blockChar != " ")
+                    surface[sx, sy] = new SurfaceCell(blockChar, fillColor, null);
+            }
+
+            // Fractional bottom edge
+            if (botRow >= 0 && botRow < chartHeight && botRow != topRow)
+            {
+                var botFrac = botExact - botRow;
+                if (botFrac > 0.01)
+                {
+                    var blockChar = FractionalBlocks.Vertical(botFrac);
+                    var sy = chartTop + botRow;
+                    if (sy < surface.Height && blockChar != " ")
+                        surface[sx, sy] = new SurfaceCell(blockChar, color, fillColor);
+                }
+            }
+        }
+    }
 
     private static void DrawSolidFill(
         Surface surface, IReadOnlyList<double> values, ChartScaler yScaler, Hex1bColor color,

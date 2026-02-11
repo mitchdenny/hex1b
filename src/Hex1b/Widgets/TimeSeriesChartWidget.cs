@@ -45,6 +45,7 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
     internal bool IsShowingValues { get; init; }
     internal bool IsShowingGridLines { get; init; } = true;
     internal FillStyle ChartFillStyle { get; init; } = FillStyle.None;
+    internal ChartLayout ChartLayoutMode { get; init; } = ChartLayout.Simple;
     internal double? Minimum { get; init; }
     internal double? Maximum { get; init; }
     internal Func<double, string>? ValueFormatter { get; init; }
@@ -94,6 +95,13 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
         => this with { ChartFillStyle = style };
 
     /// <summary>
+    /// Sets the chart layout for multi-series data.
+    /// Use <see cref="ChartLayout.Stacked"/> for stacked area charts.
+    /// </summary>
+    public TimeSeriesChartWidget<T> Layout(ChartLayout layout)
+        => this with { ChartLayoutMode = layout };
+
+    /// <summary>
     /// Sets the explicit minimum Y value.
     /// </summary>
     public TimeSeriesChartWidget<T> Min(double min) => this with { Minimum = min };
@@ -129,6 +137,7 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
         node.ShowValues = IsShowingValues;
         node.ShowGridLines = IsShowingGridLines;
         node.FillStyle = ChartFillStyle;
+        node.Layout = ChartLayoutMode;
         node.Minimum = Minimum;
         node.Maximum = Maximum;
         node.ValueFormatter = ValueFormatter;
