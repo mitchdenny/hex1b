@@ -19,6 +19,7 @@ public sealed class Hex1bDocument : IHex1bDocument
     private Utf8ByteMap? _cachedByteMap;
     private List<int> _lineStartChars = new();  // char offsets of line starts
     private List<int> _lineStartBytes = new();  // byte offsets of line starts (parallel)
+    private int _cachedCharLength;              // total char count, updated with line starts
     private bool _textDirty;
     private bool _bytesDirty;
     private long _version;
@@ -333,9 +334,11 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     private (EditOperation Applied, EditOperation Inverse) ApplyOneCharOp(EditOperation operation)
     {
-        // During a batch, _cachedText is stale. All text reads and char→byte
-        // conversions use _cachedText, so clamp against its actual length.
-        var textLength = _cachedText.Length;
+        // During batch: use _cachedText.Length (pre-batch snapshot, consistent with
+        // CharOffsetToByteOffset's batch path that reads from _cachedText).
+        // Outside batch: use _cachedCharLength (computed by RebuildLineStartsFromPieces
+        // after each Apply) to avoid materializing _cachedText.
+        var textLength = _batchDepth > 0 ? _cachedText.Length : _cachedCharLength;
 
         switch (operation)
         {
@@ -548,6 +551,12 @@ public sealed class Hex1bDocument : IHex1bDocument
                 _lineStartChars.Add(charPos);
             }
         }
+
+        // Compute total char length including the trailing segment after the last newline
+        if (lastByteOffset < _cachedBytes.Length)
+            _cachedCharLength = charPos + Encoding.UTF8.GetCharCount(_cachedBytes, lastByteOffset, _cachedBytes.Length - lastByteOffset);
+        else
+            _cachedCharLength = charPos;
     }
 
     /// <summary>
@@ -578,6 +587,7 @@ public sealed class Hex1bDocument : IHex1bDocument
             _cachedText = Encoding.UTF8.GetString(_cachedBytes);
         }
         _textDirty = false;
+        _cachedCharLength = _cachedText.Length;
     }
 
     /// <summary>
@@ -590,6 +600,7 @@ public sealed class Hex1bDocument : IHex1bDocument
         _bytesDirty = false;
         _cachedText = Encoding.UTF8.GetString(_cachedBytes);
         _textDirty = false;
+        _cachedCharLength = _cachedText.Length;
         _cachedByteMap = null;
         RebuildLineStarts();
     }
