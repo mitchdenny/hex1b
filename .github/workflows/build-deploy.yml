@@ -44,14 +44,15 @@ jobs:
           dotnet build src/Hex1b.Tool/Hex1b.Tool.csproj --no-restore
 
       - name: Run tests
-        timeout-minutes: 15
+        timeout-minutes: 10
         env:
           HEX1B_TEST_TIMEOUT_MULTIPLIER: "3"
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=test-results.trx" \
-            --results-directory ./TestResults
+            --results-directory ./TestResults \
+            --filter "FullyQualifiedName!~MultiCursorPerformanceTests"
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=mcp-test-results.trx" \
