@@ -47,7 +47,7 @@ public class ButtonCounterExample(ILogger<ButtonCounterExample> logger) : Hex1bE
                     v.Text(""),
                     v.Button("Reset").OnClick(_ => state.Count = 0)
                 ])
-            ], title: "Counter");
+            ]).Title("Counter");
         };
     }
 }

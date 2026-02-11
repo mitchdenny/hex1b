@@ -4,4 +4,4 @@ ctx.Border(b => [
         v.Text(""),
         v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
     ])
-], title: "List Focus")
+]).Title("List Focus")

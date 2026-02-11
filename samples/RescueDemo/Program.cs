@@ -49,7 +49,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             content.Text(""),
                             content.Text($"Status: All good! (Errors caught so far: {throwCount})")
                         ])
-                    ], title: "Protected Zone")
+                    ]).Title("Protected Zone")
                 ];
             })
             .OnRescue(e => 

@@ -41,9 +41,8 @@ public class ScrollBasicExample(ILogger<ScrollBasicExample> logger) : Hex1bExamp
                         v.Text(""),
                         v.Text("── End of Content ──")
                     ]
-                ),
-                title: "Scroll Demo"
-            );
+                )
+            ).Title("Scroll Demo");
         };
     }
 }

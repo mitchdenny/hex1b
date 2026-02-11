@@ -134,9 +134,8 @@ internal sealed class PlaybackPlayerApp
                     v.Align(Alignment.Center,
                         v.Terminal(_handle)
                             .FixedWidth(_recording.Width)
-                            .FixedHeight(_recording.Height)),
-                    title: $"{fileName} [{state}]"
-                )).Fill(),
+                            .FixedHeight(_recording.Height))
+                ).Title($"{fileName} [{state}]")).Fill(),
 
             // Controls
             v.Border(
@@ -188,9 +187,8 @@ internal sealed class PlaybackPlayerApp
                               ]
                             : Array.Empty<Hex1bWidget>())
                     ])
-                ]),
-                title: "Controls"
-            ),
+                ])
+            ).Title("Controls"),
 
             // Status bar
             v.InfoBar([

@@ -38,9 +38,8 @@ public class ScrollTrackingExample(ILogger<ScrollTrackingExample> logger) : Hex1
                     ).OnScroll(args => {
                         scrollPosition = args.Offset;
                         viewportSize = args.ViewportSize;
-                    }),
-                    title: "Scrollable List"
-                )
+                    })
+                ).Title("Scrollable List")
             ]);
         };
     }

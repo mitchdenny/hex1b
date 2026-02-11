@@ -55,7 +55,7 @@ public class ToggleSwitchEventExample(ILogger<ToggleSwitchEventExample> logger) 
                     v.Text("Event Log:"),
                     ..eventLog.TakeLast(3).Select(log => v.Text($"  • {log}"))
                 ])
-            ], title: "User Preferences");
+            ]).Title("User Preferences");
         };
     }
 }

@@ -59,11 +59,11 @@ public class TableFocusExample(ILogger<TableFocusExample> logger) : Hex1bExample
                             focusedKey = key;
                             focusedProduct = products.FirstOrDefault(p => p.Name.Equals(key));
                         })
-                ], title: "Products"),
+                ]).Title("Products"),
                 v.Text(""),
                 v.Border(b => [
                     b.Text(focusedProduct?.Description ?? "Select a product to see details")
-                ], title: "Details")
+                ]).Title("Details")
             ]);
         };
     }

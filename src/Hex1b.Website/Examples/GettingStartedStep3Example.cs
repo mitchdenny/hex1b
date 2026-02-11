@@ -53,7 +53,7 @@ public class GettingStartedStep3Example(ILogger<GettingStartedStep3Example> logg
                     b.Text("📋 My Todos"),
                     b.Text(""),
                     b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
-                ], title: "Todo List").Fill(),
+                ]).Title("Todo List").Fill(),
                 v.InfoBar("↑↓ Navigate  Space: Toggle")
             ]);
         };

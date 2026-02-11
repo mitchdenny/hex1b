@@ -40,7 +40,7 @@ public class ResponsiveBasicExample(ILogger<ResponsiveBasicExample> logger) : He
                         b.Text(""),
                         b.Text("Press Tab to"),
                         b.Text("navigate items")
-                    ], title: "Menu")
+                    ]).Title("Menu")
                 ]);
             
             // Primary content panel (high priority - always visible)
@@ -58,7 +58,7 @@ public class ResponsiveBasicExample(ILogger<ResponsiveBasicExample> logger) : He
                         b.Text("This panel has the"),
                         b.Text("highest priority and"),
                         b.Text("is always visible.")
-                    ], title: "Dashboard")
+                    ]).Title("Dashboard")
                 ]);
             
             // Secondary content panel (medium priority - visible when wide enough)
@@ -76,7 +76,7 @@ public class ResponsiveBasicExample(ILogger<ResponsiveBasicExample> logger) : He
                         b.Text("This panel appears"),
                         b.Text("alongside primary"),
                         b.Text("when width >= 120.")
-                    ], title: "Analytics")
+                    ]).Title("Analytics")
                 ]);
             
             return ctx.Responsive(r => [

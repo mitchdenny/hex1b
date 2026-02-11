@@ -295,7 +295,7 @@ public class SliderIntegrationTests : IDisposable
                 b.Text("Brightness"),
                 b.Text(""),
                 b.Slider(65)
-            ], title: "Display Settings"),
+            ]).Title("Display Settings"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -553,7 +553,7 @@ public class SliderIntegrationTests : IDisposable
                         .OnValueChanged(e => currentValue = e.Value)
                         .Fill()
                 ])
-            ], title: "Settings"),
+            ]).Title("Settings"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -656,7 +656,7 @@ public class SliderIntegrationTests : IDisposable
                 b.HStack(h => [h.Text("Effects: "), h.Slider(90).OnValueChanged(e => effects = e.Value).Fill()]),
                 b.Text(""),
                 b.HStack(h => [h.Text("Voice:   "), h.Slider(70).OnValueChanged(e => voice = e.Value).Fill()])
-            ], title: "Settings"),
+            ]).Title("Settings"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -973,7 +973,7 @@ public class SliderIntegrationTests : IDisposable
             ctx => ctx.Border(b => [
                 b.Text("Test"),
                 b.Slider(50)
-            ], title: "Border Test"),
+            ]).Title("Border Test"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -1042,7 +1042,7 @@ public class SliderIntegrationTests : IDisposable
             ctx => ctx.Border(b => [
                 b.Text("Test"),
                 b.Slider(50)
-            ], title: "Double Width Test"),
+            ]).Title("Double Width Test"),
             new Hex1bAppOptions 
             { 
                 WorkloadAdapter = workload,

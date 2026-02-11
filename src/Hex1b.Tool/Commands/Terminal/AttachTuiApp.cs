@@ -259,7 +259,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
 
             v.ThemePanel(
                 theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
-                v.Border(content, title: title)).Fill(),
+                v.Border(content).Title(title)).Fill(),
 
             v.InfoBar(s =>
             [

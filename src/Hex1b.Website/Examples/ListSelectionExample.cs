@@ -42,7 +42,7 @@ public class ListSelectionExample(ILogger<ListSelectionExample> logger) : Hex1bE
                     v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
                         .OnSelectionChanged(e => state.SelectedItem = e.SelectedText)
                 ])
-            ], title: "Selection Demo");
+            ]).Title("Selection Demo");
         };
     }
 }

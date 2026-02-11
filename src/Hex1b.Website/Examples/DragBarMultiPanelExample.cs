@@ -47,9 +47,8 @@ public class DragBarMultiPanelExample(ILogger<DragBarMultiPanelExample> logger) 
                             center.Text("  Both sidebars are independently").Wrap(),
                             center.Text("  resizable. The center fills the").Wrap(),
                             center.Text("  remaining space.").Wrap()
-                        ]),
-                        title: "main.cs"
-                    ).Fill(),
+                        ])
+                    ).Title("main.cs").Fill(),
 
                     // Right panel — handle auto-detected on left edge
                     main.DragBarPanel(

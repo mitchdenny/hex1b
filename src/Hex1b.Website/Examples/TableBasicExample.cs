@@ -52,7 +52,7 @@ public class TableBasicExample(ILogger<TableBasicExample> logger) : Hex1bExample
                         r.Cell($"${product.Price:F2}"),
                         r.Cell(product.Stock.ToString())
                     ])
-            ], title: "Product Inventory");
+            ]).Title("Product Inventory");
         };
     }
 

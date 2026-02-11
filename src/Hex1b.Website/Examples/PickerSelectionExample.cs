@@ -40,7 +40,7 @@ public class PickerSelectionExample(ILogger<PickerSelectionExample> logger) : He
                             .OnSelectionChanged(e => selectedFruit = e.SelectedText)
                     ])
                 ])
-            ], title: "Selection Demo");
+            ]).Title("Selection Demo");
         };
     }
 }

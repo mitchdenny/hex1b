@@ -609,7 +609,7 @@ public class TreeIntegrationTests
                         new TreeItemWidget("Child 2")
                     )
                 )
-            ], title: "My Tree"))
+            ]).Title("My Tree"))
             .WithHeadless()
             .WithDimensions(40, 15)
             .Build();
@@ -680,8 +680,8 @@ public class TreeIntegrationTests
                     inner.Tree(
                         new TreeItemWidget("Deep Item")
                     )
-                ], title: "Inner")
-            ], title: "Outer"))
+                ]).Title("Inner")
+            ]).Title("Outer"))
             .WithHeadless()
             .WithDimensions(50, 15)
             .Build();
@@ -786,13 +786,13 @@ public class TreeIntegrationTests
                         new TreeItemWidget("Left Item 1"),
                         new TreeItemWidget("Left Item 2")
                     )
-                ], title: "Left"),
+                ]).Title("Left"),
                 h.Border(b => [
                     b.Tree(
                         new TreeItemWidget("Right Item 1"),
                         new TreeItemWidget("Right Item 2")
                     )
-                ], title: "Right")
+                ]).Title("Right")
             ]))
             .WithHeadless()
             .WithDimensions(60, 15)
@@ -1140,7 +1140,7 @@ public class TreeIntegrationTests
                                 )
                             )
                         ).FillHeight()
-                    ], title: "📂 Files").FillWidth().FillHeight(),
+                    ]).Title("📂 Files").FillWidth().FillHeight(),
                     
                     h.Border(b => [
                         b.Tree(
@@ -1149,7 +1149,7 @@ public class TreeIntegrationTests
                                 new TreeItemWidget("Option B")
                             )
                         ).MultiSelect().FillHeight()
-                    ], title: "✅ Select").FillWidth().FillHeight()
+                    ]).Title("✅ Select").FillWidth().FillHeight()
                 ]).FillHeight()
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }

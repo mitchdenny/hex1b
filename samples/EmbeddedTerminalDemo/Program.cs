@@ -329,9 +329,8 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
                         ])
                     )
                 ]))
-                .Fill(),
-            title: terminalTitle
-        );
+                .Fill()
+        ).Title(terminalTitle);
     }
     
     // Build the main content area - only show the active terminal
@@ -347,9 +346,8 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
                         vv.Text("No terminals running"),
                         vv.Text(""),
                         vv.Text("Use File → New Terminal or press Ctrl+N")
-                    ]),
-                    title: "Welcome"
-                )
+                    ])
+                ).Title("Welcome")
             ).Fill();
         }
         

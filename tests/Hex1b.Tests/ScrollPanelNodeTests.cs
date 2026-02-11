@@ -1223,9 +1223,8 @@ public class ScrollPanelNodeTests
                         ]
                     ),
                     v.Text("Footer"),
-                ]),
-                title: "Test"
-            ),
+                ])
+            ).Title("Test"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 

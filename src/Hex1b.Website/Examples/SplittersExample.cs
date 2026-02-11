@@ -106,9 +106,8 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     v.Text("container.").Wrap(),
                 ]),
                 leftWidth: 28
-            ),
-            title: "Horizontal Splitter (Left │ Right)"
-        );
+            )
+        ).Title("Horizontal Splitter (Left │ Right)");
     }
 
     private static Hex1bWidget BuildVerticalExample(RootContext ctx)
@@ -133,9 +132,8 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     v.Text("• Preview + properties").Wrap(),
                 ]),
                 topHeight: 6
-            ),
-            title: "Vertical Splitter (Top ─ Bottom)"
-        );
+            )
+        ).Title("Vertical Splitter (Top ─ Bottom)");
     }
 
     private static Hex1bWidget BuildNestedHVExample(RootContext ctx)
@@ -166,9 +164,8 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     v.Text("top pane of a vertical splitter. Great for editor layouts!").Wrap(),
                 ]),
                 topHeight: 8
-            ),
-            title: "Nested: Horizontal inside Vertical"
-        );
+            )
+        ).Title("Nested: Horizontal inside Vertical");
     }
 
     private static Hex1bWidget BuildNestedVHExample(RootContext ctx)
@@ -205,9 +202,8 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     topHeight: 6
                 ),
                 leftWidth: 18
-            ),
-            title: "Nested: Vertical inside Horizontal"
-        );
+            )
+        ).Title("Nested: Vertical inside Horizontal");
     }
 
     private static Hex1bWidget BuildQuadExample(RootContext ctx)
@@ -247,8 +243,7 @@ public class SplittersExample(ILogger<SplittersExample> logger) : Hex1bExample
                     leftWidth: 20
                 ),
                 topHeight: 8
-            ),
-            title: "Quad Split (4 panes)"
-        );
+            )
+        ).Title("Quad Split (4 panes)");
     }
 }

@@ -53,9 +53,8 @@ public class ScrollEventExample(ILogger<ScrollEventExample> logger) : Hex1bExamp
                         maxOffset = args.MaxOffset;
                         contentSize = args.ContentSize;
                         viewportSize = args.ViewportSize;
-                    }),
-                    title: "Scrollable Area"
-                )
+                    })
+                ).Title("Scrollable Area")
             ]);
         };
     }

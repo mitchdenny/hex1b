@@ -34,7 +34,7 @@ public class ListBasicExample(ILogger<ListBasicExample> logger) : Hex1bExample
                     v.Text(""),
                     v.List(["Apple", "Banana", "Cherry", "Date", "Elderberry"])
                 ])
-            ], title: "Fruit List");
+            ]).Title("Fruit List");
         };
     }
 }

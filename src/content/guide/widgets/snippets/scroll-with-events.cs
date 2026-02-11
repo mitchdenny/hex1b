@@ -18,7 +18,6 @@ ctx.VStack(v => [
             currentOffset = args.Offset;
             maxOffset = args.MaxOffset;
             contentSize = args.ContentSize;
-        }),
-        title: "Scrollable Area"
-    )
+        })
+    ).Title("Scrollable Area")
 ])

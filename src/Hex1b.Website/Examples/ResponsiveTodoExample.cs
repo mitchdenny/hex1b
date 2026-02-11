@@ -125,7 +125,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
                 b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Navigate  Space: Toggle")
-            ], title: "Tasks").FillWidth(2),
+            ]).Title("Tasks").FillWidth(2),
             
             // Middle: Add new item
             h.Border(b => [
@@ -136,7 +136,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
                 b.Button("Add Task").OnClick(_ => state.AddItem()),
                 b.Text(""),
                 b.Text("Type and click Add")
-            ], title: "New Task").FillWidth(1),
+            ]).Title("New Task").FillWidth(1),
             
             // Right: Statistics
             h.Border(b => [
@@ -147,7 +147,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
                 b.Text($"Todo:  {todoCount} ○"),
                 b.Text(""),
                 b.Text($"Progress: {GetProgressBar(state)}")
-            ], title: "Stats").FillWidth(1)
+            ]).Title("Stats").FillWidth(1)
         ]);
     }
 
@@ -167,7 +167,7 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
                 b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected()),
                 b.Text(""),
                 b.Text("↑↓ Nav  Space: Toggle")
-            ], title: "Tasks").FillWidth(2),
+            ]).Title("Tasks").FillWidth(2),
             
             // Right: Add + Stats combined
             h.VStack(v => [
@@ -175,11 +175,11 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
                     b.Text("➕ Add Task"),
                     b.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText),
                     b.Button("Add").OnClick(_ => state.AddItem())
-                ], title: "New"),
+                ]).Title("New"),
                 v.Border(b => [
                     b.Text($"Done: {completedCount}/{totalCount}"),
                     b.Text(GetProgressBar(state))
-                ], title: "Progress").FillHeight()
+                ]).Title("Progress").FillHeight()
             ]).FillWidth(1)
         ]);
     }
@@ -196,11 +196,11 @@ public class ResponsiveTodoExample(ILogger<ResponsiveTodoExample> logger) : Hex1
             v.Border(b => [
                 b.Text("📋 Responsive Todo List"),
                 b.Text($"[{completedCount}/{totalCount} complete]")
-            ], title: "Todo"),
+            ]).Title("Todo"),
             
             v.Border(b => [
                 b.List(listItems).OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex).OnItemActivated(_ => state.ToggleSelected())
-            ], title: "Items").FillHeight(),
+            ]).Title("Items").FillHeight(),
             
             v.HStack(h => [
                 h.TextBox(state.NewItemText).OnTextChanged(args => state.NewItemText = args.NewText).FillWidth(),

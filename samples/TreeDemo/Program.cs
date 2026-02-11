@@ -109,7 +109,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ])
                 .OnItemActivated(e => { lastActivated = e.Item.Label; })
                 .FillHeight()
-            ], title: "📂 Static Tree").FillWidth().FillHeight(),
+            ]).Title("📂 Static Tree").FillWidth().FillHeight(),
             
             // Middle: Async lazy-loading tree with externalized state
             // Children are rebuilt fresh each render to pick up current loading state
@@ -133,7 +133,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ])
                 .OnItemActivated(e => { lastActivated = e.Item.Label; })
                 .FillHeight()
-            ], title: "🌐 Async Lazy Load").FillWidth().FillHeight(),
+            ]).Title("🌐 Async Lazy Load").FillWidth().FillHeight(),
             
             // Right side: Multi-select tree with cascade selection
             h.Border(b => [
@@ -159,7 +159,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 .MultiSelect()
                 .OnSelectionChanged(e => { selectedCount = e.SelectedItems.Count; })
                 .FillHeight()
-            ], title: "📋 Cascade Select").FillWidth().FillHeight()
+            ]).Title("📋 Cascade Select").FillWidth().FillHeight()
         ]).FillHeight(),
         
         v.Text(""),
@@ -177,7 +177,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             children.Item("Child 2")
                         ]).Expanded()
                     ])
-                ], title: "Unicode").FillWidth()),
+                ]).Title("Unicode").FillWidth()),
             
             h.ThemePanel(
                 theme => theme
@@ -194,7 +194,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             children.Item("Child 2")
                         ]).Expanded()
                     ])
-                ], title: "ASCII").FillWidth()),
+                ]).Title("ASCII").FillWidth()),
             
             h.ThemePanel(
                 theme => theme
@@ -211,7 +211,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             children.Item("Child 2")
                         ]).Expanded()
                     ])
-                ], title: "Bold").FillWidth()),
+                ]).Title("Bold").FillWidth()),
             
             h.ThemePanel(
                 theme => theme
@@ -228,7 +228,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             children.Item("Child 2")
                         ]).Expanded()
                     ])
-                ], title: "Double").FillWidth())
+                ]).Title("Double").FillWidth())
         ]),
         
         v.Text(""),

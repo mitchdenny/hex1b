@@ -129,6 +129,6 @@ public class ButtonAsyncExample(ILogger<ButtonAsyncExample> logger) : ReactiveEx
                 v.Button(state.IsLoading ? "Loading..." : "Load Data")
                     .OnClick(_ => state.StartLoading())
             ])
-        ], title: "Background Work");
+        ]).Title("Background Work");
     }
 }

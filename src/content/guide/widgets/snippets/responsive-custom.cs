@@ -8,7 +8,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             r => r.Border(b => [
                 b.Text("Large Terminal"),
                 b.Text($"Plenty of space for content")
-            ], title: "Full View")
+            ]).Title("Full View")
         ),
         
         // Width-only condition

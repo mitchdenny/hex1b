@@ -26,9 +26,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 title.Text(""),
                 title.Text("  Scan the QR code with your phone to visit the URL").FillWidth(),
                 title.Text("")
-            ]),
-            title: "QR Code Demo"
-        ).FixedHeight(8),
+            ])
+        ).Title("QR Code Demo").FixedHeight(8),
 
         // Main content
         main.Border(
@@ -100,9 +99,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ]).FixedHeight(1),
                     right.Text("")
                 ]).FillWidth()
-            ]),
-            title: "QR Code & Controls"
-        ).Fill(),
+            ])
+        ).Title("QR Code & Controls").Fill(),
 
         // Status bar
         main.InfoBar([

@@ -112,9 +112,8 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                     v.Text(""),
                     v.Text("── End of Content ──"),
                 ]
-            ),
-            title: "Vertical Scroll (↑↓)"
-        );
+            )
+        ).Title("Vertical Scroll (↑↓)");
     }
 
     private static Hex1bWidget BuildHorizontalExample(RootContext ctx)
@@ -133,9 +132,8 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                 v.Text(""),
                 v.Text("Use ← → arrows when focused to scroll."),
                 v.Text("The scrollbar appears at the bottom."),
-            ]),
-            title: "Horizontal Scroll (←→)"
-        );
+            ])
+        ).Title("Horizontal Scroll (←→)");
     }
 
     private static Hex1bWidget BuildLargeContentExample(RootContext ctx)
@@ -143,9 +141,8 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
         return ctx.Border(
             ctx.VScrollPanel(
                 v => GenerateLargeContent(v, 100)
-            ),
-            title: "Large Content (100 lines)"
-        );
+            )
+        ).Title("Large Content (100 lines)");
     }
 
     private static Hex1bWidget[] GenerateLargeContent<TParent>(
@@ -209,9 +206,8 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                     v.Text(""),
                     v.Text("── End of Content ──"),
                 ]
-            ),
-            title: "With Focusable Buttons"
-        );
+            )
+        ).Title("With Focusable Buttons");
     }
 
     private static Hex1bWidget BuildNoScrollbarExample(RootContext ctx)
@@ -244,9 +240,8 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                     v.Text("── End of Content ──"),
                 ],
                 showScrollbar: false
-            ),
-            title: "No Scrollbar (still scrollable)"
-        );
+            )
+        ).Title("No Scrollbar (still scrollable)");
     }
 
     private static Hex1bWidget BuildNestedExample(RootContext ctx)
@@ -273,13 +268,11 @@ public class ScrollExample(ILogger<ScrollExample> logger) : Hex1bExample
                             inner.Text(""),
                             inner.Text("── End ──"),
                         ]
-                    ),
-                    "Inner Scroll"
-                ),
+                    )
+                ).Title("Inner Scroll"),
                 v.Text(""),
                 v.Text("Content below the nested scroll."),
-            ]),
-            title: "Nested Scroll in Border"
-        );
+            ])
+        ).Title("Nested Scroll in Border");
     }
 }

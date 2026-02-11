@@ -51,7 +51,7 @@ public class SliderAudioMixerExample(ILogger<SliderAudioMixerExample> logger) : 
                     v.Text(""),
                     v.Text("Tab to switch, arrows to adjust")
                 ])
-            ], title: "Settings");
+            ]).Title("Settings");
         };
     }
 }

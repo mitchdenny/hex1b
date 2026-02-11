@@ -300,9 +300,8 @@ public class DiagnosticShellIntegrationTests
                     return ctx => new VStackWidget([
                         new TextBlockWidget("Diagnostic Shell Test"),
                         new BorderWidget(
-                            new TerminalWidget(handle),
-                            Title: "Diagnostic Terminal"
-                        ).Fill()
+                            new TerminalWidget(handle)
+                        ).Title("Diagnostic Terminal").Fill()
                     ]).Fill();
                 })
                 .WithHeadless()

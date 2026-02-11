@@ -153,7 +153,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     inner.Text(""),
                     inner.Button("Trigger Error").OnClick(_ => throw CreateStressTestException()),
                 ])
-            ], title: "Basic Rescue"),
+            ]).Title("Basic Rescue"),
         ])
         .OnRescue(e => state.ErrorCount++)
         .OnReset(_ => state.ResetCount++);
@@ -180,7 +180,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     inner.Text(""),
                     inner.Button("Trigger Error").OnClick(_ => throw new InvalidOperationException("Something went wrong!")),
                 ])
-            ], title: "Custom Fallback"),
+            ]).Title("Custom Fallback"),
         ])
         .WithFallback(rescue => rescue.Border(b => [
             b.VStack(inner => [
@@ -194,7 +194,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                 inner.Text(""),
                 inner.Button("🔄 Try Again").OnClick(_ => rescue.Reset()),
             ])
-        ], title: "Oops!"))
+        ]).Title("Oops!"))
         .OnRescue(e => state.ErrorCount++)
         .OnReset(_ => state.ResetCount++);
     }
@@ -221,7 +221,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     inner.Text(""),
                     inner.Button("Trigger Error").OnClick(_ => throw new Exception("Test error for event handlers")),
                 ])
-            ], title: "Event Handlers"),
+            ]).Title("Event Handlers"),
         ])
         .OnRescue(e => {
             state.ErrorCount++;

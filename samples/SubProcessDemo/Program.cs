@@ -47,9 +47,8 @@ while (true)
                                             selectedOption = options[args.ActivatedIndex];
                                             app.RequestStop();
                                         }),
-                                ]),
-                                title: "SubProcess Demo"
-                            )
+                                ])
+                            ).Title("SubProcess Demo")
                         )
                     ]);
             })

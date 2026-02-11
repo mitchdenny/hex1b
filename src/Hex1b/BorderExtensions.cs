@@ -12,22 +12,20 @@ public static class BorderExtensions
     /// </summary>
     public static BorderWidget Border<TParent>(
         this WidgetContext<TParent> ctx,
-        Hex1bWidget child,
-        string? title = null)
+        Hex1bWidget child)
         where TParent : Hex1bWidget
-        => new(child, title);
+        => new(child);
 
     /// <summary>
     /// Creates a Border with a VStack child.
     /// </summary>
     public static BorderWidget Border<TParent>(
         this WidgetContext<TParent> ctx,
-        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder,
-        string? title = null)
+        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
         var childCtx = new WidgetContext<VStackWidget>();
         var children = builder(childCtx);
-        return new BorderWidget(new VStackWidget(children), title);
+        return new BorderWidget(new VStackWidget(children));
     }
 }

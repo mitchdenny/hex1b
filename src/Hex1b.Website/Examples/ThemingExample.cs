@@ -84,12 +84,12 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
                             right.Border(b => [
                                 b.Text("  Content inside border"),
                                 b.Text("  with multiple lines")
-                            ], title: "Border"),
+                            ]).Title("Border"),
                             right.Text(""),
                             right.Border(b => [
                                 b.Text("  Content in another border"),
                                 b.Text("  (theme-dependent styling)")
-                            ], title: "More"),
+                            ]).Title("More"),
                             right.Text(""),
                             right.Text("TextBox (Tab to focus):"),
                             right.TextBox(state.SampleTextBox).OnTextChanged(args => state.SampleTextBox = args.NewText),

@@ -86,9 +86,8 @@ Hex1bWidget BuildTableContent<TParent>(WidgetContext<TParent> ctx) where TParent
                 .Focus(focusedKey)
                 .OnFocusChanged(key => focusedKey = key)
                 .FillHeight()
-        ],
-        title: "Product Inventory"
-    );
+        ]
+    ).Title("Product Inventory");
 }
 
 CellCompute BuildEffect(int effectIndex, double progress, int width, int height)

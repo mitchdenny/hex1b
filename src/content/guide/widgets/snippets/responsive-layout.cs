@@ -10,13 +10,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     b.Text(""),
                     b.Text("This appears on the left"),
                     b.Text("when there's enough width.")
-                ], title: "Content").FillWidth(2),
+                ]).Title("Content").FillWidth(2),
                 
                 h.Border(b => [
                     b.Text("Sidebar"),
                     b.Text(""),
                     b.Text("Additional info")
-                ], title: "Info").FillWidth(1)
+                ]).Title("Info").FillWidth(1)
             ])
         ),
         
@@ -26,11 +26,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 v.Border(b => [
                     b.Text("Main Content"),
                     b.Text("Stacked vertically")
-                ], title: "Content"),
+                ]).Title("Content"),
                 
                 v.Border(b => [
                     b.Text("Sidebar below")
-                ], title: "Info")
+                ]).Title("Info")
             ])
         )
     ]))

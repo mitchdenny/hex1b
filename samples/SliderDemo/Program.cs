@@ -45,7 +45,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     h.Text($" {voice,3:F0}%").FixedWidth(6)
                 ])
             ])
-        ], title: "Audio Mixer"),
+        ]).Title("Audio Mixer"),
         v.Text(""),
 
         // RGB Color Picker Section
@@ -71,7 +71,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     t => { t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb((byte)red, (byte)green, (byte)blue)); return t; },
                     tp => [tp.Text("Preview: ████████")])
             ])
-        ], title: "RGB Color Picker (0-255)"),
+        ]).Title("RGB Color Picker (0-255)"),
         v.Text(""),
 
         // Temperature Control Section  
@@ -85,7 +85,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 inner.Text(""),
                 inner.Text(GetTemperatureStatus(temperature))
             ])
-        ], title: "Thermostat (16-30°C, 0.5° steps)"),
+        ]).Title("Thermostat (16-30°C, 0.5° steps)"),
         v.Text(""),
 
         v.Separator(),

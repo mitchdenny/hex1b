@@ -323,7 +323,7 @@ public class ProgressIntegrationTests : IDisposable
                 b.Progress(67),
                 b.Text(""),
                 b.Text("Estimated time: 2:30")
-            ], title: "File Transfer"),
+            ]).Title("File Transfer"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -536,7 +536,7 @@ public class ProgressIntegrationTests : IDisposable
                 b.Text($"Downloaded: {bytesDownloaded / 1_000_000.0:F1} MB / {totalBytes / 1_000_000.0:F1} MB"),
                 b.Text($"Speed: {speed}"),
                 b.Text($"ETA: {eta}")
-            ], title: "Download Manager"),
+            ]).Title("Download Manager"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
@@ -616,7 +616,7 @@ public class ProgressIntegrationTests : IDisposable
                 b.Text(""),
                 b.Text("Generating docs..."),
                 b.Progress(task3Progress)
-            ], title: "Build Status"),
+            ]).Title("Build Status"),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 

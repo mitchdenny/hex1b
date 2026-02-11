@@ -44,7 +44,7 @@ public class ToggleSwitchMultiOptionExample(ILogger<ToggleSwitchMultiOptionExamp
                     v.Text(""),
                     v.Text("Use arrow keys to cycle through options")
                 ])
-            ], title: "Configuration");
+            ]).Title("Configuration");
         };
     }
 }

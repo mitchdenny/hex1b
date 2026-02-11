@@ -129,18 +129,16 @@ Hex1bWidget BuildUI(RootContext ctx)
                         selectedFileIndex = e.SelectedIndex;
                         await LoadRecordingAsync(castFiles[selectedFileIndex].FullName);
                     }
-                }),
-            title: "Recordings"
-        ).FixedWidth(30),
+                })
+        ).Title("Recordings").FixedWidth(30),
         
         // Right panel: Terminal and controls
         h.VStack(v =>
         [
             // Main terminal display area
             v.Border(
-                v.Terminal(terminalHandle).Fill(),
-                title: $"{currentFile} [{state}]"
-            ).Fill(),
+                v.Terminal(terminalHandle).Fill()
+            ).Title($"{currentFile} [{state}]").Fill(),
             
             // Control bar at the bottom
             v.Border(
@@ -196,9 +194,8 @@ Hex1bWidget BuildUI(RootContext ctx)
                           ]
                         : Array.Empty<Hex1bWidget>())
                 ])
-            ]),
-            title: "Controls"
-        ),
+            ])
+        ).Title("Controls"),
         
         // Status bar
         v.InfoBar([
