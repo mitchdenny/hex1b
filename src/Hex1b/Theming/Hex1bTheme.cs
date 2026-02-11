@@ -39,6 +39,10 @@ public class Hex1bTheme
         {
             return typedValue;
         }
+        if (element.Fallback != null)
+        {
+            return Get(element.Fallback);
+        }
         return element.DefaultValue();
     }
 

@@ -135,14 +135,19 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var borderColor = theme.Get(BorderTheme.BorderColor);
         var titleColor = theme.Get(BorderTheme.TitleColor);
         var topLeft = theme.Get(BorderTheme.TopLeftCorner);
         var topRight = theme.Get(BorderTheme.TopRightCorner);
         var bottomLeft = theme.Get(BorderTheme.BottomLeftCorner);
         var bottomRight = theme.Get(BorderTheme.BottomRightCorner);
-        var horizontal = theme.Get(BorderTheme.HorizontalLine);
-        var vertical = theme.Get(BorderTheme.VerticalLine);
+        var topHorizontal = theme.Get(BorderTheme.TopLine);
+        var bottomHorizontal = theme.Get(BorderTheme.BottomLine);
+        var leftVertical = theme.Get(BorderTheme.LeftLine);
+        var rightVertical = theme.Get(BorderTheme.RightLine);
+        var topColor = theme.Get(BorderTheme.TopBorderColor);
+        var bottomColor = theme.Get(BorderTheme.BottomBorderColor);
+        var leftColor = theme.Get(BorderTheme.LeftBorderColor);
+        var rightColor = theme.Get(BorderTheme.RightBorderColor);
 
         var x = Bounds.X;
         var y = Bounds.Y;
@@ -152,7 +157,10 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         // Apply border color with global background
         var globalBg = theme.GetGlobalBackground();
         var globalBgAnsi = globalBg.IsDefault ? "" : globalBg.ToBackgroundAnsi();
-        var colorCode = $"{globalBgAnsi}{borderColor.ToForegroundAnsi()}";
+        var topColorCode = $"{globalBgAnsi}{topColor.ToForegroundAnsi()}";
+        var bottomColorCode = $"{globalBgAnsi}{bottomColor.ToForegroundAnsi()}";
+        var leftColorCode = $"{globalBgAnsi}{leftColor.ToForegroundAnsi()}";
+        var rightColorCode = $"{globalBgAnsi}{rightColor.ToForegroundAnsi()}";
         var resetToGlobal = theme.GetResetToGlobalCodes();
         
         var innerWidth = Math.Max(0, width - 2);
@@ -182,21 +190,21 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
             var leftPadding = (innerWidth - titleToShowDisplayWidth) / 2;
             var rightPadding = innerWidth - titleToShowDisplayWidth - leftPadding;
             
-            topLine = $"{colorCode}{topLeft}" +
-                      new string(horizontal[0], leftPadding) +
-                      $"{globalBgAnsi}{titleColor.ToForegroundAnsi()}{titleToShow}{colorCode}" +
-                      new string(horizontal[0], rightPadding) +
+            topLine = $"{topColorCode}{topLeft}" +
+                      new string(topHorizontal[0], leftPadding) +
+                      $"{globalBgAnsi}{titleColor.ToForegroundAnsi()}{titleToShow}{topColorCode}" +
+                      new string(topHorizontal[0], rightPadding) +
                       $"{topRight}{resetToGlobal}";
         }
         else
         {
-            topLine = $"{colorCode}{topLeft}{new string(horizontal[0], innerWidth)}{topRight}{resetToGlobal}";
+            topLine = $"{topColorCode}{topLeft}{new string(topHorizontal[0], innerWidth)}{topRight}{resetToGlobal}";
         }
         WriteLineClipped(context, x, y, topLine);
 
         // Draw left and right borders for each row, filling inner area with background
-        var leftBorder = $"{colorCode}{vertical}{resetToGlobal}";
-        var rightBorder = $"{colorCode}{vertical}{resetToGlobal}";
+        var leftBorder = $"{leftColorCode}{leftVertical}{resetToGlobal}";
+        var rightBorder = $"{rightColorCode}{rightVertical}{resetToGlobal}";
         var innerFill = innerWidth > 0 ? $"{globalBgAnsi}{new string(' ', innerWidth)}{resetToGlobal}" : "";
         for (int row = 1; row < height - 1; row++)
         {
@@ -212,7 +220,7 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         // Draw bottom border
         if (height > 1)
         {
-            var bottomLine = $"{colorCode}{bottomLeft}{new string(horizontal[0], innerWidth)}{bottomRight}{resetToGlobal}";
+            var bottomLine = $"{bottomColorCode}{bottomLeft}{new string(bottomHorizontal[0], innerWidth)}{bottomRight}{resetToGlobal}";
             WriteLineClipped(context, x, y + height - 1, bottomLine);
         }
 
