@@ -152,12 +152,12 @@ using Hex1b.Theming;
 
 var data = new[]
 {
-    new FinRec("Jan", 120, 80), new FinRec("Feb", 135, 90),
-    new FinRec("Mar", 115, 95), new FinRec("Apr", 150, 100),
-    new FinRec("May", 140, 110), new FinRec("Jun", 170, 105),
-    new FinRec("Jul", 165, 115), new FinRec("Aug", 180, 120),
-    new FinRec("Sep", 175, 125), new FinRec("Oct", 190, 130),
-    new FinRec("Nov", 200, 140), new FinRec("Dec", 220, 150),
+    new FinRec("Jan", 150, 90), new FinRec("Feb", 130, 110),
+    new FinRec("Mar", 105, 120), new FinRec("Apr", 95, 135),
+    new FinRec("May", 120, 125), new FinRec("Jun", 160, 110),
+    new FinRec("Jul", 175, 130), new FinRec("Aug", 140, 145),
+    new FinRec("Sep", 110, 150), new FinRec("Oct", 130, 125),
+    new FinRec("Nov", 170, 115), new FinRec("Dec", 190, 100),
 };
 
 var blue = Hex1bColor.FromRgb(66, 133, 244);

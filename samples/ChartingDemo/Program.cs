@@ -48,12 +48,12 @@ var temperatureData = new[]
 
 var financialData = new[]
 {
-    new FinancialRecord("Jan", 120, 80), new FinancialRecord("Feb", 135, 90),
-    new FinancialRecord("Mar", 115, 95), new FinancialRecord("Apr", 150, 100),
-    new FinancialRecord("May", 140, 110), new FinancialRecord("Jun", 170, 105),
-    new FinancialRecord("Jul", 165, 115), new FinancialRecord("Aug", 180, 120),
-    new FinancialRecord("Sep", 175, 125), new FinancialRecord("Oct", 190, 130),
-    new FinancialRecord("Nov", 200, 140), new FinancialRecord("Dec", 220, 150),
+    new FinancialRecord("Jan", 150, 90), new FinancialRecord("Feb", 130, 110),
+    new FinancialRecord("Mar", 105, 120), new FinancialRecord("Apr", 95, 135),
+    new FinancialRecord("May", 120, 125), new FinancialRecord("Jun", 160, 110),
+    new FinancialRecord("Jul", 175, 130), new FinancialRecord("Aug", 140, 145),
+    new FinancialRecord("Sep", 110, 150), new FinancialRecord("Oct", 130, 125),
+    new FinancialRecord("Nov", 170, 115), new FinancialRecord("Dec", 190, 100),
 };
 
 
