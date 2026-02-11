@@ -153,6 +153,19 @@ builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
 
+// Chart examples
+builder.Services.AddSingleton<IGalleryExample, ChartColumnBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartColumnMultiSeriesExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartBarBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartBarGroupedExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartBreakdownExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesMultiExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesFillExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesStackedExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartScatterBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartScatterGroupedExample>();
+
 // Tree examples
 builder.Services.AddSingleton<IGalleryExample, TreeBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TreeLazyLoadExample>();

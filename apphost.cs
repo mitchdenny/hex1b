@@ -99,6 +99,10 @@ var dragBarPanelDemo = builder.AddCSharpApp("dragbar-panel-demo", "./samples/Dra
 var widgetLayerDemo = builder.AddCSharpApp("widget-layer-demo", "./samples/WidgetLayerDemo")
     .ExcludeFromManifest();
 
+// Charting demo
+var chartingDemo = builder.AddCSharpApp("charting-demo", "./samples/ChartingDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
