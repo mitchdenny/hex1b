@@ -5,6 +5,13 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
+/// Collection for CPU-intensive tests (fuzz, stress, performance) that should run
+/// serially to avoid starving timing-sensitive integration tests of CPU time.
+/// </summary>
+[CollectionDefinition("CPU-Intensive")]
+public class CpuIntensiveCollection { }
+
+/// <summary>
 /// Seed-based fuzz testing for editor operations. Each seed produces a deterministic
 /// sequence of random operations that exercises the full editor state machine.
 ///
@@ -18,6 +25,7 @@ namespace Hex1b.Tests;
 ///   [114] InsertChar 'x' (docLen=4, cursor=3)
 ///   ...
 /// </summary>
+[Collection("CPU-Intensive")]
 public class EditorFuzzTests
 {
     // ── Operation types ─────────────────────────────────────────

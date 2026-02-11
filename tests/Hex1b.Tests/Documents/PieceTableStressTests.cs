@@ -7,6 +7,7 @@ namespace Hex1b.Tests.Documents;
 /// These tests exercise patterns that produce many small pieces and verify
 /// the document remains consistent after complex operation sequences.
 /// </summary>
+[Collection("CPU-Intensive")]
 public class PieceTableStressTests
 {
     [Fact]
