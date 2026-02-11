@@ -309,12 +309,13 @@ public static class SurfaceComparer
                 if (hyperlink != null)
                 {
                     // Start hyperlink: OSC 8 ; params ; URI ST
-                    tokens.Add(new OscToken("8", hyperlink.Data.Parameters, hyperlink.Data.Uri));
+                    // Use ESC \ terminator for maximum compatibility (Kitty requires it)
+                    tokens.Add(new OscToken("8", hyperlink.Data.Parameters, hyperlink.Data.Uri, UseEscBackslash: true));
                 }
                 else
                 {
                     // End hyperlink: OSC 8 ; ; ST (empty URI)
-                    tokens.Add(new OscToken("8", "", ""));
+                    tokens.Add(new OscToken("8", "", "", UseEscBackslash: true));
                 }
                 currentHyperlink = hyperlink;
             }
@@ -396,7 +397,7 @@ public static class SurfaceComparer
         // If we ended in a hyperlink, close it
         if (currentHyperlink != null)
         {
-            tokens.Add(new OscToken("8", "", ""));
+            tokens.Add(new OscToken("8", "", "", UseEscBackslash: true));
         }
 
         return tokens;
