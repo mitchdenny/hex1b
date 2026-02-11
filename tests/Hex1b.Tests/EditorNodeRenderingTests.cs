@@ -795,4 +795,173 @@ public class EditorNodeRenderingTests
         workload.Dispose();
         terminal.Dispose();
     }
+
+    [Fact]
+    public async Task Render_WideCharacter_OccupiesTwoDisplayColumns()
+    {
+        // ⚡ (U+26A1) has Emoji_Presentation → display width 2
+        var (node, workload, terminal, context, theme) = CreateEditor("A⚡B", 20, 3);
+
+        node.Render(context);
+
+        var pattern = new CellPatternSearcher().Find("B");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "wide char content rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Col 0: 'A' (1-wide), cursor on 'A' by default
+        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        // Col 1: '⚡' main cell (2-wide)
+        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
+        // Col 2: continuation cell (empty/wide char continuation)
+        Assert.True(snapshot.GetCell(2, 0).Character is "" or " ",
+            "Col 2 should be continuation cell for wide ⚡");
+        // Col 3: 'B' (1-wide) — shifted by the extra column from ⚡
+        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+        // Col 4+: padding spaces
+        Assert.Equal(" ", snapshot.GetCell(4, 0).Character);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_CursorOnWideChar_BothColumnsHaveCursorColors()
+    {
+        // Cursor on ⚡ should highlight both display columns
+        var (node, workload, terminal, context, theme) = CreateEditor("A⚡B", 20, 3);
+        var (_, _, cursorFg, cursorBg) = GetThemeColors(theme);
+
+        // Move cursor to position 1 (on ⚡)
+        node.State.MoveCursor(CursorDirection.Right);
+
+        node.Render(context);
+
+        var cursorPattern = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "⚡"
+                      && ColorEquals(ctx.Cell.Foreground, cursorFg)
+                      && ColorEquals(ctx.Cell.Background, cursorBg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "cursor on wide char")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Col 1: ⚡ main cell with cursor colors
+        var cell1 = snapshot.GetCell(1, 0);
+        Assert.Equal("⚡", cell1.Character);
+        Assert.Equal(cursorFg, cell1.Foreground);
+        Assert.Equal(cursorBg, cell1.Background);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_CursorAfterWideChar_CursorAtCorrectDisplayColumn()
+    {
+        // Cursor on 'B' (after 2-wide ⚡) should be at display col 3
+        var (node, workload, terminal, context, theme) = CreateEditor("A⚡B", 20, 3);
+        var (textFg, textBg, cursorFg, cursorBg) = GetThemeColors(theme);
+
+        // Move cursor to 'B' (position 2)
+        node.State.MoveCursor(CursorDirection.Right); // to ⚡
+        node.State.MoveCursor(CursorDirection.Right); // to B
+
+        node.Render(context);
+
+        var cursorPattern = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "B"
+                      && ColorEquals(ctx.Cell.Foreground, cursorFg)
+                      && ColorEquals(ctx.Cell.Background, cursorBg));
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "cursor on B after wide char")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Col 0: 'A' (normal colors)
+        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.Equal(textFg, snapshot.GetCell(0, 0).Foreground);
+
+        // Col 1: '⚡' (normal colors — cursor has moved past)
+        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
+        Assert.Equal(textFg, snapshot.GetCell(1, 0).Foreground);
+
+        // Col 3: 'B' with cursor colors
+        var cellB = snapshot.GetCell(3, 0);
+        Assert.Equal("B", cellB.Character);
+        Assert.Equal(cursorFg, cellB.Foreground);
+        Assert.Equal(cursorBg, cellB.Background);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_MultipleWideChars_CorrectDisplayLayout()
+    {
+        // "♠♣" — both 2-wide, should occupy 4 display columns
+        var (node, workload, terminal, context, theme) = CreateEditor("♠♣X", 20, 3);
+
+        node.Render(context);
+
+        var pattern = new CellPatternSearcher().Find("X");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "multiple wide chars rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Col 0: ♠ main (2-wide)
+        Assert.Equal("♠", snapshot.GetCell(0, 0).Character);
+        // Col 1: continuation
+        // Col 2: ♣ main (2-wide)
+        Assert.Equal("♣", snapshot.GetCell(2, 0).Character);
+        // Col 3: continuation
+        // Col 4: X (1-wide)
+        Assert.Equal("X", snapshot.GetCell(4, 0).Character);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
+
+    [Fact]
+    public async Task Render_WideCharAtViewportEdge_TruncatedNotOverflow()
+    {
+        // Viewport width 4: "A⚡B" — A(1) + ⚡(2) = 3 cols, B starts at col 3
+        // All 4 cols fit. But with viewport width 3: A(1) + ⚡(2) = 3 cols exactly, B clipped
+        var (node, workload, terminal, context, theme) = CreateEditor("A⚡B", 4, 3);
+
+        node.Render(context);
+
+        var pattern = new CellPatternSearcher().Find("A");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+                TimeSpan.FromSeconds(2), "content rendered in narrow viewport")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+
+        // Col 0: A, Col 1: ⚡ (2-wide), Col 3: B — all fit in 4 cols
+        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
+        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+
+        workload.Dispose();
+        terminal.Dispose();
+    }
 }
