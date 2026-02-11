@@ -1384,4 +1384,203 @@ public class BorderNodeTests
     }
 
     #endregion
+
+    #region Theme Fallback Chain Tests
+
+    [Fact]
+    public void ThemeFallback_ExplicitValueWins()
+    {
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.TopLine, "━");
+        
+        Assert.Equal("━", theme.Get(BorderTheme.TopLine));
+    }
+
+    [Fact]
+    public void ThemeFallback_FallsBackToParentElement()
+    {
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.HorizontalLine, "═");
+        
+        // TopLine not set → falls back to HorizontalLine
+        Assert.Equal("═", theme.Get(BorderTheme.TopLine));
+        Assert.Equal("═", theme.Get(BorderTheme.BottomLine));
+    }
+
+    [Fact]
+    public void ThemeFallback_ExplicitOverridesTakesPrecedence()
+    {
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.HorizontalLine, "═")
+            .Set(BorderTheme.TopLine, "━");
+        
+        // TopLine explicitly set → uses it; BottomLine falls back
+        Assert.Equal("━", theme.Get(BorderTheme.TopLine));
+        Assert.Equal("═", theme.Get(BorderTheme.BottomLine));
+    }
+
+    [Fact]
+    public void ThemeFallback_DefaultThemeUsesDefaults()
+    {
+        var theme = new Hex1bTheme("Test");
+        
+        // Nothing set → falls through chain to DefaultValue
+        Assert.Equal("─", theme.Get(BorderTheme.TopLine));
+        Assert.Equal("─", theme.Get(BorderTheme.BottomLine));
+        Assert.Equal("│", theme.Get(BorderTheme.LeftLine));
+        Assert.Equal("│", theme.Get(BorderTheme.RightLine));
+    }
+
+    [Fact]
+    public void ThemeFallback_ColorChainResolvesCorrectly()
+    {
+        var red = Hex1bColor.FromRgb(255, 0, 0);
+        var blue = Hex1bColor.FromRgb(0, 0, 255);
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.BorderColor, red)
+            .Set(BorderTheme.TopBorderColor, blue);
+        
+        // TopBorderColor explicitly set → blue
+        Assert.Equal(blue, theme.Get(BorderTheme.TopBorderColor));
+        // BottomBorderColor → HorizontalBorderColor → BorderColor → red
+        Assert.Equal(red, theme.Get(BorderTheme.BottomBorderColor));
+        // LeftBorderColor → VerticalBorderColor → BorderColor → red
+        Assert.Equal(red, theme.Get(BorderTheme.LeftBorderColor));
+    }
+
+    [Fact]
+    public void ThemeFallback_AxisColorOverridesBase()
+    {
+        var red = Hex1bColor.FromRgb(255, 0, 0);
+        var green = Hex1bColor.FromRgb(0, 255, 0);
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.BorderColor, red)
+            .Set(BorderTheme.HorizontalBorderColor, green);
+        
+        // Top/Bottom → HorizontalBorderColor → green
+        Assert.Equal(green, theme.Get(BorderTheme.TopBorderColor));
+        Assert.Equal(green, theme.Get(BorderTheme.BottomBorderColor));
+        // Left/Right → VerticalBorderColor → BorderColor → red
+        Assert.Equal(red, theme.Get(BorderTheme.LeftBorderColor));
+        Assert.Equal(red, theme.Get(BorderTheme.RightBorderColor));
+    }
+
+    [Fact]
+    public void ThemeFallback_VerticalLineChain()
+    {
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.VerticalLine, "║");
+        
+        Assert.Equal("║", theme.Get(BorderTheme.LeftLine));
+        Assert.Equal("║", theme.Get(BorderTheme.RightLine));
+    }
+
+    [Fact]
+    public void ThemeFallback_PerSideVerticalOverride()
+    {
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.VerticalLine, "║")
+            .Set(BorderTheme.LeftLine, "┃");
+        
+        Assert.Equal("┃", theme.Get(BorderTheme.LeftLine));
+        Assert.Equal("║", theme.Get(BorderTheme.RightLine));
+    }
+
+    #endregion
+
+    #region Per-Side Border Rendering Tests
+
+    [Fact]
+    public async Task Render_WithDifferentTopAndBottomLines_DrawsCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.TopLine, "━")
+            .Set(BorderTheme.BottomLine, "═");
+        var context = new Hex1bRenderContext(workload, theme);
+
+        var node = new BorderNode { Child = new TextBlockNode { Text = "" } };
+        node.Measure(Constraints.Tight(15, 5));
+        node.Arrange(new Rect(0, 0, 6, 3));
+        node.Render(context);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("━") && s.ContainsText("═"),
+                TimeSpan.FromSeconds(1), "different top/bottom lines")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var line0 = snapshot.GetLineTrimmed(0);
+        var line2 = snapshot.GetLineTrimmed(2);
+
+        Assert.Contains("━", line0);
+        Assert.Contains("═", line2);
+        // Top uses ━, bottom uses ═
+        Assert.DoesNotContain("═", line0);
+        Assert.DoesNotContain("━", line2);
+    }
+
+    [Fact]
+    public async Task Render_WithDifferentLeftAndRightLines_DrawsCorrectly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.LeftLine, "┃")
+            .Set(BorderTheme.RightLine, "║");
+        var context = new Hex1bRenderContext(workload, theme);
+
+        var node = new BorderNode { Child = new TextBlockNode { Text = "" } };
+        node.Measure(Constraints.Tight(15, 5));
+        node.Arrange(new Rect(0, 0, 6, 3));
+        node.Render(context);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("┃") && s.ContainsText("║"),
+                TimeSpan.FromSeconds(1), "different left/right lines")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var line1 = snapshot.GetLineTrimmed(1);
+
+        Assert.StartsWith("┃", line1);
+        Assert.EndsWith("║", line1);
+    }
+
+    [Fact]
+    public async Task Render_HorizontalLineFallback_AppliesToBothTopAndBottom()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 5).Build();
+        var theme = new Hex1bTheme("Test")
+            .Set(BorderTheme.HorizontalLine, "═")
+            .Set(BorderTheme.TopLeftCorner, "╔")
+            .Set(BorderTheme.TopRightCorner, "╗")
+            .Set(BorderTheme.BottomLeftCorner, "╚")
+            .Set(BorderTheme.BottomRightCorner, "╝");
+        var context = new Hex1bRenderContext(workload, theme);
+
+        var node = new BorderNode { Child = new TextBlockNode { Text = "" } };
+        node.Measure(Constraints.Tight(15, 5));
+        node.Arrange(new Rect(0, 0, 6, 3));
+        node.Render(context);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("╔════╗") && s.ContainsText("╚════╝"),
+                TimeSpan.FromSeconds(1), "horizontal line fallback")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var line0 = snapshot.GetLineTrimmed(0);
+        var line2 = snapshot.GetLineTrimmed(2);
+
+        Assert.Equal("╔════╗", line0);
+        Assert.Equal("╚════╝", line2);
+    }
+
+    #endregion
 }
