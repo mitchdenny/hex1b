@@ -46,6 +46,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TestData\ReflowFixtures.json" />
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
