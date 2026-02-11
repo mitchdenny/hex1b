@@ -17,7 +17,7 @@ public static class FlagDemo
     private const double Frequency = 0.35;
     private const double Speed = -0.008; // negative = flows right-to-left
     private const double AmplitudeMin = 1.0;  // eighths at left (pole) edge
-    private const double AmplitudeMax = 5.0;  // eighths at right (free) edge
+    private const double AmplitudeMax = 7.0;  // eighths at right (free) edge
     private const double FlutterFreq = 0.17;  // secondary wave for organic variance
     private const double FlutterAmount = 1.0; // max extra eighths from flutter
 
