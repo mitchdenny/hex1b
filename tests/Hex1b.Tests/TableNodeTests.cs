@@ -849,14 +849,20 @@ public class TableNodeTests
             .Key(Hex1bKey.PageDown)
             .WaitUntil(s => s.ContainsText("Product 15") || s.ContainsText("Product 20"), 
                        TimeSpan.FromMilliseconds(500), "Wait for scroll to complete")
-            .Ctrl().Key(Hex1bKey.C) // Exit
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Capture snapshot BEFORE sending Ctrl+C - after exit, alternate screen is cleared
+        var finalSnapshot = terminal.CreateSnapshot();
+        var finalText = finalSnapshot.GetScreenText();
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
-
-        var finalSnapshot = terminal.CreateSnapshot();
-        var finalText = finalSnapshot.GetScreenText();
         
         // Output for debugging
         TestContext.Current.TestOutputHelper?.WriteLine("=== FINAL SCREEN ===");
