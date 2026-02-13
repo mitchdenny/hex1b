@@ -42,7 +42,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Separator(),
 
                     // Item list — each wrapped in StatePanel for identity preservation
-                    v.VStack(list =>
+                    v.VScrollPanel(list =>
                         items.Select(item => BuildItemRow(list, item)).ToArray()
                     ).Fill(),
 
