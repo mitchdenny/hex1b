@@ -23,11 +23,6 @@ public sealed class StatePanelContext : WidgetContext<StatePanelWidget>
     }
 
     /// <summary>
-    /// The state key this panel is anchored to.
-    /// </summary>
-    public object StateKey => _node.StateKey;
-
-    /// <summary>
     /// The animation collection for this identity scope.
     /// Animations persist across reconciliation frames for the same state key.
     /// Use <see cref="AnimationCollection.Get{T}"/> to create or retrieve named animators.

@@ -269,21 +269,15 @@ public class StatePanelNodeTests
     }
 
     [Fact]
-    public async Task Reconcile_DeferredBuilder_CanReadStateKey()
+    public async Task Reconcile_NodeHasCorrectStateKey()
     {
         var stateKey = new object();
-        object? capturedKey = null;
-
-        var widget = new StatePanelWidget(stateKey, sp =>
-        {
-            capturedKey = sp.StateKey;
-            return new TextBlockWidget("test");
-        });
+        var widget = new StatePanelWidget(stateKey, sp => new TextBlockWidget("test"));
 
         var context = ReconcileContext.CreateRoot();
-        await widget.ReconcileAsync(null, context);
+        var node = (StatePanelNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(stateKey, capturedKey);
+        Assert.Same(stateKey, node.StateKey);
     }
 
     [Fact]

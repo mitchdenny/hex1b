@@ -23,7 +23,7 @@ public abstract class Hex1bAnimator
     public bool Reverse { get; set; }
 
     /// <summary>Raw progress (0..1) before easing.</summary>
-    public double RawProgress => _rawProgress;
+    internal double RawProgress => _rawProgress;
 
     /// <summary>Eased progress (0..1).</summary>
     public double Progress => EasingFunction(_rawProgress);

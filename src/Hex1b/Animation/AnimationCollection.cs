@@ -37,7 +37,7 @@ public sealed class AnimationCollection
     /// <summary>
     /// Advances all active animators by the given elapsed time.
     /// </summary>
-    public void AdvanceAll(TimeSpan elapsed)
+    internal void AdvanceAll(TimeSpan elapsed)
     {
         foreach (var animator in _animators.Values)
         {
@@ -49,7 +49,7 @@ public sealed class AnimationCollection
     /// <summary>
     /// Returns true if any animator in the collection is currently running.
     /// </summary>
-    public bool HasActiveAnimations
+    internal bool HasActiveAnimations
     {
         get
         {
@@ -65,7 +65,7 @@ public sealed class AnimationCollection
     /// <summary>
     /// Disposes all animators and clears the collection.
     /// </summary>
-    public void DisposeAll()
+    internal void DisposeAll()
     {
         _animators.Clear();
     }
