@@ -34,6 +34,11 @@ public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
         // Reconcile the child widget
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
 
+        // Apply common widget properties (bindings, size hints)
+        node.BindingsConfigurator = BindingsConfigurator;
+        node.WidthHint = WidthHint;
+        node.HeightHint = HeightHint;
+
         return node;
     }
 

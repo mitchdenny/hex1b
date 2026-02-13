@@ -93,6 +93,11 @@ public sealed record StatePanelWidget(
         if (isNew)
             node.MarkDirty();
 
+        // Apply common widget properties (bindings, size hints)
+        node.BindingsConfigurator = BindingsConfigurator;
+        node.WidthHint = WidthHint;
+        node.HeightHint = HeightHint;
+
         return node;
     }
 
