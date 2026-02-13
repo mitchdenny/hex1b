@@ -27,6 +27,12 @@ public sealed class StatePanelNode : Hex1bNode
     public AnimationCollection Animations { get; internal set; } = new();
 
     /// <summary>
+    /// Stopwatch ticks at the last animation advance. Used to compute elapsed time
+    /// between reconciliation frames for animation advancement.
+    /// </summary>
+    internal long LastAdvanceTicks { get; set; }
+
+    /// <summary>
     /// Registry for nested StatePanels, keyed by state object reference identity.
     /// During reconciliation, nested StatePanelWidgets look up their state key here
     /// instead of relying on positional matching.

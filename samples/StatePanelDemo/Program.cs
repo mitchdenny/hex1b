@@ -96,7 +96,6 @@ StatePanelWidget BuildItemRow(
         {
             a.Duration = TimeSpan.FromMilliseconds(600);
             a.EasingFunction = Easing.EaseOutCubic;
-            a.Start();
         });
 
         // Animate a progress bar width
@@ -106,7 +105,6 @@ StatePanelWidget BuildItemRow(
             a.To = 20;
             a.Duration = TimeSpan.FromMilliseconds(800);
             a.EasingFunction = Easing.EaseOutQuad;
-            a.Start();
         });
 
         // Build a visual bar based on animation progress
@@ -121,15 +119,41 @@ StatePanelWidget BuildItemRow(
 
         return sp.Interactable(ic =>
         {
-            var nameColor = ic.IsFocused ? Hex1bColor.White
-                : ic.IsHovered ? Hex1bColor.Cyan
-                : Hex1bColor.Gray;
-            var borderColor = ic.IsFocused ? Hex1bColor.Cyan
-                : ic.IsHovered ? Hex1bColor.Blue
-                : Hex1bColor.DarkGray;
+            // Focus/hover fade animation — retargets smoothly on state change
+            var focusFade = sp.Animations.Get<NumericAnimator<double>>("focus", a =>
+            {
+                a.Duration = TimeSpan.FromMilliseconds(1000);
+                a.EasingFunction = Easing.EaseOutQuad;
+            });
+            focusFade.AnimateTo(ic.IsFocused ? 1.0 : 0.0);
+
+            var hoverFade = sp.Animations.Get<NumericAnimator<double>>("hover", a =>
+            {
+                a.Duration = TimeSpan.FromMilliseconds(1000);
+                a.EasingFunction = Easing.EaseOutQuad;
+            });
+            hoverFade.AnimateTo(ic.IsHovered ? 1.0 : 0.0);
+
+            // Blend colors based on animated focus/hover intensity
+            var highlight = Math.Max(focusFade.Value, hoverFade.Value * 0.6);
+            var nameColor = Helpers.Lerp(Hex1bColor.Gray, Hex1bColor.White, highlight);
+            var borderColor = Helpers.Lerp(Hex1bColor.DarkGray, Hex1bColor.Cyan, focusFade.Value);
+            borderColor = Helpers.Lerp(borderColor, Hex1bColor.Blue, hoverFade.Value * (1.0 - focusFade.Value));
+
+            // Background fades in on focus
+            var bgR = (byte)(20 * focusFade.Value + 15 * hoverFade.Value * (1.0 - focusFade.Value));
+            var bgG = (byte)(40 * focusFade.Value + 25 * hoverFade.Value * (1.0 - focusFade.Value));
+            var bgB = (byte)(60 * focusFade.Value + 40 * hoverFade.Value * (1.0 - focusFade.Value));
+            var bgColor = Hex1bColor.FromRgb(bgR, bgG, bgB);
 
             return ic.ThemePanel(
-                t => t.Set(BorderTheme.BorderColor, borderColor),
+                t =>
+                {
+                    var themed = t.Set(BorderTheme.BorderColor, borderColor);
+                    if (focusFade.Value > 0.01 || hoverFade.Value > 0.01)
+                        themed = themed.Set(GlobalTheme.BackgroundColor, bgColor);
+                    return themed;
+                },
                 ic.Border(
                     ic.HStack(h => [
                         h.ThemePanel(
@@ -156,3 +180,15 @@ StatePanelWidget BuildItemRow(
 }
 
 record ItemModel(string Name, string Status, Hex1bColor Color);
+
+static partial class Helpers
+{
+    public static Hex1bColor Lerp(Hex1bColor a, Hex1bColor b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return Hex1bColor.FromRgb(
+            (byte)(a.R + (b.R - a.R) * t),
+            (byte)(a.G + (b.G - a.G) * t),
+            (byte)(a.B + (b.B - a.B) * t));
+    }
+}

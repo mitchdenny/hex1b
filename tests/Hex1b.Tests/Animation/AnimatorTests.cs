@@ -240,4 +240,61 @@ public class AnimatorTests
 
         Assert.Equal(0.75, animator.Value, 6);
     }
+
+    // --- AnimateTo (retargeting) tests ---
+
+    [Fact]
+    public void AnimateTo_StartsFromCurrentValue()
+    {
+        var animator = new NumericAnimator<double>
+        {
+            From = 0.0, To = 100.0,
+            Duration = TimeSpan.FromMilliseconds(100),
+        };
+        animator.Start();
+        animator.Advance(TimeSpan.FromMilliseconds(50)); // At 50.0
+
+        animator.AnimateTo(0.0); // Retarget back to 0
+
+        Assert.Equal(50.0, animator.From, 1);
+        Assert.Equal(0.0, animator.To, 1);
+        Assert.True(animator.IsRunning);
+        Assert.Equal(50.0, animator.Value, 1); // Starts at current position
+    }
+
+    [Fact]
+    public void AnimateTo_SameTarget_DoesNotRestart()
+    {
+        var animator = new NumericAnimator<double>
+        {
+            From = 0.0, To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(100),
+        };
+        animator.Start();
+        animator.Advance(TimeSpan.FromMilliseconds(50)); // Progress = 0.5
+
+        var progressBefore = animator.RawProgress;
+        animator.AnimateTo(1.0); // Same target — should not restart
+
+        Assert.Equal(progressBefore, animator.RawProgress, 6);
+    }
+
+    [Fact]
+    public void AnimateTo_CompletedAnimation_NewTarget_Restarts()
+    {
+        var animator = new NumericAnimator<double>
+        {
+            From = 0.0, To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(100),
+        };
+        animator.Start();
+        animator.Advance(TimeSpan.FromMilliseconds(100)); // Completed at 1.0
+        Assert.True(animator.IsCompleted);
+
+        animator.AnimateTo(0.0); // New target
+
+        Assert.True(animator.IsRunning);
+        Assert.Equal(1.0, animator.From, 6); // Starts from where we were
+        Assert.Equal(0.0, animator.To, 6);
+    }
 }

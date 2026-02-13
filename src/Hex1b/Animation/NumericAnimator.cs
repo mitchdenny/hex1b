@@ -17,6 +17,20 @@ public class NumericAnimator<T> : Hex1bAnimator where T : struct
     /// <summary>The current interpolated value based on eased progress.</summary>
     public T Value => _lerp(Progress, From, To);
 
+    /// <summary>
+    /// Retargets the animation toward a new value, starting from the current interpolated value.
+    /// If already at the target, no animation is started.
+    /// </summary>
+    public void AnimateTo(T target)
+    {
+        if (EqualityComparer<T>.Default.Equals(To, target) && (IsRunning || IsCompleted))
+            return;
+
+        From = Value;
+        To = target;
+        Start();
+    }
+
     private static Func<double, T, T, T> ResolveLerp()
     {
         if (typeof(T) == typeof(double))

@@ -58,15 +58,37 @@ public sealed record StatePanelWidget(
             ancestorSP.MarkVisited(StateKey);
         }
 
-        // 3. Deferred builder — context can read current node state
+        // 3. Advance animations by elapsed time since last frame
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (node.LastAdvanceTicks > 0 && node.Animations.HasActiveAnimations)
+        {
+            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(node.LastAdvanceTicks, now);
+            node.Animations.AdvanceAll(elapsed);
+        }
+        node.LastAdvanceTicks = now;
+
+        // 4. Deferred builder — context can read current animation values
         var spContext = new StatePanelContext(node);
         var childWidget = Builder(spContext);
 
-        // 4. Reconcile child subtree
+        // 5. Reconcile child subtree
         node.Child = await context.ReconcileChildAsync(node.Child, childWidget, node);
 
-        // 5. Sweep nested state keys not visited this frame
+        // 6. Sweep nested state keys not visited this frame
         node.SweepUnvisited();
+
+        // 7. Schedule re-render if animations are still running
+        if (node.Animations.HasActiveAnimations && context.ScheduleTimerCallback is not null)
+        {
+            var capturedNode = node;
+            var capturedInvalidate = context.InvalidateCallback;
+            context.ScheduleTimerCallback(TimeSpan.FromMilliseconds(16), () =>
+            {
+                capturedNode.MarkDirty();
+                capturedNode.Parent?.MarkDirty();
+                capturedInvalidate?.Invoke();
+            });
+        }
 
         if (isNew)
             node.MarkDirty();

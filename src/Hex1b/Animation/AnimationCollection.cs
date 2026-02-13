@@ -4,56 +4,46 @@ namespace Hex1b.Animation;
 /// A named collection of animators associated with a StatePanelNode.
 /// Provides create-or-retrieve semantics and bulk advance/dispose operations.
 /// </summary>
+/// <remarks>
+/// Animation frame scheduling is handled by <c>StatePanelWidget.ReconcileAsync</c>,
+/// which uses <c>ReconcileContext.ScheduleTimerCallback</c> to trigger re-renders
+/// when animations are active. This collection is purely a data structure.
+/// </remarks>
 public sealed class AnimationCollection
 {
     private readonly Dictionary<string, Hex1bAnimator> _animators = new();
-    private readonly AnimationTimer? _timer;
-    private readonly Action? _invalidateCallback;
-    private bool _timerScheduled;
-
-    /// <summary>
-    /// Creates an AnimationCollection, optionally wired to an AnimationTimer for frame scheduling.
-    /// </summary>
-    public AnimationCollection(AnimationTimer? timer = null, Action? invalidateCallback = null)
-    {
-        _timer = timer;
-        _invalidateCallback = invalidateCallback;
-    }
 
     /// <summary>
     /// Gets or creates an animator by name. On first call, the configure action is invoked
-    /// to set initial properties. On subsequent calls, the same animator instance is returned.
+    /// to set initial properties and the animator is optionally auto-started.
+    /// On subsequent calls, the same animator instance is returned.
     /// </summary>
-    public T Get<T>(string name, Action<T>? configure = null) where T : Hex1bAnimator, new()
+    /// <param name="name">Unique name for this animator within the collection.</param>
+    /// <param name="configure">Called once on creation to set Duration, Easing, From/To, etc.</param>
+    /// <param name="autoStart">If true, calls Start() after configure on creation. Default is true.</param>
+    public T Get<T>(string name, Action<T>? configure = null, bool autoStart = true) where T : Hex1bAnimator, new()
     {
         if (_animators.TryGetValue(name, out var existing) && existing is T typed)
             return typed;
 
         var animator = new T();
         configure?.Invoke(animator);
+        if (autoStart)
+            animator.Start();
         _animators[name] = animator;
         return animator;
     }
 
     /// <summary>
     /// Advances all active animators by the given elapsed time.
-    /// Schedules a timer callback if any animators are still running.
     /// </summary>
     public void AdvanceAll(TimeSpan elapsed)
     {
-        var anyRunning = false;
         foreach (var animator in _animators.Values)
         {
             if (animator.IsRunning)
-            {
                 animator.Advance(elapsed);
-                if (animator.IsRunning)
-                    anyRunning = true;
-            }
         }
-
-        if (anyRunning)
-            ScheduleNextFrame();
     }
 
     /// <summary>
@@ -78,19 +68,5 @@ public sealed class AnimationCollection
     public void DisposeAll()
     {
         _animators.Clear();
-        _timerScheduled = false;
-    }
-
-    private void ScheduleNextFrame()
-    {
-        if (_timer is null || _invalidateCallback is null || _timerScheduled)
-            return;
-
-        _timerScheduled = true;
-        _timer.Schedule(_timer.MinimumInterval, () =>
-        {
-            _timerScheduled = false;
-            _invalidateCallback.Invoke();
-        });
     }
 }

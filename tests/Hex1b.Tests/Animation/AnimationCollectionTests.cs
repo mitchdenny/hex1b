@@ -34,11 +34,10 @@ public class AnimationCollectionTests
         var animator = collection.Get<OpacityAnimator>("fade", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(500);
-            a.Start();
         });
 
         Assert.Equal(TimeSpan.FromMilliseconds(500), animator.Duration);
-        Assert.True(animator.IsRunning);
+        Assert.True(animator.IsRunning); // auto-started
     }
 
     [Fact]
@@ -52,6 +51,24 @@ public class AnimationCollectionTests
 
         // Configure called only once (on creation)
         Assert.Equal(1, configCount);
+    }
+
+    [Fact]
+    public void Get_AutoStartTrue_StartsAnimator()
+    {
+        var collection = new AnimationCollection();
+        var animator = collection.Get<OpacityAnimator>("fade");
+
+        Assert.True(animator.IsRunning);
+    }
+
+    [Fact]
+    public void Get_AutoStartFalse_DoesNotStartAnimator()
+    {
+        var collection = new AnimationCollection();
+        var animator = collection.Get<OpacityAnimator>("fade", autoStart: false);
+
+        Assert.False(animator.IsRunning);
     }
 
     [Fact]
@@ -72,12 +89,10 @@ public class AnimationCollectionTests
         var a1 = collection.Get<OpacityAnimator>("a1", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(100);
-            a.Start();
         });
         var a2 = collection.Get<OpacityAnimator>("a2", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(200);
-            a.Start();
         });
 
         collection.AdvanceAll(TimeSpan.FromMilliseconds(50));
@@ -93,9 +108,8 @@ public class AnimationCollectionTests
         var a1 = collection.Get<OpacityAnimator>("running", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(100);
-            a.Start();
         });
-        var a2 = collection.Get<OpacityAnimator>("stopped");
+        var a2 = collection.Get<OpacityAnimator>("stopped", autoStart: false);
 
         collection.AdvanceAll(TimeSpan.FromMilliseconds(50));
 
@@ -107,7 +121,7 @@ public class AnimationCollectionTests
     public void HasActiveAnimations_TrueWhenRunning()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade", a => a.Start());
+        collection.Get<OpacityAnimator>("fade");
 
         Assert.True(collection.HasActiveAnimations);
     }
@@ -116,7 +130,7 @@ public class AnimationCollectionTests
     public void HasActiveAnimations_FalseWhenNoneRunning()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade");
+        collection.Get<OpacityAnimator>("fade", autoStart: false);
 
         Assert.False(collection.HasActiveAnimations);
     }
@@ -125,31 +139,145 @@ public class AnimationCollectionTests
     public void DisposeAll_ClearsCollection()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade", a => a.Start());
+        collection.Get<OpacityAnimator>("fade");
 
         collection.DisposeAll();
 
         Assert.False(collection.HasActiveAnimations);
         // Get after dispose creates a new instance
-        var animator = collection.Get<OpacityAnimator>("fade");
+        var animator = collection.Get<OpacityAnimator>("fade", autoStart: false);
         Assert.False(animator.IsRunning);
     }
 
     [Fact]
-    public void AnimationCollection_WithTimer_SchedulesOnAdvance()
+    public async Task Reconcile_AdvancesAnimations_AcrossFrames()
     {
-        var timer = new AnimationTimer();
-        var invalidateCount = 0;
-        var collection = new AnimationCollection(timer, () => invalidateCount++);
-        collection.Get<OpacityAnimator>("fade", a =>
+        // This is the critical test: prove that animations actually progress
+        // when reconciliation happens across multiple frames.
+        var stateKey = new object();
+        double progressOnFrame1 = -1;
+        double progressOnFrame2 = -1;
+
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
+
+        // Frame 1: create animation (auto-started)
+        var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            a.Duration = TimeSpan.FromMilliseconds(1000);
-            a.Start();
+            var anim = sp.Animations.Get<OpacityAnimator>("fade", a =>
+            {
+                a.Duration = TimeSpan.FromMilliseconds(500);
+            });
+            progressOnFrame1 = anim.RawProgress;
+            return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
-        collection.AdvanceAll(TimeSpan.FromMilliseconds(16));
+        var node = await widget1.ReconcileAsync(null, context);
+        Assert.Equal(0.0, progressOnFrame1, 6); // Just started
 
-        Assert.True(timer.HasScheduledTimers);
+        // Wait real time so Stopwatch.GetTimestamp() moves forward
+        await Task.Delay(100);
+
+        // Frame 2: re-reconcile — animations should have advanced
+        var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
+        {
+            var anim = sp.Animations.Get<OpacityAnimator>("fade");
+            progressOnFrame2 = anim.RawProgress;
+            return new Hex1b.Widgets.TextBlockWidget("test");
+        });
+
+        await widget2.ReconcileAsync(node, context);
+
+        // Animation MUST have advanced — this is the bug the original code missed
+        Assert.True(progressOnFrame2 > 0.0,
+            $"Animation did not advance! Progress was {progressOnFrame2} on frame 2");
+    }
+
+    [Fact]
+    public async Task Reconcile_SchedulesTimerCallback_WhenAnimationsActive()
+    {
+        var stateKey = new object();
+        var scheduledCallbacks = new List<(TimeSpan delay, Action callback)>();
+
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot(
+            scheduleTimerCallback: (delay, cb) => scheduledCallbacks.Add((delay, cb)),
+            invalidateCallback: () => { });
+
+        // Frame 1: create animation (auto-started)
+        var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
+        {
+            sp.Animations.Get<OpacityAnimator>("fade", a =>
+            {
+                a.Duration = TimeSpan.FromMilliseconds(500);
+            });
+            return new Hex1b.Widgets.TextBlockWidget("test");
+        });
+
+        await widget.ReconcileAsync(null, context);
+
+        // Timer callback MUST be scheduled for re-render
+        Assert.NotEmpty(scheduledCallbacks);
+        Assert.Equal(TimeSpan.FromMilliseconds(16), scheduledCallbacks[0].delay);
+    }
+
+    [Fact]
+    public async Task Reconcile_DoesNotScheduleTimer_WhenNoActiveAnimations()
+    {
+        var stateKey = new object();
+        var scheduledCallbacks = new List<(TimeSpan delay, Action callback)>();
+
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot(
+            scheduleTimerCallback: (delay, cb) => scheduledCallbacks.Add((delay, cb)),
+            invalidateCallback: () => { });
+
+        // No animations started
+        var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
+            new Hex1b.Widgets.TextBlockWidget("test"));
+
+        await widget.ReconcileAsync(null, context);
+
+        Assert.Empty(scheduledCallbacks);
+    }
+
+    [Fact]
+    public async Task Reconcile_AnimationValue_ChangesOverTime()
+    {
+        // End-to-end: animation value is different between frames
+        var stateKey = new object();
+        double valueFrame1 = -1;
+        double valueFrame2 = -1;
+
+        var context = Hex1b.Widgets.ReconcileContext.CreateRoot();
+
+        var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
+        {
+            var anim = sp.Animations.Get<NumericAnimator<double>>("slide", a =>
+            {
+                a.From = 0.0;
+                a.To = 100.0;
+                a.Duration = TimeSpan.FromMilliseconds(200);
+            });
+            return new Hex1b.Widgets.TextBlockWidget($"Value: {anim.Value}");
+        });
+
+        // Frame 1
+        var node = await widget.ReconcileAsync(null, context);
+        valueFrame1 = ((Hex1b.Nodes.StatePanelNode)node).Animations
+            .Get<NumericAnimator<double>>("slide").Value;
+
+        await Task.Delay(100);
+
+        // Frame 2
+        var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
+        {
+            var anim = sp.Animations.Get<NumericAnimator<double>>("slide");
+            valueFrame2 = anim.Value;
+            return new Hex1b.Widgets.TextBlockWidget($"Value: {anim.Value}");
+        });
+        await widget2.ReconcileAsync(node, context);
+
+        Assert.Equal(0.0, valueFrame1, 1);
+        Assert.True(valueFrame2 > 0.0,
+            $"NumericAnimator value did not change! Was {valueFrame2}");
     }
 
     // --- Integration with StatePanel ---
@@ -182,7 +310,7 @@ public class AnimationCollectionTests
         var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
             animations1 = sp.Animations;
-            sp.Animations.Get<OpacityAnimator>("fade", a => a.Start());
+            sp.Animations.Get<OpacityAnimator>("fade");
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
@@ -216,7 +344,7 @@ public class AnimationCollectionTests
             new Hex1b.Widgets.StatePanelWidget(keyChild, csp =>
             {
                 childAnimations = csp.Animations;
-                csp.Animations.Get<OpacityAnimator>("fade", a => a.Start());
+                csp.Animations.Get<OpacityAnimator>("fade");
                 return new Hex1b.Widgets.TextBlockWidget("child");
             }));
 
