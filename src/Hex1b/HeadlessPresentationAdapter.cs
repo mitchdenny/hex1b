@@ -1,3 +1,5 @@
+using Hex1b.Reflow;
+
 namespace Hex1b;
 
 /// <summary>
@@ -21,6 +23,11 @@ namespace Hex1b;
 ///   <item>Integration tests with presentation filters (e.g., asciinema recording)</item>
 ///   <item>CI/CD environments where no TTY is available</item>
 /// </list>
+/// <para>
+/// Optionally implements <see cref="ITerminalReflowProvider"/> when a reflow strategy
+/// is configured via <see cref="WithReflowStrategy"/>. This enables testing different
+/// terminal emulator reflow behaviors in headless mode.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -32,12 +39,13 @@ namespace Hex1b;
 ///     .RunAsync();
 /// </code>
 /// </example>
-public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdapter, IAsyncDisposable, IDisposable
+public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdapter, ITerminalReflowProvider, IAsyncDisposable, IDisposable
 {
     private readonly int _width;
     private readonly int _height;
     private readonly TerminalCapabilities _capabilities;
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
     private bool _disposed;
 
     /// <summary>
@@ -107,6 +115,23 @@ public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdap
     /// <inheritdoc />
     public ValueTask ExitRawModeAsync(CancellationToken ct = default)
         => ValueTask.CompletedTask;
+
+    /// <summary>
+    /// Configures the reflow strategy for this adapter. Defaults to <see cref="NoReflowStrategy"/>.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy to use during resize operations.</param>
+    /// <returns>This adapter for fluent chaining.</returns>
+    public HeadlessPresentationAdapter WithReflowStrategy(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    /// <inheritdoc/>
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
 
     /// <summary>
     /// Triggers a resize event for testing purposes.

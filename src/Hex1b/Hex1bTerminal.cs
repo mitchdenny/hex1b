@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Input;
+using Hex1b.Reflow;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 
@@ -1428,52 +1429,22 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Resizes the terminal, preserving content where possible.
+    /// If the presentation adapter implements <see cref="ITerminalReflowProvider"/>,
+    /// soft-wrapped lines are re-wrapped to the new width.
     /// </summary>
     public void Resize(int newWidth, int newHeight)
     {
         lock (_bufferLock)
         {
-            var newBuffer = new TerminalCell[newHeight, newWidth];
-            
-            // Initialize with empty cells
-            for (int y = 0; y < newHeight; y++)
+            // Check if the presentation adapter supports reflow
+            if (_presentation is ITerminalReflowProvider reflowProvider)
             {
-                for (int x = 0; x < newWidth; x++)
-                {
-                    newBuffer[y, x] = TerminalCell.Empty;
-                }
+                ResizeWithReflow(newWidth, newHeight, reflowProvider);
             }
-
-            // Copy existing content that fits in the new size
-            var copyHeight = Math.Min(_height, newHeight);
-            var copyWidth = Math.Min(_width, newWidth);
-            for (int y = 0; y < copyHeight; y++)
+            else
             {
-                for (int x = 0; x < copyWidth; x++)
-                {
-                    newBuffer[y, x] = _screenBuffer[y, x];
-                }
+                ResizeWithCrop(newWidth, newHeight);
             }
-            
-            // Release tracked objects from cells that are being removed
-            // (cells outside the new bounds)
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = 0; x < _width; x++)
-                {
-                    // Skip cells that were copied to the new buffer
-                    if (y < copyHeight && x < copyWidth)
-                        continue;
-                        
-                    _screenBuffer[y, x].TrackedSixel?.Release();
-                }
-            }
-
-            _screenBuffer = newBuffer;
-            _width = newWidth;
-            _height = newHeight;
-            _cursorX = Math.Min(_cursorX, newWidth - 1);
-            _cursorY = Math.Min(_cursorY, newHeight - 1);
             
             // Reset margins on resize - this matches xterm behavior
             _marginRight = newWidth - 1;
@@ -1484,7 +1455,132 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // The scroll region should cover the full new screen height
             _scrollTop = 0;
             _scrollBottom = newHeight - 1;
+            
+            _pendingWrap = false;
         }
+    }
+
+    private void ResizeWithReflow(int newWidth, int newHeight, ITerminalReflowProvider reflowProvider)
+    {
+        // Build the ReflowContext from current state
+        var screenRows = new TerminalCell[_height][];
+        for (int y = 0; y < _height; y++)
+        {
+            var row = new TerminalCell[_width];
+            for (int x = 0; x < _width; x++)
+                row[x] = _screenBuffer[y, x];
+            screenRows[y] = row;
+        }
+
+        // Get scrollback rows
+        var scrollbackData = _scrollbackBuffer?.GetLines(_scrollbackBuffer.Count) ?? [];
+        var scrollbackRows = new ReflowScrollbackRow[scrollbackData.Length];
+        for (int i = 0; i < scrollbackData.Length; i++)
+        {
+            scrollbackRows[i] = new ReflowScrollbackRow(scrollbackData[i].Cells, scrollbackData[i].OriginalWidth);
+        }
+
+        var context = new ReflowContext(
+            screenRows, scrollbackRows,
+            _width, _height, newWidth, newHeight,
+            _cursorX, _cursorY, _inAlternateScreen);
+
+        // Call the adapter's reflow implementation
+        var result = reflowProvider.Reflow(context);
+
+        // Release tracked objects from old screen buffer (all cells)
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                _screenBuffer[y, x].TrackedSixel?.Release();
+                _screenBuffer[y, x].TrackedHyperlink?.Release();
+            }
+        }
+
+        // Apply the reflowed screen buffer
+        var newBuffer = new TerminalCell[newHeight, newWidth];
+        for (int y = 0; y < newHeight; y++)
+        {
+            if (y < result.ScreenRows.Length)
+            {
+                for (int x = 0; x < newWidth && x < result.ScreenRows[y].Length; x++)
+                {
+                    newBuffer[y, x] = result.ScreenRows[y][x];
+                    // AddRef tracked objects in the new buffer
+                    newBuffer[y, x].TrackedSixel?.AddRef();
+                    newBuffer[y, x].TrackedHyperlink?.AddRef();
+                }
+                for (int x = result.ScreenRows[y].Length; x < newWidth; x++)
+                    newBuffer[y, x] = TerminalCell.Empty;
+            }
+            else
+            {
+                for (int x = 0; x < newWidth; x++)
+                    newBuffer[y, x] = TerminalCell.Empty;
+            }
+        }
+
+        // Apply reflowed scrollback if scrollback is enabled
+        if (_scrollbackBuffer is not null)
+        {
+            _scrollbackBuffer.Clear();
+            foreach (var sbRow in result.ScrollbackRows)
+            {
+                _scrollbackBuffer.Push(sbRow.Cells, sbRow.OriginalWidth, _timeProvider.GetUtcNow());
+            }
+        }
+
+        _screenBuffer = newBuffer;
+        _width = newWidth;
+        _height = newHeight;
+        _cursorX = Math.Clamp(result.CursorX, 0, newWidth - 1);
+        _cursorY = Math.Clamp(result.CursorY, 0, newHeight - 1);
+    }
+
+    private void ResizeWithCrop(int newWidth, int newHeight)
+    {
+        var newBuffer = new TerminalCell[newHeight, newWidth];
+        
+        // Initialize with empty cells
+        for (int y = 0; y < newHeight; y++)
+        {
+            for (int x = 0; x < newWidth; x++)
+            {
+                newBuffer[y, x] = TerminalCell.Empty;
+            }
+        }
+
+        // Copy existing content that fits in the new size
+        var copyHeight = Math.Min(_height, newHeight);
+        var copyWidth = Math.Min(_width, newWidth);
+        for (int y = 0; y < copyHeight; y++)
+        {
+            for (int x = 0; x < copyWidth; x++)
+            {
+                newBuffer[y, x] = _screenBuffer[y, x];
+            }
+        }
+        
+        // Release tracked objects from cells that are being removed
+        // (cells outside the new bounds)
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = 0; x < _width; x++)
+            {
+                // Skip cells that were copied to the new buffer
+                if (y < copyHeight && x < copyWidth)
+                    continue;
+                    
+                _screenBuffer[y, x].TrackedSixel?.Release();
+            }
+        }
+
+        _screenBuffer = newBuffer;
+        _width = newWidth;
+        _height = newHeight;
+        _cursorX = Math.Min(_cursorX, newWidth - 1);
+        _cursorY = Math.Min(_cursorY, newHeight - 1);
     }
 
     // === Screen Buffer Parsing ===
@@ -1727,6 +1823,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case CursorPositionToken cursorToken:
                 _pendingWrap = false; // Explicit cursor movement clears pending wrap
+                
+                // Clear SoftWrap on the current row's last cell if the adapter says to.
+                // This breaks the reflow chain — absolute positioning indicates the app
+                // is managing screen layout directly.
+                if (_presentation is ITerminalReflowProvider { ShouldClearSoftWrapOnAbsolutePosition: true }
+                    && _cursorY >= 0 && _cursorY < _height)
+                {
+                    ref var lastCell = ref _screenBuffer[_cursorY, _width - 1];
+                    if ((lastCell.Attributes & CellAttributes.SoftWrap) != 0)
+                        lastCell = lastCell with { Attributes = lastCell.Attributes & ~CellAttributes.SoftWrap };
+                }
+                
                 if (_originMode)
                 {
                     // Origin mode: positions are relative to scroll region
@@ -1988,6 +2096,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_pendingWrap)
             {
                 _pendingWrap = false;
+                
+                // Mark the last cell of the row being left as a soft-wrap point.
+                int wrapCol = _declrmm ? _marginRight : _width - 1;
+                ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
+                wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
+                
                 // When DECLRMM is enabled, wrap to left margin, not column 0
                 _cursorX = _declrmm ? _marginLeft : 0;
                 _cursorY++;
@@ -2786,6 +2900,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_pendingWrap)
             {
                 _pendingWrap = false;
+                
+                // Mark the last cell of the row being left as a soft-wrap point.
+                int wrapCol = _declrmm ? _marginRight : _width - 1;
+                ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
+                wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
+                
                 // When DECLRMM is enabled, wrap to left margin, not column 0
                 _cursorX = _declrmm ? _marginLeft : 0;
                 _cursorY++;
