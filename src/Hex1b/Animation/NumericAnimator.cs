@@ -2,6 +2,7 @@ namespace Hex1b.Animation;
 
 /// <summary>
 /// An animator that interpolates between two numeric values using eased progress.
+/// Supported types are <see cref="int"/>, <see cref="float"/>, and <see cref="double"/>.
 /// </summary>
 /// <typeparam name="T">The numeric type (int, float, or double).</typeparam>
 public class NumericAnimator<T> : Hex1bAnimator where T : struct

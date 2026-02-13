@@ -10,6 +10,14 @@ namespace Hex1b.Widgets;
 /// the effect callback modifies it, then the result is composited to the parent.
 /// </summary>
 /// <param name="Child">The child widget to render and apply effects to.</param>
+/// <example>
+/// <code>
+/// ctx.EffectPanel(
+///     ctx.Text("Hello"),
+///     surface => { /* modify surface cells in-place */ }
+/// );
+/// </code>
+/// </example>
 public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
 {
     /// <summary>
@@ -33,11 +41,6 @@ public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
 
         // Reconcile the child widget
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
-
-        // Apply common widget properties (bindings, size hints)
-        node.BindingsConfigurator = BindingsConfigurator;
-        node.WidthHint = WidthHint;
-        node.HeightHint = HeightHint;
 
         return node;
     }

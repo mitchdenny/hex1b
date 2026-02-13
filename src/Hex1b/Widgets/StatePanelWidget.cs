@@ -17,6 +17,11 @@ namespace Hex1b.Widgets;
 /// registry dictionary keyed by reference equality. Without an ancestor, falls back to
 /// positional matching with a state key reference check.
 /// </para>
+/// <para>
+/// <strong>Important:</strong> The <paramref name="StateKey"/> is compared by reference identity
+/// (<see cref="object.ReferenceEquals"/>). Use a stable reference-type object (e.g., a view model
+/// instance). Value types and freshly-boxed objects will not match across frames.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -92,11 +97,6 @@ public sealed record StatePanelWidget(
 
         if (isNew)
             node.MarkDirty();
-
-        // Apply common widget properties (bindings, size hints)
-        node.BindingsConfigurator = BindingsConfigurator;
-        node.WidthHint = WidthHint;
-        node.HeightHint = HeightHint;
 
         return node;
     }
