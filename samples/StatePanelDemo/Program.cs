@@ -140,6 +140,10 @@ StatePanelWidget BuildItemRow(
             });
             focusFade.AnimateTo(ic.IsFocused ? 1.0 : 0.0);
 
+            // Restart shimmer from beginning when this row gains focus
+            if (ic.IsFocused && focusFade.Value < 0.5)
+                shimmer.Start();
+
             var hoverFade = sp.Animations.Get<NumericAnimator<double>>("hover", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(1000);
