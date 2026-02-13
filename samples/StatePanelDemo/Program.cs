@@ -81,6 +81,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }, "Delete last");
 
                 bindings.Key(Hex1bKey.Q).Global().Action(_ => app?.RequestStop(), "Quit");
+
+                bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
+                bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
             });
     })
     .WithMouse()
