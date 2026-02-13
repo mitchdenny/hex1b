@@ -10,8 +10,8 @@ using Hex1b.Widgets;
 //
 // Shows a list of items that can be shuffled, added, and removed.
 // Each item is wrapped in a StatePanel so its node identity (and animations)
-// survive position changes. EffectPanel dims unfocused items at the Surface
-// level — a post-processing effect applied after the child tree renders.
+// survive position changes. EffectPanel applies a shimmer highlight that
+// flows along the border of the focused row.
 
 var items = new List<ItemModel>
 {
@@ -23,8 +23,7 @@ var items = new List<ItemModel>
 };
 
 Hex1bApp? app = null;
-string statusMessage = "S=shuffle  A=add  D=delete last  E=toggle effect  Q=quit";
-bool effectEnabled = true;
+string statusMessage = "S=shuffle  A=add  D=delete last  Q=quit";
 int nextId = 1;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -39,8 +38,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
                         v.Text(" ◆ StatePanel + EffectPanel Demo")),
                     v.Text($" {statusMessage}"),
-                    v.Text(effectEnabled ? " [Effect: ON — unfocused items dimmed via Surface post-processing]"
-                                         : " [Effect: OFF — no Surface post-processing]"),
+                    v.Text(" Focused row has a shimmer highlight flowing along its border"),
                     v.Separator(),
 
                     // Item list — each wrapped in StatePanel for identity preservation
@@ -83,14 +81,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }, "Delete last");
 
                 bindings.Key(Hex1bKey.Q).Global().Action(_ => app?.RequestStop(), "Quit");
-
-                bindings.Key(Hex1bKey.E).Global().Action(_ =>
-                {
-                    effectEnabled = !effectEnabled;
-                    statusMessage = effectEnabled
-                        ? "Effect ON — Surface-level dim applied to unfocused items."
-                        : "Effect OFF — no post-processing.";
-                }, "Toggle effect");
             });
     })
     .WithMouse()
@@ -130,6 +120,16 @@ StatePanelWidget BuildItemRow(
             (byte)(item.Color.G * fade.Value),
             (byte)(item.Color.B * fade.Value));
 
+        // Shimmer animation — 10 second cycle, shimmer travels in first ~4s then pauses
+        var shimmer = sp.Animations.Get<NumericAnimator<double>>("shimmer", a =>
+        {
+            a.From = 0.0;
+            a.To = 1.0;
+            a.Duration = TimeSpan.FromMilliseconds(10000);
+            a.EasingFunction = Easing.Linear;
+            a.Repeat = true;
+        });
+
         return sp.Interactable(ic =>
         {
             // Focus/hover fade animation — retargets smoothly on state change
@@ -159,8 +159,6 @@ StatePanelWidget BuildItemRow(
             var bgB = (byte)(60 * focusFade.Value + 40 * hoverFade.Value * (1.0 - focusFade.Value));
             var bgColor = Hex1bColor.FromRgb(bgR, bgG, bgB);
 
-            // Wrap the visual content in an EffectPanel that dims unfocused items
-            var dimAmount = effectEnabled ? 1.0 - Math.Max(focusFade.Value, hoverFade.Value * 0.7) : 0.0;
             var content = ic.ThemePanel(
                 t =>
                 {
@@ -187,24 +185,23 @@ StatePanelWidget BuildItemRow(
                 )
             );
 
-            // EffectPanel applies Surface-level dim to unfocused items
-            if (dimAmount > 0.01)
+            // Apply shimmer effect to focused row via EffectPanel
+            var shimmerIntensity = focusFade.Value;
+            if (shimmerIntensity > 0.01)
             {
-                var capturedDim = dimAmount;
-                return ic.EffectPanel(content, effect: surface =>
+                // Map first 30% of the 10s cycle to shimmer travel (0→1.5)
+                // The overshoot past 1.0 lets the shimmer tail exit cleanly
+                // Remaining 70% is a pause with no shimmer visible
+                var shimmerRaw = shimmer.Value;
+                var shimmerProgress = shimmerRaw < 0.3 ? (shimmerRaw / 0.3) * 1.5 : 2.0;
+
+                if (shimmerProgress < 2.0)
                 {
-                    var factor = 1.0 - capturedDim * 0.6; // Max 60% dim
-                    for (int y = 0; y < surface.Height; y++)
-                        for (int x = 0; x < surface.Width; x++)
-                        {
-                            var cell = surface[x, y];
-                            surface[x, y] = cell with
-                            {
-                                Foreground = Helpers.DimColor(cell.Foreground, factor),
-                                Background = Helpers.DimColor(cell.Background, factor)
-                            };
-                        }
-                });
+                    var capturedProgress = shimmerProgress;
+                    var capturedIntensity = shimmerIntensity;
+                    return ic.EffectPanel(content, effect: surface =>
+                        Helpers.ApplyBorderShimmer(surface, capturedProgress, capturedIntensity));
+                }
             }
             return content;
         })
@@ -228,14 +225,69 @@ static partial class Helpers
             (byte)(a.B + (b.B - a.B) * t));
     }
 
-    public static Hex1bColor? DimColor(Hex1bColor? color, double factor)
+    /// <summary>
+    /// Applies a split shimmer highlight along border cells.
+    /// Two bright spots start at top-left, one clockwise, one counter-clockwise,
+    /// meeting at bottom-right. Each has a bright head and fading tail.
+    /// </summary>
+    public static void ApplyBorderShimmer(Surface surface, double progress, double intensity, int shimmerWidth = 6)
+    {
+        var w = surface.Width;
+        var h = surface.Height;
+        if (w < 2 || h < 2) return;
+
+        var perimeter = 2 * (w - 1) + 2 * (h - 1);
+        var halfPerimeter = perimeter / 2.0;
+        var headPos = progress * halfPerimeter;
+
+        for (int i = 0; i < perimeter; i++)
+        {
+            var (x, y) = PerimeterIndexToXY(i, w, h);
+
+            var cwDist = (double)i;
+            var ccwDist = i == 0 ? 0.0 : (double)(perimeter - i);
+
+            var behindA = headPos - cwDist;
+            var behindB = headPos - ccwDist;
+
+            var tA = (behindA >= 0 && behindA <= shimmerWidth)
+                ? (1.0 + Math.Cos(behindA / shimmerWidth * Math.PI)) / 2.0
+                : 0.0;
+            var tB = (behindB >= 0 && behindB <= shimmerWidth)
+                ? (1.0 + Math.Cos(behindB / shimmerWidth * Math.PI)) / 2.0
+                : 0.0;
+
+            var t = Math.Max(tA, tB) * intensity;
+            if (t < 0.01) continue;
+
+            var cell = surface[x, y];
+            var brightened = BrightenColor(cell.Foreground, t);
+            surface[x, y] = cell with { Foreground = brightened };
+        }
+    }
+
+    public static (int x, int y) PerimeterIndexToXY(int index, int width, int height)
+    {
+        if (index < width)
+            return (index, 0);
+        index -= width;
+        if (index < height - 1)
+            return (width - 1, 1 + index);
+        index -= (height - 1);
+        if (index < width - 1)
+            return (width - 2 - index, height - 1);
+        index -= (width - 1);
+        return (0, height - 2 - index);
+    }
+
+    private static Hex1bColor? BrightenColor(Hex1bColor? color, double t)
     {
         if (color is null || color.Value.IsDefault)
-            return color;
+            return Hex1bColor.FromRgb((byte)(255 * t), (byte)(255 * t), (byte)(255 * t));
         var c = color.Value;
         return Hex1bColor.FromRgb(
-            (byte)(c.R * factor),
-            (byte)(c.G * factor),
-            (byte)(c.B * factor));
+            (byte)(c.R + (255 - c.R) * t),
+            (byte)(c.G + (255 - c.G) * t),
+            (byte)(c.B + (255 - c.B) * t));
     }
 }
