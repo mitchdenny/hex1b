@@ -23,21 +23,21 @@ public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// Gets the effect callback that post-processes the rendered surface.
     /// </summary>
-    internal Action<Surface>? Effect { get; init; }
+    internal Action<Surface>? EffectCallback { get; init; }
 
     /// <summary>
     /// Sets the effect callback that post-processes the child's rendered surface.
     /// </summary>
     /// <param name="effect">A callback that receives the rendered <see cref="Surface"/> for in-place modification.</param>
     /// <returns>A new <see cref="EffectPanelWidget"/> with the effect applied.</returns>
-    public EffectPanelWidget WithEffect(Action<Surface> effect)
-        => this with { Effect = effect };
+    public EffectPanelWidget Effect(Action<Surface> effect)
+        => this with { EffectCallback = effect };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as EffectPanelNode ?? new EffectPanelNode();
 
-        node.Effect = Effect;
+        node.Effect = EffectCallback;
 
         // Reconcile the child widget
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);

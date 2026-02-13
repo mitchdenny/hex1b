@@ -230,7 +230,7 @@ public class EffectPanelNodeTests
     {
         Action<Surface> effect = _ => { };
         var widget = new EffectPanelWidget(new TextBlockWidget("test"))
-            .WithEffect(effect);
+            .Effect(effect);
         var context = ReconcileContext.CreateRoot();
 
         var node = (EffectPanelNode)await widget.ReconcileAsync(null, context);
@@ -245,11 +245,11 @@ public class EffectPanelNodeTests
         Action<Surface> effect2 = _ => { };
         var context = ReconcileContext.CreateRoot();
 
-        var widget1 = new EffectPanelWidget(new TextBlockWidget("test")).WithEffect(effect1);
+        var widget1 = new EffectPanelWidget(new TextBlockWidget("test")).Effect(effect1);
         var node = (EffectPanelNode)await widget1.ReconcileAsync(null, context);
         Assert.Same(effect1, node.Effect);
 
-        var widget2 = new EffectPanelWidget(new TextBlockWidget("test")).WithEffect(effect2);
+        var widget2 = new EffectPanelWidget(new TextBlockWidget("test")).Effect(effect2);
         await widget2.ReconcileAsync(node, context);
         Assert.Same(effect2, node.Effect);
     }
@@ -299,19 +299,19 @@ public class EffectPanelNodeTests
 
         Assert.IsType<EffectPanelWidget>(widget);
         Assert.Same(child, widget.Child);
-        Assert.NotNull(widget.Effect);
+        Assert.NotNull(widget.EffectCallback);
     }
 
     [Fact]
-    public void WithEffect_ReturnsCopyWithEffect()
+    public void Effect_ReturnsCopyWithEffect()
     {
         var child = new TextBlockWidget("hello");
         Action<Surface> effect = _ => { };
 
-        var widget = new EffectPanelWidget(child).WithEffect(effect);
+        var widget = new EffectPanelWidget(child).Effect(effect);
 
         Assert.Same(child, widget.Child);
-        Assert.NotNull(widget.Effect);
+        Assert.NotNull(widget.EffectCallback);
     }
 
     // --- Nested EffectPanels ---
@@ -323,9 +323,9 @@ public class EffectPanelNodeTests
         var innerCalled = false;
 
         var innerWidget = new EffectPanelWidget(new TextBlockWidget("Hello"))
-            .WithEffect(_ => innerCalled = true);
+            .Effect(_ => innerCalled = true);
         var outerWidget = new EffectPanelWidget(innerWidget)
-            .WithEffect(_ => outerCalled = true);
+            .Effect(_ => outerCalled = true);
 
         var context = ReconcileContext.CreateRoot();
         var node = (EffectPanelNode)await outerWidget.ReconcileAsync(null, context);

@@ -10,7 +10,7 @@ public static class EffectPanelExtensions
 {
     /// <summary>
     /// Creates an effect panel that wraps the given child widget.
-    /// Use <see cref="EffectPanelWidget.WithEffect"/> to apply a post-processing effect.
+    /// Use <see cref="EffectPanelWidget.Effect"/> to apply a post-processing effect.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
@@ -35,5 +35,5 @@ public static class EffectPanelExtensions
         Hex1bWidget child,
         Action<Surface> effect)
         where TParent : Hex1bWidget
-        => new(child) { Effect = effect };
+        => new(child) { EffectCallback = effect };
 }

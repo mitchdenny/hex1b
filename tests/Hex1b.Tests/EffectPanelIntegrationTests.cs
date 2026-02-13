@@ -17,7 +17,7 @@ public class EffectPanelIntegrationTests
     {
         var effectApplied = false;
         var widget = new EffectPanelWidget(new TextBlockWidget("Hello World"))
-            .WithEffect(surface =>
+            .Effect(surface =>
             {
                 effectApplied = true;
                 // Set all backgrounds to blue
@@ -61,7 +61,7 @@ public class EffectPanelIntegrationTests
     {
         var widget = new EffectPanelWidget(
             new ButtonWidget("Click me"))
-            .WithEffect(_ => { });
+            .Effect(_ => { });
 
         var context = ReconcileContext.CreateRoot();
         var node = (EffectPanelNode)await widget.ReconcileAsync(null, context);
@@ -85,7 +85,7 @@ public class EffectPanelIntegrationTests
                 new TextBlockWidget("Line 1"),
                 new TextBlockWidget("Line 2"),
             ]))
-            .WithEffect(surface =>
+            .Effect(surface =>
             {
                 capturedSurface = surface;
             });
@@ -118,7 +118,7 @@ public class EffectPanelIntegrationTests
 
         var widget = new StatePanelWidget(stateKey, sp =>
             new EffectPanelWidget(new TextBlockWidget("Animated"))
-                .WithEffect(surface => effectCalled = true));
+                .Effect(surface => effectCalled = true));
 
         var context = ReconcileContext.CreateRoot();
         var node = (StatePanelNode)await widget.ReconcileAsync(null, context);
@@ -143,7 +143,7 @@ public class EffectPanelIntegrationTests
     {
         // Render a text block with known foreground, then dim it
         var widget = new EffectPanelWidget(new TextBlockWidget("X"))
-            .WithEffect(surface =>
+            .Effect(surface =>
             {
                 for (int y = 0; y < surface.Height; y++)
                     for (int x = 0; x < surface.Width; x++)
