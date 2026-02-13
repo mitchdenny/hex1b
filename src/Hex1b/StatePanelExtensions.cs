@@ -25,22 +25,4 @@ public static class StatePanelExtensions
         Func<StatePanelContext, Hex1bWidget> builder)
         where TParent : Hex1bWidget
         => new(stateKey, builder);
-
-    /// <summary>
-    /// Creates an identity-anchored state panel with an implicit VStack for multiple children.
-    /// </summary>
-    /// <example>
-    /// <code>
-    /// ctx.StatePanel(myViewModel, sp => [
-    ///     sp.Text("Line 1"),
-    ///     sp.Text("Line 2"),
-    /// ]);
-    /// </code>
-    /// </example>
-    public static StatePanelWidget StatePanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        object stateKey,
-        Func<StatePanelContext, Hex1bWidget[]> builder)
-        where TParent : Hex1bWidget
-        => new(stateKey, sp => new VStackWidget(builder(sp)));
 }

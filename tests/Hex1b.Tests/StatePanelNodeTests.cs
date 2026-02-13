@@ -321,21 +321,6 @@ public class StatePanelNodeTests
         Assert.Same(stateKey, widget.StateKey);
     }
 
-    [Fact]
-    public void Extension_StatePanel_MultiChild_CreatesWidgetWithVStack()
-    {
-        var ctx = new WidgetContext<VStackWidget>();
-        var stateKey = new object();
-
-        var widget = ctx.StatePanel(stateKey, sp => new Hex1bWidget[]
-        {
-            sp.Text("line 1"),
-            sp.Text("line 2"),
-        });
-
-        Assert.IsType<StatePanelWidget>(widget);
-    }
-
     // --- Registry uses reference equality ---
 
     [Fact]
