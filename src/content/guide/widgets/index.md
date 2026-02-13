@@ -50,7 +50,9 @@ Widgets for presenting information.
 
 Widgets for special behaviors.
 
+- **[EffectPanel](/guide/widgets/effectpanel)** — Visual post-processing effects on rendered output
 - **[Rescue](/guide/widgets/rescue)** — Error boundaries for graceful failure handling
+- **[StatePanel](/guide/widgets/statepanel)** — Identity-anchored state, animations, and list reorder preservation
 - **[ThemePanel](/guide/widgets/themepanel)** — Scope theme overrides to subtrees
 - **[Terminal](/guide/widgets/terminal)** — Embed child terminal sessions
 - **[Surface](/guide/widgets/surface)** — Low-level rendering with layered compositing
