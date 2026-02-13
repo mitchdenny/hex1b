@@ -108,8 +108,10 @@ StatePanelWidget BuildItemRow(
     return parent.StatePanel(item, sp =>
     {
         // Get or create a fade-in animation — persists across shuffles!
-        var fade = sp.GetAnimations().Get<OpacityAnimator>("fade-in", a =>
+        var fade = sp.GetAnimations().Get<NumericAnimator<double>>("fade-in", a =>
         {
+            a.From = 0.0;
+            a.To = 1.0;
             a.Duration = TimeSpan.FromMilliseconds(600);
             a.EasingFunction = Easing.EaseOutCubic;
         });

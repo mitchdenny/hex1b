@@ -24,8 +24,10 @@ public static class StatePanelAnimationExtensions
     /// <code>
     /// ctx.StatePanel(viewModel, sp =>
     /// {
-    ///     var fade = sp.GetAnimations().Get&lt;OpacityAnimator&gt;("fade", a =>
+    ///     var fade = sp.GetAnimations().Get&lt;NumericAnimator&lt;double&gt;&gt;("fade", a =&gt;
     ///     {
+    ///         a.From = 0.0;
+    ///         a.To = 1.0;
     ///         a.Duration = TimeSpan.FromMilliseconds(300);
     ///     });
     ///     return sp.Text($"Opacity: {fade.Value:F2}");

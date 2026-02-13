@@ -50,14 +50,3 @@ public class NumericAnimator<T> : Hex1bAnimator where T : struct
     }
 }
 
-/// <summary>
-/// Convenience animator for opacity values (0.0 to 1.0).
-/// </summary>
-public class OpacityAnimator : NumericAnimator<double>
-{
-    public OpacityAnimator()
-    {
-        From = 0.0;
-        To = 1.0;
-    }
-}

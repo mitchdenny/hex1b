@@ -6,7 +6,7 @@ namespace Hex1b;
 /// <see cref="OnFrameAdvance"/> once per frame before the builder runs, and checks
 /// <see cref="IsActive"/> afterward to determine if re-rendering should continue.
 /// </summary>
-public interface IActiveState
+internal interface IActiveState
 {
     /// <summary>
     /// Called once per reconciliation frame with the time elapsed since the previous frame.

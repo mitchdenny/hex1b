@@ -9,7 +9,7 @@ public class AnimatorTests
     [Fact]
     public void Start_SetsRunning()
     {
-        var animator = new OpacityAnimator();
+        var animator = new NumericAnimator<double>();
         animator.Start();
 
         Assert.True(animator.IsRunning);
@@ -21,7 +21,7 @@ public class AnimatorTests
     [Fact]
     public void Advance_ProgressesOverDuration()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
 
         animator.Advance(TimeSpan.FromMilliseconds(50));
@@ -33,7 +33,7 @@ public class AnimatorTests
     [Fact]
     public void Advance_CompletesAtDuration()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
 
         animator.Advance(TimeSpan.FromMilliseconds(100));
@@ -46,7 +46,7 @@ public class AnimatorTests
     [Fact]
     public void Advance_ClampsToOneWithoutRepeat()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
 
         animator.Advance(TimeSpan.FromMilliseconds(200));
@@ -58,7 +58,7 @@ public class AnimatorTests
     [Fact]
     public void Advance_Repeat_WrapsProgress()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100), Repeat = true };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100), Repeat = true };
         animator.Start();
 
         animator.Advance(TimeSpan.FromMilliseconds(150));
@@ -70,7 +70,7 @@ public class AnimatorTests
     [Fact]
     public void Advance_RepeatReverse_PingPongs()
     {
-        var animator = new OpacityAnimator
+        var animator = new NumericAnimator<double>
         {
             Duration = TimeSpan.FromMilliseconds(100),
             Repeat = true,
@@ -88,7 +88,7 @@ public class AnimatorTests
     [Fact]
     public void Pause_StopsAdvancing()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(30));
         animator.Pause();
@@ -103,7 +103,7 @@ public class AnimatorTests
     [Fact]
     public void Resume_ContinuesAdvancing()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(30));
         animator.Pause();
@@ -118,7 +118,7 @@ public class AnimatorTests
     [Fact]
     public void Reset_ClearsState()
     {
-        var animator = new OpacityAnimator();
+        var animator = new NumericAnimator<double>();
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(50));
         animator.Reset();
@@ -132,7 +132,7 @@ public class AnimatorTests
     [Fact]
     public void Restart_ResetsAndStarts()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(100));
         Assert.True(animator.IsCompleted);
@@ -146,7 +146,7 @@ public class AnimatorTests
     [Fact]
     public void Progress_AppliesEasing()
     {
-        var animator = new OpacityAnimator
+        var animator = new NumericAnimator<double>
         {
             Duration = TimeSpan.FromMilliseconds(100),
             EasingFunction = Easing.EaseInQuad,
@@ -220,21 +220,21 @@ public class AnimatorTests
         Assert.Equal(25.0, animator.Value, 6);
     }
 
-    // --- OpacityAnimator tests ---
+    // --- NumericAnimator<double> tests ---
 
     [Fact]
-    public void OpacityAnimator_DefaultsFromZeroToOne()
+    public void NumericAnimatorDouble_DefaultsFromZeroToZero()
     {
-        var animator = new OpacityAnimator();
+        var animator = new NumericAnimator<double>();
 
         Assert.Equal(0.0, animator.From);
-        Assert.Equal(1.0, animator.To);
+        Assert.Equal(0.0, animator.To);
     }
 
     [Fact]
-    public void OpacityAnimator_InterpolatesCorrectly()
+    public void NumericAnimatorDouble_InterpolatesCorrectly()
     {
-        var animator = new OpacityAnimator { Duration = TimeSpan.FromMilliseconds(100) };
+        var animator = new NumericAnimator<double> { From = 0.0, To = 1.0, Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(75));
 

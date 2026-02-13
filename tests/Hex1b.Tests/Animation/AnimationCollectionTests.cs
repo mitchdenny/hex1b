@@ -10,10 +10,10 @@ public class AnimationCollectionTests
     {
         var collection = new AnimationCollection();
 
-        var animator = collection.Get<OpacityAnimator>("fade");
+        var animator = collection.Get<NumericAnimator<double>>("fade");
 
         Assert.NotNull(animator);
-        Assert.IsType<OpacityAnimator>(animator);
+        Assert.IsType<NumericAnimator<double>>(animator);
     }
 
     [Fact]
@@ -21,8 +21,8 @@ public class AnimationCollectionTests
     {
         var collection = new AnimationCollection();
 
-        var a1 = collection.Get<OpacityAnimator>("fade");
-        var a2 = collection.Get<OpacityAnimator>("fade");
+        var a1 = collection.Get<NumericAnimator<double>>("fade");
+        var a2 = collection.Get<NumericAnimator<double>>("fade");
 
         Assert.Same(a1, a2);
     }
@@ -32,7 +32,7 @@ public class AnimationCollectionTests
     {
         var collection = new AnimationCollection();
 
-        var animator = collection.Get<OpacityAnimator>("fade", a =>
+        var animator = collection.Get<NumericAnimator<double>>("fade", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(500);
         });
@@ -47,8 +47,8 @@ public class AnimationCollectionTests
         var collection = new AnimationCollection();
         var configCount = 0;
 
-        collection.Get<OpacityAnimator>("fade", _ => configCount++);
-        collection.Get<OpacityAnimator>("fade", _ => configCount++);
+        collection.Get<NumericAnimator<double>>("fade", _ => configCount++);
+        collection.Get<NumericAnimator<double>>("fade", _ => configCount++);
 
         // Configure called only once (on creation)
         Assert.Equal(1, configCount);
@@ -58,7 +58,7 @@ public class AnimationCollectionTests
     public void Get_AutoStartTrue_StartsAnimator()
     {
         var collection = new AnimationCollection();
-        var animator = collection.Get<OpacityAnimator>("fade");
+        var animator = collection.Get<NumericAnimator<double>>("fade");
 
         Assert.True(animator.IsRunning);
     }
@@ -67,7 +67,7 @@ public class AnimationCollectionTests
     public void Get_AutoStartFalse_DoesNotStartAnimator()
     {
         var collection = new AnimationCollection();
-        var animator = collection.Get<OpacityAnimator>("fade", autoStart: false);
+        var animator = collection.Get<NumericAnimator<double>>("fade", autoStart: false);
 
         Assert.False(animator.IsRunning);
     }
@@ -77,8 +77,8 @@ public class AnimationCollectionTests
     {
         var collection = new AnimationCollection();
 
-        var a = collection.Get<OpacityAnimator>("fade-in");
-        var b = collection.Get<OpacityAnimator>("fade-out");
+        var a = collection.Get<NumericAnimator<double>>("fade-in");
+        var b = collection.Get<NumericAnimator<double>>("fade-out");
 
         Assert.NotSame(a, b);
     }
@@ -87,11 +87,11 @@ public class AnimationCollectionTests
     public void AdvanceAll_TicksAllRunning()
     {
         var collection = new AnimationCollection();
-        var a1 = collection.Get<OpacityAnimator>("a1", a =>
+        var a1 = collection.Get<NumericAnimator<double>>("a1", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(100);
         });
-        var a2 = collection.Get<OpacityAnimator>("a2", a =>
+        var a2 = collection.Get<NumericAnimator<double>>("a2", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(200);
         });
@@ -106,11 +106,11 @@ public class AnimationCollectionTests
     public void AdvanceAll_SkipsNonRunning()
     {
         var collection = new AnimationCollection();
-        var a1 = collection.Get<OpacityAnimator>("running", a =>
+        var a1 = collection.Get<NumericAnimator<double>>("running", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(100);
         });
-        var a2 = collection.Get<OpacityAnimator>("stopped", autoStart: false);
+        var a2 = collection.Get<NumericAnimator<double>>("stopped", autoStart: false);
 
         collection.AdvanceAll(TimeSpan.FromMilliseconds(50));
 
@@ -122,7 +122,7 @@ public class AnimationCollectionTests
     public void HasActiveAnimations_TrueWhenRunning()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade");
+        collection.Get<NumericAnimator<double>>("fade");
 
         Assert.True(collection.HasActiveAnimations);
     }
@@ -131,7 +131,7 @@ public class AnimationCollectionTests
     public void HasActiveAnimations_FalseWhenNoneRunning()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade", autoStart: false);
+        collection.Get<NumericAnimator<double>>("fade", autoStart: false);
 
         Assert.False(collection.HasActiveAnimations);
     }
@@ -140,13 +140,13 @@ public class AnimationCollectionTests
     public void DisposeAll_ClearsCollection()
     {
         var collection = new AnimationCollection();
-        collection.Get<OpacityAnimator>("fade");
+        collection.Get<NumericAnimator<double>>("fade");
 
         collection.Dispose();
 
         Assert.False(collection.HasActiveAnimations);
         // Get after dispose creates a new instance
-        var animator = collection.Get<OpacityAnimator>("fade", autoStart: false);
+        var animator = collection.Get<NumericAnimator<double>>("fade", autoStart: false);
         Assert.False(animator.IsRunning);
     }
 
@@ -164,7 +164,7 @@ public class AnimationCollectionTests
         // Frame 1: create animation (auto-started)
         var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.GetAnimations().Get<OpacityAnimator>("fade", a =>
+            var anim = sp.GetAnimations().Get<NumericAnimator<double>>("fade", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(500);
             });
@@ -181,7 +181,7 @@ public class AnimationCollectionTests
         // Frame 2: re-reconcile — animations should have advanced
         var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.GetAnimations().Get<OpacityAnimator>("fade");
+            var anim = sp.GetAnimations().Get<NumericAnimator<double>>("fade");
             progressOnFrame2 = anim.RawProgress;
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
@@ -206,7 +206,7 @@ public class AnimationCollectionTests
         // Frame 1: create animation (auto-started)
         var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            sp.GetAnimations().Get<OpacityAnimator>("fade", a =>
+            sp.GetAnimations().Get<NumericAnimator<double>>("fade", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(500);
             });
@@ -311,7 +311,7 @@ public class AnimationCollectionTests
         var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
             animations1 = sp.GetAnimations();
-            sp.GetAnimations().Get<OpacityAnimator>("fade");
+            sp.GetAnimations().Get<NumericAnimator<double>>("fade");
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
@@ -345,7 +345,7 @@ public class AnimationCollectionTests
             new Hex1b.Widgets.StatePanelWidget(keyChild, csp =>
             {
                 childAnimations = csp.GetAnimations();
-                csp.GetAnimations().Get<OpacityAnimator>("fade");
+                csp.GetAnimations().Get<NumericAnimator<double>>("fade");
                 return new Hex1b.Widgets.TextBlockWidget("child");
             }));
 
