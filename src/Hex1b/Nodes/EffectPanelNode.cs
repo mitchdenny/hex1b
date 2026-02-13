@@ -68,11 +68,22 @@ public sealed class EffectPanelNode : Hex1bNode
         // 4. Apply effect
         Effect(tempSurface);
 
-        // 5. Composite modified surface into parent
+        // 5. Composite modified surface into parent, respecting clip region
+        Rect? clipRect = null;
+        if (surfaceCtx.CurrentLayoutProvider != null)
+        {
+            var providerClip = surfaceCtx.CurrentLayoutProvider.ClipRect;
+            clipRect = new Rect(
+                providerClip.X - surfaceCtx.OffsetX,
+                providerClip.Y - surfaceCtx.OffsetY,
+                providerClip.Width,
+                providerClip.Height);
+        }
         surfaceCtx.Surface.Composite(
             tempSurface,
             Bounds.X - surfaceCtx.OffsetX,
-            Bounds.Y - surfaceCtx.OffsetY);
+            Bounds.Y - surfaceCtx.OffsetY,
+            clipRect);
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
