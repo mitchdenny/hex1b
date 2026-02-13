@@ -10,13 +10,15 @@ public static class StatePanelAnimationExtensions
     /// <summary>
     /// Gets the animation collection for this state panel scope. On first call, a new
     /// <see cref="AnimationCollection"/> is created and stored. Subsequent calls return
-    /// the same instance. Animations are automatically advanced by the elapsed time since
-    /// the last reconciliation frame.
+    /// the same instance.
     /// </summary>
     /// <remarks>
-    /// Re-render scheduling is automatic: after the builder completes, the reconciliation
-    /// system checks whether any stored state (including animations) is still active and
-    /// schedules a timer callback if needed.
+    /// <para>
+    /// Animations are automatically advanced once per frame by the reconciliation system
+    /// (via <see cref="IActiveState.OnFrameAdvance"/>), and re-render scheduling is
+    /// automatic via <see cref="IActiveState.IsActive"/>. This method is safe to call
+    /// multiple times within the same builder — animations are never double-advanced.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -31,14 +33,5 @@ public static class StatePanelAnimationExtensions
     /// </code>
     /// </example>
     public static AnimationCollection GetAnimations(this StatePanelContext ctx)
-    {
-        var animations = ctx.GetState(() => new AnimationCollection());
-
-        if (ctx.Elapsed > TimeSpan.Zero && animations.HasActiveAnimations)
-        {
-            animations.AdvanceAll(ctx.Elapsed);
-        }
-
-        return animations;
-    }
+        => ctx.GetState(() => new AnimationCollection());
 }

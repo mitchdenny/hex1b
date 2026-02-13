@@ -81,6 +81,20 @@ public sealed class StatePanelNode : Hex1bNode
     }
 
     /// <summary>
+    /// Advances all stored state that implements <see cref="IActiveState"/> by the given
+    /// elapsed time. Called once per reconciliation frame before the builder runs.
+    /// </summary>
+    internal void AdvanceActiveState(TimeSpan elapsed)
+    {
+        if (elapsed <= TimeSpan.Zero) return;
+        foreach (var state in _stateStore.Values)
+        {
+            if (state is IActiveState active)
+                active.OnFrameAdvance(elapsed);
+        }
+    }
+
+    /// <summary>
     /// Registry for nested StatePanels, keyed by state object reference identity.
     /// During reconciliation, nested StatePanelWidgets look up their state key here
     /// instead of relying on positional matching.

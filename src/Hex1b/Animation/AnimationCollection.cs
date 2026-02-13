@@ -67,6 +67,9 @@ public sealed class AnimationCollection : IActiveState, IDisposable
     /// <inheritdoc />
     bool IActiveState.IsActive => HasActiveAnimations;
 
+    /// <inheritdoc />
+    void IActiveState.OnFrameAdvance(TimeSpan elapsed) => AdvanceAll(elapsed);
+
     /// <summary>
     /// Disposes all animators and clears the collection.
     /// </summary>

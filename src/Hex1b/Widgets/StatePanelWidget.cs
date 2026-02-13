@@ -70,7 +70,10 @@ public sealed record StatePanelWidget(
             : TimeSpan.Zero;
         node.LastReconcileTicks = now;
 
-        // 4. Deferred builder — subsystems access state via context
+        // 4. Advance any active state (e.g. animations) before builder reads values
+        node.AdvanceActiveState(elapsed);
+
+        // 5. Deferred builder — subsystems access state via context
         var spContext = new StatePanelContext(node, elapsed);
         var childWidget = Builder(spContext);
 
