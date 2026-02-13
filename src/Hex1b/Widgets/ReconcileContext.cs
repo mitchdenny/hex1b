@@ -230,6 +230,20 @@ public sealed class ReconcileContext
     }
 
     /// <summary>
+    /// Finds the nearest ancestor node of the specified type by walking the ancestor chain.
+    /// Returns null if no ancestor of that type exists.
+    /// </summary>
+    internal T? FindAncestor<T>() where T : Hex1bNode
+    {
+        foreach (var ancestor in _ancestors)
+        {
+            if (ancestor is T match)
+                return match;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Returns true if the parent node (or any ancestor) manages focus for its children.
     /// When a parent manages focus, child containers should NOT set initial focus.
     /// </summary>

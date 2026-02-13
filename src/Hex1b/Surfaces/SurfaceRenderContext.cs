@@ -290,8 +290,39 @@ public class SurfaceRenderContext : Hex1bRenderContext
         if (child == null) return;
         
         // If caching is disabled, render directly into this surface
+        // UNLESS there's a layout provider requiring clipping (e.g., ScrollPanel viewport)
         if (!CachingEnabled)
         {
+            if (CurrentLayoutProvider != null && child.Bounds.Width > 0 && child.Bounds.Height > 0)
+            {
+                // Must use a child surface + composite so the clip rect is respected.
+                // Without this, content inside ScrollPanels bleeds past the viewport.
+                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height, CellMetrics);
+                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
+                {
+                    CachingEnabled = false,
+                    MouseX = MouseX,
+                    MouseY = MouseY,
+                    CellMetrics = CellMetrics
+                };
+                childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                child.Render(childContext);
+
+                if (!child.FillBackground.IsDefault)
+                {
+                    childSurface.FillBackground(child.FillBackground);
+                }
+
+                var providerClip = CurrentLayoutProvider.ClipRect;
+                var clipRect = new Rect(
+                    providerClip.X - _offsetX,
+                    providerClip.Y - _offsetY,
+                    providerClip.Width,
+                    providerClip.Height);
+                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
+                return;
+            }
+
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
             child.Render(this);
             
