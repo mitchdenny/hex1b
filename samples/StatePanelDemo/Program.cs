@@ -250,10 +250,12 @@ static partial class Helpers
             var behindA = headPos - cwDist;
             var behindB = headPos - ccwDist;
 
-            var tA = (behindA >= 0 && behindA <= shimmerWidth)
+            // Shimmer A only lights cells on the CW half (cwDist <= halfPerimeter)
+            var tA = (cwDist <= halfPerimeter && behindA >= 0 && behindA <= shimmerWidth)
                 ? (1.0 + Math.Cos(behindA / shimmerWidth * Math.PI)) / 2.0
                 : 0.0;
-            var tB = (behindB >= 0 && behindB <= shimmerWidth)
+            // Shimmer B only lights cells on the CCW half (ccwDist <= halfPerimeter)
+            var tB = (ccwDist <= halfPerimeter && behindB >= 0 && behindB <= shimmerWidth)
                 ? (1.0 + Math.Cos(behindB / shimmerWidth * Math.PI)) / 2.0
                 : 0.0;
 
