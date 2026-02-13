@@ -79,7 +79,11 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
         }
     });
 
-var content = builder.AddViteApp("content", "./src/content")
+// Reflow demo
+var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
+    .ExcludeFromManifest();
+
+var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
     .WaitFor(docGenerator)
