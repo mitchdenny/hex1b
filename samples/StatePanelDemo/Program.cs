@@ -1,15 +1,17 @@
 using Hex1b;
 using Hex1b.Animation;
 using Hex1b.Input;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
-// Demo: StatePanel — identity-anchored reconciliation + animations
+// Demo: StatePanel + EffectPanel — identity-anchored reconciliation,
+// animations, and visual post-processing effects.
 //
 // Shows a list of items that can be shuffled, added, and removed.
 // Each item is wrapped in a StatePanel so its node identity (and animations)
-// survive position changes. Without StatePanel, shuffling would cause
-// focus and animation state to be lost.
+// survive position changes. EffectPanel dims unfocused items at the Surface
+// level — a post-processing effect applied after the child tree renders.
 
 var items = new List<ItemModel>
 {
@@ -21,7 +23,8 @@ var items = new List<ItemModel>
 };
 
 Hex1bApp? app = null;
-string statusMessage = "S=shuffle  A=add  D=delete last  Q=quit";
+string statusMessage = "S=shuffle  A=add  D=delete last  E=toggle effect  Q=quit";
+bool effectEnabled = true;
 int nextId = 1;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -34,8 +37,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     // Header
                     v.ThemePanel(
                         t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-                        v.Text(" ◆ StatePanel Demo — Identity-Anchored Reconciliation")),
+                        v.Text(" ◆ StatePanel + EffectPanel Demo")),
                     v.Text($" {statusMessage}"),
+                    v.Text(effectEnabled ? " [Effect: ON — unfocused items dimmed via Surface post-processing]"
+                                         : " [Effect: OFF — no Surface post-processing]"),
                     v.Separator(),
 
                     // Item list — each wrapped in StatePanel for identity preservation
@@ -78,6 +83,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }, "Delete last");
 
                 bindings.Key(Hex1bKey.Q).Global().Action(_ => app?.RequestStop(), "Quit");
+
+                bindings.Key(Hex1bKey.E).Global().Action(_ =>
+                {
+                    effectEnabled = !effectEnabled;
+                    statusMessage = effectEnabled
+                        ? "Effect ON — Surface-level dim applied to unfocused items."
+                        : "Effect OFF — no post-processing.";
+                }, "Toggle effect");
             });
     })
     .WithMouse()
@@ -146,7 +159,9 @@ StatePanelWidget BuildItemRow(
             var bgB = (byte)(60 * focusFade.Value + 40 * hoverFade.Value * (1.0 - focusFade.Value));
             var bgColor = Hex1bColor.FromRgb(bgR, bgG, bgB);
 
-            return ic.ThemePanel(
+            // Wrap the visual content in an EffectPanel that dims unfocused items
+            var dimAmount = effectEnabled ? 1.0 - Math.Max(focusFade.Value, hoverFade.Value * 0.7) : 0.0;
+            var content = ic.ThemePanel(
                 t =>
                 {
                     var themed = t.Set(BorderTheme.BorderColor, borderColor);
@@ -171,6 +186,27 @@ StatePanelWidget BuildItemRow(
                     ])
                 )
             );
+
+            // EffectPanel applies Surface-level dim to unfocused items
+            if (dimAmount > 0.01)
+            {
+                var capturedDim = dimAmount;
+                return ic.EffectPanel(content, effect: surface =>
+                {
+                    var factor = 1.0 - capturedDim * 0.6; // Max 60% dim
+                    for (int y = 0; y < surface.Height; y++)
+                        for (int x = 0; x < surface.Width; x++)
+                        {
+                            var cell = surface[x, y];
+                            surface[x, y] = cell with
+                            {
+                                Foreground = Helpers.DimColor(cell.Foreground, factor),
+                                Background = Helpers.DimColor(cell.Background, factor)
+                            };
+                        }
+                });
+            }
+            return content;
         })
         .OnClick(args =>
         {
@@ -190,5 +226,16 @@ static partial class Helpers
             (byte)(a.R + (b.R - a.R) * t),
             (byte)(a.G + (b.G - a.G) * t),
             (byte)(a.B + (b.B - a.B) * t));
+    }
+
+    public static Hex1bColor? DimColor(Hex1bColor? color, double factor)
+    {
+        if (color is null || color.Value.IsDefault)
+            return color;
+        var c = color.Value;
+        return Hex1bColor.FromRgb(
+            (byte)(c.R * factor),
+            (byte)(c.G * factor),
+            (byte)(c.B * factor));
     }
 }
