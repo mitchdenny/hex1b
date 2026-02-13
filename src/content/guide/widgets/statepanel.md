@@ -13,13 +13,13 @@ using Hex1b;
 
 var items = new List<ItemModel> { /* ... */ };
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.VStack(v => items.Select(item =>
         v.StatePanel(item, sp =>
             sp.Text($"{item.Name}: {item.Value}")
         )
     ).ToArray())
-));
+);
 
 await app.RunAsync();
 ```
@@ -71,19 +71,18 @@ using Hex1b.Animation;
 
 ctx.StatePanel(item, sp =>
 {
-    var fade = sp.GetAnimations().Get<NumericAnimator<double>>("fade", a =>
+    var slide = sp.GetAnimations().Get<NumericAnimator<double>>("slide", a =>
     {
         a.From = 0.0;
-        a.To = 1.0;
+        a.To = 100.0;
         a.Duration = TimeSpan.FromMilliseconds(600);
         a.EasingFunction = Easing.EaseOutCubic;
     });
 
-    var color = Hex1bColor.FromRgb(
-        (byte)(255 * fade.Value), 0, 0);
+    var barWidth = (int)slide.Value;
+    var bar = new string('█', barWidth / 5) + new string('░', 20 - barWidth / 5);
 
-    return sp.Text(item.Name)
-        .Foreground(color);
+    return sp.Text($"{item.Name} [{bar}]");
 });
 ```
 

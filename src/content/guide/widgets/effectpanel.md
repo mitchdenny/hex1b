@@ -11,26 +11,27 @@ Wrap any widget with an EffectPanel and provide an effect callback:
 ```csharp
 using Hex1b;
 using Hex1b.Surfaces;
+using Hex1b.Theming;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+var app = new Hex1bApp(ctx =>
     ctx.EffectPanel(
-        ctx.Border(b => [
-            b.Text("This text is dimmed")
-        ], title: "Demo"),
+        ctx.Text("This text is dimmed"),
         surface =>
         {
-            // Dim all cells by reducing color intensity
             for (int y = 0; y < surface.Height; y++)
             for (int x = 0; x < surface.Width; x++)
             {
-                ref var cell = ref surface[x, y];
+                var cell = surface[x, y];
                 if (cell.Foreground is { } fg)
-                    cell.Foreground = Hex1bColor.FromRgb(
-                        (byte)(fg.R / 2), (byte)(fg.G / 2), (byte)(fg.B / 2));
+                    surface[x, y] = cell with
+                    {
+                        Foreground = Hex1bColor.FromRgb(
+                            (byte)(fg.R / 2), (byte)(fg.G / 2), (byte)(fg.B / 2))
+                    };
             }
         }
     )
-));
+);
 
 await app.RunAsync();
 ```
@@ -61,13 +62,16 @@ surface =>
     for (int y = 0; y < surface.Height; y++)
     for (int x = 0; x < surface.Width; x++)
     {
-        ref var cell = ref surface[x, y];
+        var cell = surface[x, y];
 
         // Available properties:
         // cell.Character  - the rendered character
         // cell.Foreground - foreground Hex1bColor (nullable)
         // cell.Background - background Hex1bColor (nullable)
         // cell.IsBold, cell.IsItalic, etc.
+
+        // Modify with `with` expression and write back:
+        surface[x, y] = cell with { Foreground = Hex1bColor.White };
     }
 }
 ```
