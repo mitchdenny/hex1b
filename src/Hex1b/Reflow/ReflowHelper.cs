@@ -255,20 +255,19 @@ internal static class ReflowHelper
 
     /// <summary>
     /// Computes the cursor's absolute cell offset within the unified row sequence.
+    /// Cell counting must match <see cref="GroupLogicalLines"/> exactly: soft-wrapped
+    /// rows contribute all cells, but the last row of each logical line is trimmed
+    /// of trailing empty cells.
     /// </summary>
     private static int ComputeCursorCellOffset(List<TerminalCell[]> allRows, int cursorAbsoluteRow, int cursorX, int oldWidth)
     {
-        int offset = 0;
-
-        // Walk through logical lines counting cells up to the cursor row
+        int totalOffset = 0;
         int row = 0;
 
         while (row < allRows.Count)
         {
-            int lineStartOffset = offset;
-            int lineStartRow = row;
+            int lineOffset = 0; // cells in current logical line before cursor row
 
-            // Accumulate cells in this logical line
             while (row < allRows.Count)
             {
                 var rowCells = allRows[row];
@@ -276,27 +275,33 @@ internal static class ReflowHelper
 
                 if (row == cursorAbsoluteRow)
                 {
-                    // Cursor is on this row
-                    return lineStartOffset + (row - lineStartRow) * oldWidth + cursorX;
+                    // Cursor is on this row — add cells up to cursor position
+                    return totalOffset + lineOffset + Math.Min(cursorX, rowCells.Length);
                 }
 
                 if (hasSoftWrap)
                 {
+                    // Soft-wrapped row: all cells included (matches GroupLogicalLines)
+                    lineOffset += rowCells.Length;
                     row++;
                 }
                 else
                 {
+                    // Last row of logical line: count only non-empty cells (matches GroupLogicalLines)
+                    int lastNonEmpty = rowCells.Length - 1;
+                    while (lastNonEmpty >= 0 && IsEmptyCell(rowCells[lastNonEmpty]))
+                        lastNonEmpty--;
+                    lineOffset += lastNonEmpty + 1;
                     row++;
                     break;
                 }
             }
 
-            // Update offset: count actual cells in this logical line
-            offset = lineStartOffset + (row - lineStartRow) * oldWidth;
+            totalOffset += lineOffset;
         }
 
         // Cursor beyond all rows
-        return offset;
+        return totalOffset;
     }
 
     /// <summary>
