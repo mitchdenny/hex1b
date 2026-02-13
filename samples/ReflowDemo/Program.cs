@@ -9,25 +9,30 @@ var initialWidth = 40;
 var terminalHeight = 12;
 var currentWidth = initialWidth;
 
-// Sample content: numbered lines of varying length.
-// Long lines will soft-wrap, short lines remain intact.
+// Plenty of content — at width 40 many lines wrap, generating scrollback.
+// Numbered prefixes make it easy to track which lines merge/split.
 var contentLines = new[]
 {
     "[01] The quick brown fox jumps over the lazy dog repeatedly and endlessly",
     "[02] Short line",
-    "[03] Pack my box with five dozen liquor jugs then add some more stuff",
-    "[04] How vexingly quick daft zebras jump over fallen logs at dawn",
-    "[05] ABCDEFGHIJ KLMNOPQRST UVWXYZ 0123456789 abcdefghij klmnopqrst",
+    "[03] Pack my box with five dozen liquor jugs then add some more stuff here",
+    "[04] How vexingly quick daft zebras jump over fallen logs at dawn today",
+    "[05] ABCDEFGHIJ KLMNOPQRST UVWXYZ 0123456789 abcdefghij klmnopqrst uvw",
     "[06] Tiny",
-    "[07] Sphinx of black quartz judge my vow of eternal silence please",
-    "[08] The five boxing wizards jump quickly at dawn every single day",
+    "[07] Sphinx of black quartz judge my vow of eternal silence please now",
+    "[08] The five boxing wizards jump quickly at dawn every single day again",
     "[09] Brief",
-    "[10] Lorem ipsum dolor sit amet consectetur adipiscing elit sed do",
+    "[10] Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod",
+    "[11] Grumpy wizards make toxic brew for the evil queen and jack",
+    "[12] The jay pig fox zebra and my wolves quack exceedingly loud at night",
+    "[13] End marker",
 };
 
-// Build initial state for each strategy
-var xtermState = new SimulatedTerminal(contentLines, initialWidth, terminalHeight, XtermReflowStrategy.Instance);
-var kittyState = new SimulatedTerminal(contentLines, initialWidth, terminalHeight, KittyReflowStrategy.Instance);
+// Place cursor mid-screen (row 5 of 12) so the Xterm vs Kitty difference is visible.
+// Kitty anchors the cursor row; Xterm fills from the bottom.
+var cursorScreenRow = 5;
+var xtermState = new SimulatedTerminal(contentLines, initialWidth, terminalHeight, cursorScreenRow, XtermReflowStrategy.Instance);
+var kittyState = new SimulatedTerminal(contentLines, initialWidth, terminalHeight, cursorScreenRow, KittyReflowStrategy.Instance);
 
 void Resize(int delta)
 {
@@ -43,8 +48,8 @@ await using var display = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     {
         return ctx.VStack(v => [
-            v.Text($"  Terminal Reflow Demo \u2014 Simulated Width: {currentWidth}"),
-            v.Text($"  Xterm scrollback: {xtermState.ScrollbackCount}    Kitty scrollback: {kittyState.ScrollbackCount}"),
+            v.Text($"  Terminal Reflow Demo \u2014 Width: {currentWidth}"),
+            v.Text($"  Xterm: scrollback={xtermState.ScrollbackCount} cursor=({xtermState.CursorX},{xtermState.CursorY})   Kitty: scrollback={kittyState.ScrollbackCount} cursor=({kittyState.CursorX},{kittyState.CursorY})"),
             v.Separator(),
             v.HStack(h => [
                 BuildPanel(h, "Xterm", xtermState, currentWidth),
@@ -67,7 +72,7 @@ await using var display = Hex1bTerminal.CreateBuilder()
 
 await display.RunAsync();
 
-// --- Helper: Build a bordered panel widget for one strategy ---
+// --- Helper: Build a bordered panel with cursor marker ---
 static Hex1bWidget BuildPanel<T>(WidgetContext<T> ctx, string label, SimulatedTerminal state, int width)
     where T : Hex1bWidget
 {
@@ -84,12 +89,15 @@ static Hex1bWidget BuildPanel<T>(WidgetContext<T> ctx, string label, SimulatedTe
             var line = state.GetLine(row);
             if (line.Length > width) line = line[..width];
             else if (line.Length < width) line = line.PadRight(width);
-            widgets.Add(v.Text($"\u2502{line}\u2502"));
+
+            // Show cursor marker on the cursor row
+            var marker = row == state.CursorY ? "\u25c0" : " ";
+            widgets.Add(v.Text($"\u2502{line}\u2502{marker}"));
         }
 
         widgets.Add(v.Text($"\u2514{footerFill}\u2518"));
         return widgets.ToArray();
-    }).FixedWidth(width + 2);
+    }).FixedWidth(width + 4);
 }
 
 // --- Simulated terminal: builds cell arrays and delegates reflow to strategy ---
@@ -105,12 +113,12 @@ class SimulatedTerminal
 
     private readonly ITerminalReflowProvider _strategy;
 
-    public SimulatedTerminal(string[] lines, int width, int height, ITerminalReflowProvider strategy)
+    public SimulatedTerminal(string[] lines, int width, int height, int cursorScreenRow, ITerminalReflowProvider strategy)
     {
         Height = height;
         Width = width;
         _strategy = strategy;
-        var (screen, scrollback, cx, cy) = BuildContent(lines, width, height);
+        var (screen, scrollback, cx, cy) = BuildContent(lines, width, height, cursorScreenRow);
         ScreenRows = screen;
         ScrollbackRows = scrollback;
         CursorX = cx;
@@ -143,7 +151,7 @@ class SimulatedTerminal
     }
 
     private static (TerminalCell[][] screen, ReflowScrollbackRow[] scrollback, int cursorX, int cursorY)
-        BuildContent(string[] lines, int width, int height)
+        BuildContent(string[] lines, int width, int height, int cursorScreenRow)
     {
         var allRows = new List<TerminalCell[]>();
 
@@ -176,14 +184,14 @@ class SimulatedTerminal
         while (screen.Count < height)
             screen.Add(MakeEmptyRow(width));
 
-        // Cursor at end of last content row
+        // Place cursor at the requested screen row (clamped to content)
         var contentRowsInScreen = Math.Min(allRows.Count - screenStart, height);
-        var cursorY = Math.Max(0, contentRowsInScreen - 1);
-        var lastContentRow = allRows[Math.Min(allRows.Count - 1, screenStart + cursorY)];
+        var cursorY = Math.Clamp(cursorScreenRow, 0, contentRowsInScreen - 1);
+        var cursorRow = allRows[screenStart + cursorY];
         var cursorX = 0;
         for (int i = 0; i < width; i++)
         {
-            if (!string.IsNullOrEmpty(lastContentRow[i].Character) && lastContentRow[i].Character != " ")
+            if (!string.IsNullOrEmpty(cursorRow[i].Character) && cursorRow[i].Character != " ")
                 cursorX = i + 1;
         }
         cursorX = Math.Min(cursorX, width - 1);

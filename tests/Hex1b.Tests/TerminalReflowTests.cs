@@ -345,4 +345,69 @@ public class TerminalReflowTests
     }
 
     #endregion
+
+    #region Strategy Comparison
+
+    [Fact]
+    public void Reflow_XtermVsKitty_DivergeWithMidScreenCursor()
+    {
+        // When NARROWING, soft-wrapped rows split into more rows, pushing content
+        // further down. Xterm bottom-fills (cursor goes to top of screen), while
+        // Kitty anchors the cursor row (cursor stays at original screen position).
+        int width = 10, height = 5;
+
+        TerminalCell[] MakeRow(string text, bool softWrap)
+        {
+            var cells = new TerminalCell[width];
+            for (int i = 0; i < width; i++)
+            {
+                var ch = i < text.Length ? text[i].ToString() : " ";
+                var attrs = (i == width - 1 && softWrap) ? CellAttributes.SoftWrap : CellAttributes.None;
+                cells[i] = new TerminalCell(ch, null, null, attrs);
+            }
+            return cells;
+        }
+
+        // 4 logical lines of 20 chars each at width 10 = 2 rows per line = 8 total
+        // Scrollback=3, screen=5
+        var allRows = new TerminalCell[][] {
+            MakeRow("AAAAAAAAAA", true),  MakeRow("AAAAAAAAAA", false), // Line A
+            MakeRow("BBBBBBBBBB", true),  MakeRow("BBBBBBBBBB", false), // Line B
+            MakeRow("CCCCCCCCCC", true),  MakeRow("CCCCCCCCCC", false), // Line C
+            MakeRow("DDDDDDDDDD", true),  MakeRow("DDDDDDDDDD", false), // Line D
+        };
+
+        var scrollback = allRows[..3].Select(r => new ReflowScrollbackRow(r, width)).ToArray();
+        var screen = allRows[3..]; // rows 3-7
+
+        // Cursor at screen row 1 (mid-screen), col 3.
+        // Absolute row = 3+1 = 4 (first row of Line C).
+        // NARROW to width 5: each 20-char line → 4 rows = 16 total.
+        // Cursor maps to absolute row 8, plenty of content below.
+        var context = new ReflowContext(screen, scrollback, width, height, 5, height, 3, 1, false);
+
+        var xtermResult = XtermReflowStrategy.Instance.Reflow(context);
+        var kittyResult = KittyReflowStrategy.Instance.Reflow(context);
+
+        // Xterm bottom-fills: screen shows rows 11-15, cursor at row 0 (clamped)
+        // Kitty anchors cursor: screen shows rows 7-11, cursor stays at row 1
+        Assert.Equal(0, xtermResult.CursorY);
+        Assert.Equal(1, kittyResult.CursorY);
+        Assert.NotEqual(xtermResult.CursorY, kittyResult.CursorY);
+
+        // Verify screen content actually differs
+        Assert.NotEqual(
+            GetRowText(xtermResult.ScreenRows[0]),
+            GetRowText(kittyResult.ScreenRows[0]));
+    }
+
+    private static string GetRowText(TerminalCell[] row)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var c in row)
+            sb.Append(string.IsNullOrEmpty(c.Character) ? ' ' : c.Character[0]);
+        return sb.ToString().TrimEnd();
+    }
+
+    #endregion
 }
