@@ -376,6 +376,60 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     {
         SetOffset(Offset + amount, context);
     }
+
+    /// <summary>
+    /// Adjusts Offset so the focused descendant's bounds are within the viewport.
+    /// Must be called after Arrange so descendant Bounds are set.
+    /// Returns true if offset changed (caller should re-arrange).
+    /// </summary>
+    private bool EnsureFocusedVisible(int viewportStart, int viewportSize)
+    {
+        // Find the focused descendant
+        Hex1bNode? focused = null;
+        foreach (var node in GetFocusableNodes())
+        {
+            if (node.IsFocused)
+            {
+                focused = node;
+                break;
+            }
+        }
+        if (focused is null) return false;
+
+        int nodeStart, nodeSize;
+        if (Orientation == ScrollOrientation.Vertical)
+        {
+            nodeStart = focused.Bounds.Y;
+            nodeSize = focused.Bounds.Height;
+        }
+        else
+        {
+            nodeStart = focused.Bounds.X;
+            nodeSize = focused.Bounds.Width;
+        }
+
+        var viewportEnd = viewportStart + viewportSize;
+        var nodeEnd = nodeStart + nodeSize;
+
+        int newOffset = Offset;
+        if (nodeStart < viewportStart)
+        {
+            // Node is above/left of viewport — scroll up/left
+            newOffset = Offset - (viewportStart - nodeStart);
+        }
+        else if (nodeEnd > viewportEnd)
+        {
+            // Node is below/right of viewport — scroll down/right
+            newOffset = Offset + (nodeEnd - viewportEnd);
+        }
+
+        newOffset = Math.Clamp(newOffset, 0, MaxOffset);
+        if (newOffset == Offset) return false;
+
+        Offset = newOffset;
+        MarkDirty();
+        return true;
+    }
     
     /// <summary>
     /// Scrolls by a full page (viewport size minus 1).
@@ -542,12 +596,25 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
             // Child is positioned above the viewport by the scroll offset
             var childY = bounds.Y - Offset;
             Child.Arrange(new Rect(bounds.X, childY, viewportWidth, _contentSize.Height));
+
+            // Scroll to keep the focused descendant visible
+            if (EnsureFocusedVisible(bounds.Y, viewportHeight))
+            {
+                childY = bounds.Y - Offset;
+                Child.Arrange(new Rect(bounds.X, childY, viewportWidth, _contentSize.Height));
+            }
         }
         else
         {
             // Child is positioned to the left of the viewport by the scroll offset
             var childX = bounds.X - Offset;
             Child.Arrange(new Rect(childX, bounds.Y, _contentSize.Width, viewportHeight));
+
+            if (EnsureFocusedVisible(bounds.X, viewportWidth))
+            {
+                childX = bounds.X - Offset;
+                Child.Arrange(new Rect(childX, bounds.Y, _contentSize.Width, viewportHeight));
+            }
         }
     }
 
