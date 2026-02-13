@@ -1,3 +1,4 @@
+using Hex1b;
 using Hex1b.Animation;
 
 namespace Hex1b.Tests.Animation;
@@ -141,7 +142,7 @@ public class AnimationCollectionTests
         var collection = new AnimationCollection();
         collection.Get<OpacityAnimator>("fade");
 
-        collection.DisposeAll();
+        collection.Dispose();
 
         Assert.False(collection.HasActiveAnimations);
         // Get after dispose creates a new instance
@@ -163,7 +164,7 @@ public class AnimationCollectionTests
         // Frame 1: create animation (auto-started)
         var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.Animations.Get<OpacityAnimator>("fade", a =>
+            var anim = sp.GetAnimations().Get<OpacityAnimator>("fade", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(500);
             });
@@ -180,7 +181,7 @@ public class AnimationCollectionTests
         // Frame 2: re-reconcile — animations should have advanced
         var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.Animations.Get<OpacityAnimator>("fade");
+            var anim = sp.GetAnimations().Get<OpacityAnimator>("fade");
             progressOnFrame2 = anim.RawProgress;
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
@@ -205,7 +206,7 @@ public class AnimationCollectionTests
         // Frame 1: create animation (auto-started)
         var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            sp.Animations.Get<OpacityAnimator>("fade", a =>
+            sp.GetAnimations().Get<OpacityAnimator>("fade", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(500);
             });
@@ -250,7 +251,7 @@ public class AnimationCollectionTests
 
         var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.Animations.Get<NumericAnimator<double>>("slide", a =>
+            var anim = sp.GetAnimations().Get<NumericAnimator<double>>("slide", a =>
             {
                 a.From = 0.0;
                 a.To = 100.0;
@@ -261,7 +262,7 @@ public class AnimationCollectionTests
 
         // Frame 1
         var node = await widget.ReconcileAsync(null, context);
-        valueFrame1 = ((Hex1b.Nodes.StatePanelNode)node).Animations
+        valueFrame1 = ((Hex1b.Nodes.StatePanelNode)node).GetState(() => new AnimationCollection())
             .Get<NumericAnimator<double>>("slide").Value;
 
         await Task.Delay(100);
@@ -269,7 +270,7 @@ public class AnimationCollectionTests
         // Frame 2
         var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            var anim = sp.Animations.Get<NumericAnimator<double>>("slide");
+            var anim = sp.GetAnimations().Get<NumericAnimator<double>>("slide");
             valueFrame2 = anim.Value;
             return new Hex1b.Widgets.TextBlockWidget($"Value: {anim.Value}");
         });
@@ -290,7 +291,7 @@ public class AnimationCollectionTests
 
         var widget = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            capturedAnimations = sp.Animations;
+            capturedAnimations = sp.GetAnimations();
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
@@ -309,8 +310,8 @@ public class AnimationCollectionTests
 
         var widget1 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            animations1 = sp.Animations;
-            sp.Animations.Get<OpacityAnimator>("fade");
+            animations1 = sp.GetAnimations();
+            sp.GetAnimations().Get<OpacityAnimator>("fade");
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
@@ -319,7 +320,7 @@ public class AnimationCollectionTests
 
         var widget2 = new Hex1b.Widgets.StatePanelWidget(stateKey, sp =>
         {
-            animations2 = sp.Animations;
+            animations2 = sp.GetAnimations();
             return new Hex1b.Widgets.TextBlockWidget("test");
         });
 
@@ -343,8 +344,8 @@ public class AnimationCollectionTests
         var widget1 = new Hex1b.Widgets.StatePanelWidget(keyRoot, sp =>
             new Hex1b.Widgets.StatePanelWidget(keyChild, csp =>
             {
-                childAnimations = csp.Animations;
-                csp.Animations.Get<OpacityAnimator>("fade");
+                childAnimations = csp.GetAnimations();
+                csp.GetAnimations().Get<OpacityAnimator>("fade");
                 return new Hex1b.Widgets.TextBlockWidget("child");
             }));
 

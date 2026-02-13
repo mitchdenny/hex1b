@@ -108,14 +108,14 @@ StatePanelWidget BuildItemRow(
     return parent.StatePanel(item, sp =>
     {
         // Get or create a fade-in animation — persists across shuffles!
-        var fade = sp.Animations.Get<OpacityAnimator>("fade-in", a =>
+        var fade = sp.GetAnimations().Get<OpacityAnimator>("fade-in", a =>
         {
             a.Duration = TimeSpan.FromMilliseconds(600);
             a.EasingFunction = Easing.EaseOutCubic;
         });
 
         // Animate a progress bar width
-        var slide = sp.Animations.Get<NumericAnimator<int>>("slide", a =>
+        var slide = sp.GetAnimations().Get<NumericAnimator<int>>("slide", a =>
         {
             a.From = 0;
             a.To = 20;
@@ -134,7 +134,7 @@ StatePanelWidget BuildItemRow(
             (byte)(item.Color.B * fade.Value));
 
         // Shimmer animation — 10 second cycle, shimmer travels in first ~4s then pauses
-        var shimmer = sp.Animations.Get<NumericAnimator<double>>("shimmer", a =>
+        var shimmer = sp.GetAnimations().Get<NumericAnimator<double>>("shimmer", a =>
         {
             a.From = 0.0;
             a.To = 1.0;
@@ -146,7 +146,7 @@ StatePanelWidget BuildItemRow(
         return sp.Interactable(ic =>
         {
             // Focus/hover fade animation — retargets smoothly on state change
-            var focusFade = sp.Animations.Get<NumericAnimator<double>>("focus", a =>
+            var focusFade = sp.GetAnimations().Get<NumericAnimator<double>>("focus", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(1000);
                 a.EasingFunction = Easing.EaseOutQuad;
@@ -157,7 +157,7 @@ StatePanelWidget BuildItemRow(
             if (ic.IsFocused && focusFade.Value < 0.5)
                 shimmer.Start();
 
-            var hoverFade = sp.Animations.Get<NumericAnimator<double>>("hover", a =>
+            var hoverFade = sp.GetAnimations().Get<NumericAnimator<double>>("hover", a =>
             {
                 a.Duration = TimeSpan.FromMilliseconds(1000);
                 a.EasingFunction = Easing.EaseOutQuad;

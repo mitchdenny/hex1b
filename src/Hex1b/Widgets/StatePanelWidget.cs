@@ -63,17 +63,15 @@ public sealed record StatePanelWidget(
             ancestorSP.MarkVisited(StateKey);
         }
 
-        // 3. Advance animations by elapsed time since last frame
+        // 3. Compute elapsed time since last reconciliation
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (node.LastAdvanceTicks > 0 && node.Animations.HasActiveAnimations)
-        {
-            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(node.LastAdvanceTicks, now);
-            node.Animations.AdvanceAll(elapsed);
-        }
-        node.LastAdvanceTicks = now;
+        var elapsed = node.LastReconcileTicks > 0
+            ? System.Diagnostics.Stopwatch.GetElapsedTime(node.LastReconcileTicks, now)
+            : TimeSpan.Zero;
+        node.LastReconcileTicks = now;
 
-        // 4. Deferred builder — context can read current animation values
-        var spContext = new StatePanelContext(node);
+        // 4. Deferred builder — subsystems access state via context
+        var spContext = new StatePanelContext(node, elapsed);
         var childWidget = Builder(spContext);
 
         // 5. Reconcile child subtree
@@ -82,8 +80,8 @@ public sealed record StatePanelWidget(
         // 6. Sweep nested state keys not visited this frame
         node.SweepUnvisited();
 
-        // 7. Schedule re-render if animations are still running
-        if (node.Animations.HasActiveAnimations && context.ScheduleTimerCallback is not null)
+        // 7. Schedule re-render if any stored state is still active
+        if (node.HasActiveState && context.ScheduleTimerCallback is not null)
         {
             var capturedNode = node;
             var capturedInvalidate = context.InvalidateCallback;

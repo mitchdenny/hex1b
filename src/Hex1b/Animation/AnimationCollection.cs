@@ -1,15 +1,17 @@
 namespace Hex1b.Animation;
 
 /// <summary>
-/// A named collection of animators associated with a StatePanelNode.
-/// Provides create-or-retrieve semantics and bulk advance/dispose operations.
+/// A named collection of animators. Provides create-or-retrieve semantics
+/// and bulk advance/dispose operations.
 /// </summary>
 /// <remarks>
-/// Animation frame scheduling is handled by <c>StatePanelWidget.ReconcileAsync</c>,
-/// which uses <c>ReconcileContext.ScheduleTimerCallback</c> to trigger re-renders
-/// when animations are active. This collection is purely a data structure.
+/// <para>
+/// Use <see cref="StatePanelAnimationExtensions.GetAnimations"/> to obtain an
+/// instance scoped to a <see cref="StatePanelContext"/>. The extension method
+/// handles time advancement and re-render scheduling automatically.
+/// </para>
 /// </remarks>
-public sealed class AnimationCollection
+public sealed class AnimationCollection : IActiveState, IDisposable
 {
     private readonly Dictionary<string, Hex1bAnimator> _animators = new();
 
@@ -62,10 +64,13 @@ public sealed class AnimationCollection
         }
     }
 
+    /// <inheritdoc />
+    bool IActiveState.IsActive => HasActiveAnimations;
+
     /// <summary>
     /// Disposes all animators and clears the collection.
     /// </summary>
-    internal void DisposeAll()
+    public void Dispose()
     {
         _animators.Clear();
     }
