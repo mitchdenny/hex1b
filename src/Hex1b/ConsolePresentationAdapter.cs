@@ -1,5 +1,6 @@
 using System.Text;
 using Hex1b.Input;
+using Hex1b.Reflow;
 
 namespace Hex1b;
 
@@ -10,12 +11,13 @@ namespace Hex1b;
 /// This adapter uses raw terminal mode (termios on Unix, SetConsoleMode on Windows)
 /// to properly capture mouse events, escape sequences, and control characters.
 /// </remarks>
-public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapter
+public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapter, ITerminalReflowProvider
 {
     private readonly IConsoleDriver _driver;
     private readonly bool _enableMouse;
     private readonly bool _preserveOPost;
     private readonly CancellationTokenSource _disposeCts = new();
+    private readonly ITerminalReflowProvider _reflowStrategy;
     private bool _disposed;
     private bool _inRawMode;
 
@@ -53,6 +55,42 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         
         // Wire up resize events
         _driver.Resized += (w, h) => Resized?.Invoke(w, h);
+        
+        // Auto-detect terminal emulator and select reflow strategy
+        _reflowStrategy = DetectReflowStrategy();
+    }
+
+    /// <inheritdoc/>
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    /// <inheritdoc/>
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    /// <summary>
+    /// Detects the current terminal emulator and returns the appropriate reflow strategy.
+    /// </summary>
+    private static ITerminalReflowProvider DetectReflowStrategy()
+    {
+        var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
+
+        return termProgram?.ToLowerInvariant() switch
+        {
+            "kitty" => KittyReflowStrategy.Instance,
+            "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
+            "wezterm" => XtermReflowStrategy.Instance,
+            "alacritty" => XtermReflowStrategy.Instance,
+            _ => DetectFromTerm()
+        };
+    }
+
+    private static ITerminalReflowProvider DetectFromTerm()
+    {
+        var term = Environment.GetEnvironmentVariable("TERM");
+        if (term is not null && term.StartsWith("xterm", StringComparison.OrdinalIgnoreCase))
+            return XtermReflowStrategy.Instance;
+        
+        // Default: no reflow (conservative — avoids surprising behavior in unknown terminals)
+        return NoReflowStrategy.Instance;
     }
 
     /// <inheritdoc />

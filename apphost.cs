@@ -107,6 +107,10 @@ var chartingDemo = builder.AddCSharpApp("charting-demo", "./samples/ChartingDemo
 var interactableDemo = builder.AddCSharpApp("interactable-demo", "./samples/InteractableDemo")
     .ExcludeFromManifest();
 
+// Reflow demo
+var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
+    .ExcludeFromManifest();
+
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
