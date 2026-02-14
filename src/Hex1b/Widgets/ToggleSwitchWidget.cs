@@ -33,10 +33,10 @@ public sealed record ToggleSwitchWidget(IReadOnlyList<string> Options, int Selec
         node.Options = Options;
         node.SourceWidget = this;
         
-        // For a new node, set the initial selection from the widget
-        if (context.IsNew)
+        // Always sync selection from widget (controlled component)
+        if (SelectedIndex >= 0 && SelectedIndex < Options.Count)
         {
-            node.SelectedIndex = SelectedIndex >= 0 && SelectedIndex < Options.Count ? SelectedIndex : 0;
+            node.SelectedIndex = SelectedIndex;
         }
         
         // Clamp selection if options changed
