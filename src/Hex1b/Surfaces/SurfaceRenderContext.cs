@@ -27,6 +27,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
     // Coordinate offset for child rendering - allows absolute coordinates to map to a smaller surface
     private int _offsetX;
     private int _offsetY;
+
+    // Maximum dimension for a child surface to prevent overflow in width*height allocation.
+    // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
+    // (from unconstrained measure passes) from causing OverflowException in Surface allocation.
+    private const int MaxSurfaceDimension = 10_000;
     
     /// <summary>
     /// Gets the X offset applied to coordinates.
@@ -320,11 +325,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 // Must use a child surface + composite so the clip rect is respected.
                 // Without this, content inside ScrollPanels bleeds past the viewport.
-                // Clamp to parent surface dimensions — child surface never needs to be
-                // larger than what it will be composited onto, and unconstrained children
-                // (e.g. VStack with int.MaxValue height) would overflow width*height.
-                var clampedWidth = Math.Min(child.Bounds.Width, _surface.Width);
-                var clampedHeight = Math.Min(child.Bounds.Height, _surface.Height);
+                // Clamp dimensions so width*height doesn't overflow int.MaxValue while
+                // preserving the child's full extent (needed for scroll offset rendering).
+                var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
+                var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
                 var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
                 var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                 {
@@ -405,9 +409,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
             if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
             {
                 // Create a surface for this child's content with matching cell metrics
-                // Clamp to parent surface dimensions to prevent overflow with unconstrained children
-                var clampedWidth = Math.Min(child.Bounds.Width, _surface.Width);
-                var clampedHeight = Math.Min(child.Bounds.Height, _surface.Height);
+                // Clamp dimensions to prevent overflow with unconstrained children
+                var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
+                var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
                 var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
                 
                 // Create context with offset so child's absolute coordinates map to surface (0,0)
