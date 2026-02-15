@@ -194,9 +194,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
         _context = new Hex1bRenderContext(_adapter, initialTheme);
         
-        // Wire queue depth observable gauge to the adapter
-        _metrics.SetQueueDepthCallback(() => _adapter.OutputQueueDepth);
-        
         // Rescue (error boundary) options
         _rescueEnabled = options.EnableRescue;
         _rescueFallbackBuilder = options.RescueFallbackBuilder;

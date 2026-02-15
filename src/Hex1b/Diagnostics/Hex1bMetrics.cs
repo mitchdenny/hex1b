@@ -72,9 +72,6 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>ANSI tokens parsed from workload output per pump cycle.</summary>
     public Histogram<int> TerminalOutputTokens { get; }
 
-    /// <summary>Current workload output channel queue depth.</summary>
-    public ObservableGauge<int> TerminalOutputQueueDepth { get; }
-
     // --- Terminal input pump ---
 
     /// <summary>Raw bytes read from presentation adapter per read.</summary>
@@ -106,22 +103,13 @@ public sealed class Hex1bMetrics : IDisposable
     /// </summary>
     public bool PerNodeMetricsEnabled { get; }
 
-    private Func<int>? _queueDepthCallback;
-
-    /// <summary>
-    /// Sets the callback used by the <c>hex1b.terminal.output.queue_depth</c> observable gauge.
-    /// Call this after construction when the adapter becomes available.
-    /// </summary>
-    internal void SetQueueDepthCallback(Func<int> callback) => _queueDepthCallback = callback;
-
     /// <summary>
     /// Creates a new <see cref="Hex1bMetrics"/> instance with its own <see cref="System.Diagnostics.Metrics.Meter"/>.
     /// </summary>
-    /// <param name="queueDepthCallback">Optional callback to observe output queue depth.</param>
     /// <param name="options">Optional metrics options to control per-node metrics.</param>
-    public Hex1bMetrics(Func<int>? queueDepthCallback = null, Hex1bMetricsOptions? options = null)
+    public Hex1bMetrics(Hex1bMetricsOptions? options = null)
     {
-        _queueDepthCallback = queueDepthCallback;
+        PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
         PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
         Meter = new Meter("Hex1b");
 
@@ -144,7 +132,6 @@ public sealed class Hex1bMetrics : IDisposable
         // Terminal output pump
         TerminalOutputBytes = Meter.CreateHistogram<int>("hex1b.terminal.output.bytes", "By", "Bytes written to presentation per write");
         TerminalOutputTokens = Meter.CreateHistogram<int>("hex1b.terminal.output.tokens", "{token}", "ANSI tokens from workload output per pump cycle");
-        TerminalOutputQueueDepth = Meter.CreateObservableGauge("hex1b.terminal.output.queue_depth", ObserveQueueDepth, "{item}", "Output channel queue depth");
 
         // Terminal input pump
         TerminalInputBytes = Meter.CreateHistogram<int>("hex1b.terminal.input.bytes", "By", "Raw bytes from presentation per read");
@@ -160,8 +147,6 @@ public sealed class Hex1bMetrics : IDisposable
             NodeReconcileDuration = Meter.CreateHistogram<double>("hex1b.node.reconcile.duration", "ms", "Per-node reconcile phase duration");
         }
     }
-
-    private int ObserveQueueDepth() => _queueDepthCallback?.Invoke() ?? 0;
 
     /// <inheritdoc/>
     public void Dispose() => Meter.Dispose();

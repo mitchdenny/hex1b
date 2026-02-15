@@ -38,7 +38,6 @@ public class Hex1bMetricsTests
             "hex1b.input.duration",
             "hex1b.terminal.output.bytes",
             "hex1b.terminal.output.tokens",
-            "hex1b.terminal.output.queue_depth",
             "hex1b.terminal.input.bytes",
             "hex1b.terminal.input.tokens",
             "hex1b.terminal.input.events",
@@ -185,36 +184,6 @@ public class Hex1bMetricsTests
         Assert.Equal(1920, recorded[0]);
         Assert.Equal(5, recorded[1]);
         Assert.Equal(0, recorded[2]);
-    }
-    
-    [Fact]
-    public void QueueDepthGauge_UsesCallback()
-    {
-        var depth = 0;
-        using var metrics = new Hex1bMetrics(queueDepthCallback: () => depth);
-        var observed = new List<int>();
-        
-        using var listener = new MeterListener();
-        listener.InstrumentPublished = (instrument, listener) =>
-        {
-            if (ReferenceEquals(instrument.Meter, metrics.Meter))
-                listener.EnableMeasurementEvents(instrument);
-        };
-        listener.SetMeasurementEventCallback<int>((inst, value, tags, state) =>
-        {
-            if (inst.Name == "hex1b.terminal.output.queue_depth") observed.Add(value);
-        });
-        listener.Start();
-        
-        depth = 5;
-        listener.RecordObservableInstruments();
-        
-        depth = 0;
-        listener.RecordObservableInstruments();
-        
-        Assert.Equal(2, observed.Count);
-        Assert.Equal(5, observed[0]);
-        Assert.Equal(0, observed[1]);
     }
     
     [Fact]
