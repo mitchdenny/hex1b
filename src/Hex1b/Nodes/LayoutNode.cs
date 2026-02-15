@@ -24,14 +24,14 @@ public sealed class LayoutNode : Hex1bNode, ILayoutProvider
     public (int adjustedX, string clippedText) ClipString(int x, int y, string text)
         => LayoutProviderHelper.ClipString(this, x, y, text);
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         return Child?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         Child?.Arrange(bounds);
     }
 

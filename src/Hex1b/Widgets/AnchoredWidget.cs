@@ -57,7 +57,7 @@ internal sealed class AnchoredNode : Hex1bNode
     /// </summary>
     public override Rect ContentBounds => Child?.Bounds ?? Bounds;
     
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Measure child to get its natural size
         if (Child == null) return Size.Zero;
@@ -71,9 +71,9 @@ internal sealed class AnchoredNode : Hex1bNode
         return new Size(constraints.MaxWidth, constraints.MaxHeight);
     }
     
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (Child == null || AnchorNode == null) return;
         

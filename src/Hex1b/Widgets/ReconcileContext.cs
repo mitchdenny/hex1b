@@ -54,6 +54,12 @@ public sealed class ReconcileContext
     /// When true, per-node diagnostic timing is collected during reconciliation.
     /// </summary>
     internal bool DiagnosticTimingEnabled { get; set; }
+
+    /// <summary>
+    /// Metrics instance to propagate to nodes for per-node metric recording.
+    /// Only set (non-null) when per-node metrics are enabled.
+    /// </summary>
+    internal Diagnostics.Hex1bMetrics? Metrics { get; set; }
     
     /// <summary>
     /// The layout axis of the parent container (if any).
@@ -142,7 +148,8 @@ public sealed class ReconcileContext
         return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback, 
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
         {
-            DiagnosticTimingEnabled = DiagnosticTimingEnabled
+            DiagnosticTimingEnabled = DiagnosticTimingEnabled,
+            Metrics = Metrics
         };
     }
     
@@ -153,7 +160,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics };
     }
     
     /// <summary>
@@ -163,7 +170,7 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics };
     }
 
     /// <summary>
@@ -181,11 +188,15 @@ public sealed class ReconcileContext
         childContext.IsNew = existingNode is null || isReplacement;
         
         long reconcileStart = 0;
-        if (DiagnosticTimingEnabled) reconcileStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        var recordReconcileMetric = Metrics?.NodeReconcileDuration != null;
+        if (DiagnosticTimingEnabled || recordReconcileMetric) reconcileStart = System.Diagnostics.Stopwatch.GetTimestamp();
         
         var node = await widget.ReconcileAsync(existingNode, childContext);
         
-        if (DiagnosticTimingEnabled) node.DiagReconcileTicks = System.Diagnostics.Stopwatch.GetTimestamp() - reconcileStart;
+        long reconcileElapsed = 0;
+        if (DiagnosticTimingEnabled || recordReconcileMetric)
+            reconcileElapsed = System.Diagnostics.Stopwatch.GetTimestamp() - reconcileStart;
+        if (DiagnosticTimingEnabled) node.DiagReconcileTicks = reconcileElapsed;
 
         // If this is a replacement (different node type), inherit bounds from the old node
         // so ClearDirtyRegions knows to clear the region previously occupied by the old content
@@ -199,6 +210,25 @@ public sealed class ReconcileContext
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
+        
+        // Set metric name from widget (for per-node metrics)
+        var newMetricName = widget.MetricName;
+        if (node.MetricName != newMetricName)
+        {
+            node.MetricName = newMetricName;
+            node.InvalidateMetricPath();
+        }
+        node.MetricChildIndex = childContext.ChildIndex ?? 0;
+        
+        // Set metrics reference for per-node recording
+        node.Metrics = Metrics;
+        
+        // Record per-node reconcile duration (after MetricName/parent are set so path is correct)
+        if (recordReconcileMetric)
+        {
+            var elapsedMs = (double)reconcileElapsed / System.Diagnostics.Stopwatch.Frequency * 1000.0;
+            Metrics!.NodeReconcileDuration!.Record(elapsedMs, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
+        }
         
         // Schedule animation timer if widget has RedrawDelay
         var effectiveDelay = widget.GetEffectiveRedrawDelay();

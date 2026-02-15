@@ -25,6 +25,14 @@ public abstract record Hex1bWidget
     public SizeHint? HeightHint { get; init; }
 
     /// <summary>
+    /// A user-assigned name for this widget used as a tag value in per-node metrics.
+    /// When per-node metrics are enabled, this name becomes a segment in the hierarchical
+    /// metric path (e.g., <c>root.sidebar.orders</c>). If null, an auto-generated name
+    /// based on the node type and child index is used (e.g., <c>VStack[0]</c>).
+    /// </summary>
+    public string? MetricName { get; init; }
+
+    /// <summary>
     /// Delay after which this widget requests a redraw.
     /// </summary>
     /// <remarks>

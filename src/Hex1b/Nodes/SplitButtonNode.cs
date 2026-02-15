@@ -164,7 +164,7 @@ public sealed class SplitButtonNode : Hex1bNode
         return new BorderWidget(new VStackWidget(items));
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Renders as "[ Label ▼ ]" or "[ Label ]" if no secondary actions
         var width = PrimaryLabel.Length + 4; // brackets and spaces

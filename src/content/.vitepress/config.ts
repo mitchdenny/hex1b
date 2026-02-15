@@ -57,6 +57,12 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Observability',
+          items: [
+            { text: 'Performance & Metrics', link: '/guide/performance' }
+          ]
+        },
+        {
           text: 'Reference',
           items: [
             { text: 'Widgets', link: '/guide/widgets/' },

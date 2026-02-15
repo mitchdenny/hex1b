@@ -470,7 +470,7 @@ public sealed class TextBoxNode : Hex1bNode
         return State.Text.Length;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // TextBox renders as "[text]" - 2 chars for brackets + text display width (or at least 1 for cursor)
         // Use display width to account for wide characters (emoji, CJK)

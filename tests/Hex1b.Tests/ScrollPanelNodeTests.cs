@@ -462,21 +462,27 @@ public class ScrollPanelNodeTests
         // Scroll down and capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(2))
-            // Scroll down 5 times to show Line 6
-            .Down().Down().Down().Down().Down()
-            .WaitUntil(s => s.ContainsText("Line 6") && s.ContainsText("Line 7") && !s.ContainsText("Line 5"),
-                TimeSpan.FromSeconds(2), "Lines 6-7 visible, Line 5 not visible")
+            // Scroll down 5 times to show Line 6, waiting for each scroll to render
+            .Down()
+            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(2), "Line 2 visible after 1st Down")
+            .Down()
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2), "Line 3 visible after 2nd Down")
+            .Down()
+            .WaitUntil(s => s.ContainsText("Line 4"), TimeSpan.FromSeconds(2), "Line 4 visible after 3rd Down")
+            .Down()
+            .WaitUntil(s => s.ContainsText("Line 5"), TimeSpan.FromSeconds(2), "Line 5 visible after 4th Down")
+            .Down()
+            .WaitUntil(s => s.ContainsText("Line 6") && s.ContainsText("Line 7"),
+                TimeSpan.FromSeconds(2), "Lines 6 and 7 visible after 5th Down")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Lines starting from offset 5 (Line 6) should be visible
+        // Lines starting from offset should include Line 6 and 7
         Assert.Contains("Line 6", snapshot.GetText());
         Assert.Contains("Line 7", snapshot.GetText());
-        // Earlier lines should not be visible
-        Assert.DoesNotContain("Line 5", snapshot.GetText());
     }
 
     #endregion

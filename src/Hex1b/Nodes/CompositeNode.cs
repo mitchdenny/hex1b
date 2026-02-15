@@ -43,7 +43,7 @@ public abstract class CompositeNode : Hex1bNode
     /// <summary>
     /// Measures the content child and returns its size.
     /// </summary>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (ContentChild == null)
         {
@@ -56,9 +56,9 @@ public abstract class CompositeNode : Hex1bNode
     /// <summary>
     /// Arranges the content child to fill the given bounds.
     /// </summary>
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         ContentChild?.Arrange(rect);
     }
 

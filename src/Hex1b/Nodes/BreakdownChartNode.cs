@@ -22,7 +22,7 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
     public string? Title { get; set; }
 
     /// <inheritdoc />
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Bar (1 row) + legend rows + title
         var legendRows = Data?.Count ?? 0;

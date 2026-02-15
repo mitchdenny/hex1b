@@ -55,7 +55,7 @@ internal sealed class TableRowNode : Hex1bNode
     /// </summary>
     public bool IsOuterRow { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Children.Count == 0)
         {
@@ -100,9 +100,9 @@ internal sealed class TableRowNode : Hex1bNode
         return constraints.Constrain(new Size(width, 1));
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
 
         if (Children.Count == 0) return;
 

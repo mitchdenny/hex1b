@@ -24,14 +24,14 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     public double? Maximum { get; set; }
     public Func<double, string>? ValueFormatter { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var width = constraints.MaxWidth == int.MaxValue ? 60 : constraints.MaxWidth;
         var height = constraints.MaxHeight == int.MaxValue ? 20 : constraints.MaxHeight;
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect rect) => Bounds = rect;
+    protected override void ArrangeCore(Rect rect) => Bounds = rect;
 
     public override void Render(Hex1bRenderContext context)
     {

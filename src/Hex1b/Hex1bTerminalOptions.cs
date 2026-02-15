@@ -99,6 +99,12 @@ public sealed class Hex1bTerminalOptions
     public Action<ScrollbackRowEventArgs>? ScrollbackCallback { get; set; }
 
     /// <summary>
+    /// Metrics instance for OpenTelemetry instrumentation.
+    /// If null, <see cref="Diagnostics.Hex1bMetrics.Default"/> is used.
+    /// </summary>
+    public Diagnostics.Hex1bMetrics? Metrics { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

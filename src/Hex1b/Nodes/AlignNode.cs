@@ -25,7 +25,7 @@ public sealed class AlignNode : Hex1bNode
     /// </summary>
     public Alignment Alignment { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child == null)
         {
@@ -57,9 +57,9 @@ public sealed class AlignNode : Hex1bNode
         return constraints.Constrain(childSize);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         if (Child == null) return;
 

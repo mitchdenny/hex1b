@@ -313,7 +313,7 @@ public sealed class MenuItemNode : Hex1bNode
         return Task.CompletedTask;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Item uses the render width set by parent, or label length + padding
         var width = RenderWidth > 0 ? RenderWidth : Label.Length + 2;

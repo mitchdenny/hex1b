@@ -170,7 +170,7 @@ public sealed class MenuSeparatorNode : Hex1bNode
         return Task.CompletedTask;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Separator is 1 row high, uses parent's width
         var width = RenderWidth > 0 ? RenderWidth : constraints.MaxWidth;

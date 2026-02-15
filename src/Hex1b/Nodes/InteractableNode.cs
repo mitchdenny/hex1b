@@ -78,7 +78,7 @@ public sealed class InteractableNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child == null)
         {
@@ -88,9 +88,9 @@ public sealed class InteractableNode : Hex1bNode
         return Child.Measure(constraints);
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         Child?.Arrange(rect);
     }
 

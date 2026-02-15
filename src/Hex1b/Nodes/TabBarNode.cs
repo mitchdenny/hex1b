@@ -160,7 +160,7 @@ public sealed class TabBarNode : Hex1bNode
     private int ReservedControlsWidth => 
         (ShowPaging ? ArrowButtonWidth * 2 : 0) + (ShowSelector ? SelectorButtonWidth : 0);
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Calculate width of each tab
         _tabWidths.Clear();
@@ -544,7 +544,7 @@ public sealed class TabBarNode : Hex1bNode
             Bounds = new Rect(x, y, width, height);
         }
 
-        public override Size Measure(Constraints constraints) => new(Bounds.Width, Bounds.Height);
+        protected override Size MeasureCore(Constraints constraints) => new(Bounds.Width, Bounds.Height);
         public override void Render(Hex1bRenderContext context) { } // Not rendered
     }
 }

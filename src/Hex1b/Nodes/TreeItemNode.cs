@@ -250,7 +250,7 @@ public sealed class TreeItemNode : Hex1bNode
         }, "Expand");
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // TreeItemNode doesn't measure itself directly - 
         // TreeNode handles the overall tree layout.

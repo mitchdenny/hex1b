@@ -132,7 +132,7 @@ public sealed class HyperlinkNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         switch (Overflow)
         {

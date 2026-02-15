@@ -28,7 +28,7 @@ public sealed class BarChartNode<T> : Hex1bNode
     public Func<double, string>? ValueFormatter { get; set; }
 
     /// <inheritdoc />
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var width = constraints.MaxWidth == int.MaxValue ? 40 : constraints.MaxWidth;
         var height = constraints.MaxHeight == int.MaxValue ? 15 : constraints.MaxHeight;

@@ -157,7 +157,7 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     
     public override IEnumerable<Hex1bNode> GetChildren() => ChildNodes;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (OwnerNode == null)
         {
@@ -398,9 +398,9 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
         result.Add((child, null, -1));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (ChildNodes.Count == 0) return;
         

@@ -34,7 +34,7 @@ public sealed class TabItemNode : Hex1bNode
     /// </summary>
     public int TabIndex { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Tab renders as " [Icon] Title " with padding
         var textWidth = Title.Length;

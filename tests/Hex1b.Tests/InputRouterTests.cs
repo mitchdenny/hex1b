@@ -25,7 +25,7 @@ public class InputRouterTests
             BindingsConfig?.Invoke(bindings);
         }
         
-        public override Size Measure(Layout.Constraints constraints) => new Size(10, 1);
+        protected override Size MeasureCore(Layout.Constraints constraints) => new Size(10, 1);
         public override void Render(Hex1bRenderContext context) { }
         
         public override InputResult HandleInput(Hex1bEvent inputEvent)
@@ -50,7 +50,7 @@ public class InputRouterTests
             BindingsConfig?.Invoke(bindings);
         }
         
-        public override Size Measure(Layout.Constraints constraints) => new Size(80, 24);
+        protected override Size MeasureCore(Layout.Constraints constraints) => new Size(80, 24);
         public override void Render(Hex1bRenderContext context) { }
         
         public override IEnumerable<Hex1bNode> GetChildren() => Children;

@@ -91,6 +91,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly ScrollbackBuffer? _scrollbackBuffer;
     private readonly Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     
+    // Metrics instrumentation
+    private readonly Diagnostics.Hex1bMetrics _metrics;
+    
     // Scroll region (DECSTBM) - 0-based indices
     private int _scrollTop; // Top margin (0 = first row)
     private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
@@ -198,6 +201,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollbackBuffer = new ScrollbackBuffer(scrollbackCapacity);
             _scrollbackCallback = options.ScrollbackCallback;
         }
+        
+        _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -456,11 +461,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     break;
                 }
+                
+                _metrics.TerminalInputBytes.Record(data.Length);
 
                 // Tokenize input the same way we tokenize output
                 var text = Encoding.UTF8.GetString(data.Span);
                 
                 var tokens = AnsiTokenizer.Tokenize(text);
+                
+                _metrics.TerminalInputTokens.Record(tokens.Count);
                 
                 // Notify presentation filters of input FROM presentation
                 await NotifyPresentationFiltersInputAsync(tokens);
@@ -499,6 +508,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (evt != null)
             {
                 await workload.WriteInputEventAsync(evt, ct);
+                
+                var eventType = evt switch
+                {
+                    Hex1bKeyEvent => "key",
+                    Hex1bMouseEvent => "mouse",
+                    Hex1bResizeEvent => "resize",
+                    _ => "other"
+                };
+                _metrics.TerminalInputEvents.Add(1, new KeyValuePair<string, object?>("type", eventType));
             }
         }
     }
@@ -964,6 +982,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Tokenize once, use for all processing
                 var tokens = AnsiTokenizer.Tokenize(completeText);
                 
+                _metrics.TerminalOutputTokens.Record(tokens.Count);
+                
                 // FAST PATH: If no filters are active AND presentation doesn't need cell impacts,
                 // apply tokens to buffer and forward bytes directly.
                 // This is crucial for programs like tmux that are sensitive to output timing
@@ -977,6 +997,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     if (_presentation != null)
                     {
                         await _presentation.WriteOutputAsync(data, ct);
+                        _metrics.TerminalOutputBytes.Record(data.Length);
                     }
                     continue;
                 }
@@ -1007,6 +1028,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     {
                         var originalBytes = Encoding.UTF8.GetBytes(completeText);
                         await _presentation.WriteOutputAsync(originalBytes);
+                        _metrics.TerminalOutputBytes.Record(originalBytes.Length);
                     }
                     else
                     {
@@ -1015,6 +1037,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
                         var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
                         await _presentation.WriteOutputAsync(filteredBytes);
+                        _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
                     }
                 }
             }

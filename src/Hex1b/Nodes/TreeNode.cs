@@ -582,7 +582,7 @@ public sealed class TreeNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (FlattenedItems.Count == 0)
         {
@@ -608,9 +608,9 @@ public sealed class TreeNode : Hex1bNode
         return constrainedSize;
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         _viewportHeight = bounds.Height;
         _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, FlattenedItems.Count - _viewportHeight));
         EnsureFocusedVisible();

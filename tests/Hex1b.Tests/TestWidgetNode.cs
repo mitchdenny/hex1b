@@ -8,7 +8,7 @@ internal sealed class TestWidgetNode : Hex1bNode
 {
     internal Action? RenderCallback { get; set; }
 
-    public override Size Measure(Constraints constraints) => Size.Zero;
+    protected override Size MeasureCore(Constraints constraints) => Size.Zero;
 
     public override void Render(Hex1bRenderContext context)
     {

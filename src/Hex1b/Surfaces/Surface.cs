@@ -89,7 +89,7 @@ public sealed class Surface : ISurfaceSource
         Width = width;
         Height = height;
         CellMetrics = cellMetrics;
-        _cells = new SurfaceCell[width * height];
+        _cells = new SurfaceCell[checked((long)width * height)];
         
         // Initialize all cells to empty
         Array.Fill(_cells, SurfaceCells.Empty);

@@ -105,7 +105,7 @@ public sealed class TextBlockNode : Hex1bNode
     /// <item><description><see cref="TextOverflow.Ellipsis"/>: Returns the minimum of text width and max width, with height of 1.</description></item>
     /// </list>
     /// </remarks>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         switch (Overflow)
         {

@@ -207,7 +207,7 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         FirstSize = Math.Min(maxFirstSize, FirstSize + ResizeStep);
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var dividerSize = DividerSize;
 
@@ -297,9 +297,9 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (Orientation == SplitterOrientation.Horizontal)
         {

@@ -141,7 +141,7 @@ public sealed class NotificationCardNode : Hex1bNode
     private Size _dismissButtonSize;
     private Size _actionButtonSize;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Calculate content height
         var contentHeight = 1; // Title row (includes dismiss button)
@@ -177,9 +177,9 @@ public sealed class NotificationCardNode : Hex1bNode
         return constraints.Constrain(size);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         var x = bounds.X;
         var y = bounds.Y;

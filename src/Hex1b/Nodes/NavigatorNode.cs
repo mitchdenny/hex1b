@@ -30,7 +30,7 @@ public sealed class NavigatorNode : Hex1bNode
     public override bool IsFocusable => false;
 
     /// <inheritdoc />
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (CurrentChild == null)
             return constraints.Constrain(Size.Zero);
@@ -39,9 +39,9 @@ public sealed class NavigatorNode : Hex1bNode
     }
 
     /// <inheritdoc />
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         CurrentChild?.Arrange(bounds);
     }
 

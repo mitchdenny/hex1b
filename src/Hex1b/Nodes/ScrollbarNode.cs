@@ -64,7 +64,7 @@ public sealed class ScrollbarNode : Hex1bNode
     }
 
     /// <inheritdoc />
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Scrollbar is 1 cell wide/tall
         if (Orientation == ScrollOrientation.Vertical)
@@ -80,9 +80,9 @@ public sealed class ScrollbarNode : Hex1bNode
     }
 
     /// <inheritdoc />
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
     }
 
     /// <inheritdoc />

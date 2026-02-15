@@ -181,7 +181,7 @@ public sealed class NotificationPanelNode : Hex1bNode
         return Task.CompletedTask;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Content == null)
         {
@@ -191,9 +191,9 @@ public sealed class NotificationPanelNode : Hex1bNode
         return Content.Measure(constraints);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Arrange backdrop to fill entire bounds (captures clicks outside drawer)
         DrawerBackdrop?.Arrange(bounds);

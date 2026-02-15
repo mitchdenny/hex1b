@@ -38,12 +38,12 @@ public sealed class BackgroundPanelNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
         => Child?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         Child?.Arrange(rect);
     }
 

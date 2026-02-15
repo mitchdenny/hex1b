@@ -186,7 +186,7 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
         return size;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (IsHorizontalEdge)
         {
@@ -220,9 +220,9 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
         }
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (ContentChild == null) return;
         

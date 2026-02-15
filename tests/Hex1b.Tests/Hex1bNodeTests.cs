@@ -12,7 +12,7 @@ public class Hex1bNodeTests
     /// </summary>
     private sealed class TestNode : Hex1bNode
     {
-        public override Size Measure(Constraints constraints) => new(10, 1);
+        protected override Size MeasureCore(Constraints constraints) => new(10, 1);
         public override void Render(Hex1bRenderContext context) { }
     }
 
@@ -393,7 +393,7 @@ file sealed class ContainerTestNode : Hex1bNode
 {
     public List<Hex1bNode> Children { get; } = new();
     
-    public override Size Measure(Constraints constraints) => new(10, 10);
+    protected override Size MeasureCore(Constraints constraints) => new(10, 10);
     public override void Render(Hex1bRenderContext context) { }
     public override IEnumerable<Hex1bNode> GetChildren() => Children;
 }

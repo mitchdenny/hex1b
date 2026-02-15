@@ -224,7 +224,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             yield return Content;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Tab bar is 1 row, content fills the rest
         var contentHeight = Math.Max(0, constraints.MaxHeight - TabBarHeight);
@@ -238,9 +238,9 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         var tabBarY = Position == TabPosition.Bottom
             ? bounds.Y + bounds.Height - TabBarHeight
@@ -741,7 +741,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
             Bounds = new Rect(x, y, width, height);
         }
 
-        public override Size Measure(Constraints constraints) => new(Bounds.Width, Bounds.Height);
+        protected override Size MeasureCore(Constraints constraints) => new(Bounds.Width, Bounds.Height);
         public override void Render(Hex1bRenderContext context) { } // Not rendered
     }
 }

@@ -18,7 +18,7 @@ public sealed class PaddingNode : Hex1bNode
     private int HorizontalPadding => Left + Right;
     private int VerticalPadding => Top + Bottom;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child == null)
         {
@@ -41,9 +41,9 @@ public sealed class PaddingNode : Hex1bNode
             childSize.Height + VerticalPadding));
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
 
         if (Child != null)
         {

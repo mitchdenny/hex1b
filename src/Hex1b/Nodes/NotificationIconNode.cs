@@ -86,7 +86,7 @@ public sealed class NotificationIconNode : Hex1bNode
         return Task.CompletedTask;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var host = FindNotificationHost();
         var count = host?.Notifications.Count ?? 0;

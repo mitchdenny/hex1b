@@ -1,3 +1,4 @@
+using Hex1b.Diagnostics;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -32,6 +33,12 @@ public class Hex1bAppOptions
     /// Default is false.
     /// </summary>
     public bool EnableMouse { get; set; }
+    
+    /// <summary>
+    /// Metrics instance for OpenTelemetry instrumentation.
+    /// If null, <see cref="Diagnostics.Hex1bMetrics.Default"/> is used.
+    /// </summary>
+    public Hex1bMetrics? Metrics { get; set; }
     
     /// <summary>
     /// Whether to wrap the root widget in a RescueWidget for error recovery.

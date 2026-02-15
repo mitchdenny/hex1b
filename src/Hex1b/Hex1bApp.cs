@@ -136,6 +136,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private long _diagBuildTicks;
     private long _diagReconcileTicks;
     private long _diagRenderTicks;
+    
+    // Metrics instrumentation
+    private readonly Diagnostics.Hex1bMetrics _metrics;
 
     /// <summary>
     /// Gets the registry of WindowManagers for this application.
@@ -159,6 +162,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
+        _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         
         // Create animation timer with configured frame rate limit
         var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
@@ -508,6 +512,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     private async Task ProcessInputEventAsync(Hex1bEvent inputEvent, CancellationToken cancellationToken)
     {
+        var inputStart = Stopwatch.GetTimestamp();
+        var eventType = inputEvent switch
+        {
+            Hex1bKeyEvent => "key",
+            Hex1bMouseEvent => "mouse",
+            Hex1bResizeEvent => "resize",
+            _ => "other"
+        };
+        
         switch (inputEvent)
         {
             // Terminal capability events are logged but capabilities are now
@@ -577,6 +590,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 }
                 break;
         }
+        
+        _metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", eventType));
+        _metrics.InputDuration.Record(
+            (Stopwatch.GetTimestamp() - inputStart) * 1000.0 / Stopwatch.Frequency);
     }
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
@@ -586,6 +603,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // (e.g., mouse movement), the timers would never become due - they'd keep
         // getting pushed forward. Let timers accumulate and fire naturally.
         // The callback will mark nodes dirty, which is idempotent.
+        
+        var frameStart = Stopwatch.GetTimestamp();
         
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
@@ -610,8 +629,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         Hex1bWidget? widgetTree = null;
         Exception? buildException = null;
         
-        long buildStart = 0;
-        if (_diagnosticTimingEnabled) buildStart = Stopwatch.GetTimestamp();
+        long buildStart = Stopwatch.GetTimestamp();
         
         try
         {
@@ -623,7 +641,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             buildException = ex;
         }
         
-        if (_diagnosticTimingEnabled) _diagBuildTicks = Stopwatch.GetTimestamp() - buildStart;
+        var buildTicks = Stopwatch.GetTimestamp() - buildStart;
+        if (_diagnosticTimingEnabled) _diagBuildTicks = buildTicks;
 
         // Step 2: Wrap in rescue widget if enabled (catches Reconcile/Measure/Arrange/Render and Build failures)
         if (_rescueEnabled)
@@ -654,13 +673,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         widgetTree = new ZStackWidget([widgetTree!]);
 
         // Step 3: Reconcile - update the node tree to match the widget tree
+        long reconcileTicks;
         {
-            long reconcileFrameStart = 0;
-            if (_diagnosticTimingEnabled) reconcileFrameStart = Stopwatch.GetTimestamp();
+            long reconcileFrameStart = Stopwatch.GetTimestamp();
             
             _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
             
-            if (_diagnosticTimingEnabled) _diagReconcileTicks = Stopwatch.GetTimestamp() - reconcileFrameStart;
+            reconcileTicks = Stopwatch.GetTimestamp() - reconcileFrameStart;
+            if (_diagnosticTimingEnabled) _diagReconcileTicks = reconcileTicks;
         }
 
         // Step 4: Layout - measure and arrange the node tree
@@ -690,6 +710,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
         // Check if anything needs rendering before doing expensive output operations
         var needsRender = _isFirstFrame || (_rootNode?.NeedsRender() ?? false);
+        long renderTicks = 0;
         
         // Step 6.5-9: Only do render output if something actually changed
         if (needsRender)
@@ -702,12 +723,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
             // Render using Surface-based path
             {
-                long renderFrameStart = 0;
-                if (_diagnosticTimingEnabled) renderFrameStart = Stopwatch.GetTimestamp();
+                long renderFrameStart = Stopwatch.GetTimestamp();
                 
                 RenderFrameWithSurface();
                 
-                if (_diagnosticTimingEnabled) _diagRenderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
+                renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
+                if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
             }
             
             // Clear dirty flags on all nodes (they've been rendered)
@@ -718,6 +739,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 ClearDirtyFlags(_rootNode);
             }
         }
+        
+        // Record metrics for this frame
+        var freq = (double)Stopwatch.Frequency;
+        _metrics.FrameBuildDuration.Record(buildTicks * 1000.0 / freq);
+        _metrics.FrameReconcileDuration.Record(reconcileTicks * 1000.0 / freq);
+        if (needsRender)
+        {
+            _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
+        }
+        _metrics.FrameDuration.Record((Stopwatch.GetTimestamp() - frameStart) * 1000.0 / freq);
+        _metrics.FrameCount.Add(1);
         
         // Render hardware cursor - for focused TerminalNode uses child's cursor,
         // otherwise uses mouse position if mouse cursor is enabled
@@ -764,7 +796,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             MouseX = _mouseX,
             MouseY = _mouseY,
             CellMetrics = cellMetrics,
-            CachingEnabled = false  // TODO: Re-enable after fixing sixel caching issues
+            CachingEnabled = false,  // TODO: Re-enable after fixing sixel caching issues
+            Metrics = _metrics.NodeRenderDuration != null ? _metrics : null
         };
         
         if (_rootNode != null)
@@ -773,15 +806,29 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         
         // Diff current vs previous and emit changes
+        var diffStart = Stopwatch.GetTimestamp();
         var diff = _isFirstFrame || _previousSurface == null
             ? SurfaceComparer.CompareToEmpty(_currentSurface)
             : SurfaceComparer.Compare(_previousSurface, _currentSurface);
+        _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
+        
+        _metrics.OutputCellsChanged.Record(diff.Count);
         
         if (!diff.IsEmpty)
         {
-            // Pass current surface for sixel-aware rendering
-            var ansiOutput = SurfaceComparer.ToAnsiString(diff, _currentSurface);
+            // Generate tokens then serialize — captures both counts for metrics
+            var tokensStart = Stopwatch.GetTimestamp();
+            var tokens = SurfaceComparer.ToTokens(diff, _currentSurface);
+            _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
+            
+            var serializeStart = Stopwatch.GetTimestamp();
+            var ansiOutput = Tokens.AnsiTokenSerializer.Serialize(tokens);
+            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+            
             _adapter.Write(ansiOutput);
+            
+            _metrics.OutputTokens.Record(tokens.Count);
+            _metrics.OutputBytes.Record(System.Text.Encoding.UTF8.GetByteCount(ansiOutput));
         }
         
         _isFirstFrame = false;
@@ -815,6 +862,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             node.Render(context);
             node.DiagRenderTicks = Stopwatch.GetTimestamp() - renderStart;
             node.DiagLastRenderedTimestamp = Stopwatch.GetTimestamp();
+            
+            if (_metrics.NodeRenderDuration != null)
+            {
+                var elapsed = Stopwatch.GetElapsedTime(renderStart);
+                _metrics.NodeRenderDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
+            }
+        }
+        else if (_metrics.NodeRenderDuration != null)
+        {
+            var renderStart = Stopwatch.GetTimestamp();
+            node.Render(context);
+            var elapsed = Stopwatch.GetElapsedTime(renderStart);
+            _metrics.NodeRenderDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
         }
         else
         {
@@ -1128,17 +1188,38 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
+        context.Metrics = _metrics.NodeReconcileDuration != null ? _metrics : null;
         
         // Delegate to the widget's own ReconcileAsync method
         long reconcileStart = 0;
-        if (_diagnosticTimingEnabled) reconcileStart = Stopwatch.GetTimestamp();
+        var recordReconcileMetric = _metrics.NodeReconcileDuration != null;
+        if (_diagnosticTimingEnabled || recordReconcileMetric) reconcileStart = Stopwatch.GetTimestamp();
         
         var node = await widget.ReconcileAsync(existingNode, context);
         
-        if (_diagnosticTimingEnabled) node.DiagReconcileTicks = Stopwatch.GetTimestamp() - reconcileStart;
+        long reconcileElapsed = 0;
+        if (_diagnosticTimingEnabled || recordReconcileMetric)
+            reconcileElapsed = Stopwatch.GetTimestamp() - reconcileStart;
+        if (_diagnosticTimingEnabled) node.DiagReconcileTicks = reconcileElapsed;
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
+        
+        // Set metric name from widget (for per-node metrics)
+        var newMetricName = widget.MetricName;
+        if (node.MetricName != newMetricName)
+        {
+            node.MetricName = newMetricName;
+            node.InvalidateMetricPath();
+        }
+        node.Metrics = _metrics.NodeMeasureDuration != null ? _metrics : null;
+        
+        // Record per-node reconcile duration (after MetricName/parent are set)
+        if (recordReconcileMetric)
+        {
+            var elapsedMs = (double)reconcileElapsed / Stopwatch.Frequency * 1000.0;
+            _metrics.NodeReconcileDuration!.Record(elapsedMs, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
+        }
         
         // Mark new nodes as dirty (they need to be rendered for the first time)
         if (context.IsNew)

@@ -262,7 +262,7 @@ public sealed class SliderNode : Hex1bNode
     }
 
     /// <inheritdoc/>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Fill available width, height is always 1
         var width = constraints.MaxWidth == int.MaxValue ? 20 : constraints.MaxWidth;

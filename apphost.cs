@@ -79,34 +79,6 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
         }
     });
 
-// Tree widget demo
-var treeDemo = builder.AddCSharpApp("tree-demo", "./samples/TreeDemo")
-    .ExcludeFromManifest();
-
-// Window widget demo
-var windowingDemo = builder.AddCSharpApp("windowing-demo", "./samples/WindowingDemo")
-    .ExcludeFromManifest();
-
-// Logger panel demo
-var loggerPanelDemo = builder.AddCSharpApp("logger-panel-demo", "./samples/LoggerPanelDemo")
-    .ExcludeFromManifest();
-
-// DragBarPanel widget demo
-var dragBarPanelDemo = builder.AddCSharpApp("dragbar-panel-demo", "./samples/DragBarPanelDemo")
-    .ExcludeFromManifest();
-
-// WidgetLayer demo
-var widgetLayerDemo = builder.AddCSharpApp("widget-layer-demo", "./samples/WidgetLayerDemo")
-    .ExcludeFromManifest();
-
-// Charting demo
-var chartingDemo = builder.AddCSharpApp("charting-demo", "./samples/ChartingDemo")
-    .ExcludeFromManifest();
-
-// Interactable demo
-var interactableDemo = builder.AddCSharpApp("interactable-demo", "./samples/InteractableDemo")
-    .ExcludeFromManifest();
-
 var content = builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

@@ -155,7 +155,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         _titleBarNode = new HStackNode { Children = children };
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Windows have fixed size from their entry
         var width = Entry?.Width ?? 40;
@@ -187,9 +187,9 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Arrange title bar in the area between borders
         if (ShowTitleBar && _titleBarNode != null)
@@ -948,7 +948,7 @@ internal sealed class TitleBarIconNode : Hex1bNode
     /// <summary>
     /// Measures the size: 1 (space) + icon display width.
     /// </summary>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var iconWidth = Action != null ? DisplayWidth.GetStringWidth(Action.Icon) : 0;
         // space + icon
@@ -1005,7 +1005,7 @@ internal sealed class TitleBarSpacerNode : Hex1bNode
         _width = width;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         return constraints.Constrain(new Size(_width, 1));
     }

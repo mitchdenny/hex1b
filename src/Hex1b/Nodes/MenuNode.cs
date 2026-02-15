@@ -377,7 +377,7 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     
     public override IEnumerable<Hex1bNode> GetChildren() => ChildNodes;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // When in menu bar: size is label + padding
         // When in submenu: use RenderWidth or label + submenu indicator
