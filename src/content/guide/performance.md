@@ -77,6 +77,16 @@ These instruments are always active and have near-zero overhead when no listener
 | `hex1b.terminal.input.tokens` | Histogram | token | Tokens parsed from raw input |
 | `hex1b.terminal.input.events` | Counter | event | Events dispatched (tag: `type`=key\|mouse\|resize) |
 
+### Surface Pipeline Metrics
+
+These break down `hex1b.frame.render.duration` into sub-phases. Always active.
+
+| Instrument | Type | Unit | Description |
+|---|---|---|---|
+| `hex1b.surface.diff.duration` | Histogram | ms | Time to diff previous vs current surface |
+| `hex1b.surface.tokens.duration` | Histogram | ms | Time to convert diff to ANSI tokens |
+| `hex1b.surface.serialize.duration` | Histogram | ms | Time to serialize tokens to ANSI string |
+
 ## Per-Node Metrics
 
 Per-node metrics let you drill into which widgets are expensive. They record timing histograms for each node in the tree, tagged by a hierarchical metric path.
@@ -122,6 +132,17 @@ Widgets without a `MetricName` get auto-generated names based on their type and 
 | `hex1b.node.arrange.duration` | Histogram | ms | `node` | Time in Arrange for one node |
 | `hex1b.node.render.duration` | Histogram | ms | `node` | Time in Render for one node |
 | `hex1b.node.reconcile.duration` | Histogram | ms | `node` | Time in ReconcileAsync for one node |
+
+### Surface Composition Instruments
+
+For `SurfaceWidget` nodes with layered composition, these additional per-node instruments provide layer-level detail:
+
+| Instrument | Type | Unit | Tags | Description |
+|---|---|---|---|---|
+| `hex1b.surface.flatten.duration` | Histogram | ms | `node` | Time to flatten all layers into a single surface |
+| `hex1b.surface.composite.duration` | Histogram | ms | `node` | Time to blit flattened surface onto parent |
+| `hex1b.surface.layer.count` | Histogram | int | `node` | Number of layers per render |
+| `hex1b.surface.layer.duration` | Histogram | ms | `node`, `layer_index`, `layer_type` | Time per layer (type: `source`, `draw`, `computed`, `widget`) |
 
 The `node` tag value is the hierarchical metric path (e.g., `root.sidebar.orders.VStack[0]`).
 

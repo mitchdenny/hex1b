@@ -41,6 +41,9 @@ public class Hex1bMetricsTests
             "hex1b.terminal.input.bytes",
             "hex1b.terminal.input.tokens",
             "hex1b.terminal.input.events",
+            "hex1b.surface.diff.duration",
+            "hex1b.surface.tokens.duration",
+            "hex1b.surface.serialize.duration",
         };
         
         foreach (var name in expected)
@@ -280,6 +283,10 @@ public class Hex1bMetricsTests
         Assert.Null(metrics.NodeArrangeDuration);
         Assert.Null(metrics.NodeRenderDuration);
         Assert.Null(metrics.NodeReconcileDuration);
+        Assert.Null(metrics.SurfaceFlattenDuration);
+        Assert.Null(metrics.SurfaceCompositeDuration);
+        Assert.Null(metrics.SurfaceLayerCount);
+        Assert.Null(metrics.SurfaceLayerDuration);
     }
     
     [Fact]
@@ -304,6 +311,10 @@ public class Hex1bMetricsTests
         Assert.Contains("hex1b.node.arrange.duration", instrumentNames);
         Assert.Contains("hex1b.node.render.duration", instrumentNames);
         Assert.Contains("hex1b.node.reconcile.duration", instrumentNames);
+        Assert.Contains("hex1b.surface.flatten.duration", instrumentNames);
+        Assert.Contains("hex1b.surface.composite.duration", instrumentNames);
+        Assert.Contains("hex1b.surface.layer.count", instrumentNames);
+        Assert.Contains("hex1b.surface.layer.duration", instrumentNames);
     }
     
     [Fact]

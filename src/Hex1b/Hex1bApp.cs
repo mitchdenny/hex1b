@@ -806,17 +806,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         
         // Diff current vs previous and emit changes
+        var diffStart = Stopwatch.GetTimestamp();
         var diff = _isFirstFrame || _previousSurface == null
             ? SurfaceComparer.CompareToEmpty(_currentSurface)
             : SurfaceComparer.Compare(_previousSurface, _currentSurface);
+        _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
         
         _metrics.OutputCellsChanged.Record(diff.Count);
         
         if (!diff.IsEmpty)
         {
             // Generate tokens then serialize — captures both counts for metrics
+            var tokensStart = Stopwatch.GetTimestamp();
             var tokens = SurfaceComparer.ToTokens(diff, _currentSurface);
+            _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
+            
+            var serializeStart = Stopwatch.GetTimestamp();
             var ansiOutput = Tokens.AnsiTokenSerializer.Serialize(tokens);
+            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+            
             _adapter.Write(ansiOutput);
             
             _metrics.OutputTokens.Record(tokens.Count);

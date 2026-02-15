@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
@@ -117,13 +118,18 @@ public sealed class SurfaceNode : Hex1bNode
         // Create a composite surface with proper cell metrics
         var effectiveMetrics = cellMetrics ?? CellMetrics.Default;
         var composite = new CompositeSurface(width, height, effectiveMetrics);
+        var metrics = Metrics;
 
         foreach (var (layer, layerIndex) in layers.Select((l, i) => (l, i)))
         {
+            var layerStart = metrics?.SurfaceLayerDuration != null ? Stopwatch.GetTimestamp() : 0;
+            string? layerType = null;
+
             switch (layer)
             {
                 case SourceSurfaceLayer source:
                     composite.AddLayer(source.Source, source.OffsetX, source.OffsetY);
+                    layerType = "source";
                     break;
 
                 case DrawSurfaceLayer draw:
@@ -131,22 +137,44 @@ public sealed class SurfaceNode : Hex1bNode
                     var drawSurface = new Surface(width, height, effectiveMetrics);
                     draw.Draw(drawSurface);
                     composite.AddLayer(drawSurface, draw.OffsetX, draw.OffsetY);
+                    layerType = "draw";
                     break;
 
                 case ComputedSurfaceLayer computed:
                     // Computed layers span the entire surface
                     composite.AddComputedLayer(width, height, computed.Compute);
+                    layerType = "computed";
                     break;
 
                 case WidgetSurfaceLayer widgetLayer:
                     var widgetSurface = RenderWidgetLayer(layerIndex, widgetLayer.Widget, width, height, context.Theme, effectiveMetrics);
                     composite.AddLayer(widgetSurface);
+                    layerType = "widget";
                     break;
+            }
+
+            if (metrics?.SurfaceLayerDuration != null && layerType != null)
+            {
+                var elapsed = Stopwatch.GetElapsedTime(layerStart);
+                var path = GetMetricPath();
+                metrics.SurfaceLayerDuration.Record(elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("node", path),
+                    new KeyValuePair<string, object?>("layer_index", layerIndex),
+                    new KeyValuePair<string, object?>("layer_type", layerType));
             }
         }
 
+        metrics?.SurfaceLayerCount?.Record(layers.Count, new KeyValuePair<string, object?>("node", GetMetricPath()));
+
         // Flatten and render to the context
+        var flattenStart = metrics?.SurfaceFlattenDuration != null ? Stopwatch.GetTimestamp() : 0;
         var flattened = composite.Flatten();
+        if (metrics?.SurfaceFlattenDuration != null)
+        {
+            metrics.SurfaceFlattenDuration.Record(
+                Stopwatch.GetElapsedTime(flattenStart).TotalMilliseconds,
+                new KeyValuePair<string, object?>("node", GetMetricPath()));
+        }
 
         // Clean up stale widget layer states (layers that were removed)
         if (_widgetLayerStates is not null)
@@ -162,7 +190,14 @@ public sealed class SurfaceNode : Hex1bNode
             // Account for the context's offset - Bounds are absolute, but the surface may be offset
             var destX = Bounds.X - surfaceContext.OffsetX;
             var destY = Bounds.Y - surfaceContext.OffsetY;
+            var compositeStart = metrics?.SurfaceCompositeDuration != null ? Stopwatch.GetTimestamp() : 0;
             surfaceContext.Surface.Composite(flattened, destX, destY);
+            if (metrics?.SurfaceCompositeDuration != null)
+            {
+                metrics.SurfaceCompositeDuration.Record(
+                    Stopwatch.GetElapsedTime(compositeStart).TotalMilliseconds,
+                    new KeyValuePair<string, object?>("node", GetMetricPath()));
+            }
             return;
         }
 

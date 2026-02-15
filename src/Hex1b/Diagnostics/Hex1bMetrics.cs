@@ -97,6 +97,31 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>Per-node reconcile phase duration (tagged by <c>node</c> path).</summary>
     public Histogram<double>? NodeReconcileDuration { get; }
 
+    // --- Surface pipeline (always-on) ---
+
+    /// <summary>Time to diff previous vs current surface.</summary>
+    public Histogram<double> SurfaceDiffDuration { get; }
+
+    /// <summary>Time to convert surface diff to ANSI tokens.</summary>
+    public Histogram<double> SurfaceTokensDuration { get; }
+
+    /// <summary>Time to serialize ANSI tokens to string.</summary>
+    public Histogram<double> SurfaceSerializeDuration { get; }
+
+    // --- Surface composition (per-node, opt-in) ---
+
+    /// <summary>Time to flatten a CompositeSurface (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? SurfaceFlattenDuration { get; }
+
+    /// <summary>Time to composite a flattened surface onto the parent (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? SurfaceCompositeDuration { get; }
+
+    /// <summary>Number of layers in a SurfaceNode (tagged by <c>node</c> path).</summary>
+    public Histogram<int>? SurfaceLayerCount { get; }
+
+    /// <summary>Time per layer in a SurfaceNode (tagged by <c>node</c>, <c>layer_index</c>, <c>layer_type</c>).</summary>
+    public Histogram<double>? SurfaceLayerDuration { get; }
+
     /// <summary>
     /// Whether per-node metrics are enabled. When <see langword="true"/>, per-node
     /// timing histograms are recorded for measure, arrange, render, and reconcile.
@@ -109,7 +134,6 @@ public sealed class Hex1bMetrics : IDisposable
     /// <param name="options">Optional metrics options to control per-node metrics.</param>
     public Hex1bMetrics(Hex1bMetricsOptions? options = null)
     {
-        PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
         PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
         Meter = new Meter("Hex1b");
 
@@ -138,6 +162,11 @@ public sealed class Hex1bMetrics : IDisposable
         TerminalInputTokens = Meter.CreateHistogram<int>("hex1b.terminal.input.tokens", "{token}", "ANSI tokens from raw input per read");
         TerminalInputEvents = Meter.CreateCounter<long>("hex1b.terminal.input.events", "{event}", "Events dispatched to workload");
 
+        // Surface pipeline (always-on)
+        SurfaceDiffDuration = Meter.CreateHistogram<double>("hex1b.surface.diff.duration", "ms", "Surface diff duration");
+        SurfaceTokensDuration = Meter.CreateHistogram<double>("hex1b.surface.tokens.duration", "ms", "Diff to ANSI tokens duration");
+        SurfaceSerializeDuration = Meter.CreateHistogram<double>("hex1b.surface.serialize.duration", "ms", "Token serialization duration");
+
         // Per-node timing (only created when enabled to avoid instrument registration overhead)
         if (PerNodeMetricsEnabled)
         {
@@ -145,6 +174,12 @@ public sealed class Hex1bMetrics : IDisposable
             NodeArrangeDuration = Meter.CreateHistogram<double>("hex1b.node.arrange.duration", "ms", "Per-node arrange phase duration");
             NodeRenderDuration = Meter.CreateHistogram<double>("hex1b.node.render.duration", "ms", "Per-node render phase duration");
             NodeReconcileDuration = Meter.CreateHistogram<double>("hex1b.node.reconcile.duration", "ms", "Per-node reconcile phase duration");
+
+            // Surface composition (per-node)
+            SurfaceFlattenDuration = Meter.CreateHistogram<double>("hex1b.surface.flatten.duration", "ms", "CompositeSurface flatten duration");
+            SurfaceCompositeDuration = Meter.CreateHistogram<double>("hex1b.surface.composite.duration", "ms", "Surface composite onto parent duration");
+            SurfaceLayerCount = Meter.CreateHistogram<int>("hex1b.surface.layer.count", "{layer}", "Layers per SurfaceNode");
+            SurfaceLayerDuration = Meter.CreateHistogram<double>("hex1b.surface.layer.duration", "ms", "Per-layer duration in SurfaceNode");
         }
     }
 
