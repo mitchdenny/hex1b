@@ -505,4 +505,44 @@ public class Hex1bMetricsTests
         // No per-node metrics should have been emitted
         Assert.Empty(nodeMetrics);
     }
+
+    [Fact]
+    public void WithMetricsCallback_CreatesMetricsWithPerNodeEnabled()
+    {
+        // Regression: WithMetrics(configure) must flow options into ResolveMetrics
+        // so that per-node instruments are created.
+        var nodePaths = new List<string>();
+
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Name.StartsWith("hex1b.node."))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((inst, value, tags, state) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "node")
+                    lock (nodePaths) nodePaths.Add($"{inst.Name}:{tag.Value}");
+            }
+        });
+        listener.Start();
+
+        // Use the options-callback overload — this is the path consumers use
+        var options = new Hex1bMetricsOptions();
+        options.EnablePerNodeMetrics = true;
+        using var metrics = new Hex1bMetrics(options: options);
+
+        // Per-node instruments must have been created
+        Assert.NotNull(metrics.NodeMeasureDuration);
+        Assert.NotNull(metrics.NodeArrangeDuration);
+        Assert.NotNull(metrics.NodeRenderDuration);
+        Assert.NotNull(metrics.NodeReconcileDuration);
+
+        // Record a measurement to verify the instruments are functional
+        metrics.NodeMeasureDuration!.Record(1.0, new KeyValuePair<string, object?>("node", "test.Widget"));
+
+        Assert.Contains(nodePaths, p => p.Contains("test.Widget"));
+    }
 }
