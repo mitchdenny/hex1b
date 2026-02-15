@@ -106,7 +106,13 @@ public sealed class Hex1bMetrics : IDisposable
     /// </summary>
     public bool PerNodeMetricsEnabled { get; }
 
-    private readonly Func<int>? _queueDepthCallback;
+    private Func<int>? _queueDepthCallback;
+
+    /// <summary>
+    /// Sets the callback used by the <c>hex1b.terminal.output.queue_depth</c> observable gauge.
+    /// Call this after construction when the adapter becomes available.
+    /// </summary>
+    internal void SetQueueDepthCallback(Func<int> callback) => _queueDepthCallback = callback;
 
     /// <summary>
     /// Creates a new <see cref="Hex1bMetrics"/> instance with its own <see cref="System.Diagnostics.Metrics.Meter"/>.
