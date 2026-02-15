@@ -183,7 +183,7 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
     
     public override IEnumerable<Hex1bNode> GetChildren() => MenuNodes;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Reconcile menu nodes
         ReconcileMenuNodes();
@@ -297,7 +297,7 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
         result.Add((child, null, -1));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         

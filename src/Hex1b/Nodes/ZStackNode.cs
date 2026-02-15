@@ -93,7 +93,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // ZStack: take the maximum width and maximum height across all children
         var maxWidth = 0;
@@ -115,7 +115,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// must re-render in order to maintain proper z-ordering (later children on top).
     /// Exception: Single-child ZStacks (like the root popup host) don't need this.
     /// </summary>
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         

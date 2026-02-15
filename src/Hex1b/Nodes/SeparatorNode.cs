@@ -55,7 +55,7 @@ public sealed class SeparatorNode : Hex1bNode
     /// </summary>
     private bool IsHorizontal => EffectiveAxis == LayoutAxis.Vertical;
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (IsHorizontal)
         {

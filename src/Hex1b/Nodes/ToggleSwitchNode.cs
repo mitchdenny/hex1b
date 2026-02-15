@@ -178,7 +178,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
         return InputResult.NotHandled;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Options.Count == 0)
         {

@@ -60,6 +60,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
     internal TrackedObjectStore TrackedObjectStore => _trackedObjects;
 
     /// <summary>
+    /// Metrics instance for per-node render timing. Null when per-node metrics are disabled.
+    /// </summary>
+    internal Diagnostics.Hex1bMetrics? Metrics { get; init; }
+
+    /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
     /// </summary>
     /// <param name="surface">The surface to write to.</param>
@@ -285,6 +290,24 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// to benefit from automatic caching.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Renders a child node, recording per-node render duration when metrics are enabled.
+    /// </summary>
+    private void RenderChildTimed(Hex1bNode child, Hex1bRenderContext context)
+    {
+        var metrics = Metrics;
+        if (metrics?.NodeRenderDuration == null)
+        {
+            child.Render(context);
+            return;
+        }
+
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        child.Render(context);
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(start);
+        metrics.NodeRenderDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", child.GetMetricPath()));
+    }
+
     public override void RenderChild(Hex1bNode child)
     {
         if (child == null) return;
@@ -303,10 +326,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     CachingEnabled = false,
                     MouseX = MouseX,
                     MouseY = MouseY,
-                    CellMetrics = CellMetrics
+                    CellMetrics = CellMetrics,
+                    Metrics = Metrics
                 };
                 childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                child.Render(childContext);
+                RenderChildTimed(child, childContext);
 
                 if (!child.FillBackground.IsDefault)
                 {
@@ -324,7 +348,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
 
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-            child.Render(this);
+            RenderChildTimed(child, this);
             
             // Post-process: fill transparent backgrounds in the child's region.
             // In direct rendering mode, child writes overwrite fill cells with
@@ -389,7 +413,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     CachingEnabled = CachingEnabled,
                     MouseX = MouseX,  // Pass mouse position to children
                     MouseY = MouseY,
-                    CellMetrics = CellMetrics  // Propagate cell metrics for sixel sizing
+                    CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
+                    Metrics = Metrics
                     // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
                 };
                 
@@ -399,7 +424,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 
                 // Render to the child surface (child uses its normal absolute coordinates,
                 // context translates them via the offset)
-                child.Render(childContext);
+                RenderChildTimed(child, childContext);
                 
                 // Post-process: fill transparent backgrounds with the node's fill color.
                 // This prevents background bleed-through in layered compositing by ensuring
@@ -434,7 +459,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 // Zero-sized node, just call Render directly
                 SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                child.Render(this);
+                RenderChildTimed(child, this);
             }
         }
     }

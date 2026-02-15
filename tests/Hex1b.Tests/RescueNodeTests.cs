@@ -471,7 +471,7 @@ public class RescueNodeTests
         public bool ThrowOnArrange { get; set; }
         public bool ThrowOnRender { get; set; }
 
-        public override Size Measure(Constraints constraints)
+        protected override Size MeasureCore(Constraints constraints)
         {
             if (ThrowOnMeasure)
             {
@@ -480,7 +480,7 @@ public class RescueNodeTests
             return new Size(10, 1);
         }
 
-        public override void Arrange(Rect bounds)
+        protected override void ArrangeCore(Rect bounds)
         {
             base.Arrange(bounds);
             if (ThrowOnArrange)
@@ -506,7 +506,7 @@ public class RescueNodeTests
         public bool ShouldThrow { get; set; } = true;
         public bool HasThrown { get; set; }
 
-        public override Size Measure(Constraints constraints)
+        protected override Size MeasureCore(Constraints constraints)
         {
             if (ShouldThrow && !HasThrown)
             {

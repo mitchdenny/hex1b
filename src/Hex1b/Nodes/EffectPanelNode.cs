@@ -21,14 +21,14 @@ public sealed class EffectPanelNode : Hex1bNode
     /// </summary>
     public Action<Surface>? Effect { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child is null)
             return constraints.Constrain(Size.Zero);
         return Child.Measure(constraints);
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
         base.Arrange(rect);
         Child?.Arrange(rect);

@@ -99,7 +99,7 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     
     #endregion
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Content == null)
         {
@@ -112,7 +112,7 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(contentSize);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         

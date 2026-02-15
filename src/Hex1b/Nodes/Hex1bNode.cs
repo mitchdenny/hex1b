@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Hex1b.Input;
 using Hex1b.Layout;
@@ -8,6 +9,9 @@ namespace Hex1b;
 
 public abstract class Hex1bNode
 {
+    // --- Type name cache for auto-generated metric names ---
+    private static readonly ConcurrentDictionary<Type, string> s_typeNameSuffixCache = new();
+
     /// <summary>
     /// The bounds assigned to this node after layout.
     /// </summary>
@@ -31,6 +35,89 @@ public abstract class Hex1bNode
     /// Absolute Stopwatch timestamp of when this node was last rendered.
     /// </summary>
     internal long DiagLastRenderedTimestamp { get; set; }
+
+    // --- Per-node metrics fields ---
+
+    /// <summary>
+    /// The metrics instance for this node. Set during reconciliation when per-node metrics are enabled.
+    /// </summary>
+    internal Diagnostics.Hex1bMetrics? Metrics { get; set; }
+
+    /// <summary>
+    /// User-assigned or auto-generated metric name segment for this node.
+    /// Combined with ancestor names to form the hierarchical metric path.
+    /// </summary>
+    public string? MetricName { get; internal set; }
+
+    /// <summary>
+    /// The child index of this node within its parent, used for auto-generated metric names.
+    /// </summary>
+    internal int MetricChildIndex { get; set; }
+
+    private string? _cachedMetricPath;
+
+    /// <summary>
+    /// Gets the hierarchical metric path for this node, composed from ancestor MetricName values.
+    /// Lazily computed and cached — invalidated when MetricName or parent changes.
+    /// </summary>
+    internal string GetMetricPath()
+    {
+        if (_cachedMetricPath != null) return _cachedMetricPath;
+        _cachedMetricPath = BuildMetricPath();
+        return _cachedMetricPath;
+    }
+
+    /// <summary>
+    /// Invalidates the cached metric path. Called when MetricName or parent changes.
+    /// </summary>
+    internal void InvalidateMetricPath()
+    {
+        if (_cachedMetricPath == null) return;
+        _cachedMetricPath = null;
+        // Invalidate children too since they include our segment
+        foreach (var child in GetChildren())
+        {
+            child.InvalidateMetricPath();
+        }
+    }
+
+    private string BuildMetricPath()
+    {
+        // Collect segments walking up the parent chain
+        var segments = new List<string>();
+        var current = this;
+        while (current != null)
+        {
+            segments.Add(current.GetMetricSegment());
+            current = current.Parent;
+        }
+        segments.Reverse();
+        return string.Join('.', segments);
+    }
+
+    private string GetMetricSegment()
+    {
+        if (MetricName != null) return MetricName;
+        // Auto-generate: TypeSuffix[childIndex]
+        var typeSuffix = GetTypeSuffix(GetType());
+        return $"{typeSuffix}[{MetricChildIndex}]";
+    }
+
+    private static string GetTypeSuffix(Type type)
+    {
+        return s_typeNameSuffixCache.GetOrAdd(type, static t =>
+        {
+            var name = t.Name;
+            // Strip "Node" suffix for cleaner metric paths
+            if (name.EndsWith("Node", StringComparison.Ordinal))
+                name = name[..^4];
+            // Strip generic arity suffix (e.g., ColumnChartNode`1 → ColumnChart)
+            var backtickIndex = name.IndexOf('`');
+            if (backtickIndex >= 0)
+                name = name[..backtickIndex];
+            return name;
+        });
+    }
     
     /// <summary>
     /// The bounds of this node's actual content for hit testing purposes.
@@ -221,15 +308,52 @@ public abstract class Hex1bNode
 
     /// <summary>
     /// Measures the desired size of this node given the constraints.
+    /// When per-node metrics are enabled, records the duration.
     /// </summary>
-    public abstract Size Measure(Constraints constraints);
+    public Size Measure(Constraints constraints)
+    {
+        var metrics = Metrics;
+        if (metrics?.NodeMeasureDuration != null)
+        {
+            var start = Stopwatch.GetTimestamp();
+            var result = MeasureCore(constraints);
+            var elapsed = Stopwatch.GetElapsedTime(start);
+            metrics.NodeMeasureDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", GetMetricPath()));
+            return result;
+        }
+        return MeasureCore(constraints);
+    }
+
+    /// <summary>
+    /// Override this method to implement measuring logic for this node.
+    /// </summary>
+    protected abstract Size MeasureCore(Constraints constraints);
 
     /// <summary>
     /// Assigns final bounds to this node and arranges children.
     /// Saves the previous bounds before updating for dirty region tracking.
     /// Marks the node dirty if bounds changed.
+    /// When per-node metrics are enabled, records the duration.
     /// </summary>
-    public virtual void Arrange(Rect bounds)
+    public void Arrange(Rect bounds)
+    {
+        var metrics = Metrics;
+        if (metrics?.NodeArrangeDuration != null)
+        {
+            var start = Stopwatch.GetTimestamp();
+            ArrangeCore(bounds);
+            var elapsed = Stopwatch.GetElapsedTime(start);
+            metrics.NodeArrangeDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", GetMetricPath()));
+            return;
+        }
+        ArrangeCore(bounds);
+    }
+
+    /// <summary>
+    /// Override this method to implement arranging logic for this node.
+    /// The base implementation saves previous bounds, marks dirty on change, and sets bounds.
+    /// </summary>
+    protected virtual void ArrangeCore(Rect bounds)
     {
         PreviousBounds = Bounds;
         

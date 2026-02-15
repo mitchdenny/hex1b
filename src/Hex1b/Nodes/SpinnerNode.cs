@@ -87,7 +87,7 @@ public sealed class SpinnerNode : Hex1bNode
     /// </summary>
     /// <param name="constraints">The size constraints for layout.</param>
     /// <returns>The measured size based on the current frame's display width.</returns>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var frameIndex = GetCurrentFrameIndex();
         var frame = _resolvedStyle.GetFrame(frameIndex);

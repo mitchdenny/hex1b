@@ -105,7 +105,7 @@ public sealed class CheckboxNode : Hex1bNode
         return DisplayWidth.GetStringWidth(boxText);
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Checkbox is typically 3 chars for "[x]" plus optional label
         var checkboxWidth = 3; // Default width

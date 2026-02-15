@@ -41,7 +41,7 @@ public sealed class SurfaceNode : Hex1bNode
     /// </summary>
     /// <param name="constraints">The size constraints for layout.</param>
     /// <returns>The measured size based on size hints.</returns>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var width = WidthHint switch
         {

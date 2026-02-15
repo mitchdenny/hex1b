@@ -65,7 +65,7 @@ public sealed class ButtonNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
         var width = Label.Length + 4;

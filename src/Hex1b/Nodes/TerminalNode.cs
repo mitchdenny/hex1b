@@ -286,7 +286,7 @@ public sealed class TerminalNode : Hex1bNode
     }
     
     /// <inheritdoc />
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // If terminal is not running and we have a fallback child, measure the fallback
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
@@ -309,7 +309,7 @@ public sealed class TerminalNode : Hex1bNode
     }
     
     /// <inheritdoc />
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         var previousBounds = Bounds;
         base.Arrange(bounds);

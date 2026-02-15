@@ -54,7 +54,7 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
     
     #endregion
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Respect our own size hints first
         var targetWidth = WidthHint switch
@@ -104,7 +104,7 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

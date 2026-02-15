@@ -20,13 +20,13 @@ public sealed class ThemePanelNode : Hex1bNode
     /// </summary>
     public Hex1bNode? Child { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // ThemePanel doesn't add any size - child takes all available space
         return Child?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

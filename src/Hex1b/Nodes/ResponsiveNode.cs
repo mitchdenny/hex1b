@@ -56,7 +56,7 @@ public sealed class ResponsiveNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Use max constraints as the available space for condition evaluation
         EvaluateConditions(constraints.MaxWidth, constraints.MaxHeight);
@@ -70,7 +70,7 @@ public sealed class ResponsiveNode : Hex1bNode
         return constraints.Constrain(Size.Zero);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

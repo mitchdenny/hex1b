@@ -47,7 +47,7 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // VStack: take max width, sum heights
         // Pass width constraint to children so they can wrap if needed
@@ -66,7 +66,7 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(new Size(maxWidth, totalHeight));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

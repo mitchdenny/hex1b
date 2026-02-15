@@ -86,15 +86,37 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>Structured events dispatched to workload (tagged by <c>type</c>: key, mouse, resize).</summary>
     public Counter<long> TerminalInputEvents { get; }
 
+    // --- Per-node timing (opt-in) ---
+
+    /// <summary>Per-node measure phase duration (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? NodeMeasureDuration { get; }
+
+    /// <summary>Per-node arrange phase duration (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? NodeArrangeDuration { get; }
+
+    /// <summary>Per-node render phase duration (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? NodeRenderDuration { get; }
+
+    /// <summary>Per-node reconcile phase duration (tagged by <c>node</c> path).</summary>
+    public Histogram<double>? NodeReconcileDuration { get; }
+
+    /// <summary>
+    /// Whether per-node metrics are enabled. When <see langword="true"/>, per-node
+    /// timing histograms are recorded for measure, arrange, render, and reconcile.
+    /// </summary>
+    public bool PerNodeMetricsEnabled { get; }
+
     private readonly Func<int>? _queueDepthCallback;
 
     /// <summary>
     /// Creates a new <see cref="Hex1bMetrics"/> instance with its own <see cref="System.Diagnostics.Metrics.Meter"/>.
     /// </summary>
     /// <param name="queueDepthCallback">Optional callback to observe output queue depth.</param>
-    public Hex1bMetrics(Func<int>? queueDepthCallback = null)
+    /// <param name="options">Optional metrics options to control per-node metrics.</param>
+    public Hex1bMetrics(Func<int>? queueDepthCallback = null, Hex1bMetricsOptions? options = null)
     {
         _queueDepthCallback = queueDepthCallback;
+        PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
         Meter = new Meter("Hex1b");
 
         // Render loop
@@ -122,6 +144,15 @@ public sealed class Hex1bMetrics : IDisposable
         TerminalInputBytes = Meter.CreateHistogram<int>("hex1b.terminal.input.bytes", "By", "Raw bytes from presentation per read");
         TerminalInputTokens = Meter.CreateHistogram<int>("hex1b.terminal.input.tokens", "{token}", "ANSI tokens from raw input per read");
         TerminalInputEvents = Meter.CreateCounter<long>("hex1b.terminal.input.events", "{event}", "Events dispatched to workload");
+
+        // Per-node timing (only created when enabled to avoid instrument registration overhead)
+        if (PerNodeMetricsEnabled)
+        {
+            NodeMeasureDuration = Meter.CreateHistogram<double>("hex1b.node.measure.duration", "ms", "Per-node measure phase duration");
+            NodeArrangeDuration = Meter.CreateHistogram<double>("hex1b.node.arrange.duration", "ms", "Per-node arrange phase duration");
+            NodeRenderDuration = Meter.CreateHistogram<double>("hex1b.node.render.duration", "ms", "Per-node render phase duration");
+            NodeReconcileDuration = Meter.CreateHistogram<double>("hex1b.node.reconcile.duration", "ms", "Per-node reconcile phase duration");
+        }
     }
 
     private int ObserveQueueDepth() => _queueDepthCallback?.Invoke() ?? 0;

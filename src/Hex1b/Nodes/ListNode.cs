@@ -279,7 +279,7 @@ public sealed class ListNode : Hex1bNode
         return InputResult.NotHandled;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // List: width is max item length + indicator (2 chars), height is item count
         var maxWidth = 0;
@@ -296,7 +296,7 @@ public sealed class ListNode : Hex1bNode
         return constrainedSize;
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         

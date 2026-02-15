@@ -72,7 +72,7 @@ public sealed class ProgressNode : Hex1bNode
     /// The progress bar is designed to fill horizontal space by default. Use layout
     /// extensions like <c>FixedWidth()</c> to constrain its width.
     /// </remarks>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Fill available width, height is always 1
         var width = constraints.MaxWidth == int.MaxValue ? 20 : constraints.MaxWidth;

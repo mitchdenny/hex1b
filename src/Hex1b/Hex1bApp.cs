@@ -796,7 +796,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             MouseX = _mouseX,
             MouseY = _mouseY,
             CellMetrics = cellMetrics,
-            CachingEnabled = false  // TODO: Re-enable after fixing sixel caching issues
+            CachingEnabled = false,  // TODO: Re-enable after fixing sixel caching issues
+            Metrics = _metrics.PerNodeMetricsEnabled ? _metrics : null
         };
         
         if (_rootNode != null)
@@ -853,6 +854,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             node.Render(context);
             node.DiagRenderTicks = Stopwatch.GetTimestamp() - renderStart;
             node.DiagLastRenderedTimestamp = Stopwatch.GetTimestamp();
+            
+            if (_metrics.PerNodeMetricsEnabled && _metrics.NodeRenderDuration != null)
+            {
+                var elapsed = Stopwatch.GetElapsedTime(renderStart);
+                _metrics.NodeRenderDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
+            }
+        }
+        else if (_metrics.PerNodeMetricsEnabled && _metrics.NodeRenderDuration != null)
+        {
+            var renderStart = Stopwatch.GetTimestamp();
+            node.Render(context);
+            var elapsed = Stopwatch.GetElapsedTime(renderStart);
+            _metrics.NodeRenderDuration.Record(elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
         }
         else
         {
@@ -1166,17 +1180,38 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
+        context.Metrics = _metrics.PerNodeMetricsEnabled ? _metrics : null;
         
         // Delegate to the widget's own ReconcileAsync method
         long reconcileStart = 0;
-        if (_diagnosticTimingEnabled) reconcileStart = Stopwatch.GetTimestamp();
+        var recordReconcileMetric = _metrics.PerNodeMetricsEnabled && _metrics.NodeReconcileDuration != null;
+        if (_diagnosticTimingEnabled || recordReconcileMetric) reconcileStart = Stopwatch.GetTimestamp();
         
         var node = await widget.ReconcileAsync(existingNode, context);
         
-        if (_diagnosticTimingEnabled) node.DiagReconcileTicks = Stopwatch.GetTimestamp() - reconcileStart;
+        long reconcileElapsed = 0;
+        if (_diagnosticTimingEnabled || recordReconcileMetric)
+            reconcileElapsed = Stopwatch.GetTimestamp() - reconcileStart;
+        if (_diagnosticTimingEnabled) node.DiagReconcileTicks = reconcileElapsed;
 
         // Set common properties on the reconciled node
         node.Parent = null; // Root has no parent
+        
+        // Set metric name from widget (for per-node metrics)
+        var newMetricName = widget.MetricName;
+        if (node.MetricName != newMetricName)
+        {
+            node.MetricName = newMetricName;
+            node.InvalidateMetricPath();
+        }
+        node.Metrics = _metrics.PerNodeMetricsEnabled ? _metrics : null;
+        
+        // Record per-node reconcile duration (after MetricName/parent are set)
+        if (recordReconcileMetric)
+        {
+            var elapsedMs = (double)reconcileElapsed / Stopwatch.Frequency * 1000.0;
+            _metrics.NodeReconcileDuration!.Record(elapsedMs, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
+        }
         
         // Mark new nodes as dirty (they need to be rendered for the first time)
         if (context.IsNew)

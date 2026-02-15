@@ -48,6 +48,7 @@ public sealed class Hex1bTerminalBuilder
     private bool _preserveOPost;
     private bool _diagnosticsEnabled;
     private Diagnostics.Hex1bMetrics? _metrics;
+    private Diagnostics.Hex1bMetricsOptions? _metricsOptions;
     private int? _scrollbackCapacity;
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
 
@@ -126,7 +127,7 @@ public sealed class Hex1bTerminalBuilder
             {
                 WorkloadAdapter = workloadAdapter,
                 EnableMouse = enableMouse,
-                Metrics = _metrics
+                Metrics = ResolveMetrics()
             };
 
             // Create the run callback - app is created here so user can capture it
@@ -197,7 +198,7 @@ public sealed class Hex1bTerminalBuilder
             {
                 WorkloadAdapter = workloadAdapter,
                 EnableMouse = enableMouse,
-                Metrics = _metrics
+                Metrics = ResolveMetrics()
             };
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
@@ -923,6 +924,46 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Sets a custom metrics instance with options for OpenTelemetry instrumentation.
+    /// </summary>
+    /// <param name="metrics">The metrics instance to use.</param>
+    /// <param name="configure">A callback to configure metrics options (e.g., enable per-node metrics).</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithMetrics(Diagnostics.Hex1bMetrics metrics, Action<Diagnostics.Hex1bMetricsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        ArgumentNullException.ThrowIfNull(configure);
+        _metrics = metrics;
+        _metricsOptions ??= new Diagnostics.Hex1bMetricsOptions();
+        configure(_metricsOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures metrics options for OpenTelemetry instrumentation.
+    /// Uses <see cref="Diagnostics.Hex1bMetrics.Default"/> as the metrics instance.
+    /// </summary>
+    /// <param name="configure">A callback to configure metrics options (e.g., enable per-node metrics).</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithMetrics(Action<Diagnostics.Hex1bMetricsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _metricsOptions ??= new Diagnostics.Hex1bMetricsOptions();
+        configure(_metricsOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Resolves the effective metrics instance, creating one with options if needed.
+    /// </summary>
+    private Diagnostics.Hex1bMetrics ResolveMetrics()
+    {
+        if (_metrics != null) return _metrics;
+        if (_metricsOptions != null) return new Diagnostics.Hex1bMetrics(options: _metricsOptions);
+        return Diagnostics.Hex1bMetrics.Default;
+    }
+
+    /// <summary>
     /// Sets the time provider for the terminal. Used for testing.
     /// </summary>
     /// <param name="timeProvider">The time provider to use.</param>
@@ -1043,7 +1084,7 @@ public sealed class Hex1bTerminalBuilder
             RunCallback = runCallback,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
-            Metrics = _metrics
+            Metrics = ResolveMetrics()
         };
         
         foreach (var filter in _workloadFilters)

@@ -16,7 +16,7 @@ public sealed class InfoBarNode : Hex1bNode
     /// </summary>
     public Hex1bNode? Child { get; set; }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child == null)
             return new Size(0, 1);
@@ -24,7 +24,7 @@ public sealed class InfoBarNode : Hex1bNode
         return Child.Measure(constraints);
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         Child?.Arrange(bounds);

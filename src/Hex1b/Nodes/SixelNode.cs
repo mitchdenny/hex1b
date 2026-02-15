@@ -86,7 +86,7 @@ public sealed class SixelNode : Hex1bNode
     /// </summary>
     private const string SixelEnd = "\x1b\\";
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // During measure, we don't know if Sixel is supported yet
         // Measure both and take the larger to ensure we have enough space
@@ -102,7 +102,7 @@ public sealed class SixelNode : Hex1bNode
             Math.Max(fallbackSize.Height, sixelSize.Height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         Fallback?.Arrange(bounds);

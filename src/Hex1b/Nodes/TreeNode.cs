@@ -582,7 +582,7 @@ public sealed class TreeNode : Hex1bNode
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (FlattenedItems.Count == 0)
         {
@@ -608,7 +608,7 @@ public sealed class TreeNode : Hex1bNode
         return constrainedSize;
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         _viewportHeight = bounds.Height;

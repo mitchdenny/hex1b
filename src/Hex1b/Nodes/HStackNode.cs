@@ -47,7 +47,7 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // HStack: sum widths, take max height
         // Pass height constraint to children so they can size appropriately
@@ -66,7 +66,7 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
         return constraints.Constrain(new Size(totalWidth, maxHeight));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

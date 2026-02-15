@@ -1542,7 +1542,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         return size.Width;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         BuildCellData();
 
@@ -1683,7 +1683,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         }
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
         Bounds = rect;
         

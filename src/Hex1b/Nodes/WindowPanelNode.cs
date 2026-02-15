@@ -235,7 +235,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         }
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Measure background (fills available space)
         BackgroundNode?.Measure(constraints);
@@ -249,7 +249,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
 

@@ -43,7 +43,7 @@ public sealed class IconNode : Hex1bNode
     /// <summary>
     /// Measures the size required for the icon.
     /// </summary>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         var width = DisplayWidth.GetStringWidth(Icon);
         return constraints.Constrain(new Size(width, 1));

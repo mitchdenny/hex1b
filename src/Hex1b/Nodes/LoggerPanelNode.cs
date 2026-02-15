@@ -62,12 +62,12 @@ public sealed class LoggerPanelNode : Hex1bNode
         if (ContentChild != null) yield return ContentChild;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         return ContentChild?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
     }
 
-    public override void Arrange(Rect rect)
+    protected override void ArrangeCore(Rect rect)
     {
         base.Arrange(rect);
         ContentChild?.Arrange(rect);

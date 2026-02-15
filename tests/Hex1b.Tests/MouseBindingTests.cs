@@ -347,7 +347,7 @@ public class FocusRingHitTestTests
             _children = children;
         }
         
-        public override Size Measure(Constraints constraints) => new(10, _children.Length);
+        protected override Size MeasureCore(Constraints constraints) => new(10, _children.Length);
         public override void Render(Hex1bRenderContext context) { }
         
         public override IEnumerable<Hex1bNode> GetFocusableNodes()

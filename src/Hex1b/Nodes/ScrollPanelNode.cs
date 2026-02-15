@@ -506,7 +506,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         focusables[_focusedIndex].IsFocused = true;
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         if (Child == null)
         {
@@ -551,7 +551,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         }
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
         base.Arrange(bounds);
         

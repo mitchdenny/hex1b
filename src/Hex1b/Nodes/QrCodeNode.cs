@@ -112,7 +112,7 @@ public sealed class QrCodeNode : Hex1bNode
     /// Each QR code module is rendered as a single character (█). The quiet zone adds
     /// additional characters on all sides. If the data is empty or invalid, returns (0,0).
     /// </remarks>
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         EnsureMatrix();
         
