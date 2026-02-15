@@ -441,4 +441,58 @@ public class Hex1bMetricsTests
         Assert.Contains(nodePaths, p => p.Contains("title"));
         Assert.Contains(nodePaths, p => p.Contains("body"));
     }
+    
+    [Fact]
+    public async Task Integration_PerNodeMetrics_DisabledByDefault_NoNodeMetricsEmitted()
+    {
+        // Default metrics — per-node NOT enabled
+        using var metrics = new Hex1bMetrics();
+        var nodeMetrics = new List<string>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((inst, value, tags, state) =>
+        {
+            if (inst.Name.StartsWith("hex1b.node."))
+                lock (nodeMetrics) nodeMetrics.Add(inst.Name);
+        });
+        listener.Start();
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .WithMetrics(metrics)
+            .Build();
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Text("Hello").MetricName("greeting"),
+                    v.Text("World")
+                ]).MetricName("root")),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                Metrics = metrics
+            });
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Input.Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        // No per-node metrics should have been emitted
+        Assert.Empty(nodeMetrics);
+    }
 }
