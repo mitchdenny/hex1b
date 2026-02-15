@@ -47,6 +47,7 @@ public sealed class Hex1bTerminalBuilder
     private bool _enableMouse;
     private bool _preserveOPost;
     private bool _diagnosticsEnabled;
+    private Diagnostics.Hex1bMetrics? _metrics;
     private int? _scrollbackCapacity;
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
 
@@ -124,7 +125,8 @@ public sealed class Hex1bTerminalBuilder
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
-                EnableMouse = enableMouse
+                EnableMouse = enableMouse,
+                Metrics = _metrics
             };
 
             // Create the run callback - app is created here so user can capture it
@@ -194,7 +196,8 @@ public sealed class Hex1bTerminalBuilder
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
-                EnableMouse = enableMouse
+                EnableMouse = enableMouse,
+                Metrics = _metrics
             };
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
@@ -904,6 +907,22 @@ public sealed class Hex1bTerminalBuilder
         => WithDiagnostics(appName, forceEnable);
 
     /// <summary>
+    /// Sets a custom metrics instance for OpenTelemetry instrumentation.
+    /// </summary>
+    /// <remarks>
+    /// If not called, <see cref="Diagnostics.Hex1bMetrics.Default"/> is used.
+    /// Pass a new <see cref="Diagnostics.Hex1bMetrics"/> instance in tests for isolation.
+    /// </remarks>
+    /// <param name="metrics">The metrics instance to use.</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithMetrics(Diagnostics.Hex1bMetrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the time provider for the terminal. Used for testing.
     /// </summary>
     /// <param name="timeProvider">The time provider to use.</param>
@@ -1023,7 +1042,8 @@ public sealed class Hex1bTerminalBuilder
             TimeProvider = _timeProvider ?? TimeProvider.System,
             RunCallback = runCallback,
             ScrollbackCapacity = _scrollbackCapacity,
-            ScrollbackCallback = _scrollbackCallback
+            ScrollbackCallback = _scrollbackCallback,
+            Metrics = _metrics
         };
         
         foreach (var filter in _workloadFilters)

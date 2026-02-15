@@ -1,0 +1,302 @@
+using System.Diagnostics.Metrics;
+using Hex1b.Diagnostics;
+using Hex1b.Input;
+using Hex1b.Widgets;
+
+namespace Hex1b.Tests;
+
+public class Hex1bMetricsTests
+{
+    [Fact]
+    public void Constructor_CreatesAllInstruments()
+    {
+        using var metrics = new Hex1bMetrics();
+        var instrumentNames = new List<string>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+            {
+                instrumentNames.Add(instrument.Name);
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.Start();
+        
+        var expected = new[]
+        {
+            "hex1b.frame.duration",
+            "hex1b.frame.build.duration",
+            "hex1b.frame.reconcile.duration",
+            "hex1b.frame.render.duration",
+            "hex1b.frame.count",
+            "hex1b.output.cells_changed",
+            "hex1b.output.tokens",
+            "hex1b.output.bytes",
+            "hex1b.input.count",
+            "hex1b.input.duration",
+            "hex1b.terminal.output.bytes",
+            "hex1b.terminal.output.tokens",
+            "hex1b.terminal.output.queue_depth",
+            "hex1b.terminal.input.bytes",
+            "hex1b.terminal.input.tokens",
+            "hex1b.terminal.input.events",
+        };
+        
+        foreach (var name in expected)
+        {
+            Assert.Contains(name, instrumentNames);
+        }
+    }
+    
+    [Fact]
+    public void Instances_AreIsolated()
+    {
+        using var metrics1 = new Hex1bMetrics();
+        using var metrics2 = new Hex1bMetrics();
+        
+        var values1 = new List<long>();
+        var values2 = new List<long>();
+        
+        using var listener1 = new MeterListener();
+        listener1.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics1.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener1.SetMeasurementEventCallback<long>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.frame.count") values1.Add(value);
+        });
+        listener1.Start();
+        
+        using var listener2 = new MeterListener();
+        listener2.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics2.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener2.SetMeasurementEventCallback<long>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.frame.count") values2.Add(value);
+        });
+        listener2.Start();
+        
+        metrics1.FrameCount.Add(1);
+        metrics2.FrameCount.Add(1);
+        metrics2.FrameCount.Add(1);
+        
+        Assert.Single(values1);
+        Assert.Equal(2, values2.Count);
+    }
+    
+    [Fact]
+    public void Default_IsSingleton()
+    {
+        Assert.Same(Hex1bMetrics.Default, Hex1bMetrics.Default);
+        Assert.NotNull(Hex1bMetrics.Default.Meter);
+    }
+    
+    [Fact]
+    public void FrameDuration_RecordsValues()
+    {
+        using var metrics = new Hex1bMetrics();
+        var recorded = new List<double>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.frame.duration") recorded.Add(value);
+        });
+        listener.Start();
+        
+        metrics.FrameDuration.Record(16.5);
+        metrics.FrameDuration.Record(8.2);
+        
+        Assert.Equal(2, recorded.Count);
+        Assert.Equal(16.5, recorded[0]);
+        Assert.Equal(8.2, recorded[1]);
+    }
+    
+    [Fact]
+    public void InputCount_RecordsWithTags()
+    {
+        using var metrics = new Hex1bMetrics();
+        var tagValues = new List<string?>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.input.count")
+            {
+                foreach (var tag in tags)
+                {
+                    if (tag.Key == "type")
+                        tagValues.Add(tag.Value?.ToString());
+                }
+            }
+        });
+        listener.Start();
+        
+        metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "key"));
+        metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "mouse"));
+        metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "resize"));
+        
+        Assert.Equal(3, tagValues.Count);
+        Assert.Equal("key", tagValues[0]);
+        Assert.Equal("mouse", tagValues[1]);
+        Assert.Equal("resize", tagValues[2]);
+    }
+    
+    [Fact]
+    public void OutputCellsChanged_RecordsIntValues()
+    {
+        using var metrics = new Hex1bMetrics();
+        var recorded = new List<int>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<int>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.output.cells_changed") recorded.Add(value);
+        });
+        listener.Start();
+        
+        metrics.OutputCellsChanged.Record(1920); // Full 80x24 screen
+        metrics.OutputCellsChanged.Record(5);     // Incremental update
+        metrics.OutputCellsChanged.Record(0);     // No changes
+        
+        Assert.Equal(3, recorded.Count);
+        Assert.Equal(1920, recorded[0]);
+        Assert.Equal(5, recorded[1]);
+        Assert.Equal(0, recorded[2]);
+    }
+    
+    [Fact]
+    public void QueueDepthGauge_UsesCallback()
+    {
+        var depth = 0;
+        using var metrics = new Hex1bMetrics(queueDepthCallback: () => depth);
+        var observed = new List<int>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<int>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.terminal.output.queue_depth") observed.Add(value);
+        });
+        listener.Start();
+        
+        depth = 5;
+        listener.RecordObservableInstruments();
+        
+        depth = 0;
+        listener.RecordObservableInstruments();
+        
+        Assert.Equal(2, observed.Count);
+        Assert.Equal(5, observed[0]);
+        Assert.Equal(0, observed[1]);
+    }
+    
+    [Fact]
+    public void NoListener_DoesNotThrow()
+    {
+        // Verify metrics work without any listener attached (zero-cost path)
+        using var metrics = new Hex1bMetrics();
+        
+        metrics.FrameDuration.Record(10.0);
+        metrics.FrameCount.Add(1);
+        metrics.OutputCellsChanged.Record(100);
+        metrics.OutputTokens.Record(50);
+        metrics.OutputBytes.Record(2048);
+        metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "key"));
+        metrics.InputDuration.Record(0.5);
+        metrics.TerminalOutputBytes.Record(1024);
+        metrics.TerminalOutputTokens.Record(30);
+        metrics.TerminalInputBytes.Record(3);
+        metrics.TerminalInputTokens.Record(1);
+        metrics.TerminalInputEvents.Add(1, new KeyValuePair<string, object?>("type", "key"));
+    }
+    
+    [Fact]
+    public async Task Integration_MetricsRecordedDuringRender()
+    {
+        using var metrics = new Hex1bMetrics();
+        var frameCount = 0L;
+        var frameDurations = new List<double>();
+        var cellsCounts = new List<int>();
+        
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter))
+                listener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.frame.count") Interlocked.Add(ref frameCount, value);
+        });
+        listener.SetMeasurementEventCallback<double>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.frame.duration")
+                lock (frameDurations) frameDurations.Add(value);
+        });
+        listener.SetMeasurementEventCallback<int>((inst, value, tags, state) =>
+        {
+            if (inst.Name == "hex1b.output.cells_changed")
+                lock (cellsCounts) cellsCounts.Add(value);
+        });
+        listener.Start();
+        
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .WithMetrics(metrics)
+            .Build();
+        
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(new TextBlockWidget("Hello Metrics")),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                Metrics = metrics
+            });
+        
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello Metrics"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Input.Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        await runTask;
+        
+        Assert.True(Interlocked.Read(ref frameCount) > 0, "Expected at least one frame");
+        Assert.NotEmpty(frameDurations);
+        Assert.All(frameDurations, d => Assert.True(d > 0, $"Frame duration {d}ms should be > 0"));
+        Assert.NotEmpty(cellsCounts);
+        Assert.True(cellsCounts[0] > 0, "First frame should have changed cells");
+    }
+}
