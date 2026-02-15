@@ -123,18 +123,12 @@ public sealed class Hex1bMetrics : IDisposable
     public Histogram<double>? SurfaceLayerDuration { get; }
 
     /// <summary>
-    /// Whether per-node metrics are enabled. When <see langword="true"/>, per-node
-    /// timing histograms are recorded for measure, arrange, render, and reconcile.
-    /// </summary>
-    public bool PerNodeMetricsEnabled { get; }
-
-    /// <summary>
     /// Creates a new <see cref="Hex1bMetrics"/> instance with its own <see cref="System.Diagnostics.Metrics.Meter"/>.
     /// </summary>
     /// <param name="options">Optional metrics options to control per-node metrics.</param>
     public Hex1bMetrics(Hex1bMetricsOptions? options = null)
     {
-        PerNodeMetricsEnabled = options?.EnablePerNodeMetrics ?? false;
+        var enablePerNode = options?.EnablePerNodeMetrics ?? false;
         Meter = new Meter("Hex1b");
 
         // Render loop
@@ -168,7 +162,7 @@ public sealed class Hex1bMetrics : IDisposable
         SurfaceSerializeDuration = Meter.CreateHistogram<double>("hex1b.surface.serialize.duration", "ms", "Token serialization duration");
 
         // Per-node timing (only created when enabled to avoid instrument registration overhead)
-        if (PerNodeMetricsEnabled)
+        if (enablePerNode)
         {
             NodeMeasureDuration = Meter.CreateHistogram<double>("hex1b.node.measure.duration", "ms", "Per-node measure phase duration");
             NodeArrangeDuration = Meter.CreateHistogram<double>("hex1b.node.arrange.duration", "ms", "Per-node arrange phase duration");

@@ -278,7 +278,6 @@ public class Hex1bMetricsTests
     public void PerNodeMetrics_DisabledByDefault()
     {
         using var metrics = new Hex1bMetrics();
-        Assert.False(metrics.PerNodeMetricsEnabled);
         Assert.Null(metrics.NodeMeasureDuration);
         Assert.Null(metrics.NodeArrangeDuration);
         Assert.Null(metrics.NodeRenderDuration);
@@ -293,7 +292,7 @@ public class Hex1bMetricsTests
     public void PerNodeMetrics_CreatesInstrumentsWhenEnabled()
     {
         using var metrics = new Hex1bMetrics(options: new Hex1bMetricsOptions { EnablePerNodeMetrics = true });
-        Assert.True(metrics.PerNodeMetricsEnabled);
+        Assert.NotNull(metrics.NodeMeasureDuration);
         
         var instrumentNames = new List<string>();
         using var listener = new MeterListener();
