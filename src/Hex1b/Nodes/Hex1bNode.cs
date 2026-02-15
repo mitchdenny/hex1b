@@ -309,6 +309,7 @@ public abstract class Hex1bNode
     /// <summary>
     /// Measures the desired size of this node given the constraints.
     /// When per-node metrics are enabled, records the duration.
+    /// Subclasses override <see cref="MeasureCore"/> to implement measuring logic.
     /// </summary>
     public Size Measure(Constraints constraints)
     {
@@ -331,9 +332,9 @@ public abstract class Hex1bNode
 
     /// <summary>
     /// Assigns final bounds to this node and arranges children.
-    /// Saves the previous bounds before updating for dirty region tracking.
-    /// Marks the node dirty if bounds changed.
     /// When per-node metrics are enabled, records the duration.
+    /// Subclasses override <see cref="ArrangeCore"/> to implement arranging logic.
+    /// Call <c>base.ArrangeCore(bounds)</c> to save bounds and mark dirty on change.
     /// </summary>
     public void Arrange(Rect bounds)
     {

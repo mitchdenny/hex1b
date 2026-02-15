@@ -72,7 +72,7 @@ public sealed class ResponsiveNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Re-evaluate with actual bounds in case they differ from constraints
         if (bounds.Width != _availableWidth || bounds.Height != _availableHeight)

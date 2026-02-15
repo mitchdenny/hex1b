@@ -240,7 +240,7 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         var tabBarY = Position == TabPosition.Bottom
             ? bounds.Y + bounds.Height - TabBarHeight

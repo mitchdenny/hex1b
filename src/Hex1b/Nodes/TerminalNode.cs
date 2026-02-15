@@ -312,7 +312,7 @@ public sealed class TerminalNode : Hex1bNode
     protected override void ArrangeCore(Rect bounds)
     {
         var previousBounds = Bounds;
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         // If terminal is not running and we have a fallback child, arrange the fallback
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)

@@ -400,7 +400,7 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (ChildNodes.Count == 0) return;
         

@@ -58,7 +58,7 @@ public abstract class CompositeNode : Hex1bNode
     /// </summary>
     protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         ContentChild?.Arrange(rect);
     }
 

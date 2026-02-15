@@ -69,7 +69,7 @@ public sealed class LoggerPanelNode : Hex1bNode
 
     protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         ContentChild?.Arrange(rect);
     }
 

@@ -179,7 +179,7 @@ public sealed class NotificationCardNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         var x = bounds.X;
         var y = bounds.Y;

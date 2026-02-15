@@ -106,7 +106,7 @@ public sealed class BorderNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Child gets the inner area (minus borders)
         if (Child != null)

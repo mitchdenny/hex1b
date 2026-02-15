@@ -43,7 +43,7 @@ public sealed class PaddingNode : Hex1bNode
 
     protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
 
         if (Child != null)
         {

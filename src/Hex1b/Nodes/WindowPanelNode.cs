@@ -251,7 +251,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Clip to our own bounds - windows should not render outside the panel
         _resolvedClipRect = bounds;

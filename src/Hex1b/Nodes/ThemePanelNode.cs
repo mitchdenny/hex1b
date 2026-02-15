@@ -28,7 +28,7 @@ public sealed class ThemePanelNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Child gets the full bounds
         Child?.Arrange(bounds);

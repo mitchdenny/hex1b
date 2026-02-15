@@ -298,7 +298,7 @@ public sealed class ListNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         // Update viewport height based on actual arranged bounds
         _viewportHeight = bounds.Height;

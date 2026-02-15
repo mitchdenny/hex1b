@@ -553,7 +553,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (Child == null) return;
 

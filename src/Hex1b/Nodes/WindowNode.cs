@@ -189,7 +189,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Arrange title bar in the area between borders
         if (ShowTitleBar && _titleBarNode != null)

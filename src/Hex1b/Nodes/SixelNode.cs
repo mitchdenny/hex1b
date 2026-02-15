@@ -104,7 +104,7 @@ public sealed class SixelNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         Fallback?.Arrange(bounds);
     }
 

@@ -41,7 +41,7 @@ public sealed class NavigatorNode : Hex1bNode
     /// <inheritdoc />
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         CurrentChild?.Arrange(bounds);
     }
 

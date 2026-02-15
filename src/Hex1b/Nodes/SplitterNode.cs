@@ -299,7 +299,7 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (Orientation == SplitterOrientation.Horizontal)
         {

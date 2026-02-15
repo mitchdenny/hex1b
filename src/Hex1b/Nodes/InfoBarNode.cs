@@ -26,7 +26,7 @@ public sealed class InfoBarNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         Child?.Arrange(bounds);
     }
 

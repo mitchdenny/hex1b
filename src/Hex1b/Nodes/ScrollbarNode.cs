@@ -82,7 +82,7 @@ public sealed class ScrollbarNode : Hex1bNode
     /// <inheritdoc />
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
     }
 
     /// <inheritdoc />

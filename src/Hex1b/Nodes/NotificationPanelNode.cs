@@ -193,7 +193,7 @@ public sealed class NotificationPanelNode : Hex1bNode
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Arrange backdrop to fill entire bounds (captures clicks outside drawer)
         DrawerBackdrop?.Arrange(bounds);

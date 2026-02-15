@@ -68,7 +68,7 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         if (Children.Count == 0) return;
 

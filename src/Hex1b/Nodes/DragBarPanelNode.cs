@@ -222,7 +222,7 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
 
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         if (ContentChild == null) return;
         

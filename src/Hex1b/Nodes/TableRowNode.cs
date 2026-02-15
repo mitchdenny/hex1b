@@ -102,7 +102,7 @@ internal sealed class TableRowNode : Hex1bNode
 
     protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
 
         if (Children.Count == 0) return;
 

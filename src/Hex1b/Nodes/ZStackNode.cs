@@ -117,7 +117,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// </summary>
     protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
         
         // Resolve the clip scope
         // For now, we don't have screen bounds or widget resolver - use simplified resolution

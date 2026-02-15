@@ -482,7 +482,7 @@ public class RescueNodeTests
 
         protected override void ArrangeCore(Rect bounds)
         {
-            base.Arrange(bounds);
+            base.ArrangeCore(bounds);
             if (ThrowOnArrange)
             {
                 throw new InvalidOperationException("Test exception");

@@ -30,7 +30,7 @@ public sealed class EffectPanelNode : Hex1bNode
 
     protected override void ArrangeCore(Rect rect)
     {
-        base.Arrange(rect);
+        base.ArrangeCore(rect);
         Child?.Arrange(rect);
     }
 
