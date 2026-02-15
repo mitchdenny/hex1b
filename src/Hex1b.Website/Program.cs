@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using Hex1b.Website;
 using Hex1b.Website.Examples;
 using Hex1b;
+using Hex1b.Diagnostics;
 using Microsoft.AspNetCore.Rewrite;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -351,10 +352,17 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
     
     // Create terminal options
+    var metricsOptions = new Hex1bMetricsOptions();
+#if DEBUG
+    metricsOptions.EnablePerNodeMetrics = true;
+#endif
+    var metrics = new Hex1bMetrics(options: metricsOptions);
+
     var terminalOptions = new Hex1bTerminalOptions
     {
         PresentationAdapter = presentation,
-        WorkloadAdapter = workload
+        WorkloadAdapter = workload,
+        Metrics = metrics
     };
     
     // Create the terminal that bridges presentation ↔ workload
@@ -379,7 +387,8 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         { 
             WorkloadAdapter = workload,
             ThemeProvider = themeProvider,
-            EnableMouse = example.EnableMouse
+            EnableMouse = example.EnableMouse,
+            Metrics = metrics
         };
         var hex1bApp = new Hex1bApp(ctx => widgetBuilder(), options);
         
