@@ -924,24 +924,18 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
-    /// Sets a custom metrics instance with options for OpenTelemetry instrumentation.
+    /// Uses the default shared <see cref="Diagnostics.Hex1bMetrics.Default"/> metrics instance.
     /// </summary>
-    /// <param name="metrics">The metrics instance to use.</param>
-    /// <param name="configure">A callback to configure metrics options (e.g., enable per-node metrics).</param>
     /// <returns>This builder for chaining.</returns>
-    public Hex1bTerminalBuilder WithMetrics(Diagnostics.Hex1bMetrics metrics, Action<Diagnostics.Hex1bMetricsOptions> configure)
+    public Hex1bTerminalBuilder WithMetrics()
     {
-        ArgumentNullException.ThrowIfNull(metrics);
-        ArgumentNullException.ThrowIfNull(configure);
-        _metrics = metrics;
-        _metricsOptions ??= new Diagnostics.Hex1bMetricsOptions();
-        configure(_metricsOptions);
+        _metrics = Diagnostics.Hex1bMetrics.Default;
         return this;
     }
 
     /// <summary>
     /// Configures metrics options for OpenTelemetry instrumentation.
-    /// Uses <see cref="Diagnostics.Hex1bMetrics.Default"/> as the metrics instance.
+    /// Creates a new <see cref="Diagnostics.Hex1bMetrics"/> instance with the configured options.
     /// </summary>
     /// <param name="configure">A callback to configure metrics options (e.g., enable per-node metrics).</param>
     /// <returns>This builder for chaining.</returns>
