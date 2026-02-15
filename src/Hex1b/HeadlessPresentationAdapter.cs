@@ -25,7 +25,7 @@ namespace Hex1b;
 /// </list>
 /// <para>
 /// Optionally implements <see cref="ITerminalReflowProvider"/> when a reflow strategy
-/// is configured via <see cref="WithReflowStrategy"/>. This enables testing different
+/// is configured via <see cref="WithReflow"/>. This enables testing different
 /// terminal emulator reflow behaviors in headless mode.
 /// </para>
 /// </remarks>
@@ -46,6 +46,7 @@ public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdap
     private readonly TerminalCapabilities _capabilities;
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
+    private bool _reflowEnabled;
     private bool _disposed;
 
     /// <summary>
@@ -117,15 +118,20 @@ public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdap
         => ValueTask.CompletedTask;
 
     /// <summary>
-    /// Configures the reflow strategy for this adapter. Defaults to <see cref="NoReflowStrategy"/>.
+    /// Configures the reflow strategy for this adapter and enables reflow.
+    /// By default, reflow is disabled and resize uses standard crop behavior.
     /// </summary>
     /// <param name="strategy">The reflow strategy to use during resize operations.</param>
     /// <returns>This adapter for fluent chaining.</returns>
-    public HeadlessPresentationAdapter WithReflowStrategy(ITerminalReflowProvider strategy)
+    public HeadlessPresentationAdapter WithReflow(ITerminalReflowProvider strategy)
     {
         _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        _reflowEnabled = true;
         return this;
     }
+
+    /// <inheritdoc/>
+    public bool ReflowEnabled => _reflowEnabled;
 
     /// <inheritdoc/>
     public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;

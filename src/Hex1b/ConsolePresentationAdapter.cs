@@ -17,7 +17,8 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private readonly bool _enableMouse;
     private readonly bool _preserveOPost;
     private readonly CancellationTokenSource _disposeCts = new();
-    private readonly ITerminalReflowProvider _reflowStrategy;
+    private ITerminalReflowProvider _reflowStrategy;
+    private bool _reflowEnabled;
     private bool _disposed;
     private bool _inRawMode;
 
@@ -56,9 +57,36 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         // Wire up resize events
         _driver.Resized += (w, h) => Resized?.Invoke(w, h);
         
-        // Auto-detect terminal emulator and select reflow strategy
+        // Auto-detect terminal emulator reflow strategy (not enabled by default)
         _reflowStrategy = DetectReflowStrategy();
     }
+
+    /// <summary>
+    /// Enables reflow using the auto-detected strategy for the current terminal emulator.
+    /// By default, reflow is disabled and resize uses standard crop behavior.
+    /// </summary>
+    /// <returns>This adapter for fluent chaining.</returns>
+    public ConsolePresentationAdapter WithReflow()
+    {
+        _reflowEnabled = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Enables reflow with a specific strategy, overriding auto-detection.
+    /// By default, reflow is disabled and resize uses standard crop behavior.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy to use during resize operations.</param>
+    /// <returns>This adapter for fluent chaining.</returns>
+    public ConsolePresentationAdapter WithReflow(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        _reflowEnabled = true;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public bool ReflowEnabled => _reflowEnabled;
 
     /// <inheritdoc/>
     public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;

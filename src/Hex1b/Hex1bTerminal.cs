@@ -1436,8 +1436,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
-            // Check if the presentation adapter supports reflow
-            if (_presentation is ITerminalReflowProvider reflowProvider)
+            // Check if the presentation adapter supports reflow and has it enabled
+            if (_presentation is ITerminalReflowProvider { ReflowEnabled: true } reflowProvider)
             {
                 ResizeWithReflow(newWidth, newHeight, reflowProvider);
             }

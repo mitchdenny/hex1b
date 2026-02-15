@@ -23,6 +23,13 @@ namespace Hex1b.Reflow;
 public interface ITerminalReflowProvider
 {
     /// <summary>
+    /// Gets whether reflow is enabled. When <c>false</c>, the terminal uses
+    /// standard crop-and-extend resize behavior even though the adapter
+    /// implements this interface. Defaults to <c>true</c>.
+    /// </summary>
+    bool ReflowEnabled => true;
+
+    /// <summary>
     /// Performs reflow of terminal content during a resize operation.
     /// </summary>
     /// <param name="context">The current terminal state including screen buffer, scrollback, and cursor position.</param>
