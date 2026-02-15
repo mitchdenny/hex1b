@@ -320,7 +320,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 // Must use a child surface + composite so the clip rect is respected.
                 // Without this, content inside ScrollPanels bleeds past the viewport.
-                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height, CellMetrics);
+                // Clamp to parent surface dimensions — child surface never needs to be
+                // larger than what it will be composited onto, and unconstrained children
+                // (e.g. VStack with int.MaxValue height) would overflow width*height.
+                var clampedWidth = Math.Min(child.Bounds.Width, _surface.Width);
+                var clampedHeight = Math.Min(child.Bounds.Height, _surface.Height);
+                var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
                 var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                 {
                     CachingEnabled = false,
@@ -400,7 +405,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
             {
                 // Create a surface for this child's content with matching cell metrics
-                var childSurface = new Surface(child.Bounds.Width, child.Bounds.Height, CellMetrics);
+                // Clamp to parent surface dimensions to prevent overflow with unconstrained children
+                var clampedWidth = Math.Min(child.Bounds.Width, _surface.Width);
+                var clampedHeight = Math.Min(child.Bounds.Height, _surface.Height);
+                var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
                 
                 // Create context with offset so child's absolute coordinates map to surface (0,0)
                 // Share the tracked object store so sixels created by children are properly tracked
