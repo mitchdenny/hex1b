@@ -8,7 +8,7 @@ Hex1b includes built-in [OpenTelemetry-compatible](https://opentelemetry.io/) me
 
 ## Setting Up Metrics
 
-### With .NET Aspire
+### With Aspire
 
 If your application uses Aspire, metrics are automatically exported when you register the `Hex1b` meter in your service defaults:
 
