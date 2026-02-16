@@ -410,4 +410,148 @@ public class TerminalReflowTests
     }
 
     #endregion
+
+    #region Round-Trip Resize
+
+    [Fact]
+    public void Reflow_NarrowThenWiden_RestoresOriginalContent()
+    {
+        // Arrange: 10-column terminal with two lines of content
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
+
+        terminal.ApplyTokens([new TextToken("ABCDEFGHIJ"), ControlCharacterToken.LineFeed, ControlCharacterToken.CarriageReturn, new TextToken("1234567890")]);
+
+        var original = terminal.CreateSnapshot();
+        Assert.Equal("ABCDEFGHIJ", original.GetLine(0).TrimEnd());
+        Assert.Equal("1234567890", original.GetLine(1).TrimEnd());
+
+        // Act: Narrow to 5, then widen back to 10
+        terminal.Resize(5, 5);
+        terminal.Resize(10, 5);
+
+        // Assert: Content should be restored exactly
+        var restored = terminal.CreateSnapshot();
+        Assert.Equal("ABCDEFGHIJ", restored.GetLine(0).TrimEnd());
+        Assert.Equal("1234567890", restored.GetLine(1).TrimEnd());
+        Assert.Equal("", restored.GetLine(2).TrimEnd());
+    }
+
+    [Fact]
+    public void Reflow_WidenThenNarrow_RestoresOriginalContent()
+    {
+        // Arrange: 5-column terminal with wrapped content
+        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(XtermReflowStrategy.Instance);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 5).Build();
+
+        terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
+
+        var original = terminal.CreateSnapshot();
+        Assert.Equal("ABCDE", original.GetLine(0).TrimEnd());
+        Assert.Equal("FGHIJ", original.GetLine(1).TrimEnd());
+
+        // Act: Widen to 10, then narrow back to 5
+        terminal.Resize(10, 5);
+        terminal.Resize(5, 5);
+
+        // Assert: Content should be restored exactly
+        var restored = terminal.CreateSnapshot();
+        Assert.Equal("ABCDE", restored.GetLine(0).TrimEnd());
+        Assert.Equal("FGHIJ", restored.GetLine(1).TrimEnd());
+        Assert.Equal("", restored.GetLine(2).TrimEnd());
+    }
+
+    [Fact]
+    public void Reflow_MultipleResizeCycles_ContentStaysConsistent()
+    {
+        // Arrange: 10-column terminal
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
+
+        terminal.ApplyTokens([new TextToken("ABCDEFGHIJKLMNOPQRST")]);
+
+        // Act: Resize through multiple widths and back
+        terminal.Resize(5, 5);   // 20 chars → 4 rows of 5
+        terminal.Resize(4, 5);   // 20 chars → 5 rows of 4
+        terminal.Resize(20, 5);  // 20 chars → 1 row of 20
+        terminal.Resize(10, 5);  // 20 chars → 2 rows of 10
+
+        // Assert: Should return to original layout
+        var snap = terminal.CreateSnapshot();
+        Assert.Equal("ABCDEFGHIJ", snap.GetLine(0).TrimEnd());
+        Assert.Equal("KLMNOPQRST", snap.GetLine(1).TrimEnd());
+        Assert.Equal("", snap.GetLine(2).TrimEnd());
+    }
+
+    #endregion
+
+    #region Alternate Screen Buffer
+
+    [Fact]
+    public void Reflow_InAlternateScreen_DoesNotReflow()
+    {
+        // Arrange: Terminal with reflow enabled, enter alt screen
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
+
+        // Write content, then enter alternate screen and write different content
+        terminal.ApplyTokens([new TextToken("MAIN_BUFFER")]);
+        terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
+        terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
+
+        // Verify alt screen content before resize
+        var snap1 = terminal.CreateSnapshot();
+        Assert.Equal("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
+
+        // Act: Resize while in alt screen — should crop, not reflow
+        terminal.Resize(5, 5);
+
+        // Assert: Content should be cropped (not reflowed)
+        var snap2 = terminal.CreateSnapshot();
+        // In crop mode, the first 5 chars survive, the rest are lost
+        Assert.Equal("ABCDE", snap2.GetLine(0).TrimEnd());
+        // Second row should NOT have "FGHIJ" (that would be reflow behavior)
+        Assert.Equal("", snap2.GetLine(1).TrimEnd());
+    }
+
+    [Fact]
+    public void Reflow_AlternateScreenExit_NormalBufferReflowsCorrectly()
+    {
+        // Arrange: Write to main buffer, enter alt screen, resize, exit alt screen
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
+
+        // Write content to main buffer
+        terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
+
+        // Enter alt screen — main buffer is saved
+        terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
+
+        // Exit alt screen — main buffer is restored
+        terminal.ApplyTokens([new PrivateModeToken(1049, false)]);
+
+        // Verify main buffer content is back
+        var snap1 = terminal.CreateSnapshot();
+        Assert.Equal("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
+
+        // Act: Resize in normal mode — should reflow
+        terminal.Resize(5, 5);
+
+        // Assert: Reflow should work normally
+        var snap2 = terminal.CreateSnapshot();
+        Assert.Equal("ABCDE", snap2.GetLine(0).TrimEnd());
+        Assert.Equal("FGHIJ", snap2.GetLine(1).TrimEnd());
+    }
+
+    #endregion
 }
