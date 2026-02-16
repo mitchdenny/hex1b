@@ -174,13 +174,14 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 | `TERM_PROGRAM` / Detection | Strategy |
 |---------------------------|----------|
 | `kitty` | `KittyReflowStrategy` |
+| `ghostty` | `GhosttyReflowStrategy` |
+| `foot` | `VteReflowStrategy` |
 | `gnome-terminal`, `tilix`, `xfce4-terminal` | `VteReflowStrategy` |
 | `VTE_VERSION` env var set | `VteReflowStrategy` |
-| `ghostty` | `GhosttyReflowStrategy` |
-| `wezterm`, `iterm.app` | `KittyReflowStrategy` |
-| `xterm`, `alacritty` | `XtermReflowStrategy` |
-| `foot` | `NoReflowStrategy` |
-| `WT_SESSION` env var set | `KittyReflowStrategy` |
+| `wezterm` | `KittyReflowStrategy` |
+| `alacritty` | `XtermReflowStrategy` |
+| `WT_SESSION` env var set | `XtermReflowStrategy` |
+| `xterm`, `iterm.app` | `NoReflowStrategy` |
 | Other / unset | `NoReflowStrategy` |
 
 ### The ITerminalReflowProvider Interface

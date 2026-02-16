@@ -100,8 +100,9 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private static ITerminalReflowProvider DetectReflowStrategy()
     {
         // Check for Windows Terminal first (uses WT_SESSION env var)
+        // Windows Terminal reflows with bottom-fill behavior (like Alacritty)
         if (Environment.GetEnvironmentVariable("WT_SESSION") is not null)
-            return KittyReflowStrategy.Instance; // Windows Terminal reflows with cursor anchoring
+            return XtermReflowStrategy.Instance;
 
         var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
 
@@ -109,26 +110,28 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         {
             "kitty" => KittyReflowStrategy.Instance,
             "ghostty" => GhosttyReflowStrategy.Instance,
+            "foot" => VteReflowStrategy.Instance,
             "gnome-terminal" or "tilix" or "xfce4-terminal" => VteReflowStrategy.Instance,
             "wezterm" => KittyReflowStrategy.Instance,
-            "iterm.app" => KittyReflowStrategy.Instance,
-            "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
             "alacritty" => XtermReflowStrategy.Instance,
-            "foot" => NoReflowStrategy.Instance,
+            // xterm does not support reflow — use NoReflow
+            "xterm" or "xterm-256color" => NoReflowStrategy.Instance,
+            // iTerm2 does not reflow scrollback when widening — no true reflow
+            "iterm.app" => NoReflowStrategy.Instance,
             _ => DetectFromTerm()
         };
     }
 
     private static ITerminalReflowProvider DetectFromTerm()
     {
-        var term = Environment.GetEnvironmentVariable("TERM");
-
         // VTE-based terminals often set TERM=xterm-256color but also set VTE_VERSION
         if (Environment.GetEnvironmentVariable("VTE_VERSION") is not null)
             return VteReflowStrategy.Instance;
 
+        var term = Environment.GetEnvironmentVariable("TERM");
+
         if (term is not null && term.StartsWith("foot", StringComparison.OrdinalIgnoreCase))
-            return NoReflowStrategy.Instance;
+            return VteReflowStrategy.Instance;
 
         // Default: no reflow (conservative — avoids surprising behavior in unknown terminals)
         return NoReflowStrategy.Instance;

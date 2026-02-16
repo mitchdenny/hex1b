@@ -171,15 +171,19 @@ var terminal = Hex1bTerminal.CreateBuilder()
 
 | Strategy | Behavior | Terminals |
 |----------|----------|-----------|
-| `XtermReflowStrategy` | Bottom-fills the screen after reflow | xterm, Alacritty |
-| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty, WezTerm, iTerm2 |
-| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Tilix, xfce4-terminal |
+| `XtermReflowStrategy` | Bottom-fills the screen after reflow | Alacritty, Windows Terminal |
+| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty, WezTerm |
+| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Foot, Tilix, xfce4-terminal |
 | `GhosttyReflowStrategy` | Same as VTE (Ghostty ≥1.1.1) | Ghostty |
-| `NoReflowStrategy` | No reflow — standard crop/extend (default) | Foot |
+| `NoReflowStrategy` | No reflow — standard crop/extend (default) | xterm, iTerm2 |
 
-The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. Xterm pushes content upward and keeps the bottom of the buffer visible, while Kitty and VTE keep the cursor at the same visual row.
+The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. `XtermReflowStrategy` pushes content upward and keeps the bottom of the buffer visible, while `KittyReflowStrategy` and `VteReflowStrategy` keep the cursor at the same visual row.
 
 VTE and Ghostty additionally reflow the **saved cursor** position (set via DECSC / `ESC 7`). This ensures that applications using save/restore cursor across redraws continue to work correctly after a terminal resize. Kitty and Xterm do not reflow the saved cursor.
+
+::: tip Terminal naming
+`XtermReflowStrategy` is named for its _bottom-fill_ cursor behavior, not because xterm supports reflow (it doesn't). Alacritty and Windows Terminal use this style. Similarly, `KittyReflowStrategy` describes _cursor-anchored_ reflow without saved cursor tracking.
+:::
 
 See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.
 
