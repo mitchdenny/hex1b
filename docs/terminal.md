@@ -408,6 +408,8 @@ Located in `src/Hex1b/Reflow/`:
 |-------|------|----------|
 | `XtermReflowStrategy` | `XtermReflowStrategy.cs` | Bottom-fills screen after reflow |
 | `KittyReflowStrategy` | `KittyReflowStrategy.cs` | Anchors cursor to visual row |
+| `VteReflowStrategy` | `VteReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `GhosttyReflowStrategy` | `GhosttyReflowStrategy.cs` | Same as VTE (Ghostty ≥1.1.1) |
 | `NoReflowStrategy` | `NoReflowStrategy.cs` | No reflow (crop fallback) |
 
 ### Adapter Wiring

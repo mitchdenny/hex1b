@@ -158,7 +158,11 @@ var adapter = new ConsolePresentationAdapter().WithReflow();
 var adapter = new ConsolePresentationAdapter()
     .WithReflow(KittyReflowStrategy.Instance);
 
-// Headless adapter: specify a strategy for testing
+// Headless adapter: VTE strategy (includes saved cursor reflow)
+var adapter = new HeadlessPresentationAdapter(80, 24)
+    .WithReflow(VteReflowStrategy.Instance);
+
+// Headless adapter: Xterm strategy
 var adapter = new HeadlessPresentationAdapter(80, 24)
     .WithReflow(XtermReflowStrategy.Instance);
 ```
@@ -170,7 +174,9 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 | `TERM_PROGRAM` | Strategy |
 |----------------|----------|
 | `kitty` | `KittyReflowStrategy` |
-| `xterm`, `wezterm`, `alacritty` | `XtermReflowStrategy` |
+| `gnome-terminal`, `tilix` | `VteReflowStrategy` |
+| `ghostty` | `GhosttyReflowStrategy` |
+| `xterm`, `alacritty` | `XtermReflowStrategy` |
 | Other / unset | `NoReflowStrategy` |
 
 ### The ITerminalReflowProvider Interface
@@ -186,7 +192,7 @@ public interface ITerminalReflowProvider
 }
 ```
 
-The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Pre-built strategies (`XtermReflowStrategy`, `KittyReflowStrategy`, `NoReflowStrategy`) are available as singletons that custom adapters can delegate to.
+The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Pre-built strategies (`XtermReflowStrategy`, `KittyReflowStrategy`, `VteReflowStrategy`, `GhosttyReflowStrategy`, `NoReflowStrategy`) are available as singletons that custom adapters can delegate to.
 
 ## Next Steps
 

@@ -169,13 +169,17 @@ var terminal = Hex1bTerminal.CreateBuilder()
 
 #### Built-in Strategies
 
-| Strategy | Behavior |
-|----------|----------|
-| `XtermReflowStrategy` | Bottom-fills the screen after reflow (xterm, WezTerm, Alacritty) |
-| `KittyReflowStrategy` | Anchors the cursor to its current visual row (Kitty) |
-| `NoReflowStrategy` | No reflow — standard crop/extend (default) |
+| Strategy | Behavior | Terminals |
+|----------|----------|-----------|
+| `XtermReflowStrategy` | Bottom-fills the screen after reflow | xterm, Alacritty |
+| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty, WezTerm, iTerm2 |
+| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Tilix, xfce4-terminal |
+| `GhosttyReflowStrategy` | Same as VTE (Ghostty ≥1.1.1) | Ghostty |
+| `NoReflowStrategy` | No reflow — standard crop/extend (default) | Foot |
 
-The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. Xterm pushes content upward and keeps the bottom of the buffer visible, while Kitty keeps the cursor at the same visual row.
+The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. Xterm pushes content upward and keeps the bottom of the buffer visible, while Kitty and VTE keep the cursor at the same visual row.
+
+VTE and Ghostty additionally reflow the **saved cursor** position (set via DECSC / `ESC 7`). This ensures that applications using save/restore cursor across redraws continue to work correctly after a terminal resize. Kitty and Xterm do not reflow the saved cursor.
 
 See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.
 
