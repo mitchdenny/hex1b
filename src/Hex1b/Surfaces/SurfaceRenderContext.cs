@@ -374,7 +374,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         // Check if we can use cached surface.
         // Reconciled trees use an O(1) subtree dirty-version gate.
         // For manually-constructed trees without parent links, fall back to recursive NeedsRender().
-        var cacheHintAllowsReuse = child.CachePredicate?.Invoke(child) ?? true;
+        var cacheHintAllowsReuse = child.CachePredicate?.Invoke(new RenderCacheContext(child, this)) ?? true;
         var subtreeIsClean = HasConsistentParentLinks(child)
             ? child.CachedSubtreeRenderVersion == child.SubtreeRenderVersion
             : !child.NeedsRender();

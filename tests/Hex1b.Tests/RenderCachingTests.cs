@@ -170,13 +170,22 @@ public class RenderCachingTests
         // Populate cache
         context.RenderChild(node);
         node.ClearDirty();
-        node.CachePredicate = _ => false;
+        Hex1bNode? seenNode = null;
+        Hex1bRenderContext? seenRenderContext = null;
+        node.CachePredicate = ctx =>
+        {
+            seenNode = ctx.Node;
+            seenRenderContext = ctx.RenderContext;
+            return false;
+        };
         context.ResetCacheStats();
 
         // Act
         context.RenderChild(node);
 
         // Assert
+        Assert.Same(node, seenNode);
+        Assert.Same(context, seenRenderContext);
         Assert.Equal(0, context.CacheHits);
         Assert.Equal(1, context.CacheMisses);
     }
@@ -196,7 +205,8 @@ public class RenderCachingTests
         Assert.NotNull(node);
         var predicate = node!.CachePredicate;
         Assert.NotNull(predicate);
-        Assert.False(predicate!(node));
+        var renderContext = new SurfaceRenderContext(new Surface(1, 1));
+        Assert.False(predicate!(new RenderCacheContext(node, renderContext)));
     }
 
     #endregion

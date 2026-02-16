@@ -16,7 +16,7 @@ public abstract record Hex1bWidget
     /// Optional cache eligibility predicate for this widget's reconciled node.
     /// Returning <c>false</c> forces a cache miss for that subtree on the current frame.
     /// </summary>
-    internal Func<Hex1bNode, bool>? CachePredicate { get; init; }
+    internal Func<RenderCacheContext, bool>? CachePredicate { get; init; }
 
     /// <summary>
     /// Hint for how this widget should be sized horizontally within its parent.

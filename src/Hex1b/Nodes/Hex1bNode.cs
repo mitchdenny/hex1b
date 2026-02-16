@@ -197,8 +197,8 @@ public abstract class Hex1bNode
     /// Optional cache-eligibility predicate copied from the widget declaration.
     /// Returning <c>false</c> forces a cache miss for this subtree.
     /// </summary>
-    internal Func<Hex1bNode, bool>? CachePredicate { get; set; }
-    
+    internal Func<RenderCacheContext, bool>? CachePredicate { get; set; }
+     
     /// <summary>
     /// When set to a non-default color, RenderChild will fill all transparent backgrounds
     /// and empty cells on this node's surface with the specified color after rendering.
