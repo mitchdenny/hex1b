@@ -1483,7 +1483,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var context = new ReflowContext(
             screenRows, scrollbackRows,
             _width, _height, newWidth, newHeight,
-            _cursorX, _cursorY, _inAlternateScreen);
+            _cursorX, _cursorY, _inAlternateScreen,
+            _cursorSaved ? _savedCursorX : null,
+            _cursorSaved ? _savedCursorY : null);
 
         // Call the adapter's reflow implementation
         var result = reflowProvider.Reflow(context);
@@ -1536,6 +1538,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _height = newHeight;
         _cursorX = Math.Clamp(result.CursorX, 0, newWidth - 1);
         _cursorY = Math.Clamp(result.CursorY, 0, newHeight - 1);
+
+        // Update saved cursor if the reflow strategy reflowed it
+        if (result.NewSavedCursorX.HasValue && result.NewSavedCursorY.HasValue)
+        {
+            _savedCursorX = Math.Clamp(result.NewSavedCursorX.Value, 0, newWidth - 1);
+            _savedCursorY = Math.Clamp(result.NewSavedCursorY.Value, 0, newHeight - 1);
+        }
     }
 
     private void ResizeWithCrop(int newWidth, int newHeight)

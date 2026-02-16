@@ -68,6 +68,8 @@ public interface ITerminalReflowProvider
 /// <param name="CursorX">The cursor column position (0-based) before resize.</param>
 /// <param name="CursorY">The cursor row position (0-based) before resize.</param>
 /// <param name="InAlternateScreen">Whether the terminal is currently in the alternate screen buffer.</param>
+/// <param name="SavedCursorX">The DECSC saved cursor column position, or <c>null</c> if no cursor has been saved.</param>
+/// <param name="SavedCursorY">The DECSC saved cursor row position, or <c>null</c> if no cursor has been saved.</param>
 public readonly record struct ReflowContext(
     TerminalCell[][] ScreenRows,
     ReflowScrollbackRow[] ScrollbackRows,
@@ -77,7 +79,9 @@ public readonly record struct ReflowContext(
     int NewHeight,
     int CursorX,
     int CursorY,
-    bool InAlternateScreen);
+    bool InAlternateScreen,
+    int? SavedCursorX = null,
+    int? SavedCursorY = null);
 
 /// <summary>
 /// A scrollback row passed to the reflow provider, containing cell data and the
@@ -103,8 +107,12 @@ public readonly record struct ReflowScrollbackRow(
 /// </param>
 /// <param name="CursorX">The cursor column position (0-based) after reflow.</param>
 /// <param name="CursorY">The cursor row position (0-based) after reflow.</param>
+/// <param name="NewSavedCursorX">The reflowed DECSC saved cursor column, or <c>null</c> if not reflowed.</param>
+/// <param name="NewSavedCursorY">The reflowed DECSC saved cursor row, or <c>null</c> if not reflowed.</param>
 public readonly record struct ReflowResult(
     TerminalCell[][] ScreenRows,
     ReflowScrollbackRow[] ScrollbackRows,
     int CursorX,
-    int CursorY);
+    int CursorY,
+    int? NewSavedCursorX = null,
+    int? NewSavedCursorY = null);
