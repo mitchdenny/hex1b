@@ -171,6 +171,10 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 
 `ConsolePresentationAdapter.WithReflow()` (no arguments) auto-detects the strategy based on `TERM_PROGRAM`:
 
+::: warning Use auto-detection when possible
+When using `ConsolePresentationAdapter`, prefer `WithReflow()` without arguments. Selecting the wrong strategy will cause `Hex1bTerminal`'s internal buffer state to diverge from what the upstream terminal emulator is displaying. This leads to cursor misplacement, garbled output, or visual artifacts — because each strategy makes different assumptions about how the terminal repositions content and cursors during a resize.
+:::
+
 | `TERM_PROGRAM` / Detection | Strategy |
 |---------------------------|----------|
 | `kitty` | `KittyReflowStrategy` |
@@ -199,6 +203,26 @@ public interface ITerminalReflowProvider
 ```
 
 The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Each terminal emulator has its own strategy class (e.g., `AlacrittyReflowStrategy`, `KittyReflowStrategy`, `VteReflowStrategy`) so behavior can evolve independently as terminals are updated. The generic `NoReflowStrategy` is available for unknown terminals.
+
+### Headless Adapter and Testing
+
+The `HeadlessPresentationAdapter` accepts any reflow strategy, making it useful for testing how your application behaves under different terminal resize semantics:
+
+```csharp
+// Test that your app handles Kitty-style cursor-anchored reflow
+var adapter = new HeadlessPresentationAdapter(80, 24)
+    .WithReflow(KittyReflowStrategy.Instance);
+
+// Test that your app handles VTE-style reflow with saved cursor
+var adapter = new HeadlessPresentationAdapter(80, 24)
+    .WithReflow(VteReflowStrategy.Instance);
+```
+
+### Best-Effort Strategies
+
+Detailed information about terminal reflow behavior is hard to come by — terminal emulators rarely document their resize logic formally, and behavior can change between versions. These strategies are **best effort**, based on upstream source code, test suites, and observed behavior.
+
+If you encounter a mismatch between `Hex1bTerminal`'s internal state and what your terminal emulator displays — especially after a recent emulator update — please [file an issue](https://github.com/mitchdenny/hex1b/issues) with evidence. A screen recording or video showing the before/after state is often the most helpful artifact.
 
 ## Next Steps
 

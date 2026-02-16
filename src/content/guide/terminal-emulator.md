@@ -194,6 +194,18 @@ Even when two terminals currently behave identically (e.g., Foot and VTE), each 
 
 See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.
 
+::: warning Choosing the correct strategy matters
+The purpose of terminal reflow is to keep `Hex1bTerminal`'s internal buffer state in sync with what the upstream terminal emulator is actually displaying. If you use `ConsolePresentationAdapter` with the wrong reflow strategy, the internal state will diverge from the real terminal — leading to cursor misplacement, garbled output, or visual artifacts. When using `ConsolePresentationAdapter`, prefer `WithReflow()` (no arguments) to auto-detect the correct strategy for the running terminal. Only override manually if you know the detection is wrong for your environment.
+:::
+
+::: info Best-effort strategies
+Detailed information about terminal reflow behavior is hard to come by — terminal emulators rarely document their resize logic formally, and behavior can change between versions. These strategies are **best effort**, based on upstream source code, test suites, and observed behavior.
+
+If you encounter a mismatch between `Hex1bTerminal`'s internal state and what your terminal emulator displays — especially after a recent emulator update — please [file an issue](https://github.com/mitchdenny/hex1b/issues) with evidence. A screen recording or video showing the before/after state is often the most helpful artifact.
+
+For the `HeadlessPresentationAdapter`, reflow strategies enable testing of terminal-specific resize behavior without a real terminal. This is useful for validating that your application handles resize correctly across different emulators.
+:::
+
 ## Related Topics
 
 - [Using the Emulator](./using-the-emulator) — Step-by-step tutorial
