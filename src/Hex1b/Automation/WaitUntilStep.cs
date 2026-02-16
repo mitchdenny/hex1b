@@ -25,7 +25,7 @@ public sealed record WaitUntilStep(
             ct.ThrowIfCancellationRequested();
 
             // CreateSnapshot auto-flushes pending output
-            var snapshot = terminal.CreateSnapshot();
+            using var snapshot = terminal.CreateSnapshot();
 
             if (Predicate(snapshot))
                 return;
