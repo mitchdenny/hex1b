@@ -371,12 +371,18 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return;
         }
         
-        // Check if we can use cached surface
-        // CRITICAL: Must use NeedsRender() not just IsDirty - a node's cache is invalid
-        // if ANY descendant is dirty, because skipping render would skip the descendants too
-        var canUseCache = !child.NeedsRender() 
-            && child.CachedSurface != null 
+        // Check if we can use cached surface.
+        // Reconciled trees use an O(1) subtree dirty-version gate.
+        // For manually-constructed trees without parent links, fall back to recursive NeedsRender().
+        var cacheHintAllowsReuse = child.CachePredicate?.Invoke(child) ?? true;
+        var subtreeIsClean = HasConsistentParentLinks(child)
+            ? child.CachedSubtreeRenderVersion == child.SubtreeRenderVersion
+            : !child.NeedsRender();
+        var canUseCache = cacheHintAllowsReuse
+            && !child.IsDirty
+            && child.CachedSurface != null
             && child.CachedBounds == child.Bounds
+            && subtreeIsClean
             && child.CachedSurface.Width == child.Bounds.Width
             && child.CachedSurface.Height == child.Bounds.Height;
         
@@ -413,6 +419,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
                 var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
                 var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
+                var subtreeVersionBeforeRender = child.SubtreeRenderVersion;
                 
                 // Create context with offset so child's absolute coordinates map to surface (0,0)
                 // Share the tracked object store so sixels created by children are properly tracked
@@ -449,6 +456,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // Cache the result
                 child.CachedSurface = childSurface;
                 child.CachedBounds = child.Bounds;
+                child.CachedSubtreeRenderVersion = subtreeVersionBeforeRender;
                 
                 // Composite onto our surface at RELATIVE position
                 // (child.Bounds are absolute, but _surface may have its own offset)
@@ -474,6 +482,17 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 RenderChildTimed(child, this);
             }
         }
+    }
+
+    private static bool HasConsistentParentLinks(Hex1bNode node)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (!ReferenceEquals(child.Parent, node))
+                return false;
+        }
+
+        return true;
     }
 
     #region ANSI Parsing and Surface Writing

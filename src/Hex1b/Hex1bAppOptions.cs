@@ -82,6 +82,18 @@ public class Hex1bAppOptions
     /// Default is true.
     /// </summary>
     public bool EnableInputCoalescing { get; set; } = true;
+
+    /// <summary>
+    /// Whether to enable widget-tree render caching when Surface rendering is used.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is currently disabled by default due to known correctness issues with cached
+    /// sixel content. It can still be useful in server-side rendering scenarios where
+    /// sixels are not used.
+    /// </para>
+    /// </remarks>
+    public bool EnableRenderCaching { get; set; }
     
     /// <summary>
     /// Initial delay in milliseconds for input coalescing. After processing an input,

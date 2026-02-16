@@ -1,6 +1,7 @@
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -55,6 +56,37 @@ public class RenderCachingTests
         // Assert
         Assert.Equal(1, context.CacheHits);
         Assert.Equal(0, context.CacheMisses);
+    }
+
+    [Fact]
+    public void RenderChild_WhenDescendantMarkedDirty_ParentCacheMisses()
+    {
+        // Arrange
+        var surface = new Surface(30, 6);
+        var context = new SurfaceRenderContext(surface);
+        var child = new TextBlockNode { Text = "Child" };
+        var parent = new VStackNode { Children = [child] };
+        parent.Measure(new Constraints(0, 30, 0, 6));
+        parent.Arrange(new Rect(0, 0, 30, 6));
+
+        // Warm cache
+        context.RenderChild(parent);
+        parent.ClearDirty();
+        child.ClearDirty();
+        context.ResetCacheStats();
+        context.RenderChild(parent);
+        Assert.Equal(1, context.CacheHits);
+
+        // Mark only child dirty (parent IsDirty remains false)
+        child.MarkDirty();
+        context.ResetCacheStats();
+
+        // Act
+        context.RenderChild(parent);
+
+        // Assert
+        Assert.Equal(0, context.CacheHits);
+        Assert.Equal(1, context.CacheMisses);
     }
 
     [Fact]
@@ -123,6 +155,48 @@ public class RenderCachingTests
         // Assert - no cache stats when disabled
         Assert.Equal(0, context.CacheHits);
         Assert.Equal(0, context.CacheMisses);
+    }
+
+    [Fact]
+    public void RenderChild_WhenCachePredicateReturnsFalse_ForcesMiss()
+    {
+        // Arrange
+        var surface = new Surface(20, 5);
+        var context = new SurfaceRenderContext(surface);
+        var node = new TextBlockNode { Text = "Hello" };
+        node.Measure(new Constraints(0, 20, 0, 5));
+        node.Arrange(new Rect(0, 0, 20, 1));
+
+        // Populate cache
+        context.RenderChild(node);
+        node.ClearDirty();
+        node.CachePredicate = _ => false;
+        context.ResetCacheStats();
+
+        // Act
+        context.RenderChild(node);
+
+        // Assert
+        Assert.Equal(0, context.CacheHits);
+        Assert.Equal(1, context.CacheMisses);
+    }
+
+    [Fact]
+    public async Task ReconcileChild_WhenWidgetUsesCachedExtension_PropagatesPredicate()
+    {
+        // Arrange
+        var context = ReconcileContext.CreateRoot();
+        var parent = new VStackNode();
+        var widget = new TextBlockWidget("Hello").Cached(_ => false);
+
+        // Act
+        var node = await context.ReconcileChildAsync(null, widget, parent);
+
+        // Assert
+        Assert.NotNull(node);
+        var predicate = node!.CachePredicate;
+        Assert.NotNull(predicate);
+        Assert.False(predicate!(node));
     }
 
     #endregion

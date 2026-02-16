@@ -120,6 +120,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly bool _enableInputCoalescing;
     private readonly int _inputCoalescingInitialDelayMs;
     private readonly int _inputCoalescingMaxDelayMs;
+
+    // Surface RenderChild caching (opt-in).
+    private readonly bool _enableRenderCaching;
     
     // Surface rendering double-buffer
     private Surface? _currentSurface;
@@ -207,6 +210,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _enableInputCoalescing = options.EnableInputCoalescing;
         _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
         _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
+
+        _enableRenderCaching = options.EnableRenderCaching;
     }
 
     /// <summary>
@@ -821,7 +826,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             MouseX = _mouseX,
             MouseY = _mouseY,
             CellMetrics = cellMetrics,
-            CachingEnabled = false,  // TODO: Re-enable after fixing sixel caching issues
+            CachingEnabled = _enableRenderCaching,
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null
         };
         
@@ -1269,6 +1274,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             node.BindingsConfigurator = widget.BindingsConfigurator;
         }
+
+        node.CachePredicate = widget.CachePredicate;
         
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;
