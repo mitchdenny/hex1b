@@ -135,6 +135,50 @@ var app = new Hex1bApp(ctx =>
 
 See the [Automation & Testing](/guide/testing) guide for using the terminal emulator in testing scenarios.
 
+### Terminal Reflow
+
+When a terminal is resized, soft-wrapped lines can be re-wrapped to fit the new width—a feature called **reflow**. Hex1b supports pluggable reflow strategies that match the behavior of different terminal emulators.
+
+#### How It Works
+
+Hex1b tracks soft wrapping at the cell level. When a character is written past the last column and the cursor wraps to the next line, the wrap-point cell is tagged with the `SoftWrap` attribute. Hard wraps (explicit `\r\n`) are not tagged.
+
+On resize, the reflow engine:
+1. Collects all rows (scrollback + screen)
+2. Groups them into logical lines using `SoftWrap` flags
+3. Re-wraps each logical line to the new width
+4. Distributes rows back to screen and scrollback
+
+#### Enabling Reflow
+
+Reflow is **disabled by default** to preserve the traditional crop-and-extend resize behavior. Enable it by calling `WithReflow()` on the presentation adapter:
+
+```csharp
+// Console: auto-detect strategy based on TERM_PROGRAM
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithConsole(new ConsolePresentationAdapter().WithReflow())
+    .Build();
+
+// Headless: choose a specific strategy for testing
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(XtermReflowStrategy.Instance)
+    .Build();
+```
+
+#### Built-in Strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `XtermReflowStrategy` | Bottom-fills the screen after reflow (xterm, WezTerm, Alacritty) |
+| `KittyReflowStrategy` | Anchors the cursor to its current visual row (Kitty) |
+| `NoReflowStrategy` | No reflow — standard crop/extend (default) |
+
+The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. Xterm pushes content upward and keeps the bottom of the buffer visible, while Kitty keeps the cursor at the same visual row.
+
+See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.
+
 ## Related Topics
 
 - [Using the Emulator](./using-the-emulator) — Step-by-step tutorial

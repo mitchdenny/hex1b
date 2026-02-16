@@ -142,6 +142,52 @@ Filters are useful for:
 | Custom WebSocket adapter | Web-based terminals |
 | Custom recording adapter | Session recording |
 
+## Terminal Reflow
+
+Presentation adapters can opt into terminal reflow by implementing the `ITerminalReflowProvider` interface. When enabled, soft-wrapped lines are re-wrapped on resize instead of being cropped.
+
+### Enabling Reflow
+
+Reflow is disabled by default on all adapters. Call `WithReflow()` to enable it:
+
+```csharp
+// Console adapter: auto-detects the appropriate strategy
+var adapter = new ConsolePresentationAdapter().WithReflow();
+
+// Console adapter: override with a specific strategy
+var adapter = new ConsolePresentationAdapter()
+    .WithReflow(KittyReflowStrategy.Instance);
+
+// Headless adapter: specify a strategy for testing
+var adapter = new HeadlessPresentationAdapter(80, 24)
+    .WithReflow(XtermReflowStrategy.Instance);
+```
+
+### Auto-Detection (Console)
+
+`ConsolePresentationAdapter.WithReflow()` (no arguments) auto-detects the strategy based on `TERM_PROGRAM`:
+
+| `TERM_PROGRAM` | Strategy |
+|----------------|----------|
+| `kitty` | `KittyReflowStrategy` |
+| `xterm`, `wezterm`, `alacritty` | `XtermReflowStrategy` |
+| Other / unset | `NoReflowStrategy` |
+
+### The ITerminalReflowProvider Interface
+
+Custom presentation adapters can implement reflow by adding the `ITerminalReflowProvider` interface:
+
+```csharp
+public interface ITerminalReflowProvider
+{
+    bool ReflowEnabled => true;
+    ReflowResult Reflow(ReflowContext context);
+    bool ShouldClearSoftWrapOnAbsolutePosition { get; }
+}
+```
+
+The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Pre-built strategies (`XtermReflowStrategy`, `KittyReflowStrategy`, `NoReflowStrategy`) are available as singletons that custom adapters can delegate to.
+
 ## Next Steps
 
 - Learn about [Workload Adapters](./workload-adapters) for different workload types
