@@ -151,15 +151,16 @@ On resize, the reflow engine:
 
 #### Enabling Reflow
 
-Reflow is **disabled by default** to preserve the traditional crop-and-extend resize behavior. Enable it by calling `WithReflow()` on the presentation adapter:
+Reflow is **disabled by default** to preserve the traditional crop-and-extend resize behavior. Enable it by calling `WithReflow()` on the terminal builder:
 
 ```csharp
-// Console: auto-detect strategy based on TERM_PROGRAM
+// Auto-detect strategy based on TERM_PROGRAM
 var terminal = Hex1bTerminal.CreateBuilder()
-    .WithConsole(new ConsolePresentationAdapter().WithReflow())
+    .WithPtyProcess("bash")
+    .WithReflow()
     .Build();
 
-// Headless: choose a specific strategy for testing
+// Explicit strategy for testing
 var terminal = Hex1bTerminal.CreateBuilder()
     .WithHeadless()
     .WithDimensions(80, 24)

@@ -148,7 +148,24 @@ Presentation adapters can opt into terminal reflow by implementing the `ITermina
 
 ### Enabling Reflow
 
-Reflow is disabled by default on all adapters. Call `WithReflow()` to enable it:
+Reflow is disabled by default on all adapters. The simplest way to enable it is via the terminal builder:
+
+```csharp
+// Auto-detect strategy from environment
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithPtyProcess("bash")
+    .WithReflow()
+    .Build();
+
+// Explicit strategy for testing
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(KittyReflowStrategy.Instance)
+    .Build();
+```
+
+You can also configure reflow directly on the adapter if you need more control:
 
 ```csharp
 // Console adapter: auto-detects the appropriate strategy
@@ -161,10 +178,6 @@ var adapter = new ConsolePresentationAdapter()
 // Headless adapter: VTE strategy (includes saved cursor reflow)
 var adapter = new HeadlessPresentationAdapter(80, 24)
     .WithReflow(VteReflowStrategy.Instance);
-
-// Headless adapter: Alacritty strategy (bottom-fill)
-var adapter = new HeadlessPresentationAdapter(80, 24)
-    .WithReflow(AlacrittyReflowStrategy.Instance);
 ```
 
 ### Auto-Detection (Console)
@@ -206,16 +219,22 @@ The `ReflowEnabled` property controls whether the terminal uses the reflow path 
 
 ### Headless Adapter and Testing
 
-The `HeadlessPresentationAdapter` accepts any reflow strategy, making it useful for testing how your application behaves under different terminal resize semantics:
+The builder's `WithReflow(strategy)` overload makes it easy to test different terminal resize semantics:
 
 ```csharp
 // Test that your app handles Kitty-style cursor-anchored reflow
-var adapter = new HeadlessPresentationAdapter(80, 24)
-    .WithReflow(KittyReflowStrategy.Instance);
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(KittyReflowStrategy.Instance)
+    .Build();
 
 // Test that your app handles VTE-style reflow with saved cursor
-var adapter = new HeadlessPresentationAdapter(80, 24)
-    .WithReflow(VteReflowStrategy.Instance);
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(VteReflowStrategy.Instance)
+    .Build();
 ```
 
 ### Best-Effort Strategies

@@ -99,39 +99,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     /// </summary>
     private static ITerminalReflowProvider DetectReflowStrategy()
     {
-        // Check for Windows Terminal first (uses WT_SESSION env var)
-        if (Environment.GetEnvironmentVariable("WT_SESSION") is not null)
-            return WindowsTerminalReflowStrategy.Instance;
-
-        var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
-
-        return termProgram?.ToLowerInvariant() switch
-        {
-            "kitty" => KittyReflowStrategy.Instance,
-            "ghostty" => GhosttyReflowStrategy.Instance,
-            "foot" => FootReflowStrategy.Instance,
-            "gnome-terminal" or "tilix" or "xfce4-terminal" => VteReflowStrategy.Instance,
-            "wezterm" => WezTermReflowStrategy.Instance,
-            "alacritty" => AlacrittyReflowStrategy.Instance,
-            "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
-            "iterm.app" => ITerm2ReflowStrategy.Instance,
-            _ => DetectFromTerm()
-        };
-    }
-
-    private static ITerminalReflowProvider DetectFromTerm()
-    {
-        // VTE-based terminals often set TERM=xterm-256color but also set VTE_VERSION
-        if (Environment.GetEnvironmentVariable("VTE_VERSION") is not null)
-            return VteReflowStrategy.Instance;
-
-        var term = Environment.GetEnvironmentVariable("TERM");
-
-        if (term is not null && term.StartsWith("foot", StringComparison.OrdinalIgnoreCase))
-            return FootReflowStrategy.Instance;
-
-        // Default: no reflow (conservative — avoids surprising behavior in unknown terminals)
-        return NoReflowStrategy.Instance;
+        return AutoReflowStrategy.Detect();
     }
 
     /// <inheritdoc />
