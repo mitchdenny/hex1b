@@ -40,4 +40,11 @@ public enum CellAttributes : ushort
 
     /// <summary>Cell contains Sixel graphics data.</summary>
     Sixel = 1 << 9,
+
+    /// <summary>
+    /// Cell is a soft-wrap point: content continues on the next row without a logical line break.
+    /// Set on the last cell of a row when the cursor wraps at the right margin.
+    /// Used by the reflow engine to identify logical lines that span multiple rows.
+    /// </summary>
+    SoftWrap = 1 << 10,
 }

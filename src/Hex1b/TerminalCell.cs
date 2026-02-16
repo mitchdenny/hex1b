@@ -56,6 +56,9 @@ public readonly record struct TerminalCell(
     /// <summary>Gets whether this cell contains Sixel graphics.</summary>
     public bool IsSixel => (Attributes & CellAttributes.Sixel) != 0;
 
+    /// <summary>Gets whether this cell is a soft-wrap point (content continues on the next row).</summary>
+    public bool IsSoftWrap => (Attributes & CellAttributes.SoftWrap) != 0;
+
     /// <summary>Gets the Sixel data if this cell has any, otherwise null.</summary>
     public SixelData? SixelData => TrackedSixel?.Data;
 

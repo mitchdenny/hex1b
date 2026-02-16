@@ -142,6 +142,107 @@ Filters are useful for:
 | Custom WebSocket adapter | Web-based terminals |
 | Custom recording adapter | Session recording |
 
+## Terminal Reflow
+
+Presentation adapters can opt into terminal reflow by implementing the `ITerminalReflowProvider` interface. When enabled, soft-wrapped lines are re-wrapped on resize instead of being cropped.
+
+### Enabling Reflow
+
+Reflow is disabled by default on all adapters. The simplest way to enable it is via the terminal builder:
+
+```csharp
+// Auto-detect strategy from environment
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithPtyProcess("bash")
+    .WithReflow()
+    .Build();
+
+// Explicit strategy for testing
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(KittyReflowStrategy.Instance)
+    .Build();
+```
+
+You can also configure reflow directly on the adapter if you need more control:
+
+```csharp
+// Console adapter: auto-detects the appropriate strategy
+var adapter = new ConsolePresentationAdapter().WithReflow();
+
+// Console adapter: override with a specific strategy
+var adapter = new ConsolePresentationAdapter()
+    .WithReflow(KittyReflowStrategy.Instance);
+
+// Headless adapter: VTE strategy (includes saved cursor reflow)
+var adapter = new HeadlessPresentationAdapter(80, 24)
+    .WithReflow(VteReflowStrategy.Instance);
+```
+
+### Auto-Detection (Console)
+
+`ConsolePresentationAdapter.WithReflow()` (no arguments) auto-detects the strategy based on `TERM_PROGRAM`:
+
+::: warning Use auto-detection when possible
+When using `ConsolePresentationAdapter`, prefer `WithReflow()` without arguments. Selecting the wrong strategy will cause `Hex1bTerminal`'s internal buffer state to diverge from what the upstream terminal emulator is displaying. This leads to cursor misplacement, garbled output, or visual artifacts — because each strategy makes different assumptions about how the terminal repositions content and cursors during a resize.
+:::
+
+| `TERM_PROGRAM` / Detection | Strategy |
+|---------------------------|----------|
+| `kitty` | `KittyReflowStrategy` |
+| `ghostty` | `GhosttyReflowStrategy` |
+| `foot` | `FootReflowStrategy` |
+| `gnome-terminal`, `tilix`, `xfce4-terminal` | `VteReflowStrategy` |
+| `VTE_VERSION` env var set | `VteReflowStrategy` |
+| `wezterm` | `WezTermReflowStrategy` |
+| `alacritty` | `AlacrittyReflowStrategy` |
+| `WT_SESSION` env var set | `WindowsTerminalReflowStrategy` |
+| `xterm` | `XtermReflowStrategy` |
+| `iterm.app` | `ITerm2ReflowStrategy` |
+| Other / unset | `NoReflowStrategy` |
+
+### The ITerminalReflowProvider Interface
+
+Custom presentation adapters can implement reflow by adding the `ITerminalReflowProvider` interface:
+
+```csharp
+public interface ITerminalReflowProvider
+{
+    bool ReflowEnabled => true;
+    ReflowResult Reflow(ReflowContext context);
+    bool ShouldClearSoftWrapOnAbsolutePosition { get; }
+}
+```
+
+The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Each terminal emulator has its own strategy class (e.g., `AlacrittyReflowStrategy`, `KittyReflowStrategy`, `VteReflowStrategy`) so behavior can evolve independently as terminals are updated. The generic `NoReflowStrategy` is available for unknown terminals.
+
+### Headless Adapter and Testing
+
+The builder's `WithReflow(strategy)` overload makes it easy to test different terminal resize semantics:
+
+```csharp
+// Test that your app handles Kitty-style cursor-anchored reflow
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(KittyReflowStrategy.Instance)
+    .Build();
+
+// Test that your app handles VTE-style reflow with saved cursor
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(VteReflowStrategy.Instance)
+    .Build();
+```
+
+### Best-Effort Strategies
+
+Detailed information about terminal reflow behavior is hard to come by — terminal emulators rarely document their resize logic formally, and behavior can change between versions. These strategies are **best effort**, based on upstream source code, test suites, and observed behavior.
+
+If you encounter a mismatch between `Hex1bTerminal`'s internal state and what your terminal emulator displays — especially after a recent emulator update — please [file an issue](https://github.com/mitchdenny/hex1b/issues) with evidence. A screen recording or video showing the before/after state is often the most helpful artifact.
+
 ## Next Steps
 
 - Learn about [Workload Adapters](./workload-adapters) for different workload types

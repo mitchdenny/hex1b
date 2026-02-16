@@ -374,3 +374,52 @@ The presentation adapter enters raw mode when `Start()` is called on the termina
 4. **Platform Abstraction**: Console drivers isolate platform-specific code
 
 5. **Async-First**: All I/O operations are async-capable for proper cancellation support
+
+## Terminal Reflow
+
+When the terminal is resized, soft-wrapped lines can optionally be re-wrapped to fit the new
+width. This is controlled by the presentation adapter via `ITerminalReflowProvider`.
+
+### Architecture
+
+```
+Hex1bTerminal.Resize()
+    │
+    ├─ adapter implements ITerminalReflowProvider && ReflowEnabled?
+    │   ├─ Yes → ResizeWithReflow() → adapter.Reflow(context) → apply result
+    │   └─ No  → ResizeWithCrop()   → standard crop/extend (original behavior)
+    │
+    └─ Reset margins, clamp cursor
+```
+
+### Data Model
+
+- `CellAttributes.SoftWrap` (bit flag `1 << 10`) tags the last cell on a row when a character
+  write causes the cursor to wrap to the next line.
+- Hard wraps (`\r\n`, explicit line feeds) do NOT set `SoftWrap`.
+- Absolute cursor positioning (CUP) clears `SoftWrap` on the departure row when the adapter
+  opts in via `ShouldClearSoftWrapOnAbsolutePosition`.
+
+### Pre-built Strategies
+
+Located in `src/Hex1b/Reflow/`:
+
+| Class | File | Behavior |
+|-------|------|----------|
+| `AlacrittyReflowStrategy` | `AlacrittyReflowStrategy.cs` | Bottom-fills screen after reflow |
+| `WindowsTerminalReflowStrategy` | `WindowsTerminalReflowStrategy.cs` | Bottom-fills screen after reflow |
+| `KittyReflowStrategy` | `KittyReflowStrategy.cs` | Anchors cursor to visual row |
+| `WezTermReflowStrategy` | `WezTermReflowStrategy.cs` | Anchors cursor to visual row |
+| `VteReflowStrategy` | `VteReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `GhosttyReflowStrategy` | `GhosttyReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `FootReflowStrategy` | `FootReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `XtermReflowStrategy` | `XtermReflowStrategy.cs` | No reflow (xterm doesn't reflow) |
+| `ITerm2ReflowStrategy` | `ITerm2ReflowStrategy.cs` | No reflow (iTerm2 doesn't fully reflow) |
+| `NoReflowStrategy` | `NoReflowStrategy.cs` | No reflow (crop fallback, default) |
+
+### Adapter Wiring
+
+- `HeadlessPresentationAdapter`: implements `ITerminalReflowProvider`, reflow disabled by default.
+  Call `.WithReflow(strategy)` to enable.
+- `ConsolePresentationAdapter`: implements `ITerminalReflowProvider`, reflow disabled by default.
+  Call `.WithReflow()` (auto-detect) or `.WithReflow(strategy)` to enable.

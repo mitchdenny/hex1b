@@ -1,0 +1,113 @@
+{
+  "$schema": "Reflow test fixtures derived from upstream terminal emulator test suites.",
+  "_provenance": {
+    "description": "Each fixture is adapted from a specific upstream test. The 'source' field identifies the repository, file, and function. Expected values were determined by hand-tracing the upstream setup through the reflow algorithm and verified against upstream assertions.",
+    "kitty_defaults": "create_screen() defaults: cols=5, lines=5, scrollback=5. Source: kitty_tests/__init__.py BaseTest.create_screen()",
+    "alacritty_helpers": "cell(c) creates a Cell with character c. wrap_cell(c) creates a Cell with WRAPLINE flag. Source: alacritty_terminal/src/grid/tests.rs bottom of file.",
+    "how_to_update": "1. Fetch latest upstream test file. 2. Compare upstream assertions. 3. Hand-trace expected output. 4. Update fixture. 5. Run tests."
+  },
+  "fixtures": [
+    {
+      "id": "kitty_narrow_hard_wrapped",
+      "source": "kovidgoyal/kitty kitty_tests/screen.py test_resize (~line 318)",
+      "description": "Hard-wrapped '12345' narrowed from 5 to 4 must split to '1234'+'5'",
+      "emulator": "kitty",
+      "setup": {
+        "cols": 5,
+        "rows": 5,
+        "scrollback": 15,
+        "inputSequence": [
+          { "type": "draw", "text": "12345" },
+          { "type": "cr" },
+          { "type": "lf" }
+        ],
+        "note": "draw('12345') fills row, CR+LF creates hard break (no SoftWrap). Row 0='12345' without SoftWrap flag."
+      },
+      "resize": { "cols": 4, "rows": 5 },
+      "expected": {
+        "screenLines": ["1234", "5", ""],
+        "note": "5 chars in 4-wide terminal: logical line '12345' wraps to '1234'+'5'. Hard break doesn't prevent splitting, only prevents joining with adjacent rows."
+      }
+    },
+    {
+      "id": "kitty_widen_merge_pairs",
+      "source": "kovidgoyal/kitty kitty_tests/screen.py test_resize (~line 325)",
+      "description": "5 rows of continuous digits widen from 5 to 10, merging pairs",
+      "emulator": "kitty",
+      "setup": {
+        "cols": 5,
+        "rows": 5,
+        "scrollback": 6,
+        "input": "0000011111222223333344444",
+        "note": "25 chars drawn continuously → 5 rows at width 5. Rows 0-3 have SoftWrap (char overflow triggered wrap). Row 4 has no SoftWrap (nothing follows). All 5 rows = one logical line."
+      },
+      "resize": { "cols": 10, "rows": 3 },
+      "expected": {
+        "screenLines": ["0000011111", "2222233333", "44444"],
+        "note": "25 chars at width 10 = 3 rows exactly. Screen height is 3, so all fit."
+      }
+    },
+    {
+      "id": "kitty_narrow_to_2",
+      "source": "kovidgoyal/kitty kitty_tests/screen.py test_resize (~line 335)",
+      "description": "50 chars at width 5, narrowed to width 2. Screen shows bottom 5 of 25 rows.",
+      "emulator": "kitty",
+      "setup": {
+        "cols": 5,
+        "rows": 5,
+        "scrollback": 20,
+        "input": "00000111112222233333444445555566666777778888899999",
+        "note": "10 groups of 5 digits = 50 chars. At width 5: 10 rows, all soft-wrapped (one continuous draw). Screen has 5 rows, scrollback gets 5."
+      },
+      "resize": { "cols": 2, "rows": 5 },
+      "expected": {
+        "screenLines": ["88", "88", "89", "99", "99"],
+        "note": "50 chars at width 2 = 25 rows. Bottom 5 rows: chars[40..49] = '88','88','89','99','99'. Digit '8' is chars 40-44, digit '9' is 45-49."
+      }
+    },
+    {
+      "id": "kitty_narrow_with_hard_break",
+      "source": "kovidgoyal/kitty kitty_tests/screen.py test_resize (~line 345)",
+      "description": "'aaaaa' + LF+CR + 'bb', narrowed by 2",
+      "emulator": "kitty",
+      "setup": {
+        "cols": 5,
+        "rows": 5,
+        "scrollback": 0,
+        "inputSequence": [
+          { "type": "draw", "text": "aaaaa" },
+          { "type": "lf" },
+          { "type": "cr" },
+          { "type": "draw", "text": "bb" }
+        ],
+        "note": "draw('aaaaa') fills row 0 (pending_wrap). LF moves down, CR resets x. No SoftWrap set. 'bb' on row 1. Two logical lines: 'aaaaa' and 'bb'."
+      },
+      "resize": { "cols": 3, "rows": 5 },
+      "expected": {
+        "screenLines": ["aaa", "aa", "bb", "", ""],
+        "note": "Logical line 'aaaaa' wraps to 'aaa'+'aa' at width 3. Logical line 'bb' stays as 1 row. Total 3 content + 2 empty."
+      }
+    },
+    {
+      "id": "alacritty_shrink_reflow_twice",
+      "source": "alacritty/alacritty alacritty_terminal/src/grid/tests.rs shrink_reflow_twice",
+      "description": "Multi-step shrink 5→4→2 produces same result as 5→2",
+      "emulator": "alacritty",
+      "setup": {
+        "cols": 5,
+        "rows": 1,
+        "scrollback": 10,
+        "input": "12345",
+        "note": "Single row '12345'. No SoftWrap (nothing follows)."
+      },
+      "resizeSteps": [
+        { "cols": 4, "rows": 1 },
+        { "cols": 2, "rows": 1 }
+      ],
+      "expected": {
+        "screenLines": ["5"],
+        "note": "Step 1 (5→4): '1234'(wrap)+'5' = 2 rows. Step 2 (4→2): '12'(wrap)+'34'(wrap)+'5' = 3 rows. Screen shows last row '5'. Scrollback has '12','34'. Same as direct 5→2."
+      }
+    }
+  ]
+}

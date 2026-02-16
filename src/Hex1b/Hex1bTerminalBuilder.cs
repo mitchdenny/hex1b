@@ -51,6 +51,8 @@ public sealed class Hex1bTerminalBuilder
     private Diagnostics.Hex1bMetricsOptions? _metricsOptions;
     private int? _scrollbackCapacity;
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
+    private Reflow.ITerminalReflowProvider? _reflowStrategy;
+    private bool _reflowEnabled;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -1036,6 +1038,64 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Enables terminal reflow with automatic strategy detection based on the running
+    /// terminal emulator (via <c>TERM_PROGRAM</c>, <c>WT_SESSION</c>, etc.).
+    /// </summary>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When using <see cref="ConsolePresentationAdapter"/>, the strategy is auto-detected
+    /// from environment variables. When using <see cref="HeadlessPresentationAdapter"/>,
+    /// auto-detection still runs but may default to <see cref="Reflow.NoReflowStrategy"/>
+    /// if no terminal environment is present — consider using <see cref="WithReflow(Reflow.ITerminalReflowProvider)"/>
+    /// with an explicit strategy for testing.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithReflow()
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithReflow()
+    {
+        _reflowEnabled = true;
+        _reflowStrategy = null; // auto-detect
+        return this;
+    }
+
+    /// <summary>
+    /// Enables terminal reflow with a specific strategy.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy to use during resize operations.</param>
+    /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this overload when you need deterministic reflow behavior — for example, in tests
+    /// or when targeting a specific terminal emulator.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Test with Kitty-style cursor-anchored reflow
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHeadless()
+    ///     .WithDimensions(80, 24)
+    ///     .WithReflow(KittyReflowStrategy.Instance)
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithReflow(Reflow.ITerminalReflowProvider strategy)
+    {
+        ArgumentNullException.ThrowIfNull(strategy);
+        _reflowEnabled = true;
+        _reflowStrategy = strategy;
+        return this;
+    }
+
+    /// <summary>
     /// Builds the terminal with the configured options.
     /// </summary>
     /// <returns>A configured <see cref="Hex1bTerminal"/> instance.</returns>
@@ -1044,6 +1104,21 @@ public sealed class Hex1bTerminalBuilder
     {
         // Create presentation adapter via factory
         var presentation = _presentationFactory(this);
+
+        // Apply reflow configuration if enabled
+        if (_reflowEnabled && presentation is Reflow.ITerminalReflowProvider)
+        {
+            var strategy = _reflowStrategy ?? Reflow.AutoReflowStrategy.Instance;
+
+            if (presentation is HeadlessPresentationAdapter headless)
+            {
+                headless.WithReflow(strategy);
+            }
+            else if (presentation is ConsolePresentationAdapter console)
+            {
+                console.WithReflow(strategy);
+            }
+        }
 
         // Resolve workload
         Func<CancellationToken, Task<int>>? runCallback = null;

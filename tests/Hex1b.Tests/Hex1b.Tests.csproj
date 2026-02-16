@@ -44,4 +44,8 @@
     <Using Include="Hex1b.Automation" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="TestData\ReflowFixtures.json" />
+  </ItemGroup>
+
 </Project>

@@ -135,6 +135,78 @@ var app = new Hex1bApp(ctx =>
 
 See the [Automation & Testing](/guide/testing) guide for using the terminal emulator in testing scenarios.
 
+### Terminal Reflow
+
+When a terminal is resized, soft-wrapped lines can be re-wrapped to fit the new width—a feature called **reflow**. Hex1b supports pluggable reflow strategies that match the behavior of different terminal emulators.
+
+#### How It Works
+
+Hex1b tracks soft wrapping at the cell level. When a character is written past the last column and the cursor wraps to the next line, the wrap-point cell is tagged with the `SoftWrap` attribute. Hard wraps (explicit `\r\n`) are not tagged.
+
+On resize, the reflow engine:
+1. Collects all rows (scrollback + screen)
+2. Groups them into logical lines using `SoftWrap` flags
+3. Re-wraps each logical line to the new width
+4. Distributes rows back to screen and scrollback
+
+#### Enabling Reflow
+
+Reflow is **disabled by default** to preserve the traditional crop-and-extend resize behavior. Enable it by calling `WithReflow()` on the terminal builder:
+
+```csharp
+// Auto-detect strategy based on TERM_PROGRAM
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithPtyProcess("bash")
+    .WithReflow()
+    .Build();
+
+// Explicit strategy for testing
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHeadless()
+    .WithDimensions(80, 24)
+    .WithReflow(AlacrittyReflowStrategy.Instance)
+    .Build();
+```
+
+#### Built-in Strategies
+
+| Strategy | Behavior | Terminals |
+|----------|----------|-----------|
+| `AlacrittyReflowStrategy` | Bottom-fills the screen after reflow | Alacritty |
+| `WindowsTerminalReflowStrategy` | Bottom-fills the screen after reflow | Windows Terminal |
+| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty |
+| `WezTermReflowStrategy` | Anchors the cursor to its current visual row | WezTerm |
+| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Tilix, xfce4-terminal |
+| `GhosttyReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | Ghostty |
+| `FootReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | Foot |
+| `XtermReflowStrategy` | No reflow — standard crop/extend | xterm |
+| `ITerm2ReflowStrategy` | No reflow — standard crop/extend | iTerm2 |
+| `NoReflowStrategy` | No reflow — standard crop/extend (default) | Unknown terminals |
+
+The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. `AlacrittyReflowStrategy` pushes content upward and keeps the bottom of the buffer visible, while `KittyReflowStrategy` and `VteReflowStrategy` keep the cursor at the same visual row.
+
+VTE, Ghostty, and Foot additionally reflow the **saved cursor** position (set via DECSC / `ESC 7`). This ensures that applications using save/restore cursor across redraws continue to work correctly after a terminal resize.
+
+Each terminal emulator has its own strategy class so that behavior can evolve independently as terminals are updated.
+
+::: tip Why separate classes?
+Even when two terminals currently behave identically (e.g., Foot and VTE), each gets its own strategy class. This allows us to update one terminal's behavior without affecting others — for example, when Kitty fixes its saved cursor reflow bug, we can update `KittyReflowStrategy` without changing `WezTermReflowStrategy`.
+:::
+
+See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.
+
+::: warning Choosing the correct strategy matters
+The purpose of terminal reflow is to keep `Hex1bTerminal`'s internal buffer state in sync with what the upstream terminal emulator is actually displaying. If you use `ConsolePresentationAdapter` with the wrong reflow strategy, the internal state will diverge from the real terminal — leading to cursor misplacement, garbled output, or visual artifacts. When using `ConsolePresentationAdapter`, prefer `WithReflow()` (no arguments) to auto-detect the correct strategy for the running terminal. Only override manually if you know the detection is wrong for your environment.
+:::
+
+::: info Best-effort strategies
+Detailed information about terminal reflow behavior is hard to come by — terminal emulators rarely document their resize logic formally, and behavior can change between versions. These strategies are **best effort**, based on upstream source code, test suites, and observed behavior.
+
+If you encounter a mismatch between `Hex1bTerminal`'s internal state and what your terminal emulator displays — especially after a recent emulator update — please [file an issue](https://github.com/mitchdenny/hex1b/issues) with evidence. A screen recording or video showing the before/after state is often the most helpful artifact.
+
+For the `HeadlessPresentationAdapter`, reflow strategies enable testing of terminal-specific resize behavior without a real terminal. This is useful for validating that your application handles resize correctly across different emulators.
+:::
+
 ## Related Topics
 
 - [Using the Emulator](./using-the-emulator) — Step-by-step tutorial
