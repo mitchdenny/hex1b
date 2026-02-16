@@ -264,7 +264,7 @@ public class NotificationCardNodeTests
             .WaitUntil(s => s.ContainsText("Test Notification"), TimeSpan.FromSeconds(2), "notification")
             // Press Alt+N to open drawer
             .Alt().Key(Hex1bKey.N)
-            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(2), "drawer open with count")
             .Capture("drawer_open")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
