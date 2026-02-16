@@ -178,8 +178,8 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 | `VTE_VERSION` env var set | `VteReflowStrategy` |
 | `ghostty` | `GhosttyReflowStrategy` |
 | `wezterm`, `iterm.app` | `KittyReflowStrategy` |
-| `xterm` | `XtermReflowStrategy` |
-| `alacritty`, `foot` | `NoReflowStrategy` |
+| `xterm`, `alacritty` | `XtermReflowStrategy` |
+| `foot` | `NoReflowStrategy` |
 | `WT_SESSION` env var set | `KittyReflowStrategy` |
 | Other / unset | `NoReflowStrategy` |
 

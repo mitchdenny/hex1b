@@ -113,7 +113,8 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
             "wezterm" => KittyReflowStrategy.Instance,
             "iterm.app" => KittyReflowStrategy.Instance,
             "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
-            "alacritty" or "foot" => NoReflowStrategy.Instance,
+            "alacritty" => XtermReflowStrategy.Instance,
+            "foot" => NoReflowStrategy.Instance,
             _ => DetectFromTerm()
         };
     }
