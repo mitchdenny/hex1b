@@ -100,9 +100,8 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private static ITerminalReflowProvider DetectReflowStrategy()
     {
         // Check for Windows Terminal first (uses WT_SESSION env var)
-        // Windows Terminal reflows with bottom-fill behavior (like Alacritty)
         if (Environment.GetEnvironmentVariable("WT_SESSION") is not null)
-            return XtermReflowStrategy.Instance;
+            return WindowsTerminalReflowStrategy.Instance;
 
         var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
 
@@ -110,14 +109,12 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         {
             "kitty" => KittyReflowStrategy.Instance,
             "ghostty" => GhosttyReflowStrategy.Instance,
-            "foot" => VteReflowStrategy.Instance,
+            "foot" => FootReflowStrategy.Instance,
             "gnome-terminal" or "tilix" or "xfce4-terminal" => VteReflowStrategy.Instance,
-            "wezterm" => KittyReflowStrategy.Instance,
-            "alacritty" => XtermReflowStrategy.Instance,
-            // xterm does not support reflow — use NoReflow
-            "xterm" or "xterm-256color" => NoReflowStrategy.Instance,
-            // iTerm2 does not reflow scrollback when widening — no true reflow
-            "iterm.app" => NoReflowStrategy.Instance,
+            "wezterm" => WezTermReflowStrategy.Instance,
+            "alacritty" => AlacrittyReflowStrategy.Instance,
+            "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
+            "iterm.app" => ITerm2ReflowStrategy.Instance,
             _ => DetectFromTerm()
         };
     }
@@ -131,7 +128,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         var term = Environment.GetEnvironmentVariable("TERM");
 
         if (term is not null && term.StartsWith("foot", StringComparison.OrdinalIgnoreCase))
-            return VteReflowStrategy.Instance;
+            return FootReflowStrategy.Instance;
 
         // Default: no reflow (conservative — avoids surprising behavior in unknown terminals)
         return NoReflowStrategy.Instance;

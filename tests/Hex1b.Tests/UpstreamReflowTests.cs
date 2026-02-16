@@ -389,7 +389,7 @@ public class UpstreamReflowTests
             CursorX: 0, CursorY: 0,
             InAlternateScreen: false);
 
-        var result = XtermReflowStrategy.Instance.Reflow(context);
+        var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
         // Alacritty: total_lines = 3 (2 scrollback + 1 screen)
         Assert.True(result.ScrollbackRows.Length == 2,
@@ -428,7 +428,7 @@ public class UpstreamReflowTests
     [Fact]
     public void Alacritty_ShrinkReflowTwice_5to4to2()
     {
-        var adapter = new HeadlessPresentationAdapter(5, 1).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 1).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 1)
@@ -479,7 +479,7 @@ public class UpstreamReflowTests
             CursorX: 0, CursorY: 0,
             InAlternateScreen: false);
 
-        var result = XtermReflowStrategy.Instance.Reflow(context);
+        var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
         Assert.Equal("123", GetRowText(result.ScreenRows[0]));
         Assert.Equal("", GetRowText(result.ScreenRows[1]));
@@ -519,7 +519,7 @@ public class UpstreamReflowTests
             CursorX: 0, CursorY: 0,
             InAlternateScreen: false);
 
-        var result = XtermReflowStrategy.Instance.Reflow(context);
+        var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
         Assert.Equal("123456", GetRowText(result.ScreenRows[0]));
         Assert.Equal("", GetRowText(result.ScreenRows[1]));
@@ -614,7 +614,7 @@ public class UpstreamReflowTests
     public void ReflowIsConsistent_AcrossMultipleResizeSteps(int intermediateWidth, int finalWidth)
     {
         // Direct resize
-        var adapter1 = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter1 = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload1 = new Hex1bAppWorkloadAdapter();
         using var terminal1 = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload1).WithPresentation(adapter1).WithDimensions(10, 3)
@@ -624,7 +624,7 @@ public class UpstreamReflowTests
         var directSnap = terminal1.CreateSnapshot();
 
         // Multi-step resize
-        var adapter2 = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter2 = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload2 = new Hex1bAppWorkloadAdapter();
         using var terminal2 = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload2).WithPresentation(adapter2).WithDimensions(10, 3)
@@ -656,7 +656,7 @@ public class UpstreamReflowTests
     [InlineData(80)]
     public void HardWrappedLines_NeverMerge_AnyWidth(int newWidth)
     {
-        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 5).Build();
@@ -689,7 +689,7 @@ public class UpstreamReflowTests
     {
         string content = new string('X', originalWidth);
 
-        var adapter = new HeadlessPresentationAdapter(originalWidth, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(originalWidth, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(originalWidth, 5)
@@ -732,9 +732,9 @@ public class UpstreamReflowTests
         ITerminalReflowProvider strategy = fixture.Emulator switch
         {
             "kitty" => KittyReflowStrategy.Instance,
-            "alacritty" or "xterm" => XtermReflowStrategy.Instance,
+            "alacritty" or "xterm" => AlacrittyReflowStrategy.Instance,
             "none" => NoReflowStrategy.Instance,
-            _ => XtermReflowStrategy.Instance
+            _ => AlacrittyReflowStrategy.Instance
         };
 
         var adapter = new HeadlessPresentationAdapter(fixture.Setup.Cols, fixture.Setup.Rows)

@@ -406,11 +406,16 @@ Located in `src/Hex1b/Reflow/`:
 
 | Class | File | Behavior |
 |-------|------|----------|
-| `XtermReflowStrategy` | `XtermReflowStrategy.cs` | Bottom-fills screen after reflow |
+| `AlacrittyReflowStrategy` | `AlacrittyReflowStrategy.cs` | Bottom-fills screen after reflow |
+| `WindowsTerminalReflowStrategy` | `WindowsTerminalReflowStrategy.cs` | Bottom-fills screen after reflow |
 | `KittyReflowStrategy` | `KittyReflowStrategy.cs` | Anchors cursor to visual row |
+| `WezTermReflowStrategy` | `WezTermReflowStrategy.cs` | Anchors cursor to visual row |
 | `VteReflowStrategy` | `VteReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
-| `GhosttyReflowStrategy` | `GhosttyReflowStrategy.cs` | Same as VTE (Ghostty ≥1.1.1) |
-| `NoReflowStrategy` | `NoReflowStrategy.cs` | No reflow (crop fallback) |
+| `GhosttyReflowStrategy` | `GhosttyReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `FootReflowStrategy` | `FootReflowStrategy.cs` | Cursor-anchored + saved cursor (DECSC) reflow |
+| `XtermReflowStrategy` | `XtermReflowStrategy.cs` | No reflow (xterm doesn't reflow) |
+| `ITerm2ReflowStrategy` | `ITerm2ReflowStrategy.cs` | No reflow (iTerm2 doesn't fully reflow) |
+| `NoReflowStrategy` | `NoReflowStrategy.cs` | No reflow (crop fallback, default) |
 
 ### Adapter Wiring
 

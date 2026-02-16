@@ -162,9 +162,9 @@ var adapter = new ConsolePresentationAdapter()
 var adapter = new HeadlessPresentationAdapter(80, 24)
     .WithReflow(VteReflowStrategy.Instance);
 
-// Headless adapter: Xterm strategy
+// Headless adapter: Alacritty strategy (bottom-fill)
 var adapter = new HeadlessPresentationAdapter(80, 24)
-    .WithReflow(XtermReflowStrategy.Instance);
+    .WithReflow(AlacrittyReflowStrategy.Instance);
 ```
 
 ### Auto-Detection (Console)
@@ -175,13 +175,14 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 |---------------------------|----------|
 | `kitty` | `KittyReflowStrategy` |
 | `ghostty` | `GhosttyReflowStrategy` |
-| `foot` | `VteReflowStrategy` |
+| `foot` | `FootReflowStrategy` |
 | `gnome-terminal`, `tilix`, `xfce4-terminal` | `VteReflowStrategy` |
 | `VTE_VERSION` env var set | `VteReflowStrategy` |
-| `wezterm` | `KittyReflowStrategy` |
-| `alacritty` | `XtermReflowStrategy` |
-| `WT_SESSION` env var set | `XtermReflowStrategy` |
-| `xterm`, `iterm.app` | `NoReflowStrategy` |
+| `wezterm` | `WezTermReflowStrategy` |
+| `alacritty` | `AlacrittyReflowStrategy` |
+| `WT_SESSION` env var set | `WindowsTerminalReflowStrategy` |
+| `xterm` | `XtermReflowStrategy` |
+| `iterm.app` | `ITerm2ReflowStrategy` |
 | Other / unset | `NoReflowStrategy` |
 
 ### The ITerminalReflowProvider Interface
@@ -197,7 +198,7 @@ public interface ITerminalReflowProvider
 }
 ```
 
-The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Pre-built strategies (`XtermReflowStrategy`, `KittyReflowStrategy`, `VteReflowStrategy`, `GhosttyReflowStrategy`, `NoReflowStrategy`) are available as singletons that custom adapters can delegate to.
+The `ReflowEnabled` property controls whether the terminal uses the reflow path or the standard crop path during resize. Each terminal emulator has its own strategy class (e.g., `AlacrittyReflowStrategy`, `KittyReflowStrategy`, `VteReflowStrategy`) so behavior can evolve independently as terminals are updated. The generic `NoReflowStrategy` is available for unknown terminals.
 
 ## Next Steps
 

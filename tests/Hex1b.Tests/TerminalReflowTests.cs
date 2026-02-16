@@ -14,7 +14,7 @@ public class TerminalReflowTests
     public void Reflow_NarrowToWider_MergesSoftWrappedRows()
     {
         // Arrange: 5-column terminal with xterm reflow
-        var adapter = new HeadlessPresentationAdapter(5, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 3).Build();
@@ -39,7 +39,7 @@ public class TerminalReflowTests
     public void Reflow_WiderToNarrow_SplitsSoftWrappedRows()
     {
         // Arrange: 10-column terminal with xterm reflow
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
@@ -64,7 +64,7 @@ public class TerminalReflowTests
     public void Reflow_HardWrappedLines_NotMerged()
     {
         // Arrange: 10-column terminal with xterm reflow
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
@@ -105,7 +105,7 @@ public class TerminalReflowTests
     [Fact]
     public void Reflow_SameWidth_NoChange()
     {
-        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 3).Build();
@@ -121,7 +121,7 @@ public class TerminalReflowTests
     public void Reflow_MultipleWraps_RewrapCorrectly()
     {
         // Arrange: 3-column terminal
-        var adapter = new HeadlessPresentationAdapter(3, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(3, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(3, 5).Build();
@@ -145,7 +145,7 @@ public class TerminalReflowTests
     public void Reflow_NarrowingPushesRowsToScrollback()
     {
         // Arrange: 10-col, 3-row terminal with scrollback
-        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 3)
@@ -172,7 +172,7 @@ public class TerminalReflowTests
     public void Reflow_WideningPullsRowsFromScrollback()
     {
         // Arrange: 5-col, 3-row terminal with scrollback, xterm reflow
-        var adapter = new HeadlessPresentationAdapter(5, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 3)
@@ -202,7 +202,7 @@ public class TerminalReflowTests
     public void Reflow_CursorPositionPreserved()
     {
         // Arrange: 5-col terminal with xterm reflow
-        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 5).Build();
@@ -230,7 +230,7 @@ public class TerminalReflowTests
     [Fact]
     public void Reflow_EmptyScreen_HandlesGracefully()
     {
-        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 3).Build();
@@ -246,7 +246,7 @@ public class TerminalReflowTests
     public void Reflow_AbsolutePositioning_BreaksChain()
     {
         // Arrange: 5-col terminal with xterm reflow (clears SoftWrap on CUP)
-        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 5).Build();
@@ -318,7 +318,7 @@ public class TerminalReflowTests
     public void Reflow_SoftWrapAttributeSetCorrectlyAfterReflow()
     {
         // Arrange: 10-col terminal
-        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 3).Build();
@@ -386,7 +386,7 @@ public class TerminalReflowTests
         // Cursor maps to absolute row 8, plenty of content below.
         var context = new ReflowContext(screen, scrollback, width, height, 5, height, 3, 1, false);
 
-        var xtermResult = XtermReflowStrategy.Instance.Reflow(context);
+        var xtermResult = AlacrittyReflowStrategy.Instance.Reflow(context);
         var kittyResult = KittyReflowStrategy.Instance.Reflow(context);
 
         // Xterm bottom-fills: screen shows rows 11-15, cursor at row 0 (clamped)
@@ -417,7 +417,7 @@ public class TerminalReflowTests
     public void Reflow_NarrowThenWiden_RestoresOriginalContent()
     {
         // Arrange: 10-column terminal with two lines of content
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
@@ -443,7 +443,7 @@ public class TerminalReflowTests
     public void Reflow_WidenThenNarrow_RestoresOriginalContent()
     {
         // Arrange: 5-column terminal with wrapped content
-        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(5, 5).Build();
@@ -469,7 +469,7 @@ public class TerminalReflowTests
     public void Reflow_MultipleResizeCycles_ContentStaysConsistent()
     {
         // Arrange: 10-column terminal
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
@@ -497,7 +497,7 @@ public class TerminalReflowTests
     public void Reflow_InAlternateScreen_DoesNotReflow()
     {
         // Arrange: Terminal with reflow enabled, enter alt screen
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();
@@ -526,7 +526,7 @@ public class TerminalReflowTests
     public void Reflow_AlternateScreenExit_NormalBufferReflowsCorrectly()
     {
         // Arrange: Write to main buffer, enter alt screen, resize, exit alt screen
-        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(XtermReflowStrategy.Instance);
+        var adapter = new HeadlessPresentationAdapter(10, 5).WithReflow(AlacrittyReflowStrategy.Instance);
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithPresentation(adapter).WithDimensions(10, 5).Build();

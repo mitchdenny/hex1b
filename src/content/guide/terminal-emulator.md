@@ -163,7 +163,7 @@ var terminal = Hex1bTerminal.CreateBuilder()
 var terminal = Hex1bTerminal.CreateBuilder()
     .WithHeadless()
     .WithDimensions(80, 24)
-    .WithReflow(XtermReflowStrategy.Instance)
+    .WithReflow(AlacrittyReflowStrategy.Instance)
     .Build();
 ```
 
@@ -171,18 +171,25 @@ var terminal = Hex1bTerminal.CreateBuilder()
 
 | Strategy | Behavior | Terminals |
 |----------|----------|-----------|
-| `XtermReflowStrategy` | Bottom-fills the screen after reflow | Alacritty, Windows Terminal |
-| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty, WezTerm |
-| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Foot, Tilix, xfce4-terminal |
-| `GhosttyReflowStrategy` | Same as VTE (Ghostty ≥1.1.1) | Ghostty |
-| `NoReflowStrategy` | No reflow — standard crop/extend (default) | xterm, iTerm2 |
+| `AlacrittyReflowStrategy` | Bottom-fills the screen after reflow | Alacritty |
+| `WindowsTerminalReflowStrategy` | Bottom-fills the screen after reflow | Windows Terminal |
+| `KittyReflowStrategy` | Anchors the cursor to its current visual row | Kitty |
+| `WezTermReflowStrategy` | Anchors the cursor to its current visual row | WezTerm |
+| `VteReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | GNOME Terminal, Tilix, xfce4-terminal |
+| `GhosttyReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | Ghostty |
+| `FootReflowStrategy` | Cursor-anchored + reflows DECSC saved cursor | Foot |
+| `XtermReflowStrategy` | No reflow — standard crop/extend | xterm |
+| `ITerm2ReflowStrategy` | No reflow — standard crop/extend | iTerm2 |
+| `NoReflowStrategy` | No reflow — standard crop/extend (default) | Unknown terminals |
 
-The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. `XtermReflowStrategy` pushes content upward and keeps the bottom of the buffer visible, while `KittyReflowStrategy` and `VteReflowStrategy` keep the cursor at the same visual row.
+The key difference between strategies is how they handle **cursor position** during reflow. When narrowing the terminal, soft-wrapped lines split into more rows. `AlacrittyReflowStrategy` pushes content upward and keeps the bottom of the buffer visible, while `KittyReflowStrategy` and `VteReflowStrategy` keep the cursor at the same visual row.
 
-VTE and Ghostty additionally reflow the **saved cursor** position (set via DECSC / `ESC 7`). This ensures that applications using save/restore cursor across redraws continue to work correctly after a terminal resize. Kitty and Xterm do not reflow the saved cursor.
+VTE, Ghostty, and Foot additionally reflow the **saved cursor** position (set via DECSC / `ESC 7`). This ensures that applications using save/restore cursor across redraws continue to work correctly after a terminal resize.
 
-::: tip Terminal naming
-`XtermReflowStrategy` is named for its _bottom-fill_ cursor behavior, not because xterm supports reflow (it doesn't). Alacritty and Windows Terminal use this style. Similarly, `KittyReflowStrategy` describes _cursor-anchored_ reflow without saved cursor tracking.
+Each terminal emulator has its own strategy class so that behavior can evolve independently as terminals are updated.
+
+::: tip Why separate classes?
+Even when two terminals currently behave identically (e.g., Foot and VTE), each gets its own strategy class. This allows us to update one terminal's behavior without affecting others — for example, when Kitty fixes its saved cursor reflow bug, we can update `KittyReflowStrategy` without changing `WezTermReflowStrategy`.
 :::
 
 See [Presentation Adapters](./presentation-adapters) for details on configuring reflow per adapter.

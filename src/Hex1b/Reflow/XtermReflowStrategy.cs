@@ -1,15 +1,18 @@
 namespace Hex1b.Reflow;
 
 /// <summary>
-/// Reflow strategy using bottom-fill cursor behavior. Soft-wrapped lines are re-wrapped
-/// to the new width on resize. Content is filled from the bottom of the screen, pushing
-/// content upward. Absolute cursor positioning breaks the reflow chain.
+/// Reflow strategy matching xterm behavior. xterm does NOT support text reflow —
+/// content is cropped or extended on resize without re-wrapping soft-wrapped lines.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Despite the name, xterm itself does not support text reflow. This strategy is named
-/// for its bottom-fill behavior which is used by terminals like Alacritty and Windows Terminal.
-/// The saved cursor (DECSC) is NOT reflowed by this strategy.
+/// xterm is a traditional terminal emulator that does not reflow text on resize.
+/// It sends SIGWINCH to the application, which is responsible for redrawing.
+/// This strategy delegates to <see cref="NoReflowStrategy"/> for the actual resize behavior.
+/// </para>
+/// <para>
+/// Historically, <c>XtermReflowStrategy</c> implemented bottom-fill reflow. That behavior
+/// is now provided by <see cref="AlacrittyReflowStrategy"/> and <see cref="WindowsTerminalReflowStrategy"/>.
 /// </para>
 /// </remarks>
 public sealed class XtermReflowStrategy : ITerminalReflowProvider
@@ -20,17 +23,11 @@ public sealed class XtermReflowStrategy : ITerminalReflowProvider
     public static readonly XtermReflowStrategy Instance = new();
 
     /// <inheritdoc/>
-    public bool ShouldClearSoftWrapOnAbsolutePosition => true;
+    public bool ShouldClearSoftWrapOnAbsolutePosition => false;
 
     /// <inheritdoc/>
     public ReflowResult Reflow(ReflowContext context)
     {
-        if (context.InAlternateScreen)
-        {
-            // xterm does not reflow the alternate screen buffer
-            return NoReflowStrategy.Instance.Reflow(context);
-        }
-
-        return ReflowHelper.PerformReflow(context, preserveCursorRow: false);
+        return NoReflowStrategy.Instance.Reflow(context);
     }
 }
