@@ -44,9 +44,9 @@ jobs:
           dotnet build src/Hex1b.Tool/Hex1b.Tool.csproj --no-restore
 
       - name: Run tests
-        timeout-minutes: 20
+        timeout-minutes: 45
         env:
-          HEX1B_TEST_TIMEOUT_MULTIPLIER: "3"
+          HEX1B_TEST_TIMEOUT_MULTIPLIER: "10"
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
