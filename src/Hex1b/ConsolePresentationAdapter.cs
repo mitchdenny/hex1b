@@ -99,14 +99,21 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     /// </summary>
     private static ITerminalReflowProvider DetectReflowStrategy()
     {
+        // Check for Windows Terminal first (uses WT_SESSION env var)
+        if (Environment.GetEnvironmentVariable("WT_SESSION") is not null)
+            return KittyReflowStrategy.Instance; // Windows Terminal reflows with cursor anchoring
+
         var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
 
         return termProgram?.ToLowerInvariant() switch
         {
             "kitty" => KittyReflowStrategy.Instance,
+            "ghostty" => GhosttyReflowStrategy.Instance,
+            "gnome-terminal" or "tilix" or "xfce4-terminal" => VteReflowStrategy.Instance,
+            "wezterm" => KittyReflowStrategy.Instance,
+            "iterm.app" => KittyReflowStrategy.Instance,
             "xterm" or "xterm-256color" => XtermReflowStrategy.Instance,
-            "wezterm" => XtermReflowStrategy.Instance,
-            "alacritty" => XtermReflowStrategy.Instance,
+            "alacritty" or "foot" => NoReflowStrategy.Instance,
             _ => DetectFromTerm()
         };
     }
@@ -114,9 +121,14 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private static ITerminalReflowProvider DetectFromTerm()
     {
         var term = Environment.GetEnvironmentVariable("TERM");
-        if (term is not null && term.StartsWith("xterm", StringComparison.OrdinalIgnoreCase))
-            return XtermReflowStrategy.Instance;
-        
+
+        // VTE-based terminals often set TERM=xterm-256color but also set VTE_VERSION
+        if (Environment.GetEnvironmentVariable("VTE_VERSION") is not null)
+            return VteReflowStrategy.Instance;
+
+        if (term is not null && term.StartsWith("foot", StringComparison.OrdinalIgnoreCase))
+            return NoReflowStrategy.Instance;
+
         // Default: no reflow (conservative — avoids surprising behavior in unknown terminals)
         return NoReflowStrategy.Instance;
     }

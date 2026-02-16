@@ -171,12 +171,16 @@ var adapter = new HeadlessPresentationAdapter(80, 24)
 
 `ConsolePresentationAdapter.WithReflow()` (no arguments) auto-detects the strategy based on `TERM_PROGRAM`:
 
-| `TERM_PROGRAM` | Strategy |
-|----------------|----------|
+| `TERM_PROGRAM` / Detection | Strategy |
+|---------------------------|----------|
 | `kitty` | `KittyReflowStrategy` |
-| `gnome-terminal`, `tilix` | `VteReflowStrategy` |
+| `gnome-terminal`, `tilix`, `xfce4-terminal` | `VteReflowStrategy` |
+| `VTE_VERSION` env var set | `VteReflowStrategy` |
 | `ghostty` | `GhosttyReflowStrategy` |
-| `xterm`, `alacritty` | `XtermReflowStrategy` |
+| `wezterm`, `iterm.app` | `KittyReflowStrategy` |
+| `xterm` | `XtermReflowStrategy` |
+| `alacritty`, `foot` | `NoReflowStrategy` |
+| `WT_SESSION` env var set | `KittyReflowStrategy` |
 | Other / unset | `NoReflowStrategy` |
 
 ### The ITerminalReflowProvider Interface
