@@ -180,7 +180,7 @@ public sealed class EditorNode : Hex1bNode
         bindings.AddBinding(new InputBinding([step], handler, description));
     }
 
-    public override Size Measure(Constraints constraints)
+    protected override Size MeasureCore(Constraints constraints)
     {
         // Editor fills available space
         var width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 80;
@@ -188,9 +188,9 @@ public sealed class EditorNode : Hex1bNode
         return constraints.Constrain(new Size(width, height));
     }
 
-    public override void Arrange(Rect bounds)
+    protected override void ArrangeCore(Rect bounds)
     {
-        base.Arrange(bounds);
+        base.ArrangeCore(bounds);
 
         // Initialize scroll if needed (before scrollbar calculations)
         if (_scrollOffset == 0) _scrollOffset = 1;

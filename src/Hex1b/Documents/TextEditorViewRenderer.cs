@@ -352,13 +352,6 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}";
         }
 
-        if (context.CurrentLayoutProvider != null)
-        {
-            context.WriteClipped(x, y, output);
-        }
-        else
-        {
-            context.Write(output);
-        }
+        context.WriteClipped(x, y, output);
     }
 }

@@ -561,10 +561,7 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         Hex1bColor fg, Hex1bColor bg)
     {
         var output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{text}";
-        if (context.CurrentLayoutProvider != null)
-            context.WriteClipped(x, y, output);
-        else
-            context.Write(output);
+        context.WriteClipped(x, y, output);
     }
 
     private static void RenderColoredLine(
@@ -636,9 +633,6 @@ public sealed class HexEditorViewRenderer : IEditorViewRenderer
         }
 
         var output = sb.ToString();
-        if (context.CurrentLayoutProvider != null)
-            context.WriteClipped(x, y, output);
-        else
-            context.Write(output);
+        context.WriteClipped(x, y, output);
     }
 }
