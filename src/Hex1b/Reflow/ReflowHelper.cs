@@ -36,55 +36,68 @@ internal static class ReflowHelper
         // Step 1: Collect all rows into a unified sequence (scrollback + screen)
         var allRows = CollectAllRows(context);
 
-        // Step 2: Group rows into logical lines using SoftWrap
-        var logicalLines = GroupLogicalLines(allRows);
-
-        // Step 3: Compute cursor's absolute position (logical line index + cell offset)
+        // Step 2: Group rows into logical lines using SoftWrap, and track which
+        // logical line the cursor row belongs to.
         int scrollbackRowCount = context.ScrollbackRows.Length;
         int cursorAbsoluteRow = scrollbackRowCount + context.CursorY;
-        int cursorCellOffset = ComputeCursorCellOffset(allRows, cursorAbsoluteRow, context.CursorX, context.OldWidth);
+        var (logicalLines, cursorLogicalLine, cursorRowInLogicalLine) =
+            GroupLogicalLinesWithCursor(allRows, cursorAbsoluteRow);
 
-        // Step 4: Re-wrap all logical lines to the new width
+        // Step 3: Re-wrap all logical lines to the new width
         var rewrappedRows = new List<TerminalCell[]>();
         int newCursorRow = 0;
         int newCursorCol = 0;
         int rowsSoFar = 0;
-        int cellsSoFar = 0;
         bool cursorFound = false;
 
-        foreach (var logicalLine in logicalLines)
+        for (int lineIdx = 0; lineIdx < logicalLines.Count; lineIdx++)
         {
+            var logicalLine = logicalLines[lineIdx];
             var wrappedRows = WrapLogicalLine(logicalLine, context.NewWidth);
 
-            // Check if cursor falls within this logical line
-            if (!cursorFound && cellsSoFar + logicalLine.Count > cursorCellOffset)
+            if (!cursorFound && lineIdx == cursorLogicalLine)
             {
-                int offsetInLine = cursorCellOffset - cellsSoFar;
-                newCursorRow = rowsSoFar + (offsetInLine / context.NewWidth);
-                newCursorCol = offsetInLine % context.NewWidth;
-                
-                // Clamp to last row of this wrapped line
-                if (newCursorRow >= rowsSoFar + wrappedRows.Count)
+                // The cursor is on this logical line. Compute its position within
+                // the re-wrapped rows.
+                // 
+                // The cursor was at (cursorX, some-row) in the old layout.
+                // cursorRowInLogicalLine tells us which row of the logical line it was on.
+                // Compute the absolute cell offset within this logical line:
+                int cellOffsetInLine = cursorRowInLogicalLine * context.OldWidth + context.CursorX;
+
+                // Map to new row/col within the re-wrapped rows
+                if (logicalLine.Count == 0)
                 {
-                    newCursorRow = rowsSoFar + wrappedRows.Count - 1;
-                    newCursorCol = Math.Min(newCursorCol, context.NewWidth - 1);
+                    // Empty logical line — cursor goes to column 0
+                    newCursorRow = rowsSoFar;
+                    newCursorCol = 0;
+                }
+                else
+                {
+                    newCursorRow = rowsSoFar + (cellOffsetInLine / context.NewWidth);
+                    newCursorCol = cellOffsetInLine % context.NewWidth;
+                    
+                    // Clamp to the last row of this wrapped line
+                    if (newCursorRow >= rowsSoFar + wrappedRows.Count)
+                    {
+                        newCursorRow = rowsSoFar + wrappedRows.Count - 1;
+                        newCursorCol = Math.Min(newCursorCol, context.NewWidth - 1);
+                    }
                 }
                 cursorFound = true;
             }
 
-            cellsSoFar += logicalLine.Count;
             rewrappedRows.AddRange(wrappedRows);
             rowsSoFar += wrappedRows.Count;
         }
 
         if (!cursorFound)
         {
-            // Cursor was beyond all content
             newCursorRow = Math.Max(0, rewrappedRows.Count - 1);
             newCursorCol = 0;
         }
 
-        // Step 5: Distribute rows into scrollback and screen
+        // Step 4: Distribute rows into scrollback and screen
         return DistributeRows(rewrappedRows, context, newCursorRow, newCursorCol, preserveCursorRow);
     }
 
@@ -124,32 +137,39 @@ internal static class ReflowHelper
     }
 
     /// <summary>
-    /// Groups rows into logical lines. A logical line is a sequence of rows where
-    /// each row (except the last) has <see cref="CellAttributes.SoftWrap"/> set on its last cell.
+    /// Groups rows into logical lines and tracks which logical line the cursor row belongs to.
+    /// A logical line is a sequence of rows where each row (except the last) has
+    /// <see cref="CellAttributes.SoftWrap"/> set on its last cell.
     /// </summary>
-    private static List<List<TerminalCell>> GroupLogicalLines(List<TerminalCell[]> allRows)
+    /// <returns>
+    /// A tuple of (logicalLines, cursorLogicalLineIndex, cursorRowWithinLogicalLine).
+    /// cursorRowWithinLogicalLine is the 0-based index of the cursor's row within its logical line.
+    /// </returns>
+    private static (List<List<TerminalCell>> logicalLines, int cursorLogicalLine, int cursorRowInLine)
+        GroupLogicalLinesWithCursor(List<TerminalCell[]> allRows, int cursorAbsoluteRow)
     {
         var logicalLines = new List<List<TerminalCell>>();
         var currentLine = new List<TerminalCell>();
+        int currentLineStartRow = 0;
+        int cursorLogicalLine = -1;
+        int cursorRowInLine = 0;
 
-        foreach (var row in allRows)
+        for (int rowIdx = 0; rowIdx < allRows.Count; rowIdx++)
         {
-            // Add all cells from this row to the current logical line (trim trailing empty cells)
+            var row = allRows[rowIdx];
             int lastNonEmpty = row.Length - 1;
             bool hasSoftWrap = row.Length > 0 && (row[^1].Attributes & CellAttributes.SoftWrap) != 0;
 
             if (hasSoftWrap)
             {
-                // Row is soft-wrapped: add all cells (including trailing spaces — they're part of the line)
+                // Row is soft-wrapped: add all cells (including trailing spaces)
                 for (int x = 0; x < row.Length; x++)
                 {
-                    // Strip the SoftWrap flag from the cell — it's a wrap marker, not content
                     var cell = row[x];
                     if (x == row.Length - 1)
                         cell = cell with { Attributes = cell.Attributes & ~CellAttributes.SoftWrap };
                     currentLine.Add(cell);
                 }
-                // Continue to next row (same logical line)
             }
             else
             {
@@ -160,21 +180,42 @@ internal static class ReflowHelper
                 for (int x = 0; x <= lastNonEmpty; x++)
                     currentLine.Add(row[x]);
 
-                // End of logical line
+                // Track cursor before finalizing the logical line
+                if (cursorLogicalLine < 0 && cursorAbsoluteRow >= currentLineStartRow && cursorAbsoluteRow <= rowIdx)
+                {
+                    cursorLogicalLine = logicalLines.Count;
+                    cursorRowInLine = cursorAbsoluteRow - currentLineStartRow;
+                }
+
                 logicalLines.Add(currentLine);
                 currentLine = new List<TerminalCell>();
+                currentLineStartRow = rowIdx + 1;
             }
         }
 
-        // Don't forget the last line if it ended with a soft-wrap (unusual but possible)
+        // Don't forget the last line if it ended with a soft-wrap
         if (currentLine.Count > 0)
+        {
+            if (cursorLogicalLine < 0 && cursorAbsoluteRow >= currentLineStartRow)
+            {
+                cursorLogicalLine = logicalLines.Count;
+                cursorRowInLine = cursorAbsoluteRow - currentLineStartRow;
+            }
             logicalLines.Add(currentLine);
+        }
 
         // Ensure at least one logical line exists
         if (logicalLines.Count == 0)
             logicalLines.Add(new List<TerminalCell>());
 
-        return logicalLines;
+        // If cursor wasn't found (shouldn't happen), default to last line
+        if (cursorLogicalLine < 0)
+        {
+            cursorLogicalLine = logicalLines.Count - 1;
+            cursorRowInLine = 0;
+        }
+
+        return (logicalLines, cursorLogicalLine, cursorRowInLine);
     }
 
     /// <summary>
@@ -251,57 +292,6 @@ internal static class ReflowHelper
         }
 
         return rows;
-    }
-
-    /// <summary>
-    /// Computes the cursor's absolute cell offset within the unified row sequence.
-    /// Cell counting must match <see cref="GroupLogicalLines"/> exactly: soft-wrapped
-    /// rows contribute all cells, but the last row of each logical line is trimmed
-    /// of trailing empty cells.
-    /// </summary>
-    private static int ComputeCursorCellOffset(List<TerminalCell[]> allRows, int cursorAbsoluteRow, int cursorX, int oldWidth)
-    {
-        int totalOffset = 0;
-        int row = 0;
-
-        while (row < allRows.Count)
-        {
-            int lineOffset = 0; // cells in current logical line before cursor row
-
-            while (row < allRows.Count)
-            {
-                var rowCells = allRows[row];
-                bool hasSoftWrap = rowCells.Length > 0 && (rowCells[^1].Attributes & CellAttributes.SoftWrap) != 0;
-
-                if (row == cursorAbsoluteRow)
-                {
-                    // Cursor is on this row — add cells up to cursor position
-                    return totalOffset + lineOffset + Math.Min(cursorX, rowCells.Length);
-                }
-
-                if (hasSoftWrap)
-                {
-                    // Soft-wrapped row: all cells included (matches GroupLogicalLines)
-                    lineOffset += rowCells.Length;
-                    row++;
-                }
-                else
-                {
-                    // Last row of logical line: count only non-empty cells (matches GroupLogicalLines)
-                    int lastNonEmpty = rowCells.Length - 1;
-                    while (lastNonEmpty >= 0 && IsEmptyCell(rowCells[lastNonEmpty]))
-                        lastNonEmpty--;
-                    lineOffset += lastNonEmpty + 1;
-                    row++;
-                    break;
-                }
-            }
-
-            totalOffset += lineOffset;
-        }
-
-        // Cursor beyond all rows
-        return totalOffset;
     }
 
     /// <summary>
