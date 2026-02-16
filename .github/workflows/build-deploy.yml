@@ -674,6 +674,7 @@ jobs:
 
       - name: Run aspire deploy
         env:
+          DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
           AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE__LOCATION: 'westus3'
           AZURE__RESOURCEGROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
@@ -838,6 +839,7 @@ jobs:
 
       - name: Run aspire deploy
         env:
+          DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
           AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE__LOCATION: 'westus3'
           AZURE__RESOURCEGROUP: 'hex1b-production'
