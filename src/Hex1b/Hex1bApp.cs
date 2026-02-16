@@ -391,37 +391,62 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Initial render
             await RenderFrameAsync(cancellationToken);
 
+            // Use an explicit shutdown signal task so normal wakeups do not rely on cancellation exceptions.
+            var shutdownSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var cancellationRegistration = cancellationToken.Register(static state =>
+            {
+                var tcs = (TaskCompletionSource)state!;
+                tcs.TrySetResult();
+            }, shutdownSignal);
+            var shutdownTask = shutdownSignal.Task;
+
+            Task<bool>? inputWaitTask = null;
+            Task<bool>? invalidateWaitTask = null;
+
             // React to input events, invalidation signals, and animation timers
-            while (!cancellationToken.IsCancellationRequested && !_stopRequested)
+            while (!shutdownTask.IsCompleted && !_stopRequested)
             {
                 // Fire any due animation timers before waiting
                 _animationTimer.FireDue();
-                
-                // Wait for either an input event, an invalidation signal, or a timer
-                // Use WaitToReadAsync instead of ReadAsync to avoid ValueTask/Task.WhenAny issues
-                // where ReadAsync().AsTask() continuations weren't being scheduled reliably
-                var inputWaitTask = _adapter.InputEvents.WaitToReadAsync(cancellationToken).AsTask();
-                var invalidateWaitTask = _invalidateChannel.Reader.WaitToReadAsync(cancellationToken).AsTask();
-                
-                // Check if we have animation timers - if so, add a delay task
+
+                inputWaitTask ??= _adapter.InputEvents.WaitToReadAsync().AsTask();
+                invalidateWaitTask ??= _invalidateChannel.Reader.WaitToReadAsync().AsTask();
+
                 var timeUntilTimer = _animationTimer.GetTimeUntilNextDue();
                 Task completedTask;
-                
+
                 if (timeUntilTimer.HasValue)
                 {
-                    var timerWaitTask = Task.Delay(timeUntilTimer.Value, cancellationToken);
-                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, timerWaitTask);
+                    // Keep timer waits non-cancelable so steady-state render pacing doesn't throw cancellations.
+                    var timerWaitTask = Task.Delay(timeUntilTimer.Value);
+                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, timerWaitTask, shutdownTask);
                 }
                 else
                 {
-                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask);
+                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, shutdownTask);
                 }
-                
+
+                if (completedTask == shutdownTask || cancellationToken.IsCancellationRequested)
+                    break;
+
                 // Fire any timers that are now due (may have triggered the wake-up)
                 _animationTimer.FireDue();
-                
-                // Process input - the approach depends on what woke us
-                if (completedTask == inputWaitTask && inputWaitTask.IsCompleted && await inputWaitTask)
+
+                // Consume completion state from non-throwing wait tasks.
+                var inputReady = false;
+                if (inputWaitTask.IsCompleted)
+                {
+                    inputReady = await inputWaitTask;
+                    inputWaitTask = null;
+                }
+                if (invalidateWaitTask.IsCompleted)
+                {
+                    _ = await invalidateWaitTask;
+                    invalidateWaitTask = null;
+                }
+
+                // Process input - the approach depends on whether input was ready
+                if (inputReady)
                 {
                     // Input woke us - read and process ONE input event
                     if (_adapter.InputEvents.TryRead(out var inputEvent))
