@@ -51,14 +51,26 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
         // 2. The widget's text changed from what it provided last time (external control)
         if (context.IsNew && Text != null)
         {
+            var oldText = node.Text;
             node.Text = Text;
             node.LastWidgetText = Text;
+            if (oldText != node.Text)
+            {
+                node.State.ClearSelection();
+                node.State.CursorPosition = node.Text.Length;
+            }
         }
         else if (!context.IsNew && Text != null && Text != node.LastWidgetText)
         {
             // External code changed the text value in the widget - update node
+            var oldText = node.Text;
             node.Text = Text;
             node.LastWidgetText = Text;
+            if (oldText != node.Text)
+            {
+                node.State.ClearSelection();
+                node.State.CursorPosition = node.Text.Length;
+            }
         }
         
         // Set up event handlers - wrap to convert InputBindingActionContext to typed event args

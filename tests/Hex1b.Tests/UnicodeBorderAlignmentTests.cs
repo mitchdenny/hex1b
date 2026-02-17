@@ -340,6 +340,8 @@ public class UnicodeBorderAlignmentTests
         // Wait for render, then capture - don't use Capture() to avoid duplicate name issues
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("END MARKER"), TimeSpan.FromSeconds(2), "render complete")
+            // CI can capture mid-frame; give the renderer a moment to flush the final diff.
+            .Wait(50)
             .Build()
             .ApplyAsync(terminal, cancellationToken);
         
