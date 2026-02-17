@@ -93,6 +93,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
         WorkloadAdapter = adapter,
         Theme = theme,
         EnableRenderCaching = enableCaching,
+        EnableSurfacePooling = options.EnableSurfacePooling,
         EnableDefaultCtrlCExit = false,
         EnableInputCoalescing = false,
         EnableRescue = false,
@@ -118,6 +119,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
     return new PerfResult
     {
         EnableCaching = enableCaching,
+        EnableSurfacePooling = options.EnableSurfacePooling,
         Width = options.Width,
         Height = options.Height,
         StaticLines = options.StaticLines,
@@ -149,6 +151,7 @@ static Hex1bWidget BuildStaticPanel(int lines)
 static void Print(PerfResult result)
 {
     Console.WriteLine(result.EnableCaching ? "Caching: ON" : "Caching: OFF");
+    Console.WriteLine(result.EnableSurfacePooling ? "Surface pooling: ON" : "Surface pooling: OFF");
     Console.WriteLine($"  Size: {result.Width}x{result.Height}");
     Console.WriteLine($"  Static lines: {result.StaticLines}");
     Console.WriteLine($"  Warmup frames: {result.WarmupFrames}");
@@ -175,6 +178,7 @@ static string FormatBytes(long bytes)
 
 internal sealed record PerfOptions(
     bool EnableCaching,
+    bool EnableSurfacePooling,
     bool Compare,
     int Width,
     int Height,
@@ -196,6 +200,7 @@ internal sealed record PerfOptions(
 
         var compare = HasFlag(args, "--compare");
         var enableCaching = HasFlag(args, "--cache");
+        var enablePooling = HasFlag(args, "--pool");
 
         var width = ReadInt(args, "--width", 120);
         var height = ReadInt(args, "--height", 40);
@@ -205,6 +210,7 @@ internal sealed record PerfOptions(
 
         return new PerfOptions(
             EnableCaching: enableCaching,
+            EnableSurfacePooling: enablePooling,
             Compare: compare,
             Width: width,
             Height: height,
@@ -217,6 +223,7 @@ internal sealed record PerfOptions(
 internal sealed record PerfResult
 {
     public required bool EnableCaching { get; init; }
+    public required bool EnableSurfacePooling { get; init; }
     public required int Width { get; init; }
     public required int Height { get; init; }
     public required int StaticLines { get; init; }
