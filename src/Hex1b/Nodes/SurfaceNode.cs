@@ -95,10 +95,12 @@ public sealed class SurfaceNode : Hex1bNode
         // Get the tracked object store and cell metrics if available (for sixel creation)
         TrackedObjectStore? store = null;
         CellMetrics? cellMetrics = null;
+        SurfacePool? pool = null;
         if (context is SurfaceRenderContext surfaceCtx)
         {
             store = surfaceCtx.TrackedObjectStore;
             cellMetrics = surfaceCtx.CellMetrics;
+            pool = surfaceCtx.SurfacePool;
         }
         
         var layerContext = new SurfaceLayerContext(
@@ -119,102 +121,134 @@ public sealed class SurfaceNode : Hex1bNode
         var effectiveMetrics = cellMetrics ?? CellMetrics.Default;
         var composite = new CompositeSurface(width, height, effectiveMetrics);
         var metrics = Metrics;
+        List<Surface>? rentedSurfaces = null;
+        Surface? flattenedRented = null;
 
-        foreach (var (layer, layerIndex) in layers.Select((l, i) => (l, i)))
+        try
         {
-            var layerStart = metrics?.SurfaceLayerDuration != null ? Stopwatch.GetTimestamp() : 0;
-            string? layerType = null;
-
-            switch (layer)
+            foreach (var (layer, layerIndex) in layers.Select((l, i) => (l, i)))
             {
-                case SourceSurfaceLayer source:
-                    composite.AddLayer(source.Source, source.OffsetX, source.OffsetY);
-                    layerType = "source";
-                    break;
+                var layerStart = metrics?.SurfaceLayerDuration != null ? Stopwatch.GetTimestamp() : 0;
+                string? layerType = null;
 
-                case DrawSurfaceLayer draw:
-                    // Create a surface for the draw callback with matching cell metrics
-                    var drawSurface = new Surface(width, height, effectiveMetrics);
-                    draw.Draw(drawSurface);
-                    composite.AddLayer(drawSurface, draw.OffsetX, draw.OffsetY);
-                    layerType = "draw";
-                    break;
+                switch (layer)
+                {
+                    case SourceSurfaceLayer source:
+                        composite.AddLayer(source.Source, source.OffsetX, source.OffsetY);
+                        layerType = "source";
+                        break;
 
-                case ComputedSurfaceLayer computed:
-                    // Computed layers span the entire surface
-                    composite.AddComputedLayer(width, height, computed.Compute);
-                    layerType = "computed";
-                    break;
+                    case DrawSurfaceLayer draw:
+                        // Create a surface for the draw callback with matching cell metrics.
+                        // In SurfaceWidget-heavy apps, this allocation dominates Gen0 GC — rent from pool when available.
+                        var drawSurface = pool != null
+                            ? pool.Rent(width, height, effectiveMetrics)
+                            : new Surface(width, height, effectiveMetrics);
 
-                case WidgetSurfaceLayer widgetLayer:
-                    var widgetSurface = RenderWidgetLayer(layerIndex, widgetLayer.Widget, width, height, context.Theme, effectiveMetrics);
-                    composite.AddLayer(widgetSurface);
-                    layerType = "widget";
-                    break;
+                        draw.Draw(drawSurface);
+                        composite.AddLayer(drawSurface, draw.OffsetX, draw.OffsetY);
+                        layerType = "draw";
+
+                        if (pool != null)
+                            (rentedSurfaces ??= []).Add(drawSurface);
+                        break;
+
+                    case ComputedSurfaceLayer computed:
+                        // Computed layers span the entire surface
+                        composite.AddComputedLayer(width, height, computed.Compute);
+                        layerType = "computed";
+                        break;
+
+                    case WidgetSurfaceLayer widgetLayer:
+                        var widgetSurface = RenderWidgetLayer(layerIndex, widgetLayer.Widget, width, height, context.Theme, effectiveMetrics);
+                        composite.AddLayer(widgetSurface);
+                        layerType = "widget";
+                        break;
+                }
+
+                if (metrics?.SurfaceLayerDuration != null && layerType != null)
+                {
+                    var elapsed = Stopwatch.GetElapsedTime(layerStart);
+                    var path = GetMetricPath();
+                    metrics.SurfaceLayerDuration.Record(elapsed.TotalMilliseconds,
+                        new KeyValuePair<string, object?>("node", path),
+                        new KeyValuePair<string, object?>("layer_index", layerIndex),
+                        new KeyValuePair<string, object?>("layer_type", layerType));
+                }
             }
 
-            if (metrics?.SurfaceLayerDuration != null && layerType != null)
+            metrics?.SurfaceLayerCount?.Record(layers.Count, new KeyValuePair<string, object?>("node", GetMetricPath()));
+
+            // Flatten and render to the context
+            var flattenStart = metrics?.SurfaceFlattenDuration != null ? Stopwatch.GetTimestamp() : 0;
+            var flattened = pool != null
+                ? (flattenedRented = pool.Rent(width, height, effectiveMetrics))
+                : composite.Flatten();
+
+            if (pool != null)
+                composite.FlattenInto(flattened);
+
+            if (metrics?.SurfaceFlattenDuration != null)
             {
-                var elapsed = Stopwatch.GetElapsedTime(layerStart);
-                var path = GetMetricPath();
-                metrics.SurfaceLayerDuration.Record(elapsed.TotalMilliseconds,
-                    new KeyValuePair<string, object?>("node", path),
-                    new KeyValuePair<string, object?>("layer_index", layerIndex),
-                    new KeyValuePair<string, object?>("layer_type", layerType));
-            }
-        }
-
-        metrics?.SurfaceLayerCount?.Record(layers.Count, new KeyValuePair<string, object?>("node", GetMetricPath()));
-
-        // Flatten and render to the context
-        var flattenStart = metrics?.SurfaceFlattenDuration != null ? Stopwatch.GetTimestamp() : 0;
-        var flattened = composite.Flatten();
-        if (metrics?.SurfaceFlattenDuration != null)
-        {
-            metrics.SurfaceFlattenDuration.Record(
-                Stopwatch.GetElapsedTime(flattenStart).TotalMilliseconds,
-                new KeyValuePair<string, object?>("node", GetMetricPath()));
-        }
-
-        // Clean up stale widget layer states (layers that were removed)
-        if (_widgetLayerStates is not null)
-        {
-            var staleKeys = _widgetLayerStates.Keys.Where(k => k >= layers.Count).ToList();
-            foreach (var key in staleKeys)
-                _widgetLayerStates.Remove(key);
-        }
-
-        // Optimized path: if rendering to a SurfaceRenderContext, composite directly
-        if (context is SurfaceRenderContext surfaceContext)
-        {
-            // Account for the context's offset - Bounds are absolute, but the surface may be offset
-            var destX = Bounds.X - surfaceContext.OffsetX;
-            var destY = Bounds.Y - surfaceContext.OffsetY;
-            var compositeStart = metrics?.SurfaceCompositeDuration != null ? Stopwatch.GetTimestamp() : 0;
-            surfaceContext.Surface.Composite(flattened, destX, destY);
-            if (metrics?.SurfaceCompositeDuration != null)
-            {
-                metrics.SurfaceCompositeDuration.Record(
-                    Stopwatch.GetElapsedTime(compositeStart).TotalMilliseconds,
+                metrics.SurfaceFlattenDuration.Record(
+                    Stopwatch.GetElapsedTime(flattenStart).TotalMilliseconds,
                     new KeyValuePair<string, object?>("node", GetMetricPath()));
             }
-            return;
-        }
 
-        // Fallback: write each cell individually (slower, for legacy rendering)
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
+            // Clean up stale widget layer states (layers that were removed)
+            if (_widgetLayerStates is not null)
             {
-                var cell = flattened[x, y];
-                
-                // Skip unwritten/continuation cells
-                if (cell.Character == SurfaceCells.UnwrittenMarker || cell.IsContinuation)
-                    continue;
+                var staleKeys = _widgetLayerStates.Keys.Where(k => k >= layers.Count).ToList();
+                foreach (var key in staleKeys)
+                    _widgetLayerStates.Remove(key);
+            }
 
-                // Build the ANSI-formatted string for this cell
-                var text = BuildCellText(cell, context.Theme);
-                context.WriteClipped(Bounds.X + x, Bounds.Y + y, text);
+            // Optimized path: if rendering to a SurfaceRenderContext, composite directly
+            if (context is SurfaceRenderContext surfaceContext)
+            {
+                // Account for the context's offset - Bounds are absolute, but the surface may be offset
+                var destX = Bounds.X - surfaceContext.OffsetX;
+                var destY = Bounds.Y - surfaceContext.OffsetY;
+                var compositeStart = metrics?.SurfaceCompositeDuration != null ? Stopwatch.GetTimestamp() : 0;
+                surfaceContext.Surface.Composite(flattened, destX, destY);
+                if (metrics?.SurfaceCompositeDuration != null)
+                {
+                    metrics.SurfaceCompositeDuration.Record(
+                        Stopwatch.GetElapsedTime(compositeStart).TotalMilliseconds,
+                        new KeyValuePair<string, object?>("node", GetMetricPath()));
+                }
+                return;
+            }
+
+            // Fallback: write each cell individually (slower, for legacy rendering)
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var cell = flattened[x, y];
+
+                    // Skip unwritten/continuation cells
+                    if (cell.Character == SurfaceCells.UnwrittenMarker || cell.IsContinuation)
+                        continue;
+
+                    // Build the ANSI-formatted string for this cell
+                    var text = BuildCellText(cell, context.Theme);
+                    context.WriteClipped(Bounds.X + x, Bounds.Y + y, text);
+                }
+            }
+        }
+        finally
+        {
+            if (pool is not null)
+            {
+                if (flattenedRented is not null)
+                    pool.Return(flattenedRented);
+
+                if (rentedSurfaces is not null)
+                {
+                    foreach (var surface in rentedSurfaces)
+                        pool.Return(surface);
+                }
             }
         }
     }

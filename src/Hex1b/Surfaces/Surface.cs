@@ -197,6 +197,27 @@ public sealed class Surface : ISurfaceSource
     }
 
     /// <summary>
+    /// Clears all cells to <see cref="SurfaceCells.Empty"/> and releases any tracked objects
+    /// referenced by existing cells (sixels/hyperlinks).
+    /// </summary>
+    /// <remarks>
+    /// This is used by surface pooling to avoid retaining tracked object graphs across frames.
+    /// </remarks>
+    internal void ClearAndReleaseTrackedObjects()
+    {
+        var cells = _cells;
+        for (var i = 0; i < cells.Length; i++)
+        {
+            var cell = cells[i];
+            cell.Sixel?.Release();
+            cell.Hyperlink?.Release();
+            cells[i] = SurfaceCells.Empty;
+        }
+
+        _sixelCount = 0;
+    }
+
+    /// <summary>
     /// Clears all cells to the specified cell value.
     /// </summary>
     /// <param name="cell">The cell value to fill with.</param>

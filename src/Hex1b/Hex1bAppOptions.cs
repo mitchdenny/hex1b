@@ -115,4 +115,26 @@ public class Hex1bAppOptions
     /// </para>
     /// </remarks>
     public int FrameRateLimitMs { get; set; } = 16;
+
+    /// <summary>
+    /// Whether to enable pooling of temporary <see cref="Surfaces.Surface"/> instances during rendering.
+    /// This primarily affects <see cref="Widgets.SurfaceWidget"/> layers and nodes like EffectPanel.
+    /// Default is false.
+    /// </summary>
+    public bool EnableSurfacePooling { get; set; }
+
+    /// <summary>
+    /// Maximum number of pooled surfaces kept per (width, height, cell metrics) bucket.
+    /// Only applies when <see cref="EnableSurfacePooling"/> is true.
+    /// Default is 8.
+    /// </summary>
+    public int SurfacePoolMaxSurfacesPerBucket { get; set; } = 8;
+
+    /// <summary>
+    /// Number of render cycles after which an unused pool bucket is discarded.
+    /// ("Unused" means "not rented" after X render cycles.)
+    /// Only applies when <see cref="EnableSurfacePooling"/> is true.
+    /// Default is 120.
+    /// </summary>
+    public int SurfacePoolMaxIdleFrames { get; set; } = 120;
 }
