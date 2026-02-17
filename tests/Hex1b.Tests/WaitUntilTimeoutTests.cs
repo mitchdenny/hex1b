@@ -197,8 +197,6 @@ public class WaitUntilTimeoutTests
             .Build();
 
         var timeout = TimeSpan.FromMilliseconds(250);
-        var multiplier = Hex1bTerminalInputSequenceOptions.Default.TimeoutMultiplier;
-        var effectiveTimeout = timeout * multiplier;
         var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
@@ -207,7 +205,7 @@ public class WaitUntilTimeoutTests
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         });
 
-        Assert.Contains(effectiveTimeout.ToString(), ex.Message);
-        Assert.Equal(effectiveTimeout, ex.Timeout);
+        Assert.Contains(timeout.ToString(), ex.Message);
+        Assert.Equal(timeout, ex.Timeout);
     }
 }

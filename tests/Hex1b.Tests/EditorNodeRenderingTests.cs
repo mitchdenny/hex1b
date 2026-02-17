@@ -63,15 +63,19 @@ public class EditorNodeRenderingTests
 
         node.Render(context);
 
-        // Build pattern: cursor cell at (0,0) with cursor colors
+        // Build pattern: cursor cell at (0,0) with cursor colors AND tildes on row 1
         var cursorPattern = new CellPatternSearcher()
             .Find(ctx => ctx.X == 0 && ctx.Y == 0
                       && ColorEquals(ctx.Cell.Foreground, cursorFg)
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
+        var tildePattern = new CellPatternSearcher()
+            .Find(ctx => ctx.X == 0 && ctx.Y == 1 && ctx.Cell.Character == "~");
+
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor cell at (0,0) with cursor colors")
+            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches
+                         && s.SearchPattern(tildePattern).HasMatches,
+                TimeSpan.FromSeconds(2), "cursor and tildes rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

@@ -17,7 +17,7 @@ public sealed record WaitUntilStep(
         CancellationToken ct)
     {
         var timeProvider = options.TimeProvider ?? TimeProvider.System;
-        var effectiveTimeout = Timeout * options.TimeoutMultiplier;
+        var effectiveTimeout = Timeout;
         var deadline = timeProvider.GetUtcNow() + effectiveTimeout;
 
         while (timeProvider.GetUtcNow() < deadline)

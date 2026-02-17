@@ -292,10 +292,10 @@ public class EditorKeybindingDispatchTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().End()
+            .WaitUntil(_ => state.Cursor.Position.Value == 11,
+                TimeSpan.FromSeconds(2), "cursor at document end")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.Equal(new DocumentOffset(11), state.Cursor.Position); // "AAA\nBBB\nCCC" = 11 chars
         await ExitAndWait(terminal, runTask);
@@ -315,10 +315,10 @@ public class EditorKeybindingDispatchTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .PageDown()
+            .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line > initialLine,
+                TimeSpan.FromSeconds(2), "cursor moved down after PageDown")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var newLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
         Assert.True(newLine > initialLine, $"Cursor should move down from line {initialLine}, now at {newLine}");
@@ -336,22 +336,29 @@ public class EditorKeybindingDispatchTests
         await WaitForEditor(terminal);
 
         // Use PageDown first to get to a lower position, then test PageUp
+        // Viewport is 10 lines, so each PageDown moves ~9 lines.
+        // Wait for the cursor to be past line 15 to ensure both PageDowns are processed.
         await new Hex1bTerminalInputSequenceBuilder()
             .PageDown()
+            .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line >= 5,
+                TimeSpan.FromSeconds(2), "cursor moved after first PageDown")
             .PageDown()
+            .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line >= 15,
+                TimeSpan.FromSeconds(2), "cursor moved after second PageDown")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var lineBeforePageUp = state.Document.OffsetToPosition(state.Cursor.Position).Line;
 
         await new Hex1bTerminalInputSequenceBuilder()
             .PageUp()
+            .WaitUntil(_ =>
+            {
+                var currentLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
+                return currentLine < lineBeforePageUp;
+            }, TimeSpan.FromSeconds(2), "cursor moved up after PageUp")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var newLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
         Assert.True(newLine < lineBeforePageUp, $"Cursor should move up from line {lineBeforePageUp}, now at {newLine}");
@@ -369,10 +376,10 @@ public class EditorKeybindingDispatchTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Right()
+            .WaitUntil(_ => state.Cursor.HasSelection && state.Cursor.Position.Value == 1,
+                TimeSpan.FromSeconds(2), "selection extended right")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Selection anchor at 0, cursor moved to 1
         Assert.True(state.Cursor.HasSelection);
@@ -417,10 +424,10 @@ public class EditorKeybindingDispatchTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Delete()
+            .WaitUntil(_ => !state.Document.GetText().Contains("hello", StringComparison.Ordinal),
+                TimeSpan.FromSeconds(2), "next word deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // "hello " deleted (word + trailing space)
         Assert.DoesNotContain("hello", state.Document.GetText());
@@ -436,13 +443,12 @@ public class EditorKeybindingDispatchTests
 
         await WaitForEditor(terminal);
 
-        // Ctrl+Shift+K deletes current line (line 1 = "AAA\n")
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Shift().Key(Hex1bKey.K)
+            .WaitUntil(_ => !state.Document.GetText().Contains("AAA", StringComparison.Ordinal),
+                TimeSpan.FromSeconds(2), "current line deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // "AAA\n" should be deleted, leaving "BBB\nCCC"
         Assert.DoesNotContain("AAA", state.Document.GetText());

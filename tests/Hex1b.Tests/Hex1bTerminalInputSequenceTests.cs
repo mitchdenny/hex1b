@@ -395,26 +395,32 @@ public class Hex1bTestSequenceTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var textEntered = "";
+        var textComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget([
-                    new TextBoxWidget("").OnTextChanged(args => { textEntered = args.NewText; return Task.CompletedTask; })
+                    new TextBoxWidget("").OnTextChanged(args =>
+                    {
+                        textEntered = args.NewText;
+                        if (textEntered == "Hello") textComplete.TrySetResult();
+                        return Task.CompletedTask;
+                    })
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
             .Build();
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50, TestContext.Current.CancellationToken);
         await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await textComplete.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
@@ -428,7 +434,7 @@ public class Hex1bTestSequenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var ctrlCPressed = false;
+        var ctrlXPressed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -436,7 +442,7 @@ public class Hex1bTestSequenceTests
                     new ButtonWidget("Test")
                 ]).WithInputBindings(b => 
                 {
-                    b.Ctrl().Key(Hex1bKey.X).Action(_ => ctrlCPressed = true);
+                    b.Ctrl().Key(Hex1bKey.X).Action(_ => { ctrlXPressed.TrySetResult(); return Task.CompletedTask; });
                 })
             ),
             new Hex1bAppOptions 
@@ -447,20 +453,20 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.X)
             .Build();
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50, TestContext.Current.CancellationToken);
         await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await ctrlXPressed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
         
-        Assert.True(ctrlCPressed);
+        Assert.True(ctrlXPressed.Task.IsCompleted);
     }
 
     [Fact]

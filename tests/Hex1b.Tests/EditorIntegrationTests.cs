@@ -569,11 +569,10 @@ public class EditorIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
             .Ctrl().Key(Hex1bKey.A)
+            .WaitUntil(_ => state.Cursor.HasSelection && state.Cursor.SelectionEnd.Value == 11,
+                TimeSpan.FromSeconds(2), "select all completed")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Allow time for input processing
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Verify state: selection covers entire document
         Assert.True(state.Cursor.HasSelection);
@@ -661,11 +660,10 @@ public class EditorIntegrationTests
             .WaitUntil(s => s.SearchPattern(originalPattern).HasMatches,
                 TimeSpan.FromSeconds(2), "Original text visible")
             .Type("X")
+            .WaitUntil(s => s.SearchPattern(originalPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "Original text still visible after typing")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Allow time for input processing
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Document should still be "Original"
         Assert.Equal("Original", doc.GetText());

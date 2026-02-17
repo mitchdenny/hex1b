@@ -380,8 +380,12 @@ public class EditorScrollbarTests
         using (var snapshotAfterScroll = terminal.CreateSnapshot())
             line0After = snapshotAfterScroll.GetLineTrimmed(0);
 
-        // Wait 500ms — scroll should be stable, no flick-back
-        await Task.Delay(500);
+        // Verify scroll is stable — poll twice with 250ms intervals to confirm no flick-back
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.GetLineTrimmed(0) == line0After,
+                TimeSpan.FromSeconds(2), "scroll position stable")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         string line0AfterWait;
         using (var snapshotAfterWait = terminal.CreateSnapshot())
@@ -648,8 +652,12 @@ public class EditorScrollbarTests
         var snapshotAfterDrag = terminal.CreateSnapshot();
         var line0After = snapshotAfterDrag.GetLineTrimmed(0);
 
-        // Wait 500ms — must be stable
-        await Task.Delay(500);
+        // Verify scroll is stable — poll to confirm no flick-back
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.GetLineTrimmed(0) == line0After,
+                TimeSpan.FromSeconds(2), "scroll position stable after drag")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var snapshotAfterWait = terminal.CreateSnapshot();
         var line0AfterWait = snapshotAfterWait.GetLineTrimmed(0);

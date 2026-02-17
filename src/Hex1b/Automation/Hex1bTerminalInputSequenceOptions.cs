@@ -30,19 +30,4 @@ public sealed class Hex1bTerminalInputSequenceOptions
     /// </summary>
     public TimeProvider? TimeProvider { get; init; }
 
-    /// <summary>
-    /// Multiplier applied to all WaitUntil timeouts. Useful for CI environments
-    /// where CPU contention makes timing-sensitive tests flaky.
-    /// Default is 1.0 (no scaling). Set via <c>HEX1B_TEST_TIMEOUT_MULTIPLIER</c>
-    /// environment variable, or override directly.
-    /// </summary>
-    public double TimeoutMultiplier { get; init; } = GetDefaultTimeoutMultiplier();
-
-    private static double GetDefaultTimeoutMultiplier()
-    {
-        var envValue = Environment.GetEnvironmentVariable("HEX1B_TEST_TIMEOUT_MULTIPLIER");
-        if (envValue is not null && double.TryParse(envValue, out var multiplier) && multiplier > 0)
-            return multiplier;
-        return 1.0;
-    }
 }
