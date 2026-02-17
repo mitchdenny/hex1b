@@ -623,16 +623,25 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return "";
         }
 
-        // Fast-path: printable ASCII is always a single-char, single-column grapheme
-        // PROVIDED the next character isn't a combining mark or variation selector
-        // (e.g., keycap sequences like 1️⃣ = '1' + U+FE0F + U+20E3).
-        // Avoids StringInfo.GetTextElementEnumerator which allocates per call.
+        // PERF: StringInfo.GetTextElementEnumerator allocates a new string per call.
+        // GetNextGrapheme is called for EVERY character written to a surface cell during
+        // rendering, making it one of the highest-frequency allocation sites.
+        //
+        // For printable ASCII (0x20–0x7E), each char is always a complete single-char grapheme.
+        // char.ToString() for chars <= 0x7F returns a cached (interned) string in .NET 6+,
+        // making this path entirely allocation-free.
+        //
+        // PITFALL: We must also check that the NEXT character is ASCII (or end-of-string).
+        // Keycap emoji sequences start with an ASCII char followed by U+FE0F (variation
+        // selector) + U+20E3 (combining enclosing keycap), e.g. 1️⃣ = '1' + U+FE0F + U+20E3.
+        // Without the next-char guard, we'd return '1' as a standalone grapheme and break
+        // the keycap sequence. All Unicode combining marks and variation selectors are >= 0x80,
+        // so checking text[start+1] < 0x80 is sufficient to detect this.
         var ch = text[start];
         if (ch >= 0x20 && ch < 0x7F
             && (start + 1 >= text.Length || text[start + 1] < 0x80))
         {
             charCount = 1;
-            // char.ToString() for chars <= 0x7F returns a cached string in .NET 6+
             return ch.ToString();
         }
         

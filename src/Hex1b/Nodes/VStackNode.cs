@@ -76,6 +76,9 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
         // Calculate how to distribute height among children
         var availableHeight = bounds.Height;
         var count = Children.Count;
+        // PERF: Use ArrayPool instead of `new int[count]` to avoid per-frame heap allocations.
+        // ArrangeCore runs every frame for every VStack in the tree (layout is not cached).
+        // Rented array may be larger than count; only indices [0, count) are used.
         var childSizes = ArrayPool<int>.Shared.Rent(count);
         var totalFixed = 0;
         var totalWeight = 0;

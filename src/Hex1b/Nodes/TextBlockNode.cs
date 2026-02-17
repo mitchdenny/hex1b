@@ -88,6 +88,11 @@ public sealed class TextBlockNode : Hex1bNode
     /// </summary>
     private int _lastWrapWidth = -1;
     
+    /// <summary>
+    /// Cached max display width across all lines. Invalidated when Text changes.
+    /// This avoids per-frame LINQ Max() + DisplayWidth.GetStringWidth() over every line,
+    /// which was a significant allocation source (~0.6KB/node/frame from Split + ToList + LINQ).
+    /// </summary>
     private int _multilineMaxLineWidth = -1;
 
     /// <summary>
@@ -125,9 +130,14 @@ public sealed class TextBlockNode : Hex1bNode
 
     private Size MeasureMultiline(Constraints constraints)
     {
+        // PERF: Measure is called every frame (even with render caching, layout still runs).
+        // Caching the split lines and max width avoids per-frame Split('\n').ToList() and
+        // LINQ .Max() allocations. The cache is invalidated when the Text property changes.
+        //
+        // PITFALL: _lastWrapWidth != -1 detects if a prior MeasureWrapped call populated
+        // _wrappedLines with width-wrapped results — we must re-split for unwrapped multiline.
         if (_wrappedLines == null || _lastWrapWidth != -1 || _multilineMaxLineWidth < 0)
         {
-            // Split by newlines to support multi-line text. Cache results to avoid per-frame allocations.
             _wrappedLines = Text.IndexOf('\n') < 0
                 ? new List<string>(1) { Text }
                 : Text.Split('\n').ToList();
