@@ -622,6 +622,19 @@ public class SurfaceRenderContext : Hex1bRenderContext
             charCount = 0;
             return "";
         }
+
+        // Fast-path: printable ASCII is always a single-char, single-column grapheme
+        // PROVIDED the next character isn't a combining mark or variation selector
+        // (e.g., keycap sequences like 1️⃣ = '1' + U+FE0F + U+20E3).
+        // Avoids StringInfo.GetTextElementEnumerator which allocates per call.
+        var ch = text[start];
+        if (ch >= 0x20 && ch < 0x7F
+            && (start + 1 >= text.Length || text[start + 1] < 0x80))
+        {
+            charCount = 1;
+            // char.ToString() for chars <= 0x7F returns a cached string in .NET 6+
+            return ch.ToString();
+        }
         
         // Use .NET's grapheme cluster enumeration to properly handle:
         // - Surrogate pairs (emoji like 🖥)
@@ -637,7 +650,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         
         // Fallback (shouldn't happen)
         charCount = 1;
-        return text[start].ToString();
+        return ch.ToString();
     }
 
     /// <summary>
