@@ -165,7 +165,8 @@ public class HexEditorSelectionTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(hexCol, 0)
-            .WaitUntil(s => s.SearchPattern(cursorAtByte).HasMatches,
+            // Clicking byte 0 can match the initial cursor highlight, so also wait for state update.
+            .WaitUntil(s => state.ByteCursorOffset == expectedByteOffset && s.SearchPattern(cursorAtByte).HasMatches,
                 TimeSpan.FromSeconds(2), $"cursor at byte {byteIndex}")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -402,6 +403,8 @@ public class HexEditorSelectionTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(hexCol, 0)
+            .WaitUntil(_ => state.ByteCursorOffset == byteIndex,
+                TimeSpan.FromSeconds(2), $"cursor offset at invalid byte {byteIndex}")
             .WaitUntil(s => s.SearchPattern(cursorAtByte).HasMatches,
                 TimeSpan.FromSeconds(2), $"cursor at invalid byte {byteIndex}")
             .Build()

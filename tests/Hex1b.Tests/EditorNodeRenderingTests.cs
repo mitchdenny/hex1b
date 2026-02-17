@@ -645,6 +645,17 @@ public class EditorNodeRenderingTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
                 TimeSpan.FromSeconds(2), "content visible")
+            .WaitUntil(s =>
+            {
+                // Scrollbar should be in the rightmost column (col 19).
+                for (var row = 0; row < 5; row++)
+                {
+                    var ch = s.GetCell(19, row).Character;
+                    if (ch == trackChar || ch == thumbChar)
+                        return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "scrollbar visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -771,10 +782,21 @@ public class EditorNodeRenderingTests
         var trackChar = theme.Get(ScrollTheme.HorizontalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.HorizontalThumbCharacter);
 
-        var pattern = new CellPatternSearcher().Find("X");
+        // Wait until both content AND scrollbar are rendered
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "content visible")
+            .WaitUntil(s =>
+            {
+                var contentVisible = s.SearchPattern(new CellPatternSearcher().Find("X")).HasMatches;
+                if (!contentVisible) return false;
+                // Also check scrollbar is present on bottom row
+                for (var col = 0; col < 20; col++)
+                {
+                    var cell = s.GetCell(col, 4);
+                    if (cell.Character == trackChar || cell.Character == thumbChar)
+                        return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "content and horizontal scrollbar visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

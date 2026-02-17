@@ -17,7 +17,7 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
             ct.ThrowIfCancellationRequested();
             
             var evt = CharToKeyEvent(c);
-            terminal.SendEvent(evt);
+            await terminal.SendEventAsync(evt, ct);
             
             if (DelayBetweenKeys > TimeSpan.Zero)
             {

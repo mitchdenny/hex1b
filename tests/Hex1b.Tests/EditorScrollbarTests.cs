@@ -294,6 +294,14 @@ public class EditorScrollbarTests
         using var _ = workload; using var __ = terminal; using var ___ = app;
         await WaitForEditor(terminal);
 
+        // Ensure first render occurred (negative checks below can false-pass on empty frames)
+        var initialPattern = new CellPatternSearcher().Find("L001:");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.SearchPattern(initialPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "initial content rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
         // Press End to move to end of first line
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.End)
@@ -301,7 +309,8 @@ public class EditorScrollbarTests
             {
                 var snap = s;
                 // Line 1 starts with "L001:AAA..." — after scrolling right, "L001" should NOT be visible
-                return !snap.GetLineTrimmed(0).StartsWith("L001");
+                var line0 = snap.GetLineTrimmed(0);
+                return !string.IsNullOrEmpty(line0) && line0.Contains('A') && !line0.Contains("L001");
             }, TimeSpan.FromSeconds(2), "horizontal scroll activated")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -349,26 +358,34 @@ public class EditorScrollbarTests
         using var _ = workload; using var __ = terminal; using var ___ = app;
         await WaitForEditor(terminal);
 
+        // Wait for initial content so "scrolled away" checks don't pass on an empty frame.
+        using var rendered = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("L001"), TimeSpan.FromSeconds(2), "editor content rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
         // Cursor is at line 1. Scroll down 10 ticks (3 lines per tick = 30 lines)
-        await new Hex1bTerminalInputSequenceBuilder()
+        using var scrolled = await new Hex1bTerminalInputSequenceBuilder()
             .ScrollDown(10)
             .WaitUntil(s =>
             {
                 var snap = s;
-                // L001 should NOT be visible
-                return !snap.GetLineTrimmed(0).Contains("L001");
-            }, TimeSpan.FromSeconds(2), "scrolled away from top")
+                // After 10 ticks (3 lines per tick), top line should be L031.
+                return snap.GetLineTrimmed(0).Contains("L031");
+            }, TimeSpan.FromSeconds(2), "scrolled down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        var snapshotAfterScroll = terminal.CreateSnapshot();
-        var line0After = snapshotAfterScroll.GetLineTrimmed(0);
+        string line0After;
+        using (var snapshotAfterScroll = terminal.CreateSnapshot())
+            line0After = snapshotAfterScroll.GetLineTrimmed(0);
 
         // Wait 500ms — scroll should be stable, no flick-back
         await Task.Delay(500);
 
-        var snapshotAfterWait = terminal.CreateSnapshot();
-        var line0AfterWait = snapshotAfterWait.GetLineTrimmed(0);
+        string line0AfterWait;
+        using (var snapshotAfterWait = terminal.CreateSnapshot())
+            line0AfterWait = snapshotAfterWait.GetLineTrimmed(0);
 
         Assert.Equal(line0After, line0AfterWait);
         Assert.DoesNotContain("L001", line0AfterWait);

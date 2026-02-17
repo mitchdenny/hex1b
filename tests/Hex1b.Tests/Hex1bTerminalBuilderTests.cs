@@ -571,7 +571,7 @@ public class Hex1bTerminalBuilderTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(readyPattern).HasMatches, TimeSpan.FromSeconds(30))
             .Type("q")
-            .WaitUntil(s => s.SearchPattern(exitPattern).HasMatches, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.SearchPattern(exitPattern).HasMatches, TimeSpan.FromSeconds(10))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

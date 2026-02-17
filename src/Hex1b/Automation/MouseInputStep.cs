@@ -18,7 +18,6 @@ public sealed record MouseInputStep(
         Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
-        terminal.SendEvent(new Hex1bMouseEvent(Button, Action, X, Y, Modifiers, ClickCount));
-        return Task.CompletedTask;
+        return terminal.SendEventAsync(new Hex1bMouseEvent(Button, Action, X, Y, Modifiers, ClickCount), ct);
     }
 }

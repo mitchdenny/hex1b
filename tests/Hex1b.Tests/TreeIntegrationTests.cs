@@ -232,16 +232,20 @@ public class TreeIntegrationTests
             .Build();
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Root A"), TimeSpan.FromSeconds(2), "tree to render")
             .Down()  // Move to A1
             .Down()  // Move to A2
             .Up()    // Move back to A1
-            .Wait(50)
+            .WaitUntil(s => IsFocused(s, "A1"), TimeSpan.FromSeconds(2), "A1 focused")
             .Capture("after_up")
-            .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        using var _ = await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.True(IsFocused(snapshot, "A1"), "A1 should be focused after Up arrow");
@@ -754,13 +758,17 @@ public class TreeIntegrationTests
             .Build();
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Tree") && s.ContainsText("Right Side"), 
                 TimeSpan.FromSeconds(2), "side-by-side content to render")
             .Capture("final")
-            .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        
+        using var __ = await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Find the position of "Right Side" - it should be in the right panel

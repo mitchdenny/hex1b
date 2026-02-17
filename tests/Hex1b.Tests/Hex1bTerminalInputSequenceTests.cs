@@ -509,18 +509,31 @@ public class Hex1bTestSequenceTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var text1 = "";
         var text2 = "";
+        var text1Complete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var text2Complete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget([
-                    new TextBoxWidget("").OnTextChanged(args => { text1 = args.NewText; return Task.CompletedTask; }),
-                    new TextBoxWidget("").OnTextChanged(args => { text2 = args.NewText; return Task.CompletedTask; })
+                    new TextBoxWidget("").OnTextChanged(args =>
+                    {
+                        text1 = args.NewText;
+                        if (text1 == "First") text1Complete.TrySetResult();
+                        return Task.CompletedTask;
+                    }),
+                    new TextBoxWidget("").OnTextChanged(args =>
+                    {
+                        text2 = args.NewText;
+                        if (text2 == "Second") text2Complete.TrySetResult();
+                        return Task.CompletedTask;
+                    })
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("First")
             .Tab()
             .Type("Second")
@@ -529,9 +542,10 @@ public class Hex1bTestSequenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        await Task.Delay(50, TestContext.Current.CancellationToken);
         await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        
+        await text1Complete.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await text2Complete.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;

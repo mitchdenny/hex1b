@@ -393,17 +393,13 @@ public class EditorKeybindingDispatchTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().End()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
-        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => state.Cursor.Position.Value == state.Document.Length,
+                TimeSpan.FromSeconds(2), "cursor at document end")
             .Ctrl().Backspace()
+            .WaitUntil(_ => !state.Document.GetText().Contains("world", StringComparison.Ordinal),
+                TimeSpan.FromSeconds(2), "previous word deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // "world" deleted (word boundary deletes word + leading space)
         Assert.DoesNotContain("world", state.Document.GetText());
