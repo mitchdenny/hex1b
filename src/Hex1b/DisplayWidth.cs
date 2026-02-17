@@ -295,6 +295,20 @@ public static class DisplayWidth
         if (string.IsNullOrEmpty(text))
             return 0;
 
+        // Fast-path the common case: printable ASCII is 1 column per char and doesn't require
+        // grapheme cluster enumeration (which allocates a string per text element).
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c < 0x20 || c == 0x7F || c >= 0x80)
+            {
+                goto SlowPath;
+            }
+        }
+
+        return text.Length;
+
+        SlowPath:
         int totalWidth = 0;
         var enumerator = StringInfo.GetTextElementEnumerator(text);
         while (enumerator.MoveNext())
