@@ -981,9 +981,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 ReadOnlyMemory<byte> data;
                 IReadOnlyList<AnsiToken>? preTokenizedTokens = null;
 
-                if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+                if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
                 {
-                    var item = await appWorkload.ReadOutputItemAsync(ct);
+                    var item = await tokenWorkload.ReadOutputItemAsync(ct);
                     data = item.Bytes;
                     preTokenizedTokens = item.Tokens;
                 }

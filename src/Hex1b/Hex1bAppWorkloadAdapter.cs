@@ -34,11 +34,9 @@ namespace Hex1b;
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IDisposable
 {
-    internal readonly record struct OutputItem(ReadOnlyMemory<byte> Bytes, IReadOnlyList<AnsiToken>? Tokens);
-    
-    private readonly Channel<OutputItem> _outputChannel;
+    private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private readonly TerminalCapabilities? _staticCapabilities;
@@ -80,7 +78,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SupportsTrueColor = true,
         };
 
-        _outputChannel = Channel.CreateUnbounded<OutputItem>(new UnboundedChannelOptions
+        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -108,7 +106,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _presentationAdapter = presentationAdapter;
         _staticCapabilities = null;
 
-        _outputChannel = Channel.CreateUnbounded<OutputItem>(new UnboundedChannelOptions
+        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -132,7 +130,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         var bytes = Encoding.UTF8.GetBytes(text);
-        if (_outputChannel.Writer.TryWrite(new OutputItem(bytes, Tokens: null)))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, Tokens: null)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -144,7 +142,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new OutputItem(data.ToArray(), Tokens: null)))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data.ToArray(), Tokens: null)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -156,7 +154,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void Write(ReadOnlyMemory<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new OutputItem(data, Tokens: null)))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data, Tokens: null)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -168,7 +166,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     internal void WriteTokensWithBytes(IReadOnlyList<AnsiToken> tokens, ReadOnlyMemory<byte> bytes)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new OutputItem(bytes, tokens)))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -289,7 +287,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         return false;
     }
     
-    internal bool TryReadOutputItem(out OutputItem item)
+    internal bool TryReadOutputItem(out WorkloadOutputItem item)
     {
         item = default;
         if (_disposed) return false;
@@ -310,7 +308,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         return item.Bytes;
     }
 
-    internal async ValueTask<OutputItem> ReadOutputItemAsync(CancellationToken ct = default)
+    /// <inheritdoc />
+    public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
     {
         if (_disposed) return default;
 
