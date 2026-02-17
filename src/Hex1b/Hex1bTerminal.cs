@@ -1007,7 +1007,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (preTokenizedTokens != null)
                 {
-                    tokens = preTokenizedTokens;
+                    tokens = NormalizePreTokenizedTokens(preTokenizedTokens);
                 }
                 else
                 {
@@ -1105,6 +1105,83 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             // Normal shutdown
         }
+    }
+
+    private static IReadOnlyList<AnsiToken> NormalizePreTokenizedTokens(IReadOnlyList<AnsiToken> tokens)
+    {
+        // When Hex1bApp provides pre-tokenized output, DCS sequences (Sixel) are currently
+        // represented as raw UnrecognizedSequenceToken payloads (ESC P ... ST). The terminal
+        // processing path expects them as DcsToken to track sixels and update internal state.
+        List<AnsiToken>? normalized = null;
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+
+            if (token is UnrecognizedSequenceToken unrec && TryExtractDcsPayload(unrec.Sequence, out var dcsPayload))
+            {
+                normalized ??= new List<AnsiToken>(tokens.Count);
+                if (normalized.Count == 0)
+                {
+                    for (int j = 0; j < i; j++)
+                    {
+                        normalized.Add(tokens[j]);
+                    }
+                }
+
+                normalized.Add(new DcsToken(dcsPayload));
+                continue;
+            }
+
+            if (normalized != null)
+            {
+                normalized.Add(token);
+            }
+        }
+
+        return normalized ?? tokens;
+    }
+
+    private static bool TryExtractDcsPayload(string sequence, out string payload)
+    {
+        payload = "";
+
+        int dataStart;
+        if (sequence.Length >= 2 && sequence[0] == '\x1b' && sequence[1] == 'P')
+        {
+            dataStart = 2;
+        }
+        else if (sequence.Length >= 1 && sequence[0] == '\x90')
+        {
+            dataStart = 1;
+        }
+        else
+        {
+            return false;
+        }
+
+        // Find ST: ESC \ or 0x9C
+        int dataEnd = -1;
+        for (int i = dataStart; i < sequence.Length; i++)
+        {
+            if (i + 1 < sequence.Length && sequence[i] == '\x1b' && sequence[i + 1] == '\\')
+            {
+                dataEnd = i;
+                break;
+            }
+
+            if (sequence[i] == '\x9c')
+            {
+                dataEnd = i;
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false;
+
+        payload = sequence.Substring(dataStart, dataEnd - dataStart);
+        return true;
     }
 
     private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
