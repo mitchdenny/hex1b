@@ -70,6 +70,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
     internal Diagnostics.Hex1bMetrics? Metrics { get; init; }
 
     /// <summary>
+    /// Optional surface pool for reusing temporary surfaces during rendering.
+    /// </summary>
+    internal SurfacePool? SurfacePool { get; init; }
+
+    /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
     /// </summary>
     /// <param name="surface">The surface to write to.</param>
@@ -329,31 +334,44 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // preserving the child's full extent (needed for scroll offset rendering).
                 var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
                 var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
-                var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
-                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
-                {
-                    CachingEnabled = false,
-                    MouseX = MouseX,
-                    MouseY = MouseY,
-                    CellMetrics = CellMetrics,
-                    Metrics = Metrics
-                };
-                childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                RenderChildTimed(child, childContext);
+                var pool = SurfacePool;
+                var childSurface = pool != null
+                    ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
+                    : new Surface(clampedWidth, clampedHeight, CellMetrics);
 
-                if (!child.FillBackground.IsDefault)
+                try
                 {
-                    childSurface.FillBackground(child.FillBackground);
+                    var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
+                    {
+                        CachingEnabled = false,
+                        MouseX = MouseX,
+                        MouseY = MouseY,
+                        CellMetrics = CellMetrics,
+                        Metrics = Metrics,
+                        SurfacePool = pool
+                    };
+                    childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                    RenderChildTimed(child, childContext);
+
+                    if (!child.FillBackground.IsDefault)
+                    {
+                        childSurface.FillBackground(child.FillBackground);
+                    }
+
+                    var providerClip = CurrentLayoutProvider.ClipRect;
+                    var clipRect = new Rect(
+                        providerClip.X - _offsetX,
+                        providerClip.Y - _offsetY,
+                        providerClip.Width,
+                        providerClip.Height);
+                    _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
+                    return;
                 }
-
-                var providerClip = CurrentLayoutProvider.ClipRect;
-                var clipRect = new Rect(
-                    providerClip.X - _offsetX,
-                    providerClip.Y - _offsetY,
-                    providerClip.Width,
-                    providerClip.Height);
-                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
-                return;
+                finally
+                {
+                    if (pool != null)
+                        pool.Return(childSurface);
+                }
             }
 
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
@@ -371,20 +389,98 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return;
         }
         
-        // Check if we can use cached surface
-        // CRITICAL: Must use NeedsRender() not just IsDirty - a node's cache is invalid
-        // if ANY descendant is dirty, because skipping render would skip the descendants too
-        var canUseCache = !child.NeedsRender() 
-            && child.CachedSurface != null 
+        // Check if we can use cached surface.
+        // Reconciled trees use an O(1) subtree dirty-version gate.
+        // For manually-constructed trees without parent links, fall back to recursive NeedsRender().
+        if (!child.IsDirty
+            && child.CachedSurface != null
             && child.CachedBounds == child.Bounds
             && child.CachedSurface.Width == child.Bounds.Width
-            && child.CachedSurface.Height == child.Bounds.Height;
-        
-        if (canUseCache)
+            && child.CachedSurface.Height == child.Bounds.Height)
         {
-            // Cache hit - composite cached surface at RELATIVE position
+            var subtreeIsClean = HasConsistentParentLinks(child)
+                ? child.CachedSubtreeRenderVersion == child.SubtreeRenderVersion
+                : !child.NeedsRender();
+
+            if (subtreeIsClean)
+            {
+                var cacheHintAllowsReuse = child.CachePredicate?.Invoke(new RenderCacheContext(child, this)) ?? true;
+                if (cacheHintAllowsReuse)
+                {
+                    // Cache hit - composite cached surface at RELATIVE position
+                    // (child.Bounds are absolute, but _surface may have its own offset)
+                    CacheHits++;
+                    // If there's a layout provider, clip to its bounds
+                    Rect? clipRect = null;
+                    if (CurrentLayoutProvider != null)
+                    {
+                        // Convert ClipRect to surface-relative coordinates
+                        var providerClip = CurrentLayoutProvider.ClipRect;
+                        clipRect = new Rect(
+                            providerClip.X - _offsetX,
+                            providerClip.Y - _offsetY,
+                            providerClip.Width,
+                            providerClip.Height
+                        );
+                    }
+                    _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
+                    return;
+                }
+            }
+        }
+
+        // Cache miss - render and cache
+        CacheMisses++;
+        
+        // Only cache if the node has non-zero bounds
+        if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
+        {
+            // Create a surface for this child's content with matching cell metrics
+            // Clamp dimensions to prevent overflow with unconstrained children
+            var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
+            var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
+            var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
+            var subtreeVersionBeforeRender = child.SubtreeRenderVersion;
+            
+            // Create context with offset so child's absolute coordinates map to surface (0,0)
+            // Share the tracked object store so sixels created by children are properly tracked
+            // Note: We don't pass CurrentLayoutProvider to the child context because:
+            // 1. The child surface already represents the child's bounds
+            // 2. The parent's layout provider would clip incorrectly
+            // 3. Clipping happens implicitly via surface bounds
+            var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
+            {
+                CachingEnabled = CachingEnabled,
+                MouseX = MouseX,  // Pass mouse position to children
+                MouseY = MouseY,
+                CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
+                Metrics = Metrics
+                // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
+            };
+            
+            // Set cursor position to child's origin so Write() calls work correctly
+            // (the offset will translate this to 0,0 on the child surface)
+            childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+            
+            // Render to the child surface (child uses its normal absolute coordinates,
+            // context translates them via the offset)
+            RenderChildTimed(child, childContext);
+            
+            // Post-process: fill transparent backgrounds with the node's fill color.
+            // This prevents background bleed-through in layered compositing by ensuring
+            // all cells on this surface have an explicit background color.
+            if (!child.FillBackground.IsDefault)
+            {
+                childSurface.FillBackground(child.FillBackground);
+            }
+            
+            // Cache the result
+            child.CachedSurface = childSurface;
+            child.CachedBounds = child.Bounds;
+            child.CachedSubtreeRenderVersion = subtreeVersionBeforeRender;
+            
+            // Composite onto our surface at RELATIVE position
             // (child.Bounds are absolute, but _surface may have its own offset)
-            CacheHits++;
             // If there's a layout provider, clip to its bounds
             Rect? clipRect = null;
             if (CurrentLayoutProvider != null)
@@ -398,82 +494,25 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     providerClip.Height
                 );
             }
-            _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
+            _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
         }
         else
         {
-            // Cache miss - render and cache
-            CacheMisses++;
-            
-            // Only cache if the node has non-zero bounds
-            if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
-            {
-                // Create a surface for this child's content with matching cell metrics
-                // Clamp dimensions to prevent overflow with unconstrained children
-                var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
-                var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
-                var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
-                
-                // Create context with offset so child's absolute coordinates map to surface (0,0)
-                // Share the tracked object store so sixels created by children are properly tracked
-                // Note: We don't pass CurrentLayoutProvider to the child context because:
-                // 1. The child surface already represents the child's bounds
-                // 2. The parent's layout provider would clip incorrectly
-                // 3. Clipping happens implicitly via surface bounds
-                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
-                {
-                    CachingEnabled = CachingEnabled,
-                    MouseX = MouseX,  // Pass mouse position to children
-                    MouseY = MouseY,
-                    CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
-                    Metrics = Metrics
-                    // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
-                };
-                
-                // Set cursor position to child's origin so Write() calls work correctly
-                // (the offset will translate this to 0,0 on the child surface)
-                childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                
-                // Render to the child surface (child uses its normal absolute coordinates,
-                // context translates them via the offset)
-                RenderChildTimed(child, childContext);
-                
-                // Post-process: fill transparent backgrounds with the node's fill color.
-                // This prevents background bleed-through in layered compositing by ensuring
-                // all cells on this surface have an explicit background color.
-                if (!child.FillBackground.IsDefault)
-                {
-                    childSurface.FillBackground(child.FillBackground);
-                }
-                
-                // Cache the result
-                child.CachedSurface = childSurface;
-                child.CachedBounds = child.Bounds;
-                
-                // Composite onto our surface at RELATIVE position
-                // (child.Bounds are absolute, but _surface may have its own offset)
-                // If there's a layout provider, clip to its bounds
-                Rect? clipRect = null;
-                if (CurrentLayoutProvider != null)
-                {
-                    // Convert ClipRect to surface-relative coordinates
-                    var providerClip = CurrentLayoutProvider.ClipRect;
-                    clipRect = new Rect(
-                        providerClip.X - _offsetX,
-                        providerClip.Y - _offsetY,
-                        providerClip.Width,
-                        providerClip.Height
-                    );
-                }
-                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
-            }
-            else
-            {
-                // Zero-sized node, just call Render directly
-                SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                RenderChildTimed(child, this);
-            }
+            // Zero-sized node, just call Render directly
+            SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+            RenderChildTimed(child, this);
         }
+    }
+
+    private static bool HasConsistentParentLinks(Hex1bNode node)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (!ReferenceEquals(child.Parent, node))
+                return false;
+        }
+
+        return true;
     }
 
     #region ANSI Parsing and Surface Writing
@@ -583,6 +622,28 @@ public class SurfaceRenderContext : Hex1bRenderContext
             charCount = 0;
             return "";
         }
+
+        // PERF: StringInfo.GetTextElementEnumerator allocates a new string per call.
+        // GetNextGrapheme is called for EVERY character written to a surface cell during
+        // rendering, making it one of the highest-frequency allocation sites.
+        //
+        // For printable ASCII (0x20–0x7E), each char is always a complete single-char grapheme.
+        // char.ToString() for chars <= 0x7F returns a cached (interned) string in .NET 6+,
+        // making this path entirely allocation-free.
+        //
+        // PITFALL: We must also check that the NEXT character is ASCII (or end-of-string).
+        // Keycap emoji sequences start with an ASCII char followed by U+FE0F (variation
+        // selector) + U+20E3 (combining enclosing keycap), e.g. 1️⃣ = '1' + U+FE0F + U+20E3.
+        // Without the next-char guard, we'd return '1' as a standalone grapheme and break
+        // the keycap sequence. All Unicode combining marks and variation selectors are >= 0x80,
+        // so checking text[start+1] < 0x80 is sufficient to detect this.
+        var ch = text[start];
+        if (ch >= 0x20 && ch < 0x7F
+            && (start + 1 >= text.Length || text[start + 1] < 0x80))
+        {
+            charCount = 1;
+            return ch.ToString();
+        }
         
         // Use .NET's grapheme cluster enumeration to properly handle:
         // - Surrogate pairs (emoji like 🖥)
@@ -598,7 +659,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         
         // Fallback (shouldn't happen)
         charCount = 1;
-        return text[start].ToString();
+        return ch.ToString();
     }
 
     /// <summary>

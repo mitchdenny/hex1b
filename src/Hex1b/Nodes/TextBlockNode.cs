@@ -41,6 +41,7 @@ public sealed class TextBlockNode : Hex1bNode
                 // Invalidate cached wrapped lines - they need to be recomputed
                 _wrappedLines = null;
                 _lastWrapWidth = -1;
+                _multilineMaxLineWidth = -1;
                 MarkDirty();
             }
         }
@@ -86,6 +87,13 @@ public sealed class TextBlockNode : Hex1bNode
     /// The width used to compute wrapped lines. If constraints change, we re-wrap.
     /// </summary>
     private int _lastWrapWidth = -1;
+    
+    /// <summary>
+    /// Cached max display width across all lines. Invalidated when Text changes.
+    /// This avoids per-frame LINQ Max() + DisplayWidth.GetStringWidth() over every line,
+    /// which was a significant allocation source (~0.6KB/node/frame from Split + ToList + LINQ).
+    /// </summary>
+    private int _multilineMaxLineWidth = -1;
 
     /// <summary>
     /// Measures the size required to display the text within the given constraints.
@@ -122,17 +130,32 @@ public sealed class TextBlockNode : Hex1bNode
 
     private Size MeasureMultiline(Constraints constraints)
     {
-        // Split by newlines to support multi-line text
-        var lines = Text.Split('\n');
-        _wrappedLines = lines.ToList();
-        _lastWrapWidth = -1; // Not width-based wrapping
-        
-        var maxLineWidth = lines.Max(l => DisplayWidth.GetStringWidth(l));
+        // PERF: Measure is called every frame (even with render caching, layout still runs).
+        // Caching the split lines and max width avoids per-frame Split('\n').ToList() and
+        // LINQ .Max() allocations. The cache is invalidated when the Text property changes.
+        //
+        // PITFALL: _lastWrapWidth != -1 detects if a prior MeasureWrapped call populated
+        // _wrappedLines with width-wrapped results — we must re-split for unwrapped multiline.
+        if (_wrappedLines == null || _lastWrapWidth != -1 || _multilineMaxLineWidth < 0)
+        {
+            _wrappedLines = Text.IndexOf('\n') < 0
+                ? new List<string>(1) { Text }
+                : Text.Split('\n').ToList();
+
+            _lastWrapWidth = -1; // Not width-based wrapping
+            _multilineMaxLineWidth = 0;
+            for (var i = 0; i < _wrappedLines.Count; i++)
+            {
+                _multilineMaxLineWidth = Math.Max(_multilineMaxLineWidth, DisplayWidth.GetStringWidth(_wrappedLines[i]));
+            }
+        }
+
+        var maxLineWidth = _multilineMaxLineWidth;
         var width = Overflow == TextOverflow.Ellipsis 
             ? Math.Min(maxLineWidth, constraints.MaxWidth)
             : maxLineWidth;
-            
-        return constraints.Constrain(new Size(width, lines.Length));
+             
+        return constraints.Constrain(new Size(width, _wrappedLines.Count));
     }
 
     private Size MeasureWrapped(Constraints constraints)
@@ -142,11 +165,21 @@ public sealed class TextBlockNode : Hex1bNode
         // If unbounded or very large, just split by newlines (no word wrapping)
         if (maxWidth == int.MaxValue || maxWidth <= 0)
         {
-            var lines = Text.Split('\n');
-            _wrappedLines = lines.ToList();
-            _lastWrapWidth = maxWidth;
-            var maxLineWidth = lines.Max(l => DisplayWidth.GetStringWidth(l));
-            return constraints.Constrain(new Size(maxLineWidth, lines.Length));
+            if (_wrappedLines == null || _lastWrapWidth != maxWidth)
+            {
+                _wrappedLines = Text.IndexOf('\n') < 0
+                    ? new List<string>(1) { Text }
+                    : Text.Split('\n').ToList();
+                _lastWrapWidth = maxWidth;
+            }
+
+            var maxLineWidth = 0;
+            for (var i = 0; i < _wrappedLines.Count; i++)
+            {
+                maxLineWidth = Math.Max(maxLineWidth, DisplayWidth.GetStringWidth(_wrappedLines[i]));
+            }
+
+            return constraints.Constrain(new Size(maxLineWidth, _wrappedLines.Count));
         }
         
         // Only re-wrap if width changed
@@ -156,7 +189,11 @@ public sealed class TextBlockNode : Hex1bNode
             _lastWrapWidth = maxWidth;
         }
         
-        var width = _wrappedLines.Count > 0 ? _wrappedLines.Max(l => DisplayWidth.GetStringWidth(l)) : 0;
+        var width = 0;
+        for (var i = 0; i < _wrappedLines.Count; i++)
+        {
+            width = Math.Max(width, DisplayWidth.GetStringWidth(_wrappedLines[i]));
+        }
         var height = _wrappedLines.Count;
         
         return constraints.Constrain(new Size(width, height));

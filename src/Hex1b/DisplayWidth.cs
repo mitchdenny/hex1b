@@ -295,6 +295,25 @@ public static class DisplayWidth
         if (string.IsNullOrEmpty(text))
             return 0;
 
+        // PERF: StringInfo.GetTextElementEnumerator allocates a new string per grapheme cluster.
+        // For printable ASCII (0x20–0x7E), every char is exactly one display column and one
+        // grapheme cluster, so we can return text.Length directly. This fast-path avoids all
+        // allocations for the common case of ASCII-only content (labels, borders, padding).
+        //
+        // PITFALL: Control chars (< 0x20) and DEL (0x7F) are zero-width; chars >= 0x80 may be
+        // multi-column (CJK) or combining marks. Any such char forces the slow path.
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c < 0x20 || c == 0x7F || c >= 0x80)
+            {
+                goto SlowPath;
+            }
+        }
+
+        return text.Length;
+
+        SlowPath:
         int totalWidth = 0;
         var enumerator = StringInfo.GetTextElementEnumerator(text);
         while (enumerator.MoveNext())

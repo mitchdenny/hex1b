@@ -13,6 +13,12 @@ public abstract record Hex1bWidget
     internal Action<InputBindingsBuilder>? BindingsConfigurator { get; init; }
 
     /// <summary>
+    /// Optional cache eligibility predicate for this widget's reconciled node.
+    /// Returning <c>false</c> forces a cache miss for that subtree on the current frame.
+    /// </summary>
+    internal Func<RenderCacheContext, bool>? CachePredicate { get; init; }
+
+    /// <summary>
     /// Hint for how this widget should be sized horizontally within its parent.
     /// Used by HStack to distribute width among children.
     /// </summary>

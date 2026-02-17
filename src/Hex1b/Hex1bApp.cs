@@ -120,10 +120,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly bool _enableInputCoalescing;
     private readonly int _inputCoalescingInitialDelayMs;
     private readonly int _inputCoalescingMaxDelayMs;
+
+    // Surface RenderChild caching (opt-in).
+    private readonly bool _enableRenderCaching;
     
     // Surface rendering double-buffer
     private Surface? _currentSurface;
     private Surface? _previousSurface;
+
+    // Optional pool for temporary surfaces (SurfaceWidget layers, effect panels, etc.)
+    private readonly SurfacePool? _surfacePool;
     
     // Animation timer for RedrawAfter() support
     private readonly AnimationTimer _animationTimer;
@@ -207,6 +213,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _enableInputCoalescing = options.EnableInputCoalescing;
         _inputCoalescingInitialDelayMs = options.InputCoalescingInitialDelayMs;
         _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
+
+        _enableRenderCaching = options.EnableRenderCaching;
+
+        _surfacePool = options.EnableSurfacePooling
+            ? new SurfacePool(options.SurfacePoolMaxSurfacesPerBucket, options.SurfacePoolMaxIdleFrames)
+            : null;
     }
 
     /// <summary>
@@ -788,6 +800,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     {
         var width = _adapter.Width;
         var height = _adapter.Height;
+
+        _surfacePool?.NextFrame();
         
         // Get cell metrics from terminal capabilities
         // Use actual (floating-point) cell width for precise sixel sizing
@@ -821,8 +835,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             MouseX = _mouseX,
             MouseY = _mouseY,
             CellMetrics = cellMetrics,
-            CachingEnabled = false,  // TODO: Re-enable after fixing sixel caching issues
-            Metrics = _metrics.NodeRenderDuration != null ? _metrics : null
+            CachingEnabled = _enableRenderCaching,
+            Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
+            SurfacePool = _surfacePool
         };
         
         if (_rootNode != null)
@@ -1269,6 +1284,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             node.BindingsConfigurator = widget.BindingsConfigurator;
         }
+
+        node.CachePredicate = widget.CachePredicate;
         
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;

@@ -275,6 +275,28 @@ public sealed class CompositeSurface : ISurfaceSource
     public Surface Flatten()
     {
         var result = new Surface(Width, Height, CellMetrics);
+        FlattenInto(result);
+        return result;
+    }
+
+    /// <summary>
+    /// Flattens all layers into the provided <see cref="Surface"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// This overload enables callers (e.g., the main render loop) to reuse
+    /// a surface from a pool to reduce GC pressure.
+    /// </remarks>
+    /// <param name="result">The surface to write into. Must match width/height/cell metrics.</param>
+    public void FlattenInto(Surface result)
+    {
+        if (result.Width != Width || result.Height != Height || result.CellMetrics != CellMetrics)
+        {
+            throw new ArgumentException(
+                $"Surface dimensions/metrics must match composite. " +
+                $"Composite={Width}x{Height} {CellMetrics}, Surface={result.Width}x{result.Height} {result.CellMetrics}",
+                nameof(result));
+        }
+
         var context = new LayerResolutionContext(this);
 
         for (var y = 0; y < Height; y++)
@@ -284,8 +306,6 @@ public sealed class CompositeSurface : ISurfaceSource
                 result[x, y] = context.ResolveCell(x, y);
             }
         }
-
-        return result;
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ public abstract class Hex1bNode
 {
     // --- Type name cache for auto-generated metric names ---
     private static readonly ConcurrentDictionary<Type, string> s_typeNameSuffixCache = new();
+    private static long s_subtreeRenderVersionCounter;
 
     /// <summary>
     /// The bounds assigned to this node after layout.
@@ -191,7 +192,13 @@ public abstract class Hex1bNode
     /// </list>
     /// </remarks>
     internal Surface? CachedSurface { get; set; }
-    
+
+    /// <summary>
+    /// Optional cache-eligibility predicate copied from the widget declaration.
+    /// Returning <c>false</c> forces a cache miss for this subtree.
+    /// </summary>
+    internal Func<RenderCacheContext, bool>? CachePredicate { get; set; }
+     
     /// <summary>
     /// When set to a non-default color, RenderChild will fill all transparent backgrounds
     /// and empty cells on this node's surface with the specified color after rendering.
@@ -204,6 +211,17 @@ public abstract class Hex1bNode
     /// If bounds change, the cache is invalid even if IsDirty is false.
     /// </summary>
     internal Rect CachedBounds { get; set; }
+
+    /// <summary>
+    /// Most recent dirty version for this node/subtree.
+    /// Updated whenever this node or any descendant is marked dirty.
+    /// </summary>
+    internal long SubtreeRenderVersion { get; private set; }
+
+    /// <summary>
+    /// Dirty version captured when this node's cached surface was produced.
+    /// </summary>
+    internal long CachedSubtreeRenderVersion { get; set; } = -1;
 
     /// <summary>
     /// Marks this node as needing re-rendering.
@@ -223,6 +241,12 @@ public abstract class Hex1bNode
     {
         IsDirty = true;
         InvalidateCache();
+
+        var version = System.Threading.Interlocked.Increment(ref s_subtreeRenderVersionCounter);
+        for (Hex1bNode? current = this; current is not null; current = current.Parent)
+        {
+            current.SubtreeRenderVersion = version;
+        }
     }
     
     /// <summary>
@@ -232,6 +256,7 @@ public abstract class Hex1bNode
     internal void InvalidateCache()
     {
         CachedSurface = null;
+        CachedSubtreeRenderVersion = -1;
     }
 
     /// <summary>

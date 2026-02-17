@@ -1,3 +1,4 @@
+using System.Buffers;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -74,55 +75,67 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
 
         // Calculate how to distribute height among children
         var availableHeight = bounds.Height;
-        var childSizes = new int[Children.Count];
+        var count = Children.Count;
+        // PERF: Use ArrayPool instead of `new int[count]` to avoid per-frame heap allocations.
+        // ArrangeCore runs every frame for every VStack in the tree (layout is not cached).
+        // Rented array may be larger than count; only indices [0, count) are used.
+        var childSizes = ArrayPool<int>.Shared.Rent(count);
         var totalFixed = 0;
         var totalWeight = 0;
 
-        // First pass: measure content-sized and fixed children
-        for (int i = 0; i < Children.Count; i++)
+        try
         {
-            var hint = Children[i].HeightHint ?? SizeHint.Content;
-
-            if (hint.IsFixed)
+            // First pass: measure content-sized and fixed children
+            for (int i = 0; i < count; i++)
             {
-                childSizes[i] = hint.FixedValue;
-                totalFixed += hint.FixedValue;
-            }
-            else if (hint.IsContent)
-            {
-                // Content height often depends on available width (e.g., wrapped TextBlock).
-                // Measure with the current bounds width so content sizing is accurate.
-                var measured = Children[i].Measure(new Constraints(0, bounds.Width, 0, int.MaxValue));
-                childSizes[i] = measured.Height;
-                totalFixed += measured.Height;
-            }
-            else if (hint.IsFill)
-            {
-                totalWeight += hint.FillWeight;
-            }
-        }
-
-        // Second pass: distribute remaining space to fill children
-        var remaining = Math.Max(0, availableHeight - totalFixed);
-        if (totalWeight > 0)
-        {
-            for (int i = 0; i < Children.Count; i++)
-            {
+                childSizes[i] = 0;
                 var hint = Children[i].HeightHint ?? SizeHint.Content;
-                if (hint.IsFill)
+
+                if (hint.IsFixed)
                 {
-                    childSizes[i] = remaining * hint.FillWeight / totalWeight;
+                    childSizes[i] = hint.FixedValue;
+                    totalFixed += hint.FixedValue;
+                }
+                else if (hint.IsContent)
+                {
+                    // Content height often depends on available width (e.g., wrapped TextBlock).
+                    // Measure with the current bounds width so content sizing is accurate.
+                    var measured = Children[i].Measure(new Constraints(0, bounds.Width, 0, int.MaxValue));
+                    childSizes[i] = measured.Height;
+                    totalFixed += measured.Height;
+                }
+                else if (hint.IsFill)
+                {
+                    totalWeight += hint.FillWeight;
                 }
             }
-        }
 
-        // Arrange children
-        var y = bounds.Y;
-        for (int i = 0; i < Children.Count; i++)
+            // Second pass: distribute remaining space to fill children
+            var remaining = Math.Max(0, availableHeight - totalFixed);
+            if (totalWeight > 0)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var hint = Children[i].HeightHint ?? SizeHint.Content;
+                    if (hint.IsFill)
+                    {
+                        childSizes[i] = remaining * hint.FillWeight / totalWeight;
+                    }
+                }
+            }
+
+            // Arrange children
+            var y = bounds.Y;
+            for (int i = 0; i < count; i++)
+            {
+                var childBounds = new Rect(bounds.X, y, bounds.Width, childSizes[i]);
+                Children[i].Arrange(childBounds);
+                y += childSizes[i];
+            }
+        }
+        finally
         {
-            var childBounds = new Rect(bounds.X, y, bounds.Width, childSizes[i]);
-            Children[i].Arrange(childBounds);
-            y += childSizes[i];
+            ArrayPool<int>.Shared.Return(childSizes);
         }
     }
 
