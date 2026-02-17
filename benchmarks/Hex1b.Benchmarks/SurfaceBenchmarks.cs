@@ -1,3 +1,4 @@
+using System.Text;
 using BenchmarkDotNet.Attributes;
 using Hex1b;
 using Hex1b.Automation;
@@ -21,6 +22,9 @@ public class SurfaceBenchmarks
     private Surface _sparseDiffPrevious = null!;
     private Surface _sparseDiffCurrent = null!;
     private SurfaceDiff _diff = null!;
+    private IReadOnlyList<Hex1b.Tokens.AnsiToken> _diffTokens = null!;
+    private byte[] _diffTokenBytes = null!;
+    private readonly Decoder _terminalDecoder = Encoding.UTF8.GetDecoder();
     private CompositeSurface _compositeSurface = null!;
 
     private const string ShortText = "Hello";
@@ -60,6 +64,8 @@ public class SurfaceBenchmarks
 
         // Pre-compute a diff for token generation benchmarks
         _diff = SurfaceComparer.Compare(_previousSurface, _currentSurface);
+        _diffTokens = SurfaceComparer.ToTokens(_diff, _currentSurface);
+        _diffTokenBytes = Hex1b.Tokens.AnsiTokenUtf8Serializer.Serialize(_diffTokens).Span.ToArray();
 
         // Setup composite surface with layers
         _compositeSurface = new CompositeSurface(80, 24);
@@ -240,6 +246,49 @@ public class SurfaceBenchmarks
     {
         return SurfaceComparer.ToAnsiString(_diff);
     }
+
+    [Benchmark]
+    public byte[] ToAnsiBytes_FullDiff()
+    {
+        var output = SurfaceComparer.ToAnsiString(_diff, _currentSurface);
+        return Encoding.UTF8.GetBytes(output);
+    }
+
+    [Benchmark]
+    public ReadOnlyMemory<byte> ToUtf8Bytes_FullDiff()
+    {
+        var tokens = SurfaceComparer.ToTokens(_diff, _currentSurface);
+        return Hex1b.Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+    }
+
+    [Benchmark]
+    public byte[] SerializeTokens_ToAnsiBytes_FullDiff()
+    {
+        var output = Hex1b.Tokens.AnsiTokenSerializer.Serialize(_diffTokens);
+        return Encoding.UTF8.GetBytes(output);
+    }
+
+    [Benchmark]
+    public ReadOnlyMemory<byte> SerializeTokens_ToUtf8Bytes_FullDiff()
+    {
+        return Hex1b.Tokens.AnsiTokenUtf8Serializer.Serialize(_diffTokens);
+    }
+
+    [Benchmark]
+    public IReadOnlyList<Hex1b.Tokens.AnsiToken> DecodeAndTokenize_FromUtf8Bytes_FullDiff()
+    {
+        // Mirrors the terminal's decode + tokenize path (allocation-heavy).
+        _terminalDecoder.Reset();
+        var charCount = _terminalDecoder.GetCharCount(_diffTokenBytes, flush: false);
+        var chars = new char[charCount];
+        _terminalDecoder.GetChars(_diffTokenBytes, chars, flush: false);
+        var text = new string(chars);
+        return Hex1b.Tokens.AnsiTokenizer.Tokenize(text);
+    }
+
+    [Benchmark]
+    public int UsePreTokenizedTokens_FullDiff()
+        => _diffTokens.Count;
 
     [Benchmark]
     public string ToAnsiString_SparseDiff()

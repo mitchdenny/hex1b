@@ -862,14 +862,21 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
             
             var serializeStart = Stopwatch.GetTimestamp();
-            var ansiOutput = Tokens.AnsiTokenSerializer.Serialize(tokens);
-            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
-            
-            _adapter.Write(ansiOutput);
-            
-            _metrics.OutputTokens.Record(tokens.Count);
-            _metrics.OutputBytes.Record(System.Text.Encoding.UTF8.GetByteCount(ansiOutput));
-        }
+             var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+             _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+             
+             if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
+             {
+                 workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
+             }
+             else
+             {
+                 _adapter.Write(ansiOutput);
+             }
+             
+             _metrics.OutputTokens.Record(tokens.Count);
+             _metrics.OutputBytes.Record(ansiOutput.Length);
+         }
         
         _isFirstFrame = false;
     }

@@ -28,6 +28,21 @@ public interface IHex1bAppTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
     /// Write raw bytes to the terminal.
     /// </summary>
     void Write(ReadOnlySpan<byte> data);
+
+    /// <summary>
+    /// Write raw bytes to the terminal without forcing a copy.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This overload exists primarily so internal pipelines can pass <see cref="ReadOnlyMemory{T}"/>
+    /// that already references a heap buffer (e.g., a serializer output) without converting to
+    /// <see cref="ReadOnlySpan{T}"/> and losing the ability to enqueue it zero-copy.
+    /// </para>
+    /// <para>
+    /// Default implementation falls back to <see cref="Write(ReadOnlySpan{byte})"/>.
+    /// </para>
+    /// </remarks>
+    void Write(ReadOnlyMemory<byte> data) => Write(data.Span);
     
     /// <summary>
     /// Flush any buffered output.
