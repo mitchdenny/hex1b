@@ -77,10 +77,21 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert - drawer icon should be to the right of main content
-        var line = snapshot.GetLineTrimmed(0);
+        var mainLineIndex = -1;
+        for (var y = 0; y < snapshot.Height; y++)
+        {
+            if (snapshot.GetLine(y).Contains("Main Content", StringComparison.Ordinal))
+            {
+                mainLineIndex = y;
+                break;
+            }
+        }
+        Assert.True(mainLineIndex >= 0, "Expected to find 'Main Content' somewhere in the snapshot.");
+
+        var line = snapshot.GetLineTrimmed(mainLineIndex);
         var mainIdx = line.IndexOf("Main Content", StringComparison.Ordinal);
         var drawerIdx = line.IndexOf("«", StringComparison.Ordinal);
-        Assert.True(drawerIdx > mainIdx, $"Expected drawer (at {drawerIdx}) to be after main content (at {mainIdx})");
+        Assert.True(drawerIdx > mainIdx, $"Expected drawer (at {drawerIdx}) to be after main content (at {mainIdx}) on line {mainLineIndex}: '{line}'");
     }
 
     [Fact]
