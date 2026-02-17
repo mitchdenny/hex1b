@@ -49,41 +49,53 @@ public sealed class EffectPanelNode : Hex1bNode
             return;
 
         // 1. Create temp surface sized to our bounds
-        var tempSurface = new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
+        var pool = surfaceCtx.SurfacePool;
+        var tempSurface = pool != null
+            ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
+            : new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
 
-        // 2. Create child context with offset (same pattern as SurfaceRenderContext.RenderChild)
-        var tempContext = new SurfaceRenderContext(
-            tempSurface, Bounds.X, Bounds.Y, context.Theme, surfaceCtx.TrackedObjectStore)
+        try
         {
-            CachingEnabled = surfaceCtx.CachingEnabled,
-            MouseX = surfaceCtx.MouseX,
-            MouseY = surfaceCtx.MouseY,
-            CellMetrics = surfaceCtx.CellMetrics
-        };
+            // 2. Create child context with offset (same pattern as SurfaceRenderContext.RenderChild)
+            var tempContext = new SurfaceRenderContext(
+                tempSurface, Bounds.X, Bounds.Y, context.Theme, surfaceCtx.TrackedObjectStore)
+            {
+                CachingEnabled = surfaceCtx.CachingEnabled,
+                MouseX = surfaceCtx.MouseX,
+                MouseY = surfaceCtx.MouseY,
+                CellMetrics = surfaceCtx.CellMetrics,
+                SurfacePool = pool
+            };
 
-        // 3. Render child subtree to temp surface
-        tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-        tempContext.RenderChild(Child);
+            // 3. Render child subtree to temp surface
+            tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
+            tempContext.RenderChild(Child);
 
-        // 4. Apply effect
-        Effect(tempSurface);
+            // 4. Apply effect
+            Effect(tempSurface);
 
-        // 5. Composite modified surface into parent, respecting clip region
-        Rect? clipRect = null;
-        if (surfaceCtx.CurrentLayoutProvider != null)
-        {
-            var providerClip = surfaceCtx.CurrentLayoutProvider.ClipRect;
-            clipRect = new Rect(
-                providerClip.X - surfaceCtx.OffsetX,
-                providerClip.Y - surfaceCtx.OffsetY,
-                providerClip.Width,
-                providerClip.Height);
+            // 5. Composite modified surface into parent, respecting clip region
+            Rect? clipRect = null;
+            if (surfaceCtx.CurrentLayoutProvider != null)
+            {
+                var providerClip = surfaceCtx.CurrentLayoutProvider.ClipRect;
+                clipRect = new Rect(
+                    providerClip.X - surfaceCtx.OffsetX,
+                    providerClip.Y - surfaceCtx.OffsetY,
+                    providerClip.Width,
+                    providerClip.Height);
+            }
+            surfaceCtx.Surface.Composite(
+                tempSurface,
+                Bounds.X - surfaceCtx.OffsetX,
+                Bounds.Y - surfaceCtx.OffsetY,
+                clipRect);
         }
-        surfaceCtx.Surface.Composite(
-            tempSurface,
-            Bounds.X - surfaceCtx.OffsetX,
-            Bounds.Y - surfaceCtx.OffsetY,
-            clipRect);
+        finally
+        {
+            if (pool != null)
+                pool.Return(tempSurface);
+        }
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()

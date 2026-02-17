@@ -70,6 +70,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
     internal Diagnostics.Hex1bMetrics? Metrics { get; init; }
 
     /// <summary>
+    /// Optional surface pool for reusing temporary surfaces during rendering.
+    /// </summary>
+    internal SurfacePool? SurfacePool { get; init; }
+
+    /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
     /// </summary>
     /// <param name="surface">The surface to write to.</param>
@@ -329,31 +334,44 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // preserving the child's full extent (needed for scroll offset rendering).
                 var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
                 var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
-                var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
-                var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
-                {
-                    CachingEnabled = false,
-                    MouseX = MouseX,
-                    MouseY = MouseY,
-                    CellMetrics = CellMetrics,
-                    Metrics = Metrics
-                };
-                childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-                RenderChildTimed(child, childContext);
+                var pool = SurfacePool;
+                var childSurface = pool != null
+                    ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
+                    : new Surface(clampedWidth, clampedHeight, CellMetrics);
 
-                if (!child.FillBackground.IsDefault)
+                try
                 {
-                    childSurface.FillBackground(child.FillBackground);
+                    var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
+                    {
+                        CachingEnabled = false,
+                        MouseX = MouseX,
+                        MouseY = MouseY,
+                        CellMetrics = CellMetrics,
+                        Metrics = Metrics,
+                        SurfacePool = pool
+                    };
+                    childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                    RenderChildTimed(child, childContext);
+
+                    if (!child.FillBackground.IsDefault)
+                    {
+                        childSurface.FillBackground(child.FillBackground);
+                    }
+
+                    var providerClip = CurrentLayoutProvider.ClipRect;
+                    var clipRect = new Rect(
+                        providerClip.X - _offsetX,
+                        providerClip.Y - _offsetY,
+                        providerClip.Width,
+                        providerClip.Height);
+                    _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
+                    return;
                 }
-
-                var providerClip = CurrentLayoutProvider.ClipRect;
-                var clipRect = new Rect(
-                    providerClip.X - _offsetX,
-                    providerClip.Y - _offsetY,
-                    providerClip.Width,
-                    providerClip.Height);
-                _surface.Composite(childSurface, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
-                return;
+                finally
+                {
+                    if (pool != null)
+                        pool.Return(childSurface);
+                }
             }
 
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
