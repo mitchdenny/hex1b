@@ -117,7 +117,7 @@ public class WaitUntilTimeoutTests
 
         // Wait for the app to render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -161,7 +161,7 @@ public class WaitUntilTimeoutTests
 
         // Wait for the app to render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Snapshot Test"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Snapshot Test"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

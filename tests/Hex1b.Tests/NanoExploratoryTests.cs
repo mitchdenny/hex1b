@@ -186,7 +186,7 @@ public class NanoExploratoryTests
             {
                 try
                 {
-                    await _runTask.WaitAsync(TimeSpan.FromSeconds(10));
+                    await _runTask.WaitAsync(TimeSpan.FromSeconds(5));
                 }
                 catch
                 {

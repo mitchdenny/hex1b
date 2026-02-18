@@ -323,7 +323,7 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(10), "scrollbar to render")
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(5), "scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -349,7 +349,7 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("│") && s.ContainsText("▉"), TimeSpan.FromSeconds(10), "vertical scrollbar to render")
+            .WaitUntil(s => s.ContainsText("│") && s.ContainsText("▉"), TimeSpan.FromSeconds(5), "vertical scrollbar to render")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -380,7 +380,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▉"),
-                TimeSpan.FromSeconds(10), "content fits without scrollbar")
+                TimeSpan.FromSeconds(5), "content fits without scrollbar")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -416,7 +416,7 @@ public class ScrollPanelNodeTests
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Line 2") && !s.ContainsText("Line 6"),
-                TimeSpan.FromSeconds(10), "Lines 1-2 visible, Line 6 clipped")
+                TimeSpan.FromSeconds(5), "Lines 1-2 visible, Line 6 clipped")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -461,19 +461,19 @@ public class ScrollPanelNodeTests
         
         // Scroll down and capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(5))
             // Scroll down 5 times to show Line 6, waiting for each scroll to render
             .Down()
-            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(10), "Line 2 visible after 1st Down")
+            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(5), "Line 2 visible after 1st Down")
             .Down()
-            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(10), "Line 3 visible after 2nd Down")
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(5), "Line 3 visible after 2nd Down")
             .Down()
-            .WaitUntil(s => s.ContainsText("Line 4"), TimeSpan.FromSeconds(10), "Line 4 visible after 3rd Down")
+            .WaitUntil(s => s.ContainsText("Line 4"), TimeSpan.FromSeconds(5), "Line 4 visible after 3rd Down")
             .Down()
-            .WaitUntil(s => s.ContainsText("Line 5"), TimeSpan.FromSeconds(10), "Line 5 visible after 4th Down")
+            .WaitUntil(s => s.ContainsText("Line 5"), TimeSpan.FromSeconds(5), "Line 5 visible after 4th Down")
             .Down()
             .WaitUntil(s => s.ContainsText("Line 6") && s.ContainsText("Line 7"),
-                TimeSpan.FromSeconds(10), "Lines 6 and 7 visible after 5th Down")
+                TimeSpan.FromSeconds(5), "Lines 6 and 7 visible after 5th Down")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -507,7 +507,7 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(10), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(5), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -533,7 +533,7 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("■"), TimeSpan.FromSeconds(10), "horizontal scrollbar to render")
+            .WaitUntil(s => s.ContainsText("─") && s.ContainsText("■"), TimeSpan.FromSeconds(5), "horizontal scrollbar to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -569,7 +569,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Cyan),
-                TimeSpan.FromSeconds(10), "Cyan foreground color")
+                TimeSpan.FromSeconds(5), "Cyan foreground color")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -600,7 +600,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Yellow),
-                TimeSpan.FromSeconds(10), "Yellow foreground color")
+                TimeSpan.FromSeconds(5), "Yellow foreground color")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1043,7 +1043,7 @@ public class ScrollPanelNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Line 1"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1086,7 +1086,7 @@ public class ScrollPanelNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(10)) // Wait for scrollbar thumb
+            .WaitUntil(s => s.ContainsText("▉"), TimeSpan.FromSeconds(5)) // Wait for scrollbar thumb
             .Down().Down().Down()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1120,7 +1120,7 @@ public class ScrollPanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Tab from scroll widget to button, then press enter
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
             .Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1164,7 +1164,7 @@ public class ScrollPanelNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left Side") && s.ContainsText("Scrollable"), TimeSpan.FromSeconds(10), "splitter with scroll content to render")
+            .WaitUntil(s => s.ContainsText("Left Side") && s.ContainsText("Scrollable"), TimeSpan.FromSeconds(5), "splitter with scroll content to render")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1198,7 +1198,7 @@ public class ScrollPanelNodeTests
         
         // Capture snapshot BEFORE exiting (horizontal scrollbar uses ■, not ▉)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(10)) // Wait for scroll thumb
+            .WaitUntil(s => s.ContainsText("■"), TimeSpan.FromSeconds(5)) // Wait for scroll thumb
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1239,7 +1239,7 @@ public class ScrollPanelNodeTests
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Test") && s.ContainsText("Header") && s.ContainsText("Footer"),
-                TimeSpan.FromSeconds(10), "border with title, header, and footer")
+                TimeSpan.FromSeconds(5), "border with title, header, and footer")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

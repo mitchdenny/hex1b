@@ -48,11 +48,11 @@ public class TestWidgetTests
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var runTask = appInstance.RunAsync(cts.Token);
 
         // Wait for initial render then stop the app
-        await firstRenderTcs.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await firstRenderTcs.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         appInstance.RequestStop();
 
         await runTask;

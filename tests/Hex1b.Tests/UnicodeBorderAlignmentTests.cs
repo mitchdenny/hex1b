@@ -211,7 +211,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(cancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("End line"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("End line"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -339,7 +339,7 @@ public class UnicodeBorderAlignmentTests
         
         // Wait for render, then capture - don't use Capture() to avoid duplicate name issues
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("END MARKER"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("END MARKER"), TimeSpan.FromSeconds(5), "render complete")
             // CI can capture mid-frame; give the renderer a moment to flush the final diff.
             .Wait(50)
             .Build()
@@ -595,7 +595,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -631,7 +631,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Plain line"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("Plain line"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -667,7 +667,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -706,7 +706,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -741,7 +741,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -777,7 +777,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("baseline"), TimeSpan.FromSeconds(10), "render complete")
+            .WaitUntil(s => s.ContainsText("baseline"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()

@@ -64,7 +64,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(globalBindingFired, "Global binding should fire when no focused widget exists");
@@ -105,7 +105,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.Y).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.False(anyBindingFired, "No binding should fire for unbound key");
@@ -156,7 +156,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(childBindingFired, "Child (last reconciled) binding should fire");
@@ -203,7 +203,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Button should auto-focus as first focusable widget
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -240,7 +240,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // TextBox should auto-focus
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.A).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -284,7 +284,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Button is focused, press Q (button doesn't handle it)
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.Q).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -340,7 +340,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -393,7 +393,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Tab to move focus from Button1 to Button2
         await new Hex1bTerminalInputSequenceBuilder()
@@ -454,7 +454,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(innerFired, "Inner (last reconciled) should win");
@@ -508,7 +508,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(deepFired, "Deepest (last reconciled) should win");
@@ -545,7 +545,7 @@ public class InputBindingPrecedenceTests
 
         var runTask = app.RunAsync(CancellationToken.None);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Send Ctrl+C
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Build().ApplyAsync(terminal);
@@ -587,7 +587,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -635,7 +635,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.G).Wait(50)
@@ -680,7 +680,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.G).Wait(50)
@@ -725,7 +725,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.G).Wait(50)
@@ -775,7 +775,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(bindingFired, "VStack binding should fire as global binding");
@@ -818,7 +818,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Tab to Button2
         await new Hex1bTerminalInputSequenceBuilder()
@@ -873,7 +873,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(bindingFired, "Global binding should fire even with RescueWidget wrapping");
@@ -918,7 +918,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(bindingFired, "Ctrl+X global binding should fire");
@@ -968,7 +968,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.S).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -1015,7 +1015,7 @@ public class InputBindingPrecedenceTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Shift().Tab().Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(bindingFired, "Shift+Tab global binding should fire");

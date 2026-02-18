@@ -160,7 +160,7 @@ public class AnchoredNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(5), "ready")
             // Open picker dropdown
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))

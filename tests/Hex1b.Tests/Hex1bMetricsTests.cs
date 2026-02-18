@@ -258,7 +258,7 @@ public class Hex1bMetricsTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello Metrics"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Hello Metrics"), TimeSpan.FromSeconds(5))
             .Ctrl().Key(Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -437,7 +437,7 @@ public class Hex1bMetricsTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(5))
             .Ctrl().Key(Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -495,7 +495,7 @@ public class Hex1bMetricsTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
             .Ctrl().Key(Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

@@ -24,7 +24,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(10), "info bar to render")
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(5), "info bar to render")
             .Capture("single-section")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -54,7 +54,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mode: Insert") && s.ContainsText("UTF-8") && s.ContainsText("Ln 42"),
-                TimeSpan.FromSeconds(10), "all sections to render")
+                TimeSpan.FromSeconds(5), "all sections to render")
             .Capture("multiple-sections")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -85,7 +85,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("A") && s.ContainsText("B") && s.ContainsText("C"),
-                TimeSpan.FromSeconds(10), "all sections with separators to render")
+                TimeSpan.FromSeconds(5), "all sections with separators to render")
             .Capture("default-separator")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -119,7 +119,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"),
-                TimeSpan.FromSeconds(10), "left and right sections to render")
+                TimeSpan.FromSeconds(5), "left and right sections to render")
             .Capture("spacer")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -155,7 +155,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inverted"), TimeSpan.FromSeconds(10), "inverted text to render")
+            .WaitUntil(s => s.ContainsText("Inverted"), TimeSpan.FromSeconds(5), "inverted text to render")
             .Capture("inverted-colors")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -188,7 +188,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Normal"), TimeSpan.FromSeconds(10), "normal text to render")
+            .WaitUntil(s => s.ContainsText("Normal"), TimeSpan.FromSeconds(5), "normal text to render")
             .Capture("normal-colors")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -222,7 +222,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Normal") && s.ContainsText("Error"),
-                TimeSpan.FromSeconds(10), "both sections to render")
+                TimeSpan.FromSeconds(5), "both sections to render")
             .Capture("section-theme")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -257,7 +257,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Main Content") && s.ContainsText("Status Bar"),
-                TimeSpan.FromSeconds(10), "both elements to render")
+                TimeSpan.FromSeconds(5), "both elements to render")
             .Capture("infobar-in-vstack")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -289,7 +289,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Mode") && s.ContainsText("Ready"),
-                TimeSpan.FromSeconds(10), "info bar to render")
+                TimeSpan.FromSeconds(5), "info bar to render")
             .Capture($"infobar-{width}x{height}")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -325,7 +325,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(10), "themed text to render")
+            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(5), "themed text to render")
             .Capture("infobar-themed")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -358,7 +358,7 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Status:") && s.ContainsText("OK"),
-                TimeSpan.FromSeconds(10), "widget content to render")
+                TimeSpan.FromSeconds(5), "widget content to render")
             .Capture("section-widget-content")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

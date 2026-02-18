@@ -56,7 +56,7 @@ public class BackgroundBleedThroughTests
             new Hex1bAppOptions { WorkloadAdapter = workload });
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
             .Capture("bgpanel-textblock")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

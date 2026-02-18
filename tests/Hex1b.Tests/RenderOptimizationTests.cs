@@ -66,7 +66,7 @@ public class RenderOptimizationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
-            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -141,7 +141,7 @@ public class RenderOptimizationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Key(Hex1bKey.B)
-            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Counter: 3"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -407,7 +407,7 @@ public class RenderOptimizationTests
         var dividerMoved = false;
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(10), "splitter to render")
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(5), "splitter to render")
             .Drag(21, 5, 31, 5)
             .WaitUntil(s =>
             {
@@ -423,7 +423,7 @@ public class RenderOptimizationTests
                     }
                 }
                 return false;
-            }, TimeSpan.FromSeconds(10), "divider to move to new position")
+            }, TimeSpan.FromSeconds(5), "divider to move to new position")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -515,7 +515,7 @@ public class RenderOptimizationTests
         
         // Wait for initial render, then move mouse over button to trigger hover state
         var finalSnapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
             .MouseMoveTo(5, 1)
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)

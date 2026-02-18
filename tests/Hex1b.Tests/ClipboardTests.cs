@@ -106,7 +106,7 @@ public class ClipboardTests
         
         // Wait for button to be rendered, then press Enter to click it
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Copy Test"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Copy Test"), TimeSpan.FromSeconds(5))
             .Enter()
             .Wait(TimeSpan.FromMilliseconds(100)) // Wait for clipboard write to process
             .Ctrl().Key(Hex1bKey.C)

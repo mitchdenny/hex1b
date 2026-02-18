@@ -53,9 +53,9 @@ public class TableClippingTests
 
         // Open the window
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Table Window"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Open Table Window"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Enter)
-            .WaitUntil(s => s.ContainsText("Employees"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Employees"), TimeSpan.FromSeconds(5))
             .Capture("table-before-resize")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -72,7 +72,7 @@ public class TableClippingTests
                 // to approximately column 30. Column 54 should now be empty/space.
                 var line = s.GetLine(8);
                 return line.Length > 54 && line[54] == ' ';
-            }, TimeSpan.FromSeconds(10), "Window right edge should move from column 54 after resize drag")
+            }, TimeSpan.FromSeconds(5), "Window right edge should move from column 54 after resize drag")
             .Capture("table-after-resize")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

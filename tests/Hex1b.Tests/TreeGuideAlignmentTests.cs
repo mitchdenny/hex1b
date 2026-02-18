@@ -89,7 +89,7 @@ public class TreeGuideAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Root") && s.ContainsText("Grandchild"), 
-                TimeSpan.FromSeconds(10), "tree to render")
+                TimeSpan.FromSeconds(5), "tree to render")
             .Capture("guides")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -161,7 +161,7 @@ public class TreeGuideAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Root") && s.ContainsText("Child 2"), 
-                TimeSpan.FromSeconds(10), "tree to render")
+                TimeSpan.FromSeconds(5), "tree to render")
             .Capture("single_root")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

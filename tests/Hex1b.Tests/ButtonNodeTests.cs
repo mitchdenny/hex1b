@@ -398,7 +398,7 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -427,7 +427,7 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -457,7 +457,7 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(5))
             .Space()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -489,7 +489,7 @@ public class ButtonNodeTests
         // Click the button 3 times
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(5))
             .Enter()
             .Enter()
             .Enter()
@@ -526,7 +526,7 @@ public class ButtonNodeTests
         // Tab to second button and press Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(5))
             .Tab()
             .Enter()
             .Capture("final")
@@ -558,7 +558,7 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -588,7 +588,7 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Click Here"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -621,7 +621,7 @@ public class ButtonNodeTests
         // Type in text box, tab to button, press button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(5))
             .Type("Hi")
             .Tab()
             .Enter()
@@ -655,7 +655,7 @@ public class ButtonNodeTests
         // Click 5 times rapidly
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var builder = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(10));
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(5));
         for (int i = 0; i < 5; i++)
         {
             builder.Enter();
@@ -689,10 +689,10 @@ public class ButtonNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Clicked 0 times"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Clicked 0 times"), TimeSpan.FromSeconds(5))
             .Enter()
             .Enter()
-            .WaitUntil(s => s.ContainsText("Clicked 2 times"), TimeSpan.FromSeconds(10))
+            .WaitUntil(s => s.ContainsText("Clicked 2 times"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

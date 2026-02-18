@@ -135,11 +135,11 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(10), "button")
+            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(5), "button")
             // Press enter to click the button
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(100))
-            .WaitUntil(s => s.ContainsText("Test Alert") && s.ContainsText("View Details"), TimeSpan.FromSeconds(10), "notification with action")
+            .WaitUntil(s => s.ContainsText("Test Alert") && s.ContainsText("View Details"), TimeSpan.FromSeconds(5), "notification with action")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -196,11 +196,11 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "post button")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "post button")
             // Click Post button to create notification
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("▼"), TimeSpan.FromSeconds(10), "notification with dropdown")
+            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("▼"), TimeSpan.FromSeconds(5), "notification with dropdown")
             // Tab to the action button in the notification
             .Key(Hex1bKey.Tab)
             .Wait(TimeSpan.FromMilliseconds(100))
@@ -257,14 +257,14 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "post button")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "post button")
             // Post a notification
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Test Notification"), TimeSpan.FromSeconds(10), "notification")
+            .WaitUntil(s => s.ContainsText("Test Notification"), TimeSpan.FromSeconds(5), "notification")
             // Press Alt+N to open drawer
             .Alt().Key(Hex1bKey.N)
-            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(10), "drawer open with count")
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(5), "drawer open with count")
             .Capture("drawer_open")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -333,14 +333,14 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post Notification") && s.ContainsText("🔔"), TimeSpan.FromSeconds(10), "button and icon")
+            .WaitUntil(s => s.ContainsText("Post Notification") && s.ContainsText("🔔"), TimeSpan.FromSeconds(5), "button and icon")
             // Focus order: Menu -> NotificationIcon -> Post Notification
             // Tab twice to get to Post button
             .Key(Hex1bKey.Tab) // Move from Menu to NotificationIcon
             .Key(Hex1bKey.Tab) // Move from NotificationIcon to Post Notification
             .Key(Hex1bKey.Enter) // Click Post Notification
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Test Alert"), TimeSpan.FromSeconds(10), "notification posted")
+            .WaitUntil(s => s.ContainsText("Test Alert"), TimeSpan.FromSeconds(5), "notification posted")
             .Capture("after_post")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -398,12 +398,12 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "ready")
             // Post a notification first - Tab to Post button and press Enter
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(10), "notification")
+            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(5), "notification")
             // Use Alt+N to toggle the drawer (standard keyboard shortcut)
             .Alt().Key(Hex1bKey.N)
             .Wait(TimeSpan.FromMilliseconds(200))
@@ -459,17 +459,17 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "ready")
             // Post a notification
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(10), "notification posted")
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5), "notification posted")
             // Open the drawer with Alt+N
             .Alt().Key(Hex1bKey.N)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(10), "drawer opened")
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(5), "drawer opened")
             .Capture("drawer_open")
             // Click outside the drawer (left side of screen, in the content area)
             // Drawer is on the right (~42 chars wide), so click at x=5 which is definitely outside
@@ -524,17 +524,17 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "ready")
             // Post a notification
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Drawer Test"), TimeSpan.FromSeconds(10), "notification posted")
+            .WaitUntil(s => s.ContainsText("Drawer Test"), TimeSpan.FromSeconds(5), "notification posted")
             // Open the drawer (this should hide progress bar on drawer cards)
             .Alt().Key(Hex1bKey.N)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(10), "drawer opened")
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(5), "drawer opened")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -590,17 +590,17 @@ public class NotificationCardNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post"), TimeSpan.FromSeconds(5), "ready")
             // Post a notification
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Tab)
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Dismiss Test"), TimeSpan.FromSeconds(10), "notification posted")
+            .WaitUntil(s => s.ContainsText("Dismiss Test"), TimeSpan.FromSeconds(5), "notification posted")
             // Open the drawer
             .Alt().Key(Hex1bKey.N)
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(10), "drawer opened")
+            .WaitUntil(s => s.ContainsText("Notifications (1)"), TimeSpan.FromSeconds(5), "drawer opened")
             .Capture("before_dismiss")
             // Click on the dismiss button [ × ] 
             // Drawer starts at col 38, card at 39, card width 40, button 5 chars
@@ -680,13 +680,13 @@ public class NotificationPanelHitTestTests
 
         // Post notifications and open drawer
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post Notifications"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post Notifications"), TimeSpan.FromSeconds(5), "ready")
             // Tab to move from NotificationIcon to Post Notifications button
             .Key(Hex1bKey.Tab)
             .Wait(TimeSpan.FromMilliseconds(50))
             .Key(Hex1bKey.Enter) // Click "Post Notifications" button
             .Wait(TimeSpan.FromMilliseconds(300))
-            .WaitUntil(s => s.ContainsText("Test 1") || s.ContainsText("Test 2"), TimeSpan.FromSeconds(10), "notifications_posted")
+            .WaitUntil(s => s.ContainsText("Test 1") || s.ContainsText("Test 2"), TimeSpan.FromSeconds(5), "notifications_posted")
             .Capture("notifications_posted")
             // Now tab to navigate through drawer elements
             .Key(Hex1bKey.Tab) // Navigate in drawer
@@ -749,7 +749,7 @@ public class NotificationPanelHitTestTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content Button"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Content Button"), TimeSpan.FromSeconds(5), "ready")
             // Tab to move from NotificationIcon to Content Button
             .Key(Hex1bKey.Tab)
             .Wait(TimeSpan.FromMilliseconds(50))
@@ -803,10 +803,10 @@ public class NotificationPanelHitTestTests
 
         // IMPORTANT: capture snapshot BEFORE exiting; alternate screen is cleared on exit.
         using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(10), "ready")
+            .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(5), "ready")
             .Key(Hex1bKey.Enter) // Post notification
             .Wait(TimeSpan.FromMilliseconds(200))
-            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(10), "notification_visible")
+            .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(5), "notification_visible")
             .Capture("with_notification")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

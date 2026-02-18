@@ -343,7 +343,7 @@ public class DiagnosticShellIntegrationTests
             _runTask = OuterTerminal.RunAsync(_cts.Token);
             
             // Wait for initial render — should now find "diag>" quickly since Start() was called
-            await WaitForTextAsync("diag>", TimeSpan.FromSeconds(10));
+            await WaitForTextAsync("diag>", TimeSpan.FromSeconds(5));
             
             Tracer.Log("Test", "Initial render complete");
         }
@@ -433,7 +433,7 @@ public class DiagnosticShellIntegrationTests
             
             if (_runTask != null)
             {
-                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(10)); }
+                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(5)); }
                 catch { }
             }
             
@@ -458,7 +458,7 @@ public class DiagnosticShellIntegrationTests
         await ctx.SendCommandAsync("help");
         
         // Wait for help output to appear
-        var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(10));
+        var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(5));
         var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(1));
         var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(1));
         
@@ -489,7 +489,7 @@ public class DiagnosticShellIntegrationTests
         await ctx.SendCommandAsync("ping");
         
         // Wait for pong response (case-insensitive - output is PONG)
-        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(10));
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
         var afterPong = DateTimeOffset.Now;
         
         // Dump diagnostic info to stderr (which shows in test output)
@@ -527,20 +527,20 @@ public class DiagnosticShellIntegrationTests
         // Act - send multiple commands, waiting for prompt between each
         // to ensure the rendering pipeline has fully processed each command's output
         await ctx.SendCommandAsync("echo hello");
-        var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(10));
+        var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(5));
         Assert.True(foundHello, $"Should find 'hello'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
         
         // Wait for prompt to ensure previous command fully rendered before sending next
         await ctx.WaitForTextAsync("diag>", TimeSpan.FromSeconds(3));
         
         await ctx.SendCommandAsync("echo world");
-        var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(10));
+        var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(5));
         Assert.True(foundWorld, $"Should find 'world'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
         
         await ctx.WaitForTextAsync("diag>", TimeSpan.FromSeconds(3));
         
         await ctx.SendCommandAsync("ping");
-        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(10));
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
         
         // Assert with diagnostics
         Assert.True(foundPong, $"Should find 'PONG'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
@@ -558,7 +558,7 @@ public class DiagnosticShellIntegrationTests
         
         // Wait for the last line of flood output (Line 010)
         // Use longer timeout for CI environments which may be slower
-        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(10));
+        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(5));
         
         // Assert
         Assert.True(foundComplete, "Should see last flood line");
