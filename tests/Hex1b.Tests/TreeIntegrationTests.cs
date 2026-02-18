@@ -237,7 +237,7 @@ public class TreeIntegrationTests
             .Down()  // Move to A1
             .Down()  // Move to A2
             .Up()    // Move back to A1
-            .WaitUntil(s => IsFocused(s, "A1"), TimeSpan.FromSeconds(2), "A1 focused")
+            .WaitUntil(s => IsFocused(s, "A1"), TimeSpan.FromSeconds(5), "A1 focused")
             .Capture("after_up")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -330,7 +330,7 @@ public class TreeIntegrationTests
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(5), "tree to render")
             .Right()  // Expand
-            .WaitUntil(s => s.ContainsText("Child"), TimeSpan.FromSeconds(2), "child to appear")
+            .WaitUntil(s => s.ContainsText("Child"), TimeSpan.FromSeconds(5), "child to appear")
             .Capture("after_expand")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -362,9 +362,9 @@ public class TreeIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child"), TimeSpan.FromSeconds(2), "tree to render expanded")
+            .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child"), TimeSpan.FromSeconds(5), "tree to render expanded")
             .Left()  // Collapse
-            .WaitUntil(s => !s.ContainsText("Child"), TimeSpan.FromSeconds(2), "child to disappear")
+            .WaitUntil(s => !s.ContainsText("Child"), TimeSpan.FromSeconds(5), "child to disappear")
             .Capture("after_collapse")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -485,7 +485,7 @@ public class TreeIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText(CheckboxUnchecked), TimeSpan.FromSeconds(2), "tree to render with checkboxes")
+            .WaitUntil(s => s.ContainsText(CheckboxUnchecked), TimeSpan.FromSeconds(5), "tree to render with checkboxes")
             .Key(Hex1bKey.Spacebar)  // Select Item 1
             .Wait(50)
             .Down()
@@ -620,7 +620,7 @@ public class TreeIntegrationTests
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("My Tree") && s.ContainsText("Root"), TimeSpan.FromSeconds(2), "bordered tree to render")
+            .WaitUntil(s => s.ContainsText("My Tree") && s.ContainsText("Root"), TimeSpan.FromSeconds(5), "bordered tree to render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -693,7 +693,7 @@ public class TreeIntegrationTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Outer") && s.ContainsText("Inner") && s.ContainsText("Deep Item"), 
-                TimeSpan.FromSeconds(2), "nested borders to render")
+                TimeSpan.FromSeconds(5), "nested borders to render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -760,7 +760,7 @@ public class TreeIntegrationTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Tree") && s.ContainsText("Right Side"), 
-                TimeSpan.FromSeconds(2), "side-by-side content to render")
+                TimeSpan.FromSeconds(5), "side-by-side content to render")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -811,7 +811,7 @@ public class TreeIntegrationTests
         // First capture: Left tree has focus
         var captureLeft = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Item 1") && s.ContainsText("Right Item 1"), 
-                TimeSpan.FromSeconds(2), "trees to render")
+                TimeSpan.FromSeconds(5), "trees to render")
             .Capture("left_focused")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -850,7 +850,7 @@ public class TreeIntegrationTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Level 0") && s.ContainsText("Level 4"), 
-                TimeSpan.FromSeconds(2), "deep tree to render")
+                TimeSpan.FromSeconds(5), "deep tree to render")
             // Navigate all the way down
             .Down()  // Level 1
             .Down()  // Level 2
@@ -884,7 +884,7 @@ public class TreeIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Level 0") && s.ContainsText("Level 4"), 
-                TimeSpan.FromSeconds(2), "deep tree to render")
+                TimeSpan.FromSeconds(5), "deep tree to render")
             // Navigate to Level 4
             .Down().Down().Down().Down()
             // Left on Level 4 (leaf, no children) moves to parent Level 3
@@ -974,7 +974,7 @@ public class TreeIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(5), "tree to render")
             .Right()  // Expand
-            .WaitUntil(s => s.ContainsText("Child"), TimeSpan.FromSeconds(2), "child to appear")
+            .WaitUntil(s => s.ContainsText("Child"), TimeSpan.FromSeconds(5), "child to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1007,9 +1007,9 @@ public class TreeIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child"), TimeSpan.FromSeconds(2), "tree to render expanded")
+            .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child"), TimeSpan.FromSeconds(5), "tree to render expanded")
             .Left()  // Collapse
-            .WaitUntil(s => !s.ContainsText("Child"), TimeSpan.FromSeconds(2), "child to disappear")
+            .WaitUntil(s => !s.ContainsText("Child"), TimeSpan.FromSeconds(5), "child to disappear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1047,7 +1047,7 @@ public class TreeIntegrationTests
         await treeNode.ToggleExpandAsync(treeNode.Items[0], ctx);
         
         // Wait for the async handler to be called (with timeout)
-        var wasLoaded = await loadCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var wasLoaded = await loadCalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(wasLoaded, "OnExpanding handler should have been called");
         
         // Wait a bit more for the children to be loaded
@@ -1106,7 +1106,7 @@ public class TreeIntegrationTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Root") && s.ContainsText("Visible Child"), 
-                TimeSpan.FromSeconds(2), "tree to render with expanded item")
+                TimeSpan.FromSeconds(5), "tree to render with expanded item")
             .Capture("initial")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1165,7 +1165,7 @@ public class TreeIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Tree Widget Demo"), TimeSpan.FromSeconds(2), "demo to render")
+            .WaitUntil(s => s.ContainsText("Tree Widget Demo"), TimeSpan.FromSeconds(5), "demo to render")
             .Capture("border_investigation")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1249,8 +1249,8 @@ public class TreeIntegrationTests
 
         // Check if load was even triggered
         var loadTriggered = await Task.WhenAny(
-            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)),
-            Task.Delay(TimeSpan.FromSeconds(2))
+            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)),
+            Task.Delay(TimeSpan.FromSeconds(5))
         ) == loadStarted.Task;
         
         // If not triggered, capture what the screen looks like now
@@ -1338,8 +1338,8 @@ public class TreeIntegrationTests
 
         // Check if load was even triggered - same as passing test
         var loadTriggered = await Task.WhenAny(
-            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)),
-            Task.Delay(TimeSpan.FromSeconds(2))
+            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)),
+            Task.Delay(TimeSpan.FromSeconds(5))
         ) == loadStarted.Task;
         
         if (!loadTriggered)

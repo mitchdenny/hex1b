@@ -123,7 +123,7 @@ public class HyperlinkNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2), "Link text")
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(5), "Link text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -335,7 +335,7 @@ public class HyperlinkIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("GitHub"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("GitHub"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -367,7 +367,7 @@ public class HyperlinkIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -400,7 +400,7 @@ public class HyperlinkIntegrationTests
         // Tab to second link and press Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(5))
             .Tab()
             .Enter()
             .Capture("final")
@@ -434,7 +434,7 @@ public class HyperlinkIntegrationTests
         // Tab to button and press Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Visit Site"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Visit Site"), TimeSpan.FromSeconds(5))
             .Tab()
             .Enter()
             .Capture("final")

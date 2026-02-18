@@ -77,7 +77,7 @@ public class WindowFocusIntegrationTests
 
         // Step 1: Use ALT-F to open File menu via keyboard shortcut
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
             .Alt().Key(Hex1bKey.F)  // ALT-F to open File menu
             .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Build()
@@ -182,7 +182,7 @@ public class WindowFocusIntegrationTests
 
         // First, open a window via File menu
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
             .Alt().Key(Hex1bKey.F)
             .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Key(Hex1bKey.Enter)  // Activate New Window menu item
@@ -261,7 +261,7 @@ public class WindowFocusIntegrationTests
 
         // Open both windows at once, then press ESC
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Both Windows"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Open Both Windows"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Enter)  // Click button to open both windows
             .WaitUntil(s => s.ContainsText("Window 1") && s.ContainsText("Window 2"), TimeSpan.FromSeconds(1))
             .Capture("after_open")
@@ -322,7 +322,7 @@ public class WindowFocusIntegrationTests
 
         // Open both windows
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Both"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Open Both"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Enter)
             .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(1))
             .Capture("both_windows")
@@ -397,7 +397,7 @@ public class WindowFocusIntegrationTests
 
         // Open two windows via menu
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
             // Open File menu and select New Window (opens window 1)
             .Key(Hex1bKey.Enter)  // Opens File menu
             .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))

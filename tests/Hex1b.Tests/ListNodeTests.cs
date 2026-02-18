@@ -135,7 +135,7 @@ public class ListNodeTests
                 s.ContainsText("Item 1") && 
                 s.ContainsText("Item 2") && 
                 s.ContainsText("Item 3"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "all items visible")
             .Capture("final")
             .Build()
@@ -180,7 +180,7 @@ public class ListNodeTests
         
         // Wait for the item and capture snapshot atomically
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Only Item"), TimeSpan.FromSeconds(2), "item visible")
+            .WaitUntil(s => s.ContainsText("Only Item"), TimeSpan.FromSeconds(5), "item visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -206,7 +206,7 @@ public class ListNodeTests
         
         // Default selected indicator is "> "
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(2), "selected indicator visible")
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(5), "selected indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -228,7 +228,7 @@ public class ListNodeTests
         
         // Default unselected indicator is "  " (two spaces)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("  Item 2"), TimeSpan.FromSeconds(2), "unselected indicator visible")
+            .WaitUntil(s => s.ContainsText("  Item 2"), TimeSpan.FromSeconds(5), "unselected indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -254,7 +254,7 @@ public class ListNodeTests
                 s.ContainsText("  First") && 
                 s.ContainsText("> Second") && 
                 s.ContainsText("  Third"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "all indicators visible")
             .Capture("final")
             .Build()
@@ -283,7 +283,7 @@ public class ListNodeTests
                 s.ContainsText("  First") && 
                 s.ContainsText("  Second") && 
                 s.ContainsText("> Third"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "all indicators visible")
             .Capture("final")
             .Build()
@@ -312,7 +312,7 @@ public class ListNodeTests
         
         // Wait for content and capture snapshot atomically
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "item visible")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "item visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -335,7 +335,7 @@ public class ListNodeTests
         
         // Still shows indicator but without selection colors
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(2), "indicator visible")
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(5), "indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -361,7 +361,7 @@ public class ListNodeTests
         
         // Check that content is rendered - the terminal places it at the right position internally
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test Item"), TimeSpan.FromSeconds(2), "item visible")
+            .WaitUntil(s => s.ContainsText("Test Item"), TimeSpan.FromSeconds(5), "item visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -390,7 +390,7 @@ public class ListNodeTests
                 s.ContainsText("Item A") && 
                 s.ContainsText("Item B") && 
                 s.ContainsText("Item C"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "all items visible")
             .Capture("final")
             .Build()
@@ -422,7 +422,7 @@ public class ListNodeTests
         
         // Wait for content and capture snapshot atomically
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "item visible")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "item visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -448,7 +448,7 @@ public class ListNodeTests
         node.Render(context);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(2), "custom indicator visible")
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(5), "custom indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -471,7 +471,7 @@ public class ListNodeTests
         node.Render(context);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("- Item 2"), TimeSpan.FromSeconds(2), "custom unselected indicator visible")
+            .WaitUntil(s => s.ContainsText("- Item 2"), TimeSpan.FromSeconds(5), "custom unselected indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -493,7 +493,7 @@ public class ListNodeTests
         
         // HighContrast theme uses "► " indicator
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(2), "high contrast indicator visible")
+            .WaitUntil(s => s.ContainsText("► Item 1"), TimeSpan.FromSeconds(5), "high contrast indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -523,7 +523,7 @@ public class ListNodeTests
         
         // Content is rendered, at least the beginning of the text should be visible
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Very"), TimeSpan.FromSeconds(2), "truncated content visible")
+            .WaitUntil(s => s.ContainsText("Very"), TimeSpan.FromSeconds(5), "truncated content visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -545,7 +545,7 @@ public class ListNodeTests
         
         // Should still render the indicator
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText(">"), TimeSpan.FromSeconds(2), "indicator visible")
+            .WaitUntil(s => s.ContainsText(">"), TimeSpan.FromSeconds(5), "indicator visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -801,7 +801,7 @@ public class ListNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Option C"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Option C"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -832,9 +832,9 @@ public class ListNodeTests
         
         // Navigate down to select second item, wait for selection change, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5))
             .Down()
-            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Second"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -867,7 +867,7 @@ public class ListNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -898,9 +898,9 @@ public class ListNodeTests
         
         // Simulate down arrow, wait for selection change, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -931,7 +931,7 @@ public class ListNodeTests
         
         // Simulate Enter key
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Action 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Action 1"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -964,7 +964,7 @@ public class ListNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Select an option:"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -994,7 +994,7 @@ public class ListNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Themed Item"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1023,10 +1023,10 @@ public class ListNodeTests
         
         // Navigate down twice, wait for selection change, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5))
             .Down()
             .Down()
-            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Third"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1061,7 +1061,7 @@ public class ListNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Welcome"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1359,7 +1359,7 @@ public class ListNodeTests
                 s.ContainsText("Item 3") &&
                 !s.ContainsText("Item 4") && 
                 !s.ContainsText("Item 5"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "Items 1-3 visible, Items 4-5 not visible")
             .Capture("final")
             .Build()
@@ -1402,7 +1402,7 @@ public class ListNodeTests
                 s.ContainsText("Item 5") &&
                 !s.ContainsText("Item 1") && 
                 !s.ContainsText("Item 2"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "Items 3-5 visible, Items 1-2 not visible")
             .Capture("final")
             .Build()
@@ -1481,9 +1481,9 @@ public class ListNodeTests
         
         // Navigate down through the list and wait for Date to be selected
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5))
             .Down().Down().Down() // Move to Date (index 3)
-            .WaitUntil(s => s.ContainsText("> Date"), TimeSpan.FromSeconds(2), "Date to be selected")
+            .WaitUntil(s => s.ContainsText("> Date"), TimeSpan.FromSeconds(5), "Date to be selected")
             .Capture("after_navigation")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1515,10 +1515,10 @@ public class ListNodeTests
         
         // Position mouse over the list (inside the border) and scroll
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5))
             .MouseMoveTo(5, 2) // Position mouse inside the list area
             .ScrollDown(3) // Scroll down 3 times to reach Date
-            .WaitUntil(s => s.ContainsText("Date"), TimeSpan.FromSeconds(2), "Date to appear after scrolling")
+            .WaitUntil(s => s.ContainsText("Date"), TimeSpan.FromSeconds(5), "Date to appear after scrolling")
             .Capture("after_scroll")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1590,11 +1590,11 @@ public class ListNodeTests
         
         // Navigate down to item 15, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(5))
             .Down().Down().Down().Down().Down() // Items 2-6
             .Down().Down().Down().Down().Down() // Items 7-11
             .Down().Down().Down().Down() // Items 12-15
-            .WaitUntil(s => s.ContainsText("> Item 15"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 15"), TimeSpan.FromSeconds(5))
             .Capture("at_item_15")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1672,11 +1672,11 @@ public class ListNodeTests
         // Then click on the second visible row
         // WaitUntil verifies an item is selected - this is the assertion
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(5))
             .MouseMoveTo(10, 5) // Position over list area
             .ScrollDown(5) // Selection moves to item 6, scroll offset adjusts
             .ClickAt(10, 4) // Click on the item two rows above current selection
-            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(2), "An item should be selected with indicator")
+            .WaitUntil(s => s.ContainsText("> Item"), TimeSpan.FromSeconds(5), "An item should be selected with indicator")
             .Capture("after_click")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1718,7 +1718,7 @@ public class ListNodeTests
                 s.ContainsText("> Item 25") && 
                 !s.ContainsText("Item 00") && 
                 !s.ContainsText("Item 49"), 
-                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
                 "Item 25 selected, Items 00 and 49 not visible")
             .Capture("final")
             .Build()

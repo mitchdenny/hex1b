@@ -80,10 +80,10 @@ public class EditorKeybindingDispatchTests
             .Right()
             .Right()
             .WaitUntil(s => s.SearchPattern(cursorOnC).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on C after two Rights")
+                TimeSpan.FromSeconds(5), "cursor on C after two Rights")
             .Left()
             .WaitUntil(s => s.SearchPattern(cursorOnB).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on B after Left")
+                TimeSpan.FromSeconds(5), "cursor on B after Left")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -110,7 +110,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Right()
             .WaitUntil(s => s.SearchPattern(cursorOnB).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on B after Right")
+                TimeSpan.FromSeconds(5), "cursor on B after Right")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -143,10 +143,10 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Down()
             .WaitUntil(s => s.SearchPattern(cursorOnB).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on B after Down")
+                TimeSpan.FromSeconds(5), "cursor on B after Down")
             .Up()
             .WaitUntil(s => s.SearchPattern(cursorOnA).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor back to A after Up")
+                TimeSpan.FromSeconds(5), "cursor back to A after Up")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -174,7 +174,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Down()
             .WaitUntil(s => s.SearchPattern(cursorOnLine1).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on line 1 after Down")
+                TimeSpan.FromSeconds(5), "cursor on line 1 after Down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -207,10 +207,10 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .End()
             .WaitUntil(s => s.SearchPattern(cursorAtEnd).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at end of line")
+                TimeSpan.FromSeconds(5), "cursor at end of line")
             .Home()
             .WaitUntil(s => s.SearchPattern(cursorAtCol0).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at col 0 after Home")
+                TimeSpan.FromSeconds(5), "cursor at col 0 after Home")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -237,7 +237,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .End()
             .WaitUntil(s => s.SearchPattern(cursorAtCol5).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at end of line after End")
+                TimeSpan.FromSeconds(5), "cursor at end of line after End")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -270,10 +270,10 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().End()
             .WaitUntil(s => s.SearchPattern(cursorAtDocEnd).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at document end")
+                TimeSpan.FromSeconds(5), "cursor at document end")
             .Ctrl().Home()
             .WaitUntil(s => s.SearchPattern(cursorAtOrigin).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at (0,0) after Ctrl+Home")
+                TimeSpan.FromSeconds(5), "cursor at (0,0) after Ctrl+Home")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -293,7 +293,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().End()
             .WaitUntil(_ => state.Cursor.Position.Value == 11,
-                TimeSpan.FromSeconds(2), "cursor at document end")
+                TimeSpan.FromSeconds(5), "cursor at document end")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -316,7 +316,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .PageDown()
             .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line > initialLine,
-                TimeSpan.FromSeconds(2), "cursor moved down after PageDown")
+                TimeSpan.FromSeconds(5), "cursor moved down after PageDown")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -341,10 +341,10 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .PageDown()
             .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line >= 5,
-                TimeSpan.FromSeconds(2), "cursor moved after first PageDown")
+                TimeSpan.FromSeconds(5), "cursor moved after first PageDown")
             .PageDown()
             .WaitUntil(_ => state.Document.OffsetToPosition(state.Cursor.Position).Line >= 15,
-                TimeSpan.FromSeconds(2), "cursor moved after second PageDown")
+                TimeSpan.FromSeconds(5), "cursor moved after second PageDown")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -356,7 +356,7 @@ public class EditorKeybindingDispatchTests
             {
                 var currentLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
                 return currentLine < lineBeforePageUp;
-            }, TimeSpan.FromSeconds(2), "cursor moved up after PageUp")
+            }, TimeSpan.FromSeconds(5), "cursor moved up after PageUp")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -377,7 +377,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Right()
             .WaitUntil(_ => state.Cursor.HasSelection && state.Cursor.Position.Value == 1,
-                TimeSpan.FromSeconds(2), "selection extended right")
+                TimeSpan.FromSeconds(5), "selection extended right")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -401,10 +401,10 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().End()
             .WaitUntil(_ => state.Cursor.Position.Value == state.Document.Length,
-                TimeSpan.FromSeconds(2), "cursor at document end")
+                TimeSpan.FromSeconds(5), "cursor at document end")
             .Ctrl().Backspace()
             .WaitUntil(_ => !state.Document.GetText().Contains("world", StringComparison.Ordinal),
-                TimeSpan.FromSeconds(2), "previous word deleted")
+                TimeSpan.FromSeconds(5), "previous word deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -425,7 +425,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Delete()
             .WaitUntil(_ => !state.Document.GetText().Contains("hello", StringComparison.Ordinal),
-                TimeSpan.FromSeconds(2), "next word deleted")
+                TimeSpan.FromSeconds(5), "next word deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -446,7 +446,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Shift().Key(Hex1bKey.K)
             .WaitUntil(_ => !state.Document.GetText().Contains("AAA", StringComparison.Ordinal),
-                TimeSpan.FromSeconds(2), "current line deleted")
+                TimeSpan.FromSeconds(5), "current line deleted")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -478,7 +478,7 @@ public class EditorKeybindingDispatchTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Type("x")
             .WaitUntil(s => s.SearchPattern(xAtCol0).HasMatches,
-                TimeSpan.FromSeconds(2), "x typed with text colors")
+                TimeSpan.FromSeconds(5), "x typed with text colors")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

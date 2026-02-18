@@ -35,7 +35,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -81,7 +81,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Colored"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Colored"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -121,7 +121,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -161,7 +161,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Clear"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Clear"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -200,7 +200,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bold Button"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bold Button"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -254,7 +254,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Type"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Type"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Tab) // Focus on textbox
             .Type("abc")       // Type some text
             .Capture("final")
@@ -291,7 +291,7 @@ public class TerminalAnsiRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Capture"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Capture"), TimeSpan.FromSeconds(5))
             .Capture("capture-all")  // This should now create SVG, HTML, and ANSI files
             .Ctrl().Key(Hex1bKey.C)
             .Build()

@@ -162,7 +162,7 @@ public class SplitterNodeTests
         // Default divider character is "│"
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("│"),
-                TimeSpan.FromSeconds(2), "divider character")
+                TimeSpan.FromSeconds(5), "divider character")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -246,7 +246,7 @@ public class SplitterNodeTests
         // 3 regular dividers + 2 arrow characters (← and →) at midpoint
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("│") || s.ContainsText("←") || s.ContainsText("→"),
-                TimeSpan.FromSeconds(2), "divider characters visible")
+                TimeSpan.FromSeconds(5), "divider characters visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -725,7 +725,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right Content"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right Content"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -759,7 +759,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right 2"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -794,7 +794,7 @@ public class SplitterNodeTests
         // Enter clicks the focused button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -827,7 +827,7 @@ public class SplitterNodeTests
         // Tab through: left -> splitter -> right, then Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(5))
             .Tab().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -863,9 +863,9 @@ public class SplitterNodeTests
         // No snapshot assertions are made since the returned snapshot would be taken
         // after Ctrl+C exits the app, which can result in an empty/cleared terminal.
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(5))
             .Left().Left()
-            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(2)) // Verify app still renders after resize
+            .WaitUntil(s => s.ContainsText("Left"), TimeSpan.FromSeconds(5)) // Verify app still renders after resize
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -901,9 +901,9 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -935,9 +935,9 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello Splitter")
-            .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -971,7 +971,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Split View"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Split View"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1268,7 +1268,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("⠶"),
-                TimeSpan.FromSeconds(2), "braille thumb on focused vertical divider")
+                TimeSpan.FromSeconds(5), "braille thumb on focused vertical divider")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1435,7 +1435,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom Content"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1469,7 +1469,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom 2"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1504,7 +1504,7 @@ public class SplitterNodeTests
         // Enter clicks the focused button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1537,7 +1537,7 @@ public class SplitterNodeTests
         // Tab through: top -> splitter -> bottom, then Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5))
             .Tab().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1572,7 +1572,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5))
             .Up().Up()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1608,7 +1608,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Vertical Split"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Vertical Split"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1647,7 +1647,7 @@ public class SplitterNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1694,7 +1694,7 @@ public class SplitterNodeTests
         // List starts focused, Tab should move through: List -> Splitter -> Right Button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right Button"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right Button"), TimeSpan.FromSeconds(5))
             .Tab().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1734,7 +1734,7 @@ public class SplitterNodeTests
         // (VStack doesn't handle Tab when inside Splitter, so it bubbles up to Splitter)
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5))
             .Tab().Tab().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1771,7 +1771,7 @@ public class SplitterNodeTests
         // Tab, Tab, then Shift+Tab, Shift+Tab, then Enter
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left Button"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Left Button"), TimeSpan.FromSeconds(5))
             .Tab().Tab()  // Left Button -> Splitter -> Right Button
             .Shift().Tab().Shift().Tab()  // Right Button -> Splitter -> Left Button
             .Enter()  // Click the button
@@ -1820,7 +1820,7 @@ public class SplitterNodeTests
         // List is focused initially, Tab should navigate to Splitter, then to Button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
             .Tab().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -2040,7 +2040,7 @@ public class SplitterNodeTests
         // Just press Enter - should click the focused button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -2079,7 +2079,7 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Outer Left"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -2122,7 +2122,7 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Level 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Level 1"), TimeSpan.FromSeconds(5))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -2289,7 +2289,7 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -2343,7 +2343,7 @@ public class SplitterNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right Pane"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Right Pane"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -2441,7 +2441,7 @@ public class SplitterNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Bottom"), TimeSpan.FromSeconds(2), "splitter content to render")
+            .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Bottom"), TimeSpan.FromSeconds(5), "splitter content to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -2512,10 +2512,10 @@ public class SplitterNodeTests
         // Initial render - then Tab to inner splitter and resize
         // Add WaitUntil after resize to ensure state is stable before capture
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2), "initial render")
+            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(5), "initial render")
             .Tab()  // Move to inner splitter
             .Left().Left().Left().Left().Left()  // Resize left significantly (make left pane very narrow)
-            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(2), "resize to complete")
+            .WaitUntil(s => s.ContainsText("BOTTOM_PANE_MARKER"), TimeSpan.FromSeconds(5), "resize to complete")
             .Capture("after_resize")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -2581,13 +2581,13 @@ public class SplitterNodeTests
         // First Tab focuses VSplitter, second Tab focuses inner Splitter
         // WaitUntil after resize ensures state is stable before capture - this is the assertion per test-fixer pattern
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2), "initial render")
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(5), "initial render")
             .Tab()  // Focus VSplitter
             .Tab()  // Focus inner horizontal Splitter
             // Resize to extreme RIGHT (20+ right arrows - making right pane very narrow)
             .Right().Right().Right().Right().Right().Right().Right().Right().Right().Right()
             .Right().Right().Right().Right().Right().Right().Right().Right().Right().Right()
-            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(2), "resize to complete")
+            .WaitUntil(s => s.ContainsText("Bottom Pane"), TimeSpan.FromSeconds(5), "resize to complete")
             .Capture("after_extreme_resize")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

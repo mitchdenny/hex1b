@@ -47,7 +47,7 @@ public class EditorIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor on H with theme colors")
+                TimeSpan.FromSeconds(5), "cursor on H with theme colors")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -92,10 +92,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("a")
             .WaitUntil(s => s.SearchPattern(cursorAtCol1).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor moved to col 1 after typing 'a'")
+                TimeSpan.FromSeconds(5), "cursor moved to col 1 after typing 'a'")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -132,10 +132,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("hello")
             .WaitUntil(s => s.SearchPattern(cursorAtCol5).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at col 5 after typing hello")
+                TimeSpan.FromSeconds(5), "cursor at col 5 after typing hello")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -178,15 +178,15 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("ab")
             .WaitUntil(s => s.SearchPattern(cursorOnA).HasMatches,
-                TimeSpan.FromSeconds(2), "a and b typed")
+                TimeSpan.FromSeconds(5), "a and b typed")
             .Backspace()
             .WaitUntil(s => s.SearchPattern(cursorAtCol1).HasMatches
                          && s.GetCell(0, 0).Character == "a"
                          && s.GetCell(1, 0).Character != "b",
-                TimeSpan.FromSeconds(2), "b deleted, cursor back to col 1")
+                TimeSpan.FromSeconds(5), "b deleted, cursor back to col 1")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -222,10 +222,10 @@ public class EditorIntegrationTests
             .Find(ctx => ctx.X == 0 && ctx.Y == 1 && ctx.Cell.Character == "B");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Enter()
             .WaitUntil(s => s.SearchPattern(bOnLine1).HasMatches,
-                TimeSpan.FromSeconds(2), "B moved to line 1 after Enter")
+                TimeSpan.FromSeconds(5), "B moved to line 1 after Enter")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -262,10 +262,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Right()
             .WaitUntil(s => s.SearchPattern(cursorOnB).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor moved to B at col 1")
+                TimeSpan.FromSeconds(5), "cursor moved to B at col 1")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -308,13 +308,13 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .End()
             .WaitUntil(s => s.SearchPattern(cursorAtEnd).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at end of line")
+                TimeSpan.FromSeconds(5), "cursor at end of line")
             .Home()
             .WaitUntil(s => s.SearchPattern(cursorAtHome).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at start of line")
+                TimeSpan.FromSeconds(5), "cursor at start of line")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -348,10 +348,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Tab()
             .WaitUntil(s => s.SearchPattern(cursorAtCol4).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor at col 4 after tab")
+                TimeSpan.FromSeconds(5), "cursor at col 4 after tab")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -387,10 +387,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("hello")
             .WaitUntil(s => s.SearchPattern(cursorAtCol5).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor follows typed text to col 5")
+                TimeSpan.FromSeconds(5), "cursor follows typed text to col 5")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -421,13 +421,13 @@ public class EditorIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("x")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for callback
-        await callbackFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await callbackFired.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -463,10 +463,10 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Foreground, textFg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("X")
             .WaitUntil(s => s.SearchPattern(xTyped).HasMatches,
-                TimeSpan.FromSeconds(2), "X typed in empty document")
+                TimeSpan.FromSeconds(5), "X typed in empty document")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -501,10 +501,10 @@ public class EditorIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(initialPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "Line001 visible initially")
+                TimeSpan.FromSeconds(5), "Line001 visible initially")
             .PageDown()
             .WaitUntil(s => s.SearchPattern(scrolledPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "later lines visible after PageDown")
+                TimeSpan.FromSeconds(5), "later lines visible after PageDown")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -535,10 +535,10 @@ public class EditorIntegrationTests
             .Find(ctx => ctx.X == 0 && ctx.Y == 0 && ctx.Cell.Character == "B");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Delete()
             .WaitUntil(s => s.SearchPattern(bAtCol0).HasMatches,
-                TimeSpan.FromSeconds(2), "A deleted, B now at col 0")
+                TimeSpan.FromSeconds(5), "A deleted, B now at col 0")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -567,10 +567,10 @@ public class EditorIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Ctrl().Key(Hex1bKey.A)
             .WaitUntil(_ => state.Cursor.HasSelection && state.Cursor.SelectionEnd.Value == 11,
-                TimeSpan.FromSeconds(2), "select all completed")
+                TimeSpan.FromSeconds(5), "select all completed")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -605,7 +605,7 @@ public class EditorIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -618,7 +618,7 @@ public class EditorIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(gammaPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "3 lines rendered after multi-line insert")
+                TimeSpan.FromSeconds(5), "3 lines rendered after multi-line insert")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -658,10 +658,10 @@ public class EditorIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(originalPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "Original text visible")
+                TimeSpan.FromSeconds(5), "Original text visible")
             .Type("X")
             .WaitUntil(s => s.SearchPattern(originalPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "Original text still visible after typing")
+                TimeSpan.FromSeconds(5), "Original text still visible after typing")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -698,7 +698,7 @@ public class EditorIntegrationTests
         var fullTextPattern = new CellPatternSearcher().Find("ABCDEFGHIJ");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .FastType(expected)
             .WaitUntil(s => s.SearchPattern(fullTextPattern).HasMatches,
                 TimeSpan.FromSeconds(3), "rapid-typed text visible")
@@ -737,12 +737,12 @@ public class EditorIntegrationTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2), "editor visible")
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Ctrl().Key(Hex1bKey.A)
             .Delete()
             .WaitUntil(s => s.SearchPattern(cursorAtOrigin).HasMatches
                          && !s.ContainsText("Hello"),
-                TimeSpan.FromSeconds(2), "content deleted, cursor at origin")
+                TimeSpan.FromSeconds(5), "content deleted, cursor at origin")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

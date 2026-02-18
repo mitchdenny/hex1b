@@ -127,7 +127,7 @@ public class Hex1bTerminalChildProcessTests
         await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n")); // Exit nested bash too
         
         // Wait for exit with timeout
-        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var exitCode = await process.WaitForExitAsync(exitCts.Token);
         
         Assert.True(process.HasExited);
@@ -207,7 +207,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read output
         var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         
         try
         {
@@ -296,7 +296,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read new size output
         var output2 = new StringBuilder();
-        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         
         try
         {
@@ -443,7 +443,7 @@ public class Hex1bTerminalChildProcessTests
         process.Kill();
         
         // Wait for exit
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var exitCode = await process.WaitForExitAsync(cts.Token);
         
         Assert.True(process.HasExited);

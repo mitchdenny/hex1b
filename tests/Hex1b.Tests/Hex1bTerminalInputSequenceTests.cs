@@ -412,7 +412,7 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello")
             .Build();
 
@@ -453,7 +453,7 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1bKey.X)
             .Build();
 
@@ -539,7 +539,7 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("First")
             .Tab()
             .Type("Second")

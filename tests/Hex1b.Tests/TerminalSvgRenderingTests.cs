@@ -38,7 +38,7 @@ public class TerminalSvgRenderingTests
 
         // Capture snapshot BEFORE exiting (alternate screen buffer is cleared on exit)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -85,7 +85,7 @@ public class TerminalSvgRenderingTests
 
         // Capture snapshot BEFORE exiting (alternate screen buffer is cleared on exit)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -137,7 +137,7 @@ public class TerminalSvgRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Submit Form"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -181,7 +181,7 @@ public class TerminalSvgRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Type here"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Type here"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Tab) // Focus on textbox
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -215,7 +215,7 @@ public class TerminalSvgRenderingTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Custom"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Custom"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

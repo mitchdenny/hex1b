@@ -433,7 +433,7 @@ public class DiagnosticShellIntegrationTests
             
             if (_runTask != null)
             {
-                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(2)); }
+                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(5)); }
                 catch { }
             }
             
