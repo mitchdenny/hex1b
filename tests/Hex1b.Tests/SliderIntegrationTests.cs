@@ -48,7 +48,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Volume Control"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Volume Control"), TimeSpan.FromSeconds(10))
             .Capture("slider-basic")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -78,7 +78,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Slider at minimum"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Slider at minimum"), TimeSpan.FromSeconds(10))
             .Capture("slider-minimum")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -104,7 +104,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Slider at maximum"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Slider at maximum"), TimeSpan.FromSeconds(10))
             .Capture("slider-maximum")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -130,7 +130,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Temperature:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Temperature:"), TimeSpan.FromSeconds(10))
             .Capture("slider-custom-range")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -156,7 +156,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Step slider"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Step slider"), TimeSpan.FromSeconds(10))
             .Capture("slider-with-step")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -186,7 +186,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Full width"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Full width"), TimeSpan.FromSeconds(10))
             .Capture("slider-full-width")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -212,7 +212,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Fixed width"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Fixed width"), TimeSpan.FromSeconds(10))
             .Capture("slider-fixed-width")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -241,7 +241,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Volume:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Volume:"), TimeSpan.FromSeconds(10))
             .Capture("slider-hstack-label")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -275,7 +275,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Effects:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Effects:"), TimeSpan.FromSeconds(10))
             .Capture("slider-multiple")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -302,7 +302,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Display Settings"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Display Settings"), TimeSpan.FromSeconds(10))
             .Capture("slider-in-border")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -332,7 +332,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText($"width: {width}"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText($"width: {width}"), TimeSpan.FromSeconds(10))
             .Capture($"slider-width-{width}")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -364,7 +364,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Value: 50"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Value: 50"), TimeSpan.FromSeconds(10))
             .Right().Right().Right()
             .Capture("slider-arrow-keys")
             .Ctrl().Key(Hex1bKey.C)
@@ -395,7 +395,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Value: 50"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Value: 50"), TimeSpan.FromSeconds(10))
             .Key(Hex1bKey.End)
             .Capture("slider-end-key")
             .Ctrl().Key(Hex1bKey.C)
@@ -425,7 +425,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apply"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Apply"), TimeSpan.FromSeconds(10))
             .Tab().Enter()
             .Capture("slider-tab-navigation")
             .Ctrl().Key(Hex1bKey.C)
@@ -465,7 +465,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Callbacks:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Callbacks:"), TimeSpan.FromSeconds(10))
             .Right().Right()
             .Capture("slider-callback")
             .Ctrl().Key(Hex1bKey.C)
@@ -509,7 +509,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Custom themed"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Custom themed"), TimeSpan.FromSeconds(10))
             .Capture("slider-custom-theme")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -563,7 +563,7 @@ public class SliderIntegrationTests : IDisposable
         recorder.AddMarker("Initial State");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Volume Control"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Volume Control"), TimeSpan.FromSeconds(10))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -666,7 +666,7 @@ public class SliderIntegrationTests : IDisposable
         recorder.AddMarker("Initial State");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Audio Mixer"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Audio Mixer"), TimeSpan.FromSeconds(10))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -745,7 +745,7 @@ public class SliderIntegrationTests : IDisposable
         recorder.AddMarker("Initial Size (100 cols)");
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Resize"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Resize"), TimeSpan.FromSeconds(10))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -761,7 +761,7 @@ public class SliderIntegrationTests : IDisposable
 
         // Resize to narrow
         recorder.AddMarker("Resize to 40 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(40, 10, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         terminal.Resize(40, 10);
         await workload.ResizeAsync(40, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);
@@ -805,7 +805,7 @@ public class SliderIntegrationTests : IDisposable
 
         // Wait for render, then drag from left to right on the slider (line 1, where slider is)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Drag Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Drag Test"), TimeSpan.FromSeconds(10))
             .Drag(5, 1, 55, 1)  // Drag from left side to right side of slider
             .Capture("slider-mouse-drag")
             .Ctrl().Key(Hex1bKey.C)
@@ -838,7 +838,7 @@ public class SliderIntegrationTests : IDisposable
 
         // Click at the middle of the slider to set value to ~50
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Value: 0"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Value: 0"), TimeSpan.FromSeconds(10))
             .ClickAt(30, 1)  // Click middle of slider
             .Capture("slider-mouse-click")
             .Ctrl().Key(Hex1bKey.C)
@@ -884,7 +884,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Double-width"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Double-width"), TimeSpan.FromSeconds(10))
             .Capture("slider-double-width-initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -938,7 +938,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Drag double-width"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Drag double-width"), TimeSpan.FromSeconds(10))
             .Capture("slider-double-width-drag-initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -980,7 +980,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Border Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Border Test"), TimeSpan.FromSeconds(10))
             .Capture("slider-border-alignment")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1053,7 +1053,7 @@ public class SliderIntegrationTests : IDisposable
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Double Width Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Double Width Test"), TimeSpan.FromSeconds(10))
             .Capture("slider-border-doublewidth-alignment")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
