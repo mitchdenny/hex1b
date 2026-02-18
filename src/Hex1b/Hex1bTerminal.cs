@@ -1233,24 +1233,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </param>
     internal TerminalCell[,] GetScreenBuffer(bool addTrackedObjectRefs = false)
     {
-        lock (_bufferLock)
+        var copy = new TerminalCell[_height, _width];
+        Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
+        
+        if (addTrackedObjectRefs)
         {
-            var copy = new TerminalCell[_height, _width];
-            Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
-            
-            if (addTrackedObjectRefs)
+            for (int y = 0; y < _height; y++)
             {
-                for (int y = 0; y < _height; y++)
+                for (int x = 0; x < _width; x++)
                 {
-                    for (int x = 0; x < _width; x++)
-                    {
-                        copy[y, x].TrackedSixel?.AddRef();
-                    }
+                    copy[y, x].TrackedSixel?.AddRef();
                 }
             }
-            
-            return copy;
         }
+        
+        return copy;
     }
 
     /// <summary>
