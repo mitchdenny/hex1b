@@ -22,7 +22,7 @@ public class CellPatternSearcherTests
         // Wait for content to be processed by the output pump - wait for last line to ensure all content is rendered
         var lastLine = lines.Length > 0 ? lines[^1] : "";
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => string.IsNullOrEmpty(lastLine) || s.ContainsText(lastLine), TimeSpan.FromSeconds(2), "last line content")
+            .WaitUntil(s => string.IsNullOrEmpty(lastLine) || s.ContainsText(lastLine), TimeSpan.FromSeconds(1), "last line content")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -49,7 +49,7 @@ public class CellPatternSearcherTests
             
             // Wait for specific content to be processed by the output pump
             await new Hex1bTerminalInputSequenceBuilder()
-                .WaitUntil(s => s.ContainsText(content.Substring(0, Math.Min(content.Length, 10))), TimeSpan.FromSeconds(2), "written content")
+                .WaitUntil(s => s.ContainsText(content.Substring(0, Math.Min(content.Length, 10))), TimeSpan.FromSeconds(1), "written content")
                 .Build()
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
             

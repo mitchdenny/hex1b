@@ -97,7 +97,7 @@ public class SixelScalingIntegrationTests
         // Run app briefly to render, capturing snapshot BEFORE app exits
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -169,7 +169,7 @@ public class SixelScalingIntegrationTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(2))
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

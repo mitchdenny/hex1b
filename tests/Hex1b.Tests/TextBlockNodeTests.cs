@@ -166,7 +166,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "Hello World text to appear")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -203,7 +203,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello → World ← Test"), TimeSpan.FromSeconds(2), "special characters text to appear")
+            .WaitUntil(s => s.ContainsText("Hello → World ← Test"), TimeSpan.FromSeconds(1), "special characters text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -223,7 +223,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("This is a") && s.ContainsText("long text"), TimeSpan.FromSeconds(2), "wrapped text to appear")
+            .WaitUntil(s => s.ContainsText("This is a") && s.ContainsText("long text"), TimeSpan.FromSeconds(1), "wrapped text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -246,7 +246,7 @@ public class TextBlockNodeTests
         context.SetCursorPosition(5, 3);
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Positioned"), TimeSpan.FromSeconds(2), "Positioned text to appear")
+            .WaitUntil(s => s.ContainsText("Positioned"), TimeSpan.FromSeconds(1), "Positioned text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -268,7 +268,7 @@ public class TextBlockNodeTests
 
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ABCDEFGHIJKLMNOPQRST") && s.ContainsText("UVWXYZ"), TimeSpan.FromSeconds(2), "wrapped alphabet to appear")
+            .WaitUntil(s => s.ContainsText("ABCDEFGHIJKLMNOPQRST") && s.ContainsText("UVWXYZ"), TimeSpan.FromSeconds(1), "wrapped alphabet to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -306,7 +306,7 @@ public class TextBlockNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello Worl"), TimeSpan.FromSeconds(2), "clipped text to appear")
+            .WaitUntil(s => s.ContainsText("Hello Worl"), TimeSpan.FromSeconds(1), "clipped text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -337,7 +337,7 @@ public class TextBlockNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("FGHIJKLMNO"), TimeSpan.FromSeconds(2), "clipped alphabet section to appear")
+            .WaitUntil(s => s.ContainsText("FGHIJKLMNO"), TimeSpan.FromSeconds(1), "clipped alphabet section to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -368,7 +368,7 @@ public class TextBlockNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "full Hello World text to appear")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "full Hello World text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -390,7 +390,7 @@ public class TextBlockNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "Hello World text to appear")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "Hello World text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -454,7 +454,7 @@ public class TextBlockNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Integration Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Integration Test"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -486,7 +486,7 @@ public class TextBlockNodeTests
         
         // Capture snapshot BEFORE exiting the app (while alternate screen is active)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Third Line"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Third Line"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -538,9 +538,9 @@ public class TextBlockNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Wait for initial render, Enter to click button (it should have focus), wait for re-render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Counter: 1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Counter: 1"), TimeSpan.FromSeconds(2))
             .Enter() // Click the button (should already have focus as only focusable widget)
-            .WaitUntil(s => s.ContainsText("Counter: 2"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Counter: 2"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -573,7 +573,7 @@ public class TextBlockNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -607,7 +607,7 @@ public class TextBlockNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello from State"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hello from State"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -660,7 +660,7 @@ public class TextBlockNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("日本語テスト"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("日本語テスト"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

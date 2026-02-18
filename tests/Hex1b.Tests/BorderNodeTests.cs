@@ -223,7 +223,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌") && s.ContainsText("─") && s.ContainsText("┐"),
-                TimeSpan.FromSeconds(5), "top border with corners")
+                TimeSpan.FromSeconds(1), "top border with corners")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -254,7 +254,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("└") && s.ContainsText("┘"),
-                TimeSpan.FromSeconds(5), "bottom border with corners")
+                TimeSpan.FromSeconds(1), "bottom border with corners")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -283,7 +283,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("│"),
-                TimeSpan.FromSeconds(5), "vertical border")
+                TimeSpan.FromSeconds(1), "vertical border")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -310,7 +310,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌") && s.ContainsText("┘"),
-                TimeSpan.FromSeconds(5), "complete border box")
+                TimeSpan.FromSeconds(1), "complete border box")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -349,7 +349,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("My Title"),
-                TimeSpan.FromSeconds(5), "title in top border")
+                TimeSpan.FromSeconds(1), "title in top border")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -376,7 +376,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("This I") && !s.ContainsText("Very Long Title"),
-                TimeSpan.FromSeconds(5), "truncated title")
+                TimeSpan.FromSeconds(1), "truncated title")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -405,7 +405,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("─T") && s.ContainsText("T─"),
-                TimeSpan.FromSeconds(5), "centered short title")
+                TimeSpan.FromSeconds(1), "centered short title")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -436,7 +436,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌────────┐"),
-                TimeSpan.FromSeconds(5), "normal border without title")
+                TimeSpan.FromSeconds(1), "normal border without title")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -464,7 +464,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌────────┐"),
-                TimeSpan.FromSeconds(5), "normal border with null title")
+                TimeSpan.FromSeconds(1), "normal border with null title")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -493,7 +493,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 15, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5), "child content to render")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2), "child content to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -516,7 +516,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(5), "child content to render")
+            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(2), "child content to render")
             .Build()
             .ApplyAsync(terminal);
 
@@ -542,7 +542,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌") && s.ContainsText("┐") && s.ContainsText("└") && s.ContainsText("┘"),
-                TimeSpan.FromSeconds(5), "empty border corners")
+                TimeSpan.FromSeconds(1), "empty border corners")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -575,7 +575,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌") && s.ContainsText("┘"),
-                TimeSpan.FromSeconds(5), "border in narrow terminal")
+                TimeSpan.FromSeconds(1), "border in narrow terminal")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -601,7 +601,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┌┐") && s.ContainsText("└┘"),
-                TimeSpan.FromSeconds(5), "minimal 2x2 border")
+                TimeSpan.FromSeconds(1), "minimal 2x2 border")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -642,7 +642,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hi") && s.ContainsText("╔"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hi") && s.ContainsText("╔"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
 
@@ -680,7 +680,7 @@ public class BorderNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("╔════╗") && s.ContainsText("╚════╝"),
-                TimeSpan.FromSeconds(5), "double line border")
+                TimeSpan.FromSeconds(1), "double line border")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -827,7 +827,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -862,7 +862,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("My Panel"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("My Panel"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -897,7 +897,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -930,9 +930,9 @@ public class BorderNodeTests
         // Type into the textbox then exit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("Hello")
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -962,7 +962,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Nested"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Nested"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -994,8 +994,8 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app - wait for border content to render
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
-            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("┌"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1029,7 +1029,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1062,7 +1062,7 @@ public class BorderNodeTests
         // Press enter to click the button then exit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -1094,7 +1094,7 @@ public class BorderNodeTests
         // Tab to second button, then click it
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
             .Capture("final")
@@ -1127,7 +1127,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Content"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1160,7 +1160,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1507,7 +1507,7 @@ public class BorderNodeTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("━") && s.ContainsText("═"),
-                TimeSpan.FromSeconds(5), "different top/bottom lines")
+                TimeSpan.FromSeconds(1), "different top/bottom lines")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1539,7 +1539,7 @@ public class BorderNodeTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("┃") && s.ContainsText("║"),
-                TimeSpan.FromSeconds(5), "different left/right lines")
+                TimeSpan.FromSeconds(1), "different left/right lines")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1570,7 +1570,7 @@ public class BorderNodeTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("╔════╗") && s.ContainsText("╚════╝"),
-                TimeSpan.FromSeconds(5), "horizontal line fallback")
+                TimeSpan.FromSeconds(1), "horizontal line fallback")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

@@ -109,7 +109,7 @@ public class Hex1bTerminalTests_Workload
         
         workload.Write("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
         

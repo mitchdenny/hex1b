@@ -77,14 +77,14 @@ public class TerminalFilterTests
         // Wait for the text to appear, then wait for the next pump cycle to complete
         // which will trigger OnFrameCompleteAsync when the channel is drained
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Frame 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Frame 1"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
         
         // Write another chunk to ensure pump cycles again and triggers frame complete
         workload.Write("Frame 2");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Frame 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Frame 2"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
 
@@ -226,7 +226,7 @@ public class TerminalFilterTests
         
         // Verify terminal buffer was updated correctly
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello") && s.ContainsText("Red") && s.ContainsText("World"), TimeSpan.FromSeconds(2), "HelloRedWorld visible")
+            .WaitUntil(s => s.ContainsText("Hello") && s.ContainsText("Red") && s.ContainsText("World"), TimeSpan.FromSeconds(1), "HelloRedWorld visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

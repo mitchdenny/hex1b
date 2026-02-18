@@ -24,7 +24,7 @@ public class Hex1bRenderContextTests
             .Build()
             .ApplyAsync(terminal);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
@@ -138,7 +138,7 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Should remain"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Should remain"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Should remain"));

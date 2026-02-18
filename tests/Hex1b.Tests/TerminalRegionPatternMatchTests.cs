@@ -44,7 +44,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Another line");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(2), "wait for Another line")
+            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(1), "wait for Another line")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -66,7 +66,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("cat and dog and cat again");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("cat again"), TimeSpan.FromSeconds(2), "wait for cat again")
+            .WaitUntil(s => s.ContainsText("cat again"), TimeSpan.FromSeconds(1), "wait for cat again")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -90,7 +90,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Error: permission denied");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("permission denied"), TimeSpan.FromSeconds(2), "wait for permission denied")
+            .WaitUntil(s => s.ContainsText("permission denied"), TimeSpan.FromSeconds(1), "wait for permission denied")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -110,7 +110,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -134,7 +134,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Value: 12345");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("12345"), TimeSpan.FromSeconds(2), "wait for value 12345")
+            .WaitUntil(s => s.ContainsText("12345"), TimeSpan.FromSeconds(1), "wait for value 12345")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -155,7 +155,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -174,7 +174,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Contact: admin@test.org");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("admin@test.org"), TimeSpan.FromSeconds(2), "wait for admin@test.org")
+            .WaitUntil(s => s.ContainsText("admin@test.org"), TimeSpan.FromSeconds(1), "wait for admin@test.org")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -199,7 +199,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Second match");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Second match"), TimeSpan.FromSeconds(2), "wait for Second match")
+            .WaitUntil(s => s.ContainsText("Second match"), TimeSpan.FromSeconds(1), "wait for Second match")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -219,7 +219,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -237,7 +237,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("HELLO World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("HELLO World"), TimeSpan.FromSeconds(2), "wait for HELLO World")
+            .WaitUntil(s => s.ContainsText("HELLO World"), TimeSpan.FromSeconds(1), "wait for HELLO World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -256,7 +256,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Price: $99.99");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("$99.99"), TimeSpan.FromSeconds(2), "wait for $99.99")
+            .WaitUntil(s => s.ContainsText("$99.99"), TimeSpan.FromSeconds(1), "wait for $99.99")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -280,7 +280,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World Test");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(2), "wait for World Test")
+            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(1), "wait for World Test")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -298,7 +298,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ID: 12345 Name: John");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Name: John"), TimeSpan.FromSeconds(2), "wait for Name: John")
+            .WaitUntil(s => s.ContainsText("Name: John"), TimeSpan.FromSeconds(1), "wait for Name: John")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -319,7 +319,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -337,7 +337,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -357,7 +357,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -381,7 +381,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Error: Something went wrong");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("went wrong"), TimeSpan.FromSeconds(2), "wait for went wrong")
+            .WaitUntil(s => s.ContainsText("went wrong"), TimeSpan.FromSeconds(1), "wait for went wrong")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -398,7 +398,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Success: All tests passed");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("tests passed"), TimeSpan.FromSeconds(2), "wait for tests passed")
+            .WaitUntil(s => s.ContainsText("tests passed"), TimeSpan.FromSeconds(1), "wait for tests passed")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -415,7 +415,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("SUCCESS");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("SUCCESS"), TimeSpan.FromSeconds(2), "wait for SUCCESS")
+            .WaitUntil(s => s.ContainsText("SUCCESS"), TimeSpan.FromSeconds(1), "wait for SUCCESS")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -432,7 +432,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Version: 2.0.1");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("2.0.1"), TimeSpan.FromSeconds(2), "wait for version 2.0.1")
+            .WaitUntil(s => s.ContainsText("2.0.1"), TimeSpan.FromSeconds(1), "wait for version 2.0.1")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -456,7 +456,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Footer line");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer line"), TimeSpan.FromSeconds(2), "wait for Footer line")
+            .WaitUntil(s => s.ContainsText("Footer line"), TimeSpan.FromSeconds(1), "wait for Footer line")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -482,7 +482,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 2: CCC");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 2: CCC"), TimeSpan.FromSeconds(2), "wait for Line 2: CCC")
+            .WaitUntil(s => s.ContainsText("Line 2: CCC"), TimeSpan.FromSeconds(1), "wait for Line 2: CCC")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -507,7 +507,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ETA: 5 minutes");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ETA: 5 minutes"), TimeSpan.FromSeconds(2), "wait for ETA")
+            .WaitUntil(s => s.ContainsText("ETA: 5 minutes"), TimeSpan.FromSeconds(1), "wait for ETA")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -534,7 +534,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[ERROR] Connection failed");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Connection failed"), TimeSpan.FromSeconds(2), "wait for Connection failed")
+            .WaitUntil(s => s.ContainsText("Connection failed"), TimeSpan.FromSeconds(1), "wait for Connection failed")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -594,7 +594,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Another line");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(2), "wait for Another line")
+            .WaitUntil(s => s.ContainsText("Another line"), TimeSpan.FromSeconds(1), "wait for Another line")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -619,7 +619,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("End here");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("End here"), TimeSpan.FromSeconds(2), "wait for End here")
+            .WaitUntil(s => s.ContainsText("End here"), TimeSpan.FromSeconds(1), "wait for End here")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -647,7 +647,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("END");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(2), "wait for END")
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -675,7 +675,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("</div>");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("content2"), TimeSpan.FromSeconds(2), "wait for content2")
+            .WaitUntil(s => s.ContainsText("content2"), TimeSpan.FromSeconds(1), "wait for content2")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -697,7 +697,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 3");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(2), "wait for Line 3")
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(1), "wait for Line 3")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -720,7 +720,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("CCC");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(2), "wait for CCC")
+            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "wait for CCC")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -740,7 +740,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -760,7 +760,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("End");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(2), "wait for End")
+            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(1), "wait for End")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -783,7 +783,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("}");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("\"value\": 123"), TimeSpan.FromSeconds(2), "wait for JSON value")
+            .WaitUntil(s => s.ContainsText("\"value\": 123"), TimeSpan.FromSeconds(1), "wait for JSON value")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -805,7 +805,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("}");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("return true"), TimeSpan.FromSeconds(2), "wait for return true")
+            .WaitUntil(s => s.ContainsText("return true"), TimeSpan.FromSeconds(1), "wait for return true")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -833,7 +833,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("End");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Block 2"), TimeSpan.FromSeconds(2), "wait for Block 2")
+            .WaitUntil(s => s.ContainsText("Block 2"), TimeSpan.FromSeconds(1), "wait for Block 2")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -853,7 +853,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -873,7 +873,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("END");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(2), "wait for END")
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -894,7 +894,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("C");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(2), "wait for C")
+            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(1), "wait for C")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -922,7 +922,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Footer");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2), "wait for Footer")
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(1), "wait for Footer")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -938,7 +938,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -955,7 +955,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line2");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line2"), TimeSpan.FromSeconds(2), "wait for Line2")
+            .WaitUntil(s => s.ContainsText("Line2"), TimeSpan.FromSeconds(1), "wait for Line2")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -977,7 +977,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World Test");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(2), "wait for World Test")
+            .WaitUntil(s => s.ContainsText("World Test"), TimeSpan.FromSeconds(1), "wait for World Test")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -997,7 +997,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 2 content");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 2 content"), TimeSpan.FromSeconds(2), "wait for Line 2 content")
+            .WaitUntil(s => s.ContainsText("Line 2 content"), TimeSpan.FromSeconds(1), "wait for Line 2 content")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1018,7 +1018,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("END");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(2), "wait for END")
+            .WaitUntil(s => s.ContainsText("END"), TimeSpan.FromSeconds(1), "wait for END")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1043,7 +1043,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Hello World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(2), "wait for Hello World")
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(1), "wait for Hello World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1063,7 +1063,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("CCC");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(2), "wait for CCC")
+            .WaitUntil(s => s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "wait for CCC")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1091,7 +1091,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("End");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(2), "wait for End")
+            .WaitUntil(s => s.ContainsText("End"), TimeSpan.FromSeconds(1), "wait for End")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1113,7 +1113,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("DEF");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("DEF"), TimeSpan.FromSeconds(2), "wait for DEF")
+            .WaitUntil(s => s.ContainsText("DEF"), TimeSpan.FromSeconds(1), "wait for DEF")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1136,7 +1136,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ZZZ");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ZZZ"), TimeSpan.FromSeconds(2), "wait for ZZZ")
+            .WaitUntil(s => s.ContainsText("ZZZ"), TimeSpan.FromSeconds(1), "wait for ZZZ")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1158,7 +1158,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("ABAB");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.GetDisplayText().Contains("ABAB\n") || s.GetDisplayText().Split('\n').Length > 1, TimeSpan.FromSeconds(2), "wait for ABAB on both lines")
+            .WaitUntil(s => s.GetDisplayText().Contains("ABAB\n") || s.GetDisplayText().Split('\n').Length > 1, TimeSpan.FromSeconds(1), "wait for ABAB on both lines")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1180,7 +1180,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("  at Main()");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(2), "wait for at Main()")
+            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(1), "wait for at Main()")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1200,7 +1200,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line 2");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(2), "wait for Line 2")
+            .WaitUntil(s => s.ContainsText("Line 2"), TimeSpan.FromSeconds(1), "wait for Line 2")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1224,7 +1224,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Привет мир");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("мир"), TimeSpan.FromSeconds(2), "wait for мир")
+            .WaitUntil(s => s.ContainsText("мир"), TimeSpan.FromSeconds(1), "wait for мир")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1245,7 +1245,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Age: 30");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Age: 30"), TimeSpan.FromSeconds(2), "wait for Age: 30")
+            .WaitUntil(s => s.ContainsText("Age: 30"), TimeSpan.FromSeconds(1), "wait for Age: 30")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1274,7 +1274,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("  at Main()");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(2), "wait for at Main()")
+            .WaitUntil(s => s.ContainsText("at Main()"), TimeSpan.FromSeconds(1), "wait for at Main()")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1297,7 +1297,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[2024-01-01 10:00:02] INFO: Complete");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("INFO: Complete"), TimeSpan.FromSeconds(2), "wait for INFO: Complete")
+            .WaitUntil(s => s.ContainsText("INFO: Complete"), TimeSpan.FromSeconds(1), "wait for INFO: Complete")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1318,7 +1318,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("0 Errors, 0 Warnings");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("0 Errors"), TimeSpan.FromSeconds(2), "wait for 0 Errors")
+            .WaitUntil(s => s.ContainsText("0 Errors"), TimeSpan.FromSeconds(1), "wait for 0 Errors")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1339,7 +1339,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("| Item2 | 200   |");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item2"), TimeSpan.FromSeconds(2), "wait for Item2")
+            .WaitUntil(s => s.ContainsText("Item2"), TimeSpan.FromSeconds(1), "wait for Item2")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1360,7 +1360,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[1 ✘:127] $ \r\n");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(2), "wait for ✘:127")
+            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(1), "wait for ✘:127")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1384,7 +1384,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("[1 ✘:127] $ \r\n");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(2), "wait for ✘:127")
+            .WaitUntil(s => s.ContainsText("✘:127"), TimeSpan.FromSeconds(1), "wait for ✘:127")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1409,7 +1409,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("Line3");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line3"), TimeSpan.FromSeconds(2), "wait for Line3")
+            .WaitUntil(s => s.ContainsText("Line3"), TimeSpan.FromSeconds(1), "wait for Line3")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1434,7 +1434,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("GHI");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("GHI"), TimeSpan.FromSeconds(2), "wait for GHI")
+            .WaitUntil(s => s.ContainsText("GHI"), TimeSpan.FromSeconds(1), "wait for GHI")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1456,7 +1456,7 @@ public class TerminalRegionPatternMatchTests
         workload.Write("World");
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("World"), TimeSpan.FromSeconds(2), "wait for World")
+            .WaitUntil(s => s.ContainsText("World"), TimeSpan.FromSeconds(1), "wait for World")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

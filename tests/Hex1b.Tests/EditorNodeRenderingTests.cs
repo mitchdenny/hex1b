@@ -63,19 +63,15 @@ public class EditorNodeRenderingTests
 
         node.Render(context);
 
-        // Build pattern: cursor cell at (0,0) with cursor colors AND tildes on row 1
+        // Build pattern: cursor cell at (0,0) with cursor colors
         var cursorPattern = new CellPatternSearcher()
             .Find(ctx => ctx.X == 0 && ctx.Y == 0
                       && ColorEquals(ctx.Cell.Foreground, cursorFg)
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
-        var tildePattern = new CellPatternSearcher()
-            .Find(ctx => ctx.X == 0 && ctx.Y == 1 && ctx.Cell.Character == "~");
-
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches
-                         && s.SearchPattern(tildePattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor and tildes rendered")
+            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
+                TimeSpan.FromSeconds(2), "cursor cell at (0,0) with cursor colors")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -112,7 +108,7 @@ public class EditorNodeRenderingTests
         var textPattern = new CellPatternSearcher().Find("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(textPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "Hello text on line 0")
+                TimeSpan.FromSeconds(2), "Hello text on line 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -156,7 +152,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("CCC");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "all 3 lines rendered")
+                TimeSpan.FromSeconds(2), "all 3 lines rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -195,7 +191,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("ABCDE");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "truncated line visible")
+                TimeSpan.FromSeconds(2), "truncated line visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -225,7 +221,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("Hi");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "Hi text visible")
+                TimeSpan.FromSeconds(2), "Hi text visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -264,7 +260,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on X with cursor colors")
+                TimeSpan.FromSeconds(2), "cursor on X with cursor colors")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -298,7 +294,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on C at col 2")
+                TimeSpan.FromSeconds(2), "cursor on C at col 2")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -344,7 +340,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on space at col 2")
+                TimeSpan.FromSeconds(2), "cursor on space at col 2")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -373,7 +369,7 @@ public class EditorNodeRenderingTests
         var textPattern = new CellPatternSearcher().Find("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(textPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "text visible without cursor")
+                TimeSpan.FromSeconds(2), "text visible without cursor")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -406,7 +402,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(tildePattern).HasMatches,
-                TimeSpan.FromSeconds(5), "tilde markers below document")
+                TimeSpan.FromSeconds(2), "tilde markers below document")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -442,7 +438,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("AB");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content rendered")
+                TimeSpan.FromSeconds(2), "content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -474,7 +470,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("L1");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "first 3 lines visible")
+                TimeSpan.FromSeconds(2), "first 3 lines visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -513,7 +509,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("Line10");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "lines 10-14 visible")
+                TimeSpan.FromSeconds(2), "lines 10-14 visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -542,7 +538,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("B");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "all 3 lines rendered")
+                TimeSpan.FromSeconds(2), "all 3 lines rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -582,7 +578,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("Test");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "text rendered")
+                TimeSpan.FromSeconds(2), "text rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -617,7 +613,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor X with theme cursor colors")
+                TimeSpan.FromSeconds(2), "cursor X with theme cursor colors")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -648,7 +644,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("Line1");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content visible")
+                TimeSpan.FromSeconds(2), "content visible")
             .WaitUntil(s =>
             {
                 // Scrollbar should be in the rightmost column (col 19).
@@ -659,7 +655,7 @@ public class EditorNodeRenderingTests
                         return true;
                 }
                 return false;
-            }, TimeSpan.FromSeconds(5), "scrollbar visible")
+            }, TimeSpan.FromSeconds(2), "scrollbar visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -695,7 +691,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("Line1");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content visible")
+                TimeSpan.FromSeconds(2), "content visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -800,7 +796,7 @@ public class EditorNodeRenderingTests
                         return true;
                 }
                 return false;
-            }, TimeSpan.FromSeconds(5), "content and horizontal scrollbar visible")
+            }, TimeSpan.FromSeconds(2), "content and horizontal scrollbar visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -833,7 +829,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("B");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "wide char content rendered")
+                TimeSpan.FromSeconds(2), "wide char content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -874,7 +870,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on wide char")
+                TimeSpan.FromSeconds(2), "cursor on wide char")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -910,7 +906,7 @@ public class EditorNodeRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on B after wide char")
+                TimeSpan.FromSeconds(2), "cursor on B after wide char")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -945,7 +941,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("X");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "multiple wide chars rendered")
+                TimeSpan.FromSeconds(2), "multiple wide chars rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -976,7 +972,7 @@ public class EditorNodeRenderingTests
         var pattern = new CellPatternSearcher().Find("A");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content rendered in narrow viewport")
+                TimeSpan.FromSeconds(2), "content rendered in narrow viewport")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

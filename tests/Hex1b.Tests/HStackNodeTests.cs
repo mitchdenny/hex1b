@@ -276,7 +276,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(2), "Left and Right text")
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(1), "Left and Right text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -307,7 +307,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(2), "AAA BBB CCC on same line")
+            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "AAA BBB CCC on same line")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -339,7 +339,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(2), "AAAA text")
+            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(1), "AAAA text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -374,7 +374,7 @@ public class HStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -411,7 +411,7 @@ public class HStackNodeTests
         // Tab to second button and click
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Btn1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Btn1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
             .Capture("final")
@@ -446,7 +446,7 @@ public class HStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("C"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -487,7 +487,7 @@ public class HStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right Bottom"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Right Bottom"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -525,7 +525,7 @@ public class HStackNodeTests
         // Type in textbox then tab to button and click
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Label:"), TimeSpan.FromSeconds(2))
             .Type("Hi")
             .Tab()
             .Enter()
@@ -555,7 +555,7 @@ public class HStackNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -586,7 +586,7 @@ public class HStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("VeryLongWord"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("VeryLongWord"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -617,7 +617,7 @@ public class HStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[C]"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("[C]"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -658,7 +658,7 @@ public class HStackNodeTests
         // List starts focused; Tab should bubble up to HStack and move to Button
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Add"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Add"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
             .Capture("final")
@@ -693,7 +693,7 @@ public class HStackNodeTests
         // Button 1 starts focused
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Button 1"), TimeSpan.FromSeconds(2))
             .Tab()
             .Enter()
             .Capture("final")
@@ -741,7 +741,7 @@ public class HStackNodeTests
         // List button starts focused
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()   // List -> TextBox (enters VStack)
             .Tab()   // TextBox -> Add (within VStack)
             .Tab()   // Add -> Other (escapes VStack at boundary!)
@@ -786,7 +786,7 @@ public class HStackNodeTests
         // List button starts focused
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("List"), TimeSpan.FromSeconds(2))
             .Tab()                    // List -> TextBox (enters VStack)
             .Shift().Tab()            // TextBox -> List (escapes VStack!)
             .Enter()                  // Click List button

@@ -61,7 +61,7 @@ public class AnimationTimerTests
         var timer = new AnimationTimer();
         var fired = false;
         
-        timer.Schedule(TimeSpan.FromSeconds(5), () => fired = true);
+        timer.Schedule(TimeSpan.FromSeconds(10), () => fired = true);
         timer.FireDue();
         
         Assert.False(fired);

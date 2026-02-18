@@ -395,32 +395,26 @@ public class Hex1bTestSequenceTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var textEntered = "";
-        var textComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget([
-                    new TextBoxWidget("").OnTextChanged(args =>
-                    {
-                        textEntered = args.NewText;
-                        if (textEntered == "Hello") textComplete.TrySetResult();
-                        return Task.CompletedTask;
-                    })
+                    new TextBoxWidget("").OnTextChanged(args => { textEntered = args.NewText; return Task.CompletedTask; })
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableInputCoalescing = false }
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello")
             .Build();
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await textComplete.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
@@ -434,7 +428,7 @@ public class Hex1bTestSequenceTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var ctrlXPressed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ctrlCPressed = false;
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
@@ -442,7 +436,7 @@ public class Hex1bTestSequenceTests
                     new ButtonWidget("Test")
                 ]).WithInputBindings(b => 
                 {
-                    b.Ctrl().Key(Hex1bKey.X).Action(_ => { ctrlXPressed.TrySetResult(); return Task.CompletedTask; });
+                    b.Ctrl().Key(Hex1bKey.X).Action(_ => ctrlCPressed = true);
                 })
             ),
             new Hex1bAppOptions 
@@ -453,20 +447,20 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1bKey.X)
             .Build();
 
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await ctrlXPressed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         
         cts.Cancel();
         await runTask;
         
-        Assert.True(ctrlXPressed.Task.IsCompleted);
+        Assert.True(ctrlCPressed);
     }
 
     [Fact]
@@ -490,12 +484,12 @@ public class Hex1bTestSequenceTests
         
         // Wait for app to initialize, navigate down twice, wait for selection, then capture and exit
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
-            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(5)) // Wait for list to render with selection
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 1"), TimeSpan.FromSeconds(2)) // Wait for list to render with selection
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(5)) // Wait for first navigation
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(2)) // Wait for first navigation
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(2))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -539,7 +533,7 @@ public class Hex1bTestSequenceTests
         );
 
         var sequence = new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Type("First")
             .Tab()
             .Type("Second")

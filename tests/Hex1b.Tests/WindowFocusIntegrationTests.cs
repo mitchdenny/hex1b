@@ -77,9 +77,9 @@ public class WindowFocusIntegrationTests
 
         // Step 1: Use ALT-F to open File menu via keyboard shortcut
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
             .Alt().Key(Hex1bKey.F)  // ALT-F to open File menu
-            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -89,7 +89,7 @@ public class WindowFocusIntegrationTests
         // Step 2: Press Enter to activate New Window (first item is focused)
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Enter)  // Activate "New Window"
-            .WaitUntil(s => s.ContainsText("Test Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Test Window"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -107,7 +107,7 @@ public class WindowFocusIntegrationTests
                 {
                     step3State = s.ToString();
                     return s.ContainsText("New Window") && s.ContainsText("Exit");
-                }, TimeSpan.FromSeconds(2))
+                }, TimeSpan.FromSeconds(1))
                 .Build()
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         }
@@ -119,9 +119,9 @@ public class WindowFocusIntegrationTests
         // Step 4: Navigate to Exit and activate it
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.DownArrow)  // Move to Exit
-            .WaitUntil(s => s.ContainsText("Exit"), TimeSpan.FromSeconds(2), "Waiting for Exit to be visible")
+            .WaitUntil(s => s.ContainsText("Exit"), TimeSpan.FromSeconds(1), "Waiting for Exit to be visible")
             .Key(Hex1bKey.Enter)  // Activate Exit
-            .WaitUntil(_ => menuItemActivatedCount == 2, TimeSpan.FromSeconds(2), "Waiting for Exit activation")
+            .WaitUntil(_ => menuItemActivatedCount == 2, TimeSpan.FromSeconds(1), "Waiting for Exit activation")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -182,18 +182,18 @@ public class WindowFocusIntegrationTests
 
         // First, open a window via File menu
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
             .Alt().Key(Hex1bKey.F)
-            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Key(Hex1bKey.Enter)  // Activate New Window menu item
-            .WaitUntil(s => s.ContainsText("Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Window"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Now try to use ALT-F to open menu
         await new Hex1bTerminalInputSequenceBuilder()
             .Alt().Key(Hex1bKey.F)
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(1))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -261,9 +261,9 @@ public class WindowFocusIntegrationTests
 
         // Open both windows at once, then press ESC
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Both Windows"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Open Both Windows"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.Enter)  // Click button to open both windows
-            .WaitUntil(s => s.ContainsText("Window 1") && s.ContainsText("Window 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Window 1") && s.ContainsText("Window 2"), TimeSpan.FromSeconds(1))
             .Capture("after_open")
             // Window 2 is active (opened last), so ESC should close it
             .Key(Hex1bKey.Escape)
@@ -322,9 +322,9 @@ public class WindowFocusIntegrationTests
 
         // Open both windows
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Both"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Open Both"), TimeSpan.FromSeconds(2))
             .Key(Hex1bKey.Enter)
-            .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(1))
             .Capture("both_windows")
             // Window 2 is on top and should be active
             // Click on Window 1 (at position 5, 3 which is inside window 1 but not inside window 2)
@@ -333,7 +333,7 @@ public class WindowFocusIntegrationTests
             .Capture("after_click_window1")
             // Now press Escape - should close Window 1 (the newly focused one)
             .Key(Hex1bKey.Escape)
-            .WaitUntil(s => window1Closed || window2Closed, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => window1Closed || window2Closed, TimeSpan.FromSeconds(1))
             .Capture("after_escape")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -397,20 +397,20 @@ public class WindowFocusIntegrationTests
 
         // Open two windows via menu
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2))
             // Open File menu and select New Window (opens window 1)
             .Key(Hex1bKey.Enter)  // Opens File menu
-            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Key(Hex1bKey.Enter)  // Activates New Window
-            .WaitUntil(s => s.ContainsText("Window 1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Window 1"), TimeSpan.FromSeconds(1))
             // Click on the menu bar to open menu again
             .ClickAt(2, 0)  // Click File menu
-            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(1))
             .Key(Hex1bKey.Enter)  // Activates New Window (opens window 2)
-            .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(1))
             // Now press Escape - should close window 2 (the active one)
             .Key(Hex1bKey.Escape)
-            .WaitUntil(s => window1Closed || window2Closed, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => window1Closed || window2Closed, TimeSpan.FromSeconds(1))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

@@ -113,11 +113,11 @@ public static class TableVisualTestHelper
         // Wait for initial render
         if (testCase.RowCount > 0)
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(5), "Wait for table header");
+            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(2), "Wait for table header");
         }
         else
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(5), "Wait for empty table");
+            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(2), "Wait for empty table");
         }
         
         // Apply scroll position if needed
@@ -131,8 +131,6 @@ public static class TableVisualTestHelper
             // For large scroll positions where the viewport actually needs to scroll past
             // the initial view, use WaitUntil to verify the scroll completed. This is
             // critical in CI where processing hundreds of key events takes real time.
-            // For small scrolls or when FocusedRow is already at/beyond ScrollPosition
-            // (meaning DownArrows won't actually move), use a fixed wait.
             var visibleRows = Math.Max(1, (testCase.Height - 4) / 2);
             var effectiveFinalRow = testCase.FocusedRow >= 0 
                 ? Math.Min(testCase.FocusedRow + testCase.ScrollPosition, testCase.RowCount - 1)
@@ -142,8 +140,6 @@ public static class TableVisualTestHelper
             
             if (viewportWillScroll)
             {
-                // The viewport should now show rows around the final position. Pick a row
-                // from the expected viewport that wouldn't be in the initial view.
                 var checkIndex = Math.Min(effectiveFinalRow - visibleRows / 2, data.Count - 1);
                 var expectedName = data[checkIndex].Name;
                 waitBuilder.WaitUntil(

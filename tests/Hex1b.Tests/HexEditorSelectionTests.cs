@@ -76,7 +76,7 @@ public class HexEditorSelectionTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen,
-                TimeSpan.FromSeconds(5), "hex editor visible in alt screen")
+                TimeSpan.FromSeconds(2), "hex editor visible in alt screen")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -105,7 +105,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(hexCol, 0)
             .WaitUntil(_ => state.ByteCursorOffset == byteIndex,
-                TimeSpan.FromSeconds(5), $"cursor at hex byte {byteIndex}")
+                TimeSpan.FromSeconds(2), $"cursor at hex byte {byteIndex}")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -133,7 +133,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(asciiCol, 0)
             .WaitUntil(s => s.SearchPattern(cursorAtAscii).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor at ASCII byte 2")
+                TimeSpan.FromSeconds(2), "cursor at ASCII byte 2")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -167,7 +167,7 @@ public class HexEditorSelectionTests
             .ClickAt(hexCol, 0)
             // Clicking byte 0 can match the initial cursor highlight, so also wait for state update.
             .WaitUntil(s => state.ByteCursorOffset == expectedByteOffset && s.SearchPattern(cursorAtByte).HasMatches,
-                TimeSpan.FromSeconds(5), $"cursor at byte {byteIndex}")
+                TimeSpan.FromSeconds(2), $"cursor at byte {byteIndex}")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -192,7 +192,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "cursor at byte 0")
+                TimeSpan.FromSeconds(2), "cursor at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -204,7 +204,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Right()
             .WaitUntil(s => s.SearchPattern(cursorAtByte1).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor moved to byte 1")
+                TimeSpan.FromSeconds(2), "cursor moved to byte 1")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -225,7 +225,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(2), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 2,
-                TimeSpan.FromSeconds(5), "cursor at byte 2")
+                TimeSpan.FromSeconds(2), "cursor at byte 2")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -237,7 +237,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Left()
             .WaitUntil(s => s.SearchPattern(cursorAtByte1).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor at byte 1")
+                TimeSpan.FromSeconds(2), "cursor at byte 1")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -251,7 +251,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Left()
             .WaitUntil(s => s.SearchPattern(cursorAtByte0).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor at byte 0")
+                TimeSpan.FromSeconds(2), "cursor at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -276,7 +276,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "cursor at byte 0")
+                TimeSpan.FromSeconds(2), "cursor at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -288,7 +288,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.RightArrow, Hex1bModifiers.Shift)
             .WaitUntil(s => s.SearchPattern(selAtByte0).HasMatches,
-                TimeSpan.FromSeconds(5), "byte 0 selected")
+                TimeSpan.FromSeconds(2), "byte 0 selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -312,7 +312,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "cursor at byte 0")
+                TimeSpan.FromSeconds(2), "cursor at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -320,7 +320,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.RightArrow, Hex1bModifiers.Shift)
             .WaitUntil(_ => state.ByteCursorOffset == 1,
-                TimeSpan.FromSeconds(5), "byte cursor at 1 after Shift+Right")
+                TimeSpan.FromSeconds(2), "byte cursor at 1 after Shift+Right")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -330,7 +330,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.RightArrow, Hex1bModifiers.Shift)
             .WaitUntil(_ => state.ByteCursorOffset == 2,
-                TimeSpan.FromSeconds(5), "byte cursor at 2")
+                TimeSpan.FromSeconds(2), "byte cursor at 2")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -356,10 +356,10 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "start at byte 0")
+                TimeSpan.FromSeconds(2), "start at byte 0")
             .Right().Right()
             .WaitUntil(_ => state.ByteCursorOffset == 2,
-                TimeSpan.FromSeconds(5), "at byte 2 after arrows")
+                TimeSpan.FromSeconds(2), "at byte 2 after arrows")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -371,7 +371,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(1), 0)
             .WaitUntil(s => s.SearchPattern(cursorAtByte1).HasMatches,
-                TimeSpan.FromSeconds(5), "click moves cursor to byte 1")
+                TimeSpan.FromSeconds(2), "click moves cursor to byte 1")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -404,9 +404,9 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(hexCol, 0)
             .WaitUntil(_ => state.ByteCursorOffset == byteIndex,
-                TimeSpan.FromSeconds(5), $"cursor offset at invalid byte {byteIndex}")
+                TimeSpan.FromSeconds(2), $"cursor offset at invalid byte {byteIndex}")
             .WaitUntil(s => s.SearchPattern(cursorAtByte).HasMatches,
-                TimeSpan.FromSeconds(5), $"cursor at invalid byte {byteIndex}")
+                TimeSpan.FromSeconds(2), $"cursor at invalid byte {byteIndex}")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -427,7 +427,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "start at byte 0")
+                TimeSpan.FromSeconds(2), "start at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -438,7 +438,7 @@ public class HexEditorSelectionTests
             await new Hex1bTerminalInputSequenceBuilder()
                 .Right()
                 .WaitUntil(_ => state.ByteCursorOffset == target,
-                    TimeSpan.FromSeconds(5), $"at byte {target}")
+                    TimeSpan.FromSeconds(2), $"at byte {target}")
                 .Build()
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         }
@@ -464,7 +464,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(HexColForByte(0), 0)
             .WaitUntil(_ => state.ByteCursorOffset == 0,
-                TimeSpan.FromSeconds(5), "at byte 0")
+                TimeSpan.FromSeconds(2), "at byte 0")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -476,7 +476,7 @@ public class HexEditorSelectionTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Type("FF")
             .WaitUntil(s => s.SearchPattern(cursorAtByte1).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor advanced to byte 1 after typing FF")
+                TimeSpan.FromSeconds(2), "cursor advanced to byte 1 after typing FF")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -514,7 +514,7 @@ public class HexEditorSelectionTests
             .ClickAt(hexCol, 0)
             .WaitUntil(s => s.SearchPattern(cursorInHex).HasMatches
                          && s.SearchPattern(cursorInAscii).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor in both hex and ASCII columns")
+                TimeSpan.FromSeconds(2), "cursor in both hex and ASCII columns")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }

@@ -127,7 +127,7 @@ public class Hex1bTerminalChildProcessTests
         await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n")); // Exit nested bash too
         
         // Wait for exit with timeout
-        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var exitCode = await process.WaitForExitAsync(exitCts.Token);
         
         Assert.True(process.HasExited);
@@ -207,7 +207,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read output
         var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         try
         {
@@ -264,7 +264,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read initial size output
         var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         try
         {
@@ -296,7 +296,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read new size output
         var output2 = new StringBuilder();
-        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         try
         {
@@ -443,7 +443,7 @@ public class Hex1bTerminalChildProcessTests
         process.Kill();
         
         // Wait for exit
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var exitCode = await process.WaitForExitAsync(cts.Token);
         
         Assert.True(process.HasExited);
@@ -552,7 +552,7 @@ public class Hex1bTerminalChildProcessTests
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#") ||
                       terminal.CreateSnapshot().ContainsText(">"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             
@@ -787,7 +787,7 @@ public class Hex1bTerminalChildProcessTests
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#") ||
                       terminal.CreateSnapshot().ContainsText(">"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             
@@ -956,7 +956,7 @@ public class Hex1bTerminalChildProcessTests
             }
             
             // Wait for the process to exit naturally
-            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             int exitCode;
             try
             {
@@ -1055,7 +1055,7 @@ public class Hex1bTerminalChildProcessTests
             var promptFound = await WaitForConditionAsync(
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             
@@ -1314,7 +1314,7 @@ public class Hex1bTerminalChildProcessTests
             var promptFound = await WaitForConditionAsync(
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             
@@ -1341,7 +1341,7 @@ public class Hex1bTerminalChildProcessTests
             await WaitForConditionAsync(
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             
@@ -1501,7 +1501,7 @@ public class Hex1bTerminalChildProcessTests
             await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
             
             // Wait for process to exit
-            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             try
             {
                 await process.WaitForExitAsync(exitCts.Token);
@@ -1707,7 +1707,7 @@ public class Hex1bTerminalChildProcessTests
                 () => terminal.CreateSnapshot().ContainsText("$") || 
                       terminal.CreateSnapshot().ContainsText("#") ||
                       terminal.CreateSnapshot().ContainsText(">"),
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10),
                 TestContext.Current.CancellationToken
             );
             

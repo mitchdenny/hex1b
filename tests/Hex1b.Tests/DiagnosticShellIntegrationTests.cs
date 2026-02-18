@@ -433,7 +433,7 @@ public class DiagnosticShellIntegrationTests
             
             if (_runTask != null)
             {
-                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(5)); }
+                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(2)); }
                 catch { }
             }
             
@@ -459,8 +459,8 @@ public class DiagnosticShellIntegrationTests
         
         // Wait for help output to appear
         var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(5));
-        var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(2));
-        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(2));
+        var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(1));
+        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(1));
         
         // Get final content for assertion
         var content = ctx.GetOuterContent();
@@ -558,7 +558,7 @@ public class DiagnosticShellIntegrationTests
         
         // Wait for the last line of flood output (Line 010)
         // Use longer timeout for CI environments which may be slower
-        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(5));
+        var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(10));
         
         // Assert
         Assert.True(foundComplete, "Should see last flood line");

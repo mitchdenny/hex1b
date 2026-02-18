@@ -73,7 +73,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "e selected")
+                TimeSpan.FromSeconds(2), "e selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -140,7 +140,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "c selected")
+                TimeSpan.FromSeconds(2), "c selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -187,7 +187,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "b selected")
+                TimeSpan.FromSeconds(2), "b selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -229,7 +229,7 @@ public class EditorSelectionRenderingTests
         // Just wait for render to flush
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello"),
-                TimeSpan.FromSeconds(5), "content rendered")
+                TimeSpan.FromSeconds(2), "content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -265,7 +265,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "a selected")
+                TimeSpan.FromSeconds(2), "a selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -307,7 +307,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "second selection")
+                TimeSpan.FromSeconds(2), "second selection")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -358,7 +358,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "d selected")
+                TimeSpan.FromSeconds(2), "d selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -405,7 +405,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on l")
+                TimeSpan.FromSeconds(2), "cursor on l")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -446,7 +446,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "a selected")
+                TimeSpan.FromSeconds(2), "a selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -498,7 +498,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor on H")
+                TimeSpan.FromSeconds(2), "cursor on H")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -513,7 +513,7 @@ public class EditorSelectionRenderingTests
             .Shift().Key(Hex1bKey.RightArrow)
             .Shift().Key(Hex1bKey.RightArrow)
             .WaitUntil(s => s.SearchPattern(selectionPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "H selected")
+                TimeSpan.FromSeconds(2), "H selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -560,7 +560,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selVisible).HasMatches,
-                TimeSpan.FromSeconds(5), "selection visible on overflow line")
+                TimeSpan.FromSeconds(2), "selection visible on overflow line")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -593,7 +593,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "H selected")
+                TimeSpan.FromSeconds(2), "H selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -640,7 +640,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "A selected")
+                TimeSpan.FromSeconds(2), "A selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -690,7 +690,7 @@ public class EditorSelectionRenderingTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "A selected")
+                TimeSpan.FromSeconds(2), "A selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

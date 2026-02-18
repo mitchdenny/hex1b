@@ -306,7 +306,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Visit GitHub"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Visit GitHub"), TimeSpan.FromSeconds(2))
             .Capture("single-link")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -341,7 +341,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("API Reference"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("API Reference"), TimeSpan.FromSeconds(2))
             .Capture("multiple-links")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -381,7 +381,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("inline-links")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -418,7 +418,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Issue Tracker"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Issue Tracker"), TimeSpan.FromSeconds(2))
             .Capture("bordered-links")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -452,7 +452,7 @@ public class Osc8HyperlinkTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(2))
             .Enter() // Click the link
             .Wait(TimeSpan.FromMilliseconds(50)) // Allow handler to execute
             .Enter() // Click again
@@ -490,7 +490,7 @@ public class Osc8HyperlinkTests
         
         // Navigate and capture at each focus state
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Third Link"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Third Link"), TimeSpan.FromSeconds(2))
             .Capture("focus-first")
             .Tab()
             .Capture("focus-second")
@@ -532,7 +532,7 @@ public class Osc8HyperlinkTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("View Source"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("View Source"), TimeSpan.FromSeconds(2))
             .Enter() // Click first link
             .Wait(TimeSpan.FromMilliseconds(50)) // Allow handler to execute
             .Tab()
@@ -570,7 +570,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Mailto Link"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Mailto Link"), TimeSpan.FromSeconds(2))
             .Capture("complex-urls")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -604,7 +604,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Links"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Links"), TimeSpan.FromSeconds(2))
             .Capture("narrow-terminal")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -644,7 +644,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Right"), TimeSpan.FromSeconds(2))
             .Capture("splitter-clipping")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -684,7 +684,7 @@ public class Osc8HyperlinkTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Link 1"), TimeSpan.FromSeconds(2))
             .Down().Down().Down() // Scroll down
             .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromMilliseconds(500), "links to render after scrolling")
             .Ctrl().Key(Hex1bKey.C)
@@ -713,7 +713,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Tiny"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Tiny"), TimeSpan.FromSeconds(2))
             .Capture("border-clipped")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -751,7 +751,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("[GitHub]"), TimeSpan.FromSeconds(2))
             .Capture("hstack-overflow")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -784,7 +784,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(2))
             .Capture("empty-text")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -818,7 +818,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ampersand"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("ampersand"), TimeSpan.FromSeconds(2))
             .Capture("special-chars")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -853,7 +853,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("same link"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("same link"), TimeSpan.FromSeconds(2))
             .Capture("with-id")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -890,7 +890,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Clipped Box"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Clipped Box"), TimeSpan.FromSeconds(2))
             .Capture("clipped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -936,7 +936,7 @@ public class Osc8HyperlinkTests
         
         // Capture snapshot BEFORE exiting, similar to other working tests
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2))
             .Capture("constrained-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -981,7 +981,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("This"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("This"), TimeSpan.FromSeconds(2))
             .Capture("wrapped-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1034,7 +1034,7 @@ public class Osc8HyperlinkTests
 
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(2))
             .Capture("multi-line-hyperlink")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
