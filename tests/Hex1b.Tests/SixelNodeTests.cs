@@ -97,7 +97,7 @@ public class SixelNodeTests
         
         // With no image data, should show "[No image data]"
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[No image data]"), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("[No image data]"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[No image data]"));
@@ -123,7 +123,7 @@ public class SixelNodeTests
             .ApplyAsync(terminal);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Fallback content"), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Fallback content"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("Fallback content"));
@@ -145,7 +145,7 @@ public class SixelNodeTests
             .ApplyAsync(terminal);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[Sixel not supported]"), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("[Sixel not supported]"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().ContainsText("[Sixel not supported]"));

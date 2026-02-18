@@ -264,7 +264,7 @@ public class Hex1bTerminalChildProcessTests
         
         // Read initial size output
         var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         try
         {

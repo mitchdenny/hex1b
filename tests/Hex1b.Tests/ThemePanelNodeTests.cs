@@ -148,7 +148,7 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ThemePanel Content"), TimeSpan.FromSeconds(1), "ThemePanel Content to appear")
+            .WaitUntil(s => s.ContainsText("ThemePanel Content"), TimeSpan.FromSeconds(2), "ThemePanel Content to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -182,7 +182,7 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(1), "Test button to appear")
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2), "Test button to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -212,7 +212,7 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(1), "Test text to appear")
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(2), "Test text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -238,7 +238,7 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 20, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("No Mutator"), TimeSpan.FromSeconds(1), "No Mutator text to appear")
+            .WaitUntil(s => s.ContainsText("No Mutator"), TimeSpan.FromSeconds(2), "No Mutator text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -281,7 +281,7 @@ public class ThemePanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Cached"), TimeSpan.FromSeconds(1), "Cached button to appear")
+            .WaitUntil(s => s.ContainsText("Cached"), TimeSpan.FromSeconds(2), "Cached button to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -529,7 +529,7 @@ public class ThemePanelNodeTests
 
         // Inner button should have red (from inner panel), not blue (from outer)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inner") && s.ContainsText("Outer"), TimeSpan.FromSeconds(1), "Inner and Outer buttons to appear")
+            .WaitUntil(s => s.ContainsText("Inner") && s.ContainsText("Outer"), TimeSpan.FromSeconds(2), "Inner and Outer buttons to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

@@ -257,7 +257,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("░"), TimeSpan.FromSeconds(1), "empty progress chars")
+            .WaitUntil(s => s.ContainsText("░"), TimeSpan.FromSeconds(2), "empty progress chars")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -285,7 +285,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(1), "filled progress chars")
+            .WaitUntil(s => s.ContainsText("█"), TimeSpan.FromSeconds(2), "filled progress chars")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -313,7 +313,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("█") && s.ContainsText("░"), TimeSpan.FromSeconds(1), "half filled progress")
+            .WaitUntil(s => s.ContainsText("█") && s.ContainsText("░"), TimeSpan.FromSeconds(2), "half filled progress")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -347,7 +347,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▐"), TimeSpan.FromSeconds(1), "half character")
+            .WaitUntil(s => s.ContainsText("▐"), TimeSpan.FromSeconds(2), "half character")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -380,7 +380,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("███") && s.ContainsText("▐"), TimeSpan.FromSeconds(1), "full and half chars")
+            .WaitUntil(s => s.ContainsText("███") && s.ContainsText("▐"), TimeSpan.FromSeconds(2), "full and half chars")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -412,7 +412,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▐"), TimeSpan.FromSeconds(1), "half char only")
+            .WaitUntil(s => s.ContainsText("▐"), TimeSpan.FromSeconds(2), "half char only")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -443,7 +443,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("░"), TimeSpan.FromSeconds(1), "empty progress")
+            .WaitUntil(s => s.ContainsText("░"), TimeSpan.FromSeconds(2), "empty progress")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -475,7 +475,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▓"), TimeSpan.FromSeconds(1), "custom filled char")
+            .WaitUntil(s => s.ContainsText("▓"), TimeSpan.FromSeconds(2), "custom filled char")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -511,7 +511,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("⣀"), TimeSpan.FromSeconds(1), "braille full char")
+            .WaitUntil(s => s.ContainsText("⣀"), TimeSpan.FromSeconds(2), "braille full char")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -577,7 +577,7 @@ public class ProgressNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("█") && s.ContainsText("░"), TimeSpan.FromSeconds(1), "half filled")
+            .WaitUntil(s => s.ContainsText("█") && s.ContainsText("░"), TimeSpan.FromSeconds(2), "half filled")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

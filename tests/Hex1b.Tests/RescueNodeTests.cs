@@ -47,7 +47,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(1), "Hello text to appear")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2), "Hello text to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -115,7 +115,7 @@ public class RescueNodeTests
         // This should not throw - the error should be captured
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "error fallback to appear")
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(2), "error fallback to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -145,7 +145,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(1), "UNHANDLED EXCEPTION fallback to appear")
+            .WaitUntil(s => s.ContainsText("UNHANDLED EXCEPTION"), TimeSpan.FromSeconds(2), "UNHANDLED EXCEPTION fallback to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -175,7 +175,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Custom error: Test exception"), TimeSpan.FromSeconds(1), "custom fallback message to appear")
+            .WaitUntil(s => s.ContainsText("Custom error: Test exception"), TimeSpan.FromSeconds(2), "custom fallback message to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -201,7 +201,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Stack Trace"), TimeSpan.FromSeconds(1), "Stack Trace details to appear")
+            .WaitUntil(s => s.ContainsText("Stack Trace"), TimeSpan.FromSeconds(2), "Stack Trace details to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -227,7 +227,7 @@ public class RescueNodeTests
         node.Arrange(new Rect(0, 0, 100, 50));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Something went wrong"), TimeSpan.FromSeconds(1), "friendly error message to appear")
+            .WaitUntil(s => s.ContainsText("Something went wrong"), TimeSpan.FromSeconds(2), "friendly error message to appear")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

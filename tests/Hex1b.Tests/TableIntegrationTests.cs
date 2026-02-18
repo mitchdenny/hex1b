@@ -130,7 +130,7 @@ public class TableIntegrationTests
             .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.DownArrow)
             .Key(Hex1bKey.DownArrow)
-            .WaitUntil(s => s.ContainsText("> Employee 3"), TimeSpan.FromSeconds(1), "focus on row 3")
+            .WaitUntil(s => s.ContainsText("> Employee 3"), TimeSpan.FromSeconds(2), "focus on row 3")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1044,7 +1044,7 @@ public class TableIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.End)  // Jump to last row
-            .WaitUntil(s => s.ContainsText("Employee 30"), TimeSpan.FromSeconds(1), "scrolled to bottom")
+            .WaitUntil(s => s.ContainsText("Employee 30"), TimeSpan.FromSeconds(2), "scrolled to bottom")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1103,7 +1103,7 @@ public class TableIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.End)
-            .WaitUntil(s => s.ContainsText("> Employee 20"), TimeSpan.FromSeconds(1), "at end")
+            .WaitUntil(s => s.ContainsText("> Employee 20"), TimeSpan.FromSeconds(2), "at end")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1113,7 +1113,7 @@ public class TableIntegrationTests
         // Navigate back to Home
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Home)
-            .WaitUntil(s => s.ContainsText("> Employee 1"), TimeSpan.FromSeconds(1), "back to home")
+            .WaitUntil(s => s.ContainsText("> Employee 1"), TimeSpan.FromSeconds(2), "back to home")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

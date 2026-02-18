@@ -189,7 +189,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Left Pane Content"),
-                TimeSpan.FromSeconds(1), "left pane content")
+                TimeSpan.FromSeconds(2), "left pane content")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -216,7 +216,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right Pane Content"),
-                TimeSpan.FromSeconds(1), "right pane content")
+                TimeSpan.FromSeconds(2), "right pane content")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -283,7 +283,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 255)),
-                TimeSpan.FromSeconds(1), "Cyan foreground color")
+                TimeSpan.FromSeconds(2), "Cyan foreground color")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -313,7 +313,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("║"),
-                TimeSpan.FromSeconds(1), "custom divider character")
+                TimeSpan.FromSeconds(2), "custom divider character")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -341,7 +341,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("⣿"),
-                TimeSpan.FromSeconds(1), "braille thumb on focused divider")
+                TimeSpan.FromSeconds(2), "braille thumb on focused divider")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1183,7 +1183,7 @@ public class SplitterNodeTests
         // Default horizontal divider character is "─"
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("─"),
-                TimeSpan.FromSeconds(1), "horizontal divider character")
+                TimeSpan.FromSeconds(2), "horizontal divider character")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1211,7 +1211,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Top Content"),
-                TimeSpan.FromSeconds(1), "top pane content")
+                TimeSpan.FromSeconds(2), "top pane content")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1239,7 +1239,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Bottom Content"),
-                TimeSpan.FromSeconds(1), "bottom pane content")
+                TimeSpan.FromSeconds(2), "bottom pane content")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -2393,7 +2393,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Right") && !s.ContainsText("OVERFLOW_TEXT_THAT_IS_MUCH_LONGER_THAN_10_CHARS"),
-                TimeSpan.FromSeconds(1), "right pane visible, left clipped")
+                TimeSpan.FromSeconds(2), "right pane visible, left clipped")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

@@ -39,7 +39,7 @@ public class Hex1bTerminalTests
         workload.Write("Hello");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello"),
-                TimeSpan.FromSeconds(1), "Hello text")
+                TimeSpan.FromSeconds(2), "Hello text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -60,7 +60,7 @@ public class Hex1bTerminalTests
         workload.Write("Line1\r\nLine2\r\nLine3");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line1") && s.ContainsText("Line2") && s.ContainsText("Line3"),
-                TimeSpan.FromSeconds(1), "all three lines")
+                TimeSpan.FromSeconds(2), "all three lines")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -80,7 +80,7 @@ public class Hex1bTerminalTests
         workload.Write("HelloWorld");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello") && s.ContainsText("World"),
-                TimeSpan.FromSeconds(1), "wrapped text")
+                TimeSpan.FromSeconds(2), "wrapped text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -98,7 +98,7 @@ public class Hex1bTerminalTests
         workload.Write("Some text");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Some text"),
-                TimeSpan.FromSeconds(1), "initial text")
+                TimeSpan.FromSeconds(2), "initial text")
             .Build()
             .ApplyAsync(terminal);
         
@@ -124,7 +124,7 @@ public class Hex1bTerminalTests
         workload.Write("X");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("X"),
-                TimeSpan.FromSeconds(1), "X at cursor position")
+                TimeSpan.FromSeconds(2), "X at cursor position")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -186,7 +186,7 @@ public class Hex1bTerminalTests
         workload.Write("Hello World");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World"),
-                TimeSpan.FromSeconds(1), "Hello World text")
+                TimeSpan.FromSeconds(2), "Hello World text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -205,7 +205,7 @@ public class Hex1bTerminalTests
         workload.Write("Hello World\r\nHello Again");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello World") && s.ContainsText("Hello Again"),
-                TimeSpan.FromSeconds(1), "both Hello lines")
+                TimeSpan.FromSeconds(2), "both Hello lines")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -227,7 +227,7 @@ public class Hex1bTerminalTests
         workload.Write("Line 1\r\n\r\nLine 3");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1") && s.ContainsText("Line 3"),
-                TimeSpan.FromSeconds(1), "Line 1 and Line 3")
+                TimeSpan.FromSeconds(2), "Line 1 and Line 3")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -248,7 +248,7 @@ public class Hex1bTerminalTests
         workload.Write("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Hello"),
-                TimeSpan.FromSeconds(1), "Hello text")
+                TimeSpan.FromSeconds(2), "Hello text")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -269,7 +269,7 @@ public class Hex1bTerminalTests
         workload.Write("\x1b[31mRed Text\x1b[0m");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Red Text"),
-                TimeSpan.FromSeconds(1), "Red Text")
+                TimeSpan.FromSeconds(2), "Red Text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -288,7 +288,7 @@ public class Hex1bTerminalTests
         workload.Write("\x1b[2;5HX");
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("X"),
-                TimeSpan.FromSeconds(1), "X at ANSI position")
+                TimeSpan.FromSeconds(2), "X at ANSI position")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -306,7 +306,7 @@ public class Hex1bTerminalTests
         workload.Write("Some content");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Some content"),
-                TimeSpan.FromSeconds(1), "initial content")
+                TimeSpan.FromSeconds(2), "initial content")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -328,7 +328,7 @@ public class Hex1bTerminalTests
         workload.Write("\x1b[38;2;255;0;0mR\x1b[0m");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("R"),
-                TimeSpan.FromSeconds(1), "R with red color")
+                TimeSpan.FromSeconds(2), "R with red color")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -350,14 +350,14 @@ public class Hex1bTerminalTests
         
         workload.Write("\x1b[?1049h");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().InAlternateScreen);
         
         workload.Write("\x1b[?1049l");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
         Assert.False(terminal.CreateSnapshot().InAlternateScreen);

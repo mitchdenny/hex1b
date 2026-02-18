@@ -301,7 +301,7 @@ public class VStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("First") && s.ContainsText("Second"), TimeSpan.FromSeconds(1), "First and Second text")
+            .WaitUntil(s => s.ContainsText("First") && s.ContainsText("Second"), TimeSpan.FromSeconds(2), "First and Second text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

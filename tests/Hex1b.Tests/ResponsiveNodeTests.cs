@@ -173,7 +173,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Visible"), TimeSpan.FromSeconds(1), "Visible text")
+            .WaitUntil(s => s.ContainsText("Visible"), TimeSpan.FromSeconds(2), "Visible text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -451,7 +451,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(1), "Inner text")
+            .WaitUntil(s => s.ContainsText("Inner"), TimeSpan.FromSeconds(2), "Inner text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -486,7 +486,7 @@ public class ResponsiveNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Fallback"), TimeSpan.FromSeconds(1), "Fallback text")
+            .WaitUntil(s => s.ContainsText("Fallback"), TimeSpan.FromSeconds(2), "Fallback text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

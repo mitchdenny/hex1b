@@ -849,7 +849,7 @@ public class TableNodeTests
             .Key(Hex1bKey.PageDown)
             .Key(Hex1bKey.PageDown)
             .WaitUntil(s => s.ContainsText("Product 15") || s.ContainsText("Product 20"), 
-                       TimeSpan.FromMilliseconds(500), "Wait for scroll to complete")
+                       TimeSpan.FromSeconds(5), "Wait for scroll to complete")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

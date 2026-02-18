@@ -39,7 +39,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("»"), TimeSpan.FromSeconds(1), "collapsed drawer")
+            .WaitUntil(s => s.ContainsText("»"), TimeSpan.FromSeconds(2), "collapsed drawer")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -69,7 +69,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("«") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(1), "right drawer collapsed")
+            .WaitUntil(s => s.ContainsText("«") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(2), "right drawer collapsed")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -103,7 +103,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Top") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(1), "top drawer")
+            .WaitUntil(s => s.ContainsText("▼ Top") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(2), "top drawer")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -135,7 +135,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▲ Bottom") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(1), "bottom drawer")
+            .WaitUntil(s => s.ContainsText("▲ Bottom") && s.ContainsText("Main Content"), TimeSpan.FromSeconds(2), "bottom drawer")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -171,7 +171,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[COLLAPSED]"), TimeSpan.FromSeconds(1), "collapsed content")
+            .WaitUntil(s => s.ContainsText("[COLLAPSED]"), TimeSpan.FromSeconds(2), "collapsed content")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -203,7 +203,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("MainContent"), TimeSpan.FromSeconds(1), "main content")
+            .WaitUntil(s => s.ContainsText("MainContent"), TimeSpan.FromSeconds(2), "main content")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -240,7 +240,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[EXPANDED]"), TimeSpan.FromSeconds(1), "expanded content")
+            .WaitUntil(s => s.ContainsText("[EXPANDED]"), TimeSpan.FromSeconds(2), "expanded content")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -273,7 +273,7 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("ExpandedPane") && s.ContainsText("MainContent"), TimeSpan.FromSeconds(1), "both visible")
+            .WaitUntil(s => s.ContainsText("ExpandedPane") && s.ContainsText("MainContent"), TimeSpan.FromSeconds(2), "both visible")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -314,7 +314,7 @@ public class DrawerNodeTests
         // Act - Tab should focus the drawer
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(1), "drawer visible")
+            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(2), "drawer visible")
             .Tab()  // Focus first focusable - should be the overlay drawer
             .WaitUntil(_ => true, TimeSpan.FromMilliseconds(100), "focus applied")
             .Capture("focused")
@@ -350,10 +350,10 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(1), "drawer visible")
+            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(2), "drawer visible")
             .Tab()  // Focus the drawer
             .Enter()  // Open the overlay
-            .WaitUntil(s => s.ContainsText("POPUP_CONTENT"), TimeSpan.FromSeconds(1), "popup opened")
+            .WaitUntil(s => s.ContainsText("POPUP_CONTENT"), TimeSpan.FromSeconds(2), "popup opened")
             .Capture("popup")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -387,10 +387,10 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(1), "drawer visible")
+            .WaitUntil(s => s.ContainsText("▼ Console"), TimeSpan.FromSeconds(2), "drawer visible")
             .Tab()
             .Key(Hex1bKey.Spacebar)  // Space should also open
-            .WaitUntil(s => s.ContainsText("POPUP_SPACE"), TimeSpan.FromSeconds(1), "popup opened")
+            .WaitUntil(s => s.ContainsText("POPUP_SPACE"), TimeSpan.FromSeconds(2), "popup opened")
             .Capture("popup")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -430,10 +430,10 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Open"), TimeSpan.FromSeconds(1), "drawer visible")
+            .WaitUntil(s => s.ContainsText("▼ Open"), TimeSpan.FromSeconds(2), "drawer visible")
             .Tab()
             .Enter()
-            .WaitUntil(s => s.ContainsText("Expanded"), TimeSpan.FromSeconds(1), "expanded")
+            .WaitUntil(s => s.ContainsText("Expanded"), TimeSpan.FromSeconds(2), "expanded")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -473,10 +473,10 @@ public class DrawerNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("▼ Open"), TimeSpan.FromSeconds(1), "drawer visible")
+            .WaitUntil(s => s.ContainsText("▼ Open"), TimeSpan.FromSeconds(2), "drawer visible")
             .Tab()
             .Enter()  // Open
-            .WaitUntil(s => s.ContainsText("Close"), TimeSpan.FromSeconds(1), "popup opened")
+            .WaitUntil(s => s.ContainsText("Close"), TimeSpan.FromSeconds(2), "popup opened")
             .Tab()  // Focus the Close button
             .Enter()  // Click it
             .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "callback fired")

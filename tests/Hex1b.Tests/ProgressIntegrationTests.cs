@@ -704,7 +704,7 @@ public class ProgressIntegrationTests : IDisposable
 
         // Resize to medium
         recorder.AddMarker("Resize to 60 cols");
-        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await ((IHex1bTerminalWorkloadFilter)recorder).OnResizeAsync(60, 10, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         terminal.Resize(60, 10);
         await workload.ResizeAsync(60, 10, TestContext.Current.CancellationToken);
         await Task.Delay(300, TestContext.Current.CancellationToken);

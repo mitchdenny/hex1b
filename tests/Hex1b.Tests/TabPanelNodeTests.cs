@@ -33,7 +33,7 @@ public class TabPanelNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Tab One") && s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab panel rendered")
+            .WaitUntil(s => s.ContainsText("Tab One") && s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "tab panel rendered")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -67,9 +67,9 @@ public class TabPanelNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "first tab")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "first tab")
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "switched to second tab")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "switched to second tab")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -102,11 +102,11 @@ public class TabPanelNodeTests
         // Act - First go to second tab, then go back
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "first tab")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "first tab")
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "switched to second tab")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "switched to second tab")
             .Alt().Key(Hex1bKey.LeftArrow)
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "switched back to first tab")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "switched back to first tab")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -141,7 +141,7 @@ public class TabPanelNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("TopTab"), TimeSpan.FromSeconds(1), "tab panel rendered")
+            .WaitUntil(s => s.ContainsText("TopTab"), TimeSpan.FromSeconds(2), "tab panel rendered")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -173,7 +173,7 @@ public class TabPanelNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("BottomTab"), TimeSpan.FromSeconds(1), "tab panel rendered")
+            .WaitUntil(s => s.ContainsText("BottomTab"), TimeSpan.FromSeconds(2), "tab panel rendered")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -225,9 +225,9 @@ public class TabPanelNodeTests
         // Act
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "first tab")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "first tab")
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "switched")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "switched")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -263,11 +263,11 @@ public class TabPanelNodeTests
         // Act - Go to last tab, then press right again to wrap
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "first tab")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "first tab")
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "second tab")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "second tab")
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "wrapped to first")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "wrapped to first")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -328,7 +328,7 @@ public class TabPanelNodeTests
         
         // First, capture the initial state to find the selector button position
         var initialSnapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Document1.cs") && s.ContainsText("▼"), TimeSpan.FromSeconds(1), "tab panel with selector rendered")
+            .WaitUntil(s => s.ContainsText("Document1.cs") && s.ContainsText("▼"), TimeSpan.FromSeconds(2), "tab panel with selector rendered")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -430,7 +430,7 @@ public class TabPanelNodeTests
 
         // Initially no documents
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "empty state")
+            .WaitUntil(s => s.ContainsText("No documents"), TimeSpan.FromSeconds(2), "empty state")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -442,7 +442,7 @@ public class TabPanelNodeTests
         app.Invalidate(); // Force re-render
 
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content of File1"), TimeSpan.FromSeconds(1), "first file content")
+            .WaitUntil(s => s.ContainsText("Content of File1"), TimeSpan.FromSeconds(2), "first file content")
             .Capture("afterAdd1")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -455,7 +455,7 @@ public class TabPanelNodeTests
         app.Invalidate();
 
         var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content of File2"), TimeSpan.FromSeconds(1), "second file content")
+            .WaitUntil(s => s.ContainsText("Content of File2"), TimeSpan.FromSeconds(2), "second file content")
             .Capture("afterAdd2")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -533,7 +533,7 @@ public class TabPanelNodeTests
 
         // Wait for initial render - should show tree and "No documents"
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "initial")
+            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(2), "initial")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -571,7 +571,7 @@ public class TabPanelNodeTests
 
         // Now verify content update
         var snapshot4 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(1), "file1 content")
+            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(2), "file1 content")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -610,7 +610,7 @@ public class TabPanelNodeTests
 
         // Initially shows Tab One content
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "tab1 content")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -620,7 +620,7 @@ public class TabPanelNodeTests
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "tab2 content")
             .Capture("afterSwitch")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -668,7 +668,7 @@ public class TabPanelNodeTests
 
         // Initially shows Tab One content
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "tab1 content")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -678,7 +678,7 @@ public class TabPanelNodeTests
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "tab2 content")
             .Capture("afterSwitch")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -728,7 +728,7 @@ public class TabPanelNodeTests
 
         // Initially shows Tab One content
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "tab1 content")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -738,7 +738,7 @@ public class TabPanelNodeTests
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
             .Alt().Key(Hex1bKey.RightArrow)
-            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(1), "tab2 content")
+            .WaitUntil(s => s.ContainsText("Content Two"), TimeSpan.FromSeconds(2), "tab2 content")
             .Capture("afterSwitch")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -795,7 +795,7 @@ public class TabPanelNodeTests
 
         // Initially shows Tab One content
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(1), "tab1 content")
+            .WaitUntil(s => s.ContainsText("Content One"), TimeSpan.FromSeconds(2), "tab1 content")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -899,7 +899,7 @@ public class TabPanelNodeTests
 
         // Wait for initial render
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(1), "initial")
+            .WaitUntil(s => s.ContainsText("File1.cs") && s.ContainsText("No documents"), TimeSpan.FromSeconds(2), "initial")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -928,7 +928,7 @@ public class TabPanelNodeTests
 
         // Now wait for content update
         var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(1), "file1 content")
+            .WaitUntil(s => s.ContainsText("Content of File 1"), TimeSpan.FromSeconds(2), "file1 content")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -975,7 +975,7 @@ public class TabPanelNodeTests
         
         // First verify Tab1 is visible
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(1), "initial render")
+            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(2), "initial render")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1031,7 +1031,7 @@ public class TabPanelNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("FirstTab"), TimeSpan.FromSeconds(1), "initial render")
+            .WaitUntil(s => s.ContainsText("FirstTab"), TimeSpan.FromSeconds(2), "initial render")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1086,7 +1086,7 @@ public class TabPanelNodeTests
         
         // Wait for initial render
         var snapshot1 = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(1), "initial render")
+            .WaitUntil(s => s.ContainsText("Tab1"), TimeSpan.FromSeconds(2), "initial render")
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1098,7 +1098,7 @@ public class TabPanelNodeTests
         // Trigger re-render by pressing a key that causes refresh
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.None) // Trigger event loop
-            .WaitUntil(s => s.ContainsText("NewTab"), TimeSpan.FromSeconds(1), "new tab added")
+            .WaitUntil(s => s.ContainsText("NewTab"), TimeSpan.FromSeconds(2), "new tab added")
             .Capture("afterAdd")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

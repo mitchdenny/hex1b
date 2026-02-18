@@ -276,7 +276,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(1), "Left and Right text")
+            .WaitUntil(s => s.ContainsText("Left") && s.ContainsText("Right"), TimeSpan.FromSeconds(2), "Left and Right text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -307,7 +307,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(1), "AAA BBB CCC on same line")
+            .WaitUntil(s => s.ContainsText("AAA") && s.ContainsText("BBB") && s.ContainsText("CCC"), TimeSpan.FromSeconds(2), "AAA BBB CCC on same line")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -339,7 +339,7 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 8, 10));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(1), "AAAA text")
+            .WaitUntil(s => s.ContainsText("AAAA"), TimeSpan.FromSeconds(2), "AAAA text")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

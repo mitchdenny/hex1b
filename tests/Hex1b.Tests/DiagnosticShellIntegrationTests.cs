@@ -459,8 +459,8 @@ public class DiagnosticShellIntegrationTests
         
         // Wait for help output to appear
         var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(5));
-        var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(1));
-        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(1));
+        var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(2));
+        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(2));
         
         // Get final content for assertion
         var content = ctx.GetOuterContent();

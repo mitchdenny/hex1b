@@ -89,7 +89,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Act - directly call the filter's OnResizeAsync since we're in headless mode
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnResizeAsync(100, 40, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnResizeAsync(100, 40, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
 
@@ -131,7 +131,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input by calling the filter directly (since we're headless)
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -164,7 +164,7 @@ public class AsciinemaRecorderTests : IDisposable
 
         // Simulate input
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
-        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnInputAsync(AnsiTokenizer.Tokenize("hello"), TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         // Act
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
@@ -306,7 +306,7 @@ public class AsciinemaRecorderTests : IDisposable
         var recorder = new AsciinemaRecorder(tempFile, new AsciinemaRecorderOptions { AutoFlush = false });
         var filter = (IHex1bTerminalWorkloadFilter)recorder;
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
-        await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, recorder.PendingEventCount);
 

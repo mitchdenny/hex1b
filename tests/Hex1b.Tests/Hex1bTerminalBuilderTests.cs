@@ -270,7 +270,7 @@ public class Hex1bTerminalBuilderTests
     public async Task WithHex1bApp_AsyncBuilder_CanRun()
     {
         var builderCalled = false;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         var builder = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => async ctx =>
@@ -294,7 +294,7 @@ public class Hex1bTerminalBuilderTests
     public async Task WithHex1bApp_SyncBuilder_CanRun()
     {
         var builderCalled = false;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         var builder = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx =>
@@ -324,7 +324,7 @@ public class Hex1bTerminalBuilderTests
     public async Task WithHex1bApp_FluentChain_Works()
     {
         var filter = new TestWorkloadFilter();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         
         var builder = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))

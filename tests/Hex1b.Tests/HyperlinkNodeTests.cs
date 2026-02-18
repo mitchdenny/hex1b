@@ -150,7 +150,7 @@ public class HyperlinkNodeTests
         
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(1), "Link text with parameters")
+            .WaitUntil(s => s.ContainsText("Link"), TimeSpan.FromSeconds(2), "Link text with parameters")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

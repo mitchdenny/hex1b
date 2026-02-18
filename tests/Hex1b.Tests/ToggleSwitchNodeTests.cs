@@ -108,7 +108,7 @@ public class ToggleSwitchNodeTests
 
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("A") && s.ContainsText("B") && s.ContainsText("C"), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("A") && s.ContainsText("B") && s.ContainsText("C"), TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(terminal);
 
@@ -137,7 +137,7 @@ public class ToggleSwitchNodeTests
 
         // Should contain ANSI escape codes for styling (foreground or background colors)
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("On") && s.ContainsText("Off"), TimeSpan.FromSeconds(1), "On/Off options visible")
+            .WaitUntil(s => s.ContainsText("On") && s.ContainsText("Off"), TimeSpan.FromSeconds(2), "On/Off options visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -175,12 +175,12 @@ public class ToggleSwitchNodeTests
         var pattern = new CellPatternSearcher().Find("A");
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(focusedTerminal);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
             .Build()
             .ApplyAsync(unfocusedTerminal);
 

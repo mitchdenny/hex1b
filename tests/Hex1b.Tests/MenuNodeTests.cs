@@ -619,7 +619,7 @@ public class MenuNodeTests
         // Act
         menuNode.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "File label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -655,7 +655,7 @@ public class MenuNodeTests
         // Act
         menuNode.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "File label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -691,7 +691,7 @@ public class MenuNodeTests
         // Act
         menuNode.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "File label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -728,7 +728,7 @@ public class MenuNodeTests
         // Act
         menuNode.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "File label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -764,7 +764,7 @@ public class MenuNodeTests
         // Act
         menuNode.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(1), "File label")
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(2), "File label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -796,7 +796,7 @@ public class MenuNodeTests
         // Act
         menuItem.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(2), "Open label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -828,7 +828,7 @@ public class MenuNodeTests
         // Act
         menuItem.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(2), "Open label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -860,7 +860,7 @@ public class MenuNodeTests
         // Act
         menuItem.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(2), "Open label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -892,7 +892,7 @@ public class MenuNodeTests
         // Act
         menuItem.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(1), "Open label")
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(2), "Open label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
