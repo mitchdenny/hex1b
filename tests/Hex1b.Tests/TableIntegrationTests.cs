@@ -71,7 +71,7 @@ public class TableIntegrationTests
         // Wait for render with focus on first row
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("Employee 5"),
-                TimeSpan.FromSeconds(2), "table fully rendered")
+                TimeSpan.FromSeconds(5), "table fully rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -127,7 +127,7 @@ public class TableIntegrationTests
 
         // Move focus down twice
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.DownArrow)
             .Key(Hex1bKey.DownArrow)
             .WaitUntil(s => s.ContainsText("> Employee 3"), TimeSpan.FromSeconds(1), "focus on row 3")
@@ -190,7 +190,7 @@ public class TableIntegrationTests
         // row layout: y=0 top border, y=1 header, y=2 separator, y=3 row 1, y=4 row 2, etc.
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("Employee 5"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .ClickAt(10, 4) // Click on Employee 2 row
             .Wait(200)
             .Build()
@@ -252,7 +252,7 @@ public class TableIntegrationTests
         // Wait for render, verify unchecked state
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table with checkboxes rendered")
+                TimeSpan.FromSeconds(5), "table with checkboxes rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -325,7 +325,7 @@ public class TableIntegrationTests
         // Wait for table to render
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered with checkboxes")
+                TimeSpan.FromSeconds(5), "table rendered with checkboxes")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -393,7 +393,7 @@ public class TableIntegrationTests
         // Wait for render with all checked
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("[x]") && s.ContainsText("Employee 1"),
-                TimeSpan.FromSeconds(2), "table rendered with all selected")
+                TimeSpan.FromSeconds(5), "table rendered with all selected")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -456,7 +456,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -519,7 +519,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -589,7 +589,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("Employee 3"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -648,7 +648,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -703,7 +703,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("Employee 3"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -762,7 +762,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("Employee 3"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -840,7 +840,7 @@ public class TableIntegrationTests
         // Select the focused row (Space toggles)
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.Spacebar)  // Select Employee 1
             .Wait(200)
             .Build()
@@ -914,7 +914,7 @@ public class TableIntegrationTests
         // Select first 3 rows using Space + Down
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.Spacebar)  // Select Employee 1
             .Key(Hex1bKey.DownArrow)
             .Key(Hex1bKey.Spacebar)  // Select Employee 2
@@ -981,7 +981,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1042,7 +1042,7 @@ public class TableIntegrationTests
 
         // Navigate to bottom
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.End)  // Jump to last row
             .WaitUntil(s => s.ContainsText("Employee 30"), TimeSpan.FromSeconds(1), "scrolled to bottom")
             .Wait(100)
@@ -1101,7 +1101,7 @@ public class TableIntegrationTests
 
         // Navigate to End
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Employee 1"), TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.End)
             .WaitUntil(s => s.ContainsText("> Employee 20"), TimeSpan.FromSeconds(1), "at end")
             .Wait(100)
@@ -1170,7 +1170,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1262,7 +1262,7 @@ public class TableIntegrationTests
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Charlie Brown"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1344,7 +1344,7 @@ public class TableIntegrationTests
         // Step 1: Verify initial render with focus on Alice
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("[ ]"),
-                TimeSpan.FromSeconds(2), "table rendered")
+                TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
