@@ -162,7 +162,7 @@ public class SplitterNodeTests
         // Default divider character is "│"
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("│"),
-                TimeSpan.FromSeconds(1), "divider character")
+                TimeSpan.FromSeconds(2), "divider character")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

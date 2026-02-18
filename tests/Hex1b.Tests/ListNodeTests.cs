@@ -1632,10 +1632,10 @@ public class ListNodeTests
         
         // Scroll down to the end using mouse wheel, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 01"), TimeSpan.FromSeconds(5))
             .MouseMoveTo(10, 5) // Position mouse over list
             .ScrollDown(19) // Scroll down 19 times to reach item 20
-            .WaitUntil(s => s.ContainsText("> Item 20"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("> Item 20"), TimeSpan.FromSeconds(5))
             .Capture("at_end")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

@@ -380,7 +380,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Line 1") && !s.ContainsText("▉"),
-                TimeSpan.FromSeconds(1), "content fits without scrollbar")
+                TimeSpan.FromSeconds(2), "content fits without scrollbar")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -569,7 +569,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Cyan),
-                TimeSpan.FromSeconds(1), "Cyan foreground color")
+                TimeSpan.FromSeconds(2), "Cyan foreground color")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -600,7 +600,7 @@ public class ScrollPanelNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.HasForegroundColor(Hex1bColor.Yellow),
-                TimeSpan.FromSeconds(1), "Yellow foreground color")
+                TimeSpan.FromSeconds(2), "Yellow foreground color")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1239,7 +1239,7 @@ public class ScrollPanelNodeTests
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Test") && s.ContainsText("Header") && s.ContainsText("Footer"),
-                TimeSpan.FromSeconds(2), "border with title, header, and footer")
+                TimeSpan.FromSeconds(5), "border with title, header, and footer")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

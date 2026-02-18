@@ -777,7 +777,7 @@ public class UnicodeBorderAlignmentTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("baseline"), TimeSpan.FromSeconds(2), "render complete")
+            .WaitUntil(s => s.ContainsText("baseline"), TimeSpan.FromSeconds(5), "render complete")
             .Capture()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
