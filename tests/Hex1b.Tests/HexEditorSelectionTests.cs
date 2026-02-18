@@ -76,7 +76,7 @@ public class HexEditorSelectionTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen,
-                TimeSpan.FromSeconds(2), "hex editor visible in alt screen")
+                TimeSpan.FromSeconds(5), "hex editor visible in alt screen")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }

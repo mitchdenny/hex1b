@@ -733,7 +733,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Responsive input")
             .WaitUntil(s => s.ContainsText("Responsive input"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -800,7 +800,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

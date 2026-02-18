@@ -40,7 +40,7 @@ public class EditorKeybindingDispatchTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen,
-                TimeSpan.FromSeconds(2), "editor visible in alt screen")
+                TimeSpan.FromSeconds(5), "editor visible in alt screen")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }

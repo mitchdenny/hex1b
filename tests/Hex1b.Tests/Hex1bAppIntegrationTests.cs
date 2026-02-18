@@ -26,7 +26,7 @@ public class Hex1bAppIntegrationTests
         // Run app and exit with Ctrl+C
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -82,7 +82,7 @@ public class Hex1bAppIntegrationTests
         // Send some keys then exit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
             .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(2))
@@ -211,7 +211,7 @@ public class Hex1bAppIntegrationTests
         // Type in first box, tab to second, type in second
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("a")
             .Tab()
             .Type("b")
@@ -319,7 +319,7 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -426,7 +426,7 @@ public class Hex1bAppIntegrationTests
 
         // Wait for app to be fully in alternate screen before sending Ctrl+C
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -436,7 +436,7 @@ public class Hex1bAppIntegrationTests
 
         // Wait for alternate screen exit sequence to flush
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }

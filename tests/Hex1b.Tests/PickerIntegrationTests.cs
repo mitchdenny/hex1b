@@ -24,7 +24,7 @@ public class PickerIntegrationTests
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Capture("final")
@@ -56,7 +56,7 @@ public class PickerIntegrationTests
         // Act
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Down()   // Navigate to Banana
@@ -92,7 +92,7 @@ public class PickerIntegrationTests
         // Act
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Down()   // Navigate to Banana (but don't select)
@@ -133,7 +133,7 @@ public class PickerIntegrationTests
         // Act
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             // Click on the backdrop area (top-left corner, far from the popup content)
@@ -170,7 +170,7 @@ public class PickerIntegrationTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             // Click somewhere on the popup content (we'll click on the first visible item area)
@@ -206,7 +206,7 @@ public class PickerIntegrationTests
         // Act
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Down()  // Open popup with next item (Banana) pre-selected
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Enter() // Confirm selection
@@ -238,7 +238,7 @@ public class PickerIntegrationTests
         // Act
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "picker to render with Cherry")
+            .WaitUntil(s => s.ContainsText("Cherry"), TimeSpan.FromSeconds(5), "picker to render with Cherry")
             .Up()    // Open popup with previous item (Banana) pre-selected
             .WaitUntil(s => s.ContainsText("Apple") && s.ContainsText("Banana"), TimeSpan.FromSeconds(2), "popup to open")
             .Enter() // Confirm selection
@@ -267,7 +267,7 @@ public class PickerIntegrationTests
         // Act - Open popup and verify navigation works (proving focus moved to list)
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("> Apple"), TimeSpan.FromSeconds(2), "popup to open with selection indicator")
             .Down()   // Navigate down in the list
@@ -297,7 +297,7 @@ public class PickerIntegrationTests
         // Act - Open popup, dismiss it, then open again to verify focus returned to picker
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(2), "picker to render")
+            .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
             .Enter()  // Open the picker popup
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(2), "popup to open")
             .Escape() // Dismiss

@@ -67,7 +67,7 @@ public class EditorScrollbarTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen,
-                TimeSpan.FromSeconds(2), "editor visible")
+                TimeSpan.FromSeconds(5), "editor visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }

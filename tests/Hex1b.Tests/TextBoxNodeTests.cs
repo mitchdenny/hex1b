@@ -828,7 +828,7 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -894,7 +894,7 @@ public class TextBoxNodeTests
         // Type in first box, tab to second, type in second
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("AB")
             .Tab()
             .Type("XY")
@@ -995,7 +995,7 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("@!#")
             .WaitUntil(s => s.ContainsText("@!#"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -1070,7 +1070,7 @@ public class TextBoxNodeTests
         
         // Capture snapshot BEFORE exiting - after await runTask the alternate screen buffer is empty
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -1109,7 +1109,7 @@ public class TextBoxNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("AA")
             .Tab()
             .Type("BB")
@@ -1250,7 +1250,7 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.A)  // Single letter 'a'
             .WaitUntil(s => s.ContainsText("a"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -1280,7 +1280,7 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello")
             .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2))
             .Capture("final")

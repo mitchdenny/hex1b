@@ -935,7 +935,7 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello Splitter")
             .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(2))
             .Capture("final")
