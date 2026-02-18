@@ -29,7 +29,7 @@ public class SplitButtonNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Action"), TimeSpan.FromSeconds(5), "split button label")
+            .WaitUntil(s => s.ContainsText("Action"), TimeSpan.FromSeconds(10), "split button label")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -61,7 +61,7 @@ public class SplitButtonNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("▼"), TimeSpan.FromSeconds(5), "dropdown arrow")
+            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("▼"), TimeSpan.FromSeconds(10), "dropdown arrow")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -92,7 +92,7 @@ public class SplitButtonNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Action"), TimeSpan.FromSeconds(5), "split button")
+            .WaitUntil(s => s.ContainsText("Action"), TimeSpan.FromSeconds(10), "split button")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

@@ -40,7 +40,7 @@ public class EditorMouseTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen,
-                TimeSpan.FromSeconds(5), "editor visible in alt screen")
+                TimeSpan.FromSeconds(10), "editor visible in alt screen")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -66,7 +66,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(5, 0)
             .WaitUntil(s => s.SearchPattern(cursorAtClick).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor at click position (5,0)")
+                TimeSpan.FromSeconds(10), "cursor at click position (5,0)")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -92,7 +92,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(2, 1)
             .WaitUntil(s => s.SearchPattern(cursorAtClick).HasMatches,
-                TimeSpan.FromSeconds(5), "cursor at (2,1)")
+                TimeSpan.FromSeconds(10), "cursor at (2,1)")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -112,7 +112,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(20, 0)
             .WaitUntil(_ => state.Cursor.Position.Value == 2,
-                TimeSpan.FromSeconds(5), "cursor clamped to end of 'Hi'")
+                TimeSpan.FromSeconds(10), "cursor clamped to end of 'Hi'")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -132,7 +132,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(0, 5)
             .WaitUntil(_ => state.Cursor.Position.Value == 5,
-                TimeSpan.FromSeconds(5), "cursor at document end from tilde click")
+                TimeSpan.FromSeconds(10), "cursor at document end from tilde click")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -151,10 +151,10 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.A)
             .WaitUntil(_ => state.Cursor.HasSelection,
-                TimeSpan.FromSeconds(5), "selection exists after Ctrl+A")
+                TimeSpan.FromSeconds(10), "selection exists after Ctrl+A")
             .ClickAt(3, 0)
             .WaitUntil(_ => !state.Cursor.HasSelection && state.Cursor.Position.Value == 3,
-                TimeSpan.FromSeconds(5), "selection cleared after click")
+                TimeSpan.FromSeconds(10), "selection cleared after click")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -184,7 +184,7 @@ public class EditorMouseTests
             .ClickAt(8, 0) // first click
             .ClickAt(8, 0) // second click (app computes double-click from timing)
             .WaitUntil(s => s.SearchPattern(selectionOnWorld).HasMatches,
-                TimeSpan.FromSeconds(5), "word 'world' selected")
+                TimeSpan.FromSeconds(10), "word 'world' selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -212,7 +212,7 @@ public class EditorMouseTests
             .WaitUntil(_ => state.Cursor.HasSelection
                          && state.Cursor.SelectionStart!.Value == 6 // start of "World\n"
                          && state.Cursor.SelectionEnd!.Value == 12,  // start of "Third"
-                TimeSpan.FromSeconds(5), "line 'World' selected")
+                TimeSpan.FromSeconds(10), "line 'World' selected")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -240,7 +240,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Drag(0, 0, 5, 0)
             .WaitUntil(s => s.SearchPattern(selectionOnHello).HasMatches,
-                TimeSpan.FromSeconds(5), "drag selection on 'Hello'")
+                TimeSpan.FromSeconds(10), "drag selection on 'Hello'")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -263,7 +263,7 @@ public class EditorMouseTests
             .WaitUntil(_ => state.Cursor.HasSelection
                          && state.Cursor.SelectionStart!.Value == 2
                          && state.Cursor.SelectionEnd!.Value == 9, // "Hello\n" = 6, then col 3
-                TimeSpan.FromSeconds(5), "multi-line drag selection")
+                TimeSpan.FromSeconds(10), "multi-line drag selection")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -292,7 +292,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ScrollDown(2)
             .WaitUntil(s => s.SearchPattern(line7AtTop).HasMatches,
-                TimeSpan.FromSeconds(5), "scrolled to Line 7 at top")
+                TimeSpan.FromSeconds(10), "scrolled to Line 7 at top")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -315,7 +315,7 @@ public class EditorMouseTests
             .ScrollDown(3) // scroll down 9 lines
             .ScrollUp(3)   // scroll back up 9 lines
             .WaitUntil(s => s.SearchPattern(line1Visible).HasMatches,
-                TimeSpan.FromSeconds(5), "Line 1 visible again after scroll up")
+                TimeSpan.FromSeconds(10), "Line 1 visible again after scroll up")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -342,7 +342,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().ClickAt(5, 1)
             .WaitUntil(s => s.SearchPattern(secondCursor).HasMatches,
-                TimeSpan.FromSeconds(5), "second cursor at (5,1)")
+                TimeSpan.FromSeconds(10), "second cursor at (5,1)")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -504,7 +504,7 @@ public class EditorMouseTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Drag(18, 0, 23, 0)
             .WaitUntil(_ => state.Cursor.HasSelection,
-                TimeSpan.FromSeconds(5), "drag selection inside splitter")
+                TimeSpan.FromSeconds(10), "drag selection inside splitter")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

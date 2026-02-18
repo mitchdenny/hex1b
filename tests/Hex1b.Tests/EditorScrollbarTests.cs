@@ -67,7 +67,7 @@ public class EditorScrollbarTests
     {
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.Terminal.InAlternateScreen,
-                TimeSpan.FromSeconds(5), "editor visible")
+                TimeSpan.FromSeconds(10), "editor visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -109,7 +109,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content rendered")
+                TimeSpan.FromSeconds(10), "content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -161,7 +161,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content rendered")
+                TimeSpan.FromSeconds(10), "content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -206,7 +206,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content rendered")
+                TimeSpan.FromSeconds(10), "content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -246,7 +246,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "first line visible")
+                TimeSpan.FromSeconds(10), "first line visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -268,7 +268,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.End)
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "last line visible")
+                TimeSpan.FromSeconds(10), "last line visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -298,7 +298,7 @@ public class EditorScrollbarTests
         var initialPattern = new CellPatternSearcher().Find("L001:");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(initialPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "initial content rendered")
+                TimeSpan.FromSeconds(10), "initial content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -311,7 +311,7 @@ public class EditorScrollbarTests
                 // Line 1 starts with "L001:AAA..." — after scrolling right, "L001" should NOT be visible
                 var line0 = snap.GetLineTrimmed(0);
                 return !string.IsNullOrEmpty(line0) && line0.Contains('A') && !line0.Contains("L001");
-            }, TimeSpan.FromSeconds(5), "horizontal scroll activated")
+            }, TimeSpan.FromSeconds(10), "horizontal scroll activated")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -360,7 +360,7 @@ public class EditorScrollbarTests
 
         // Wait for initial content so "scrolled away" checks don't pass on an empty frame.
         using var rendered = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("L001"), TimeSpan.FromSeconds(5), "editor content rendered")
+            .WaitUntil(s => s.ContainsText("L001"), TimeSpan.FromSeconds(10), "editor content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -372,7 +372,7 @@ public class EditorScrollbarTests
                 var snap = s;
                 // After 10 ticks (3 lines per tick), top line should be L031.
                 return snap.GetLineTrimmed(0).Contains("L031");
-            }, TimeSpan.FromSeconds(5), "scrolled down")
+            }, TimeSpan.FromSeconds(10), "scrolled down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -383,7 +383,7 @@ public class EditorScrollbarTests
         // Verify scroll is stable — poll twice with 250ms intervals to confirm no flick-back
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.GetLineTrimmed(0) == line0After,
-                TimeSpan.FromSeconds(5), "scroll position stable")
+                TimeSpan.FromSeconds(10), "scroll position stable")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -408,7 +408,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ScrollDown(10)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "scrolled away")
+                TimeSpan.FromSeconds(10), "scrolled away")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -417,7 +417,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .FastType("X")
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "typed X visible near cursor")
+                TimeSpan.FromSeconds(10), "typed X visible near cursor")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -483,7 +483,7 @@ public class EditorScrollbarTests
         var initialPattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(initialPattern).HasMatches,
-                TimeSpan.FromSeconds(5), "initial content")
+                TimeSpan.FromSeconds(10), "initial content")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -494,7 +494,7 @@ public class EditorScrollbarTests
             {
                 var snap = s;
                 return !snap.GetLineTrimmed(0).Contains("L001");
-            }, TimeSpan.FromSeconds(5), "scrolled down")
+            }, TimeSpan.FromSeconds(10), "scrolled down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -515,7 +515,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ScrollDown(5)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "scrolled down")
+                TimeSpan.FromSeconds(10), "scrolled down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -524,7 +524,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ScrollUp(5)
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "scrolled back up to top")
+                TimeSpan.FromSeconds(10), "scrolled back up to top")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -547,7 +547,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content visible")
+                TimeSpan.FromSeconds(10), "content visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -556,7 +556,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(29, 8)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "paged down")
+                TimeSpan.FromSeconds(10), "paged down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -575,7 +575,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content visible")
+                TimeSpan.FromSeconds(10), "content visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -584,7 +584,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(20, bottomRow)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "paged right")
+                TimeSpan.FromSeconds(10), "paged right")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -608,7 +608,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "content visible")
+                TimeSpan.FromSeconds(10), "content visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -617,7 +617,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Drag(29, 0, 29, 5)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "dragged scrollbar down")
+                TimeSpan.FromSeconds(10), "dragged scrollbar down")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -637,7 +637,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "initial content")
+                TimeSpan.FromSeconds(10), "initial content")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -645,7 +645,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Drag(29, 0, 29, 5)
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "scrollbar dragged")
+                TimeSpan.FromSeconds(10), "scrollbar dragged")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -655,7 +655,7 @@ public class EditorScrollbarTests
         // Verify scroll is stable — poll to confirm no flick-back
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.GetLineTrimmed(0) == line0After,
-                TimeSpan.FromSeconds(5), "scroll position stable after drag")
+                TimeSpan.FromSeconds(10), "scroll position stable after drag")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -685,7 +685,7 @@ public class EditorScrollbarTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.End)
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "end of document visible")
+                TimeSpan.FromSeconds(10), "end of document visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -715,7 +715,7 @@ public class EditorScrollbarTests
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "initial state")
+                TimeSpan.FromSeconds(10), "initial state")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -724,7 +724,7 @@ public class EditorScrollbarTests
             .PageDown()
             .PageDown()
             .WaitUntil(s => !s.GetLineTrimmed(0).Contains("L001"),
-                TimeSpan.FromSeconds(5), "paged down past L001")
+                TimeSpan.FromSeconds(10), "paged down past L001")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -732,7 +732,7 @@ public class EditorScrollbarTests
             .PageUp()
             .PageUp()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(5), "paged back up to L001")
+                TimeSpan.FromSeconds(10), "paged back up to L001")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

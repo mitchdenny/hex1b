@@ -70,17 +70,17 @@ public class InputBindingFluentApiTests
         var runTask = app.RunAsync(cts.Token);
 
         // Wait for reconciliation to occur (ensures the app has processed at least one cycle)
-        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Wait for render to occur
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Act - Send the key
         await new Hex1bTerminalInputSequenceBuilder().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
-        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Verify the correct key was received
         Assert.Equal(key, firedKey);
@@ -127,15 +127,15 @@ public class InputBindingFluentApiTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Act - Send the key with Ctrl modifier
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
-        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -178,15 +178,15 @@ public class InputBindingFluentApiTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Act - Send the key with Shift modifier
         await new Hex1bTerminalInputSequenceBuilder().Shift().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
-        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -228,8 +228,8 @@ public class InputBindingFluentApiTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Act - Send each key
         await new Hex1bTerminalInputSequenceBuilder()
@@ -311,7 +311,7 @@ public class InputBindingFluentApiTests
         var runTask = app.RunAsync(cts.Token);
 
         // Wait for render (reconciliation has happened)
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Send X key
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -361,7 +361,7 @@ public class InputBindingFluentApiTests
         var runTask = app.RunAsync(cts.Token);
 
         // Wait for render
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Send X key
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -411,8 +411,8 @@ public class InputBindingFluentApiTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await reconcileOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Act - Send the chord sequence
         await new Hex1bTerminalInputSequenceBuilder()

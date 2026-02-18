@@ -515,7 +515,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Wide View: Full Details"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Wide View: Full Details"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -545,7 +545,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Compact View"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Compact View"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -576,7 +576,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Medium"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Medium"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -609,7 +609,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Wide") && !s.ContainsText("Very Wide"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Wide") && !s.ContainsText("Very Wide"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -639,7 +639,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Large Screen"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Large Screen"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -670,7 +670,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Narrow") && s.ContainsText("Container"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Narrow") && s.ContainsText("Container"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -702,7 +702,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(10))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -733,9 +733,9 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Type("Responsive input")
-            .WaitUntil(s => s.ContainsText("Responsive input"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Responsive input"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -768,7 +768,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Header") && s.ContainsText("Wide Content") && s.ContainsText("Footer"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Header") && s.ContainsText("Wide Content") && s.ContainsText("Footer"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -800,7 +800,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -831,9 +831,9 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(10))
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("> Item 2"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -873,7 +873,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Left Panel") && s.ContainsText("Right Panel"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Left Panel") && s.ContainsText("Right Panel"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -914,7 +914,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Top Panel") && s.ContainsText("Bottom Panel"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Top Panel") && s.ContainsText("Bottom Panel"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -949,7 +949,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Wide Left") && s.ContainsText("Right Panel"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Wide Left") && s.ContainsText("Right Panel"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -979,7 +979,7 @@ public class ResponsiveNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello from state"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hello from state"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

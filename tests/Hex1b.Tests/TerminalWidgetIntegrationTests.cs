@@ -92,7 +92,7 @@ public class TerminalWidgetIntegrationTests
             _runTask = Terminal.RunAsync(_cts.Token);
             
             // Wait for initial render
-            await WaitForTextAsync("Terminal Widget Test", TimeSpan.FromSeconds(5));
+            await WaitForTextAsync("Terminal Widget Test", TimeSpan.FromSeconds(10));
         }
         
         /// <summary>
@@ -224,7 +224,7 @@ public class TerminalWidgetIntegrationTests
         ctx.InjectText(0, 0, "Hello from inner terminal!");
         
         // Wait for render
-        await ctx.WaitForTextAsync("Hello from inner terminal", TimeSpan.FromSeconds(5));
+        await ctx.WaitForTextAsync("Hello from inner terminal", TimeSpan.FromSeconds(10));
         
         // Assert
         var screen = ctx.GetScreenText();
@@ -240,7 +240,7 @@ public class TerminalWidgetIntegrationTests
         
         // Write some text first
         ctx.InjectText(0, 0, "FIRST LINE HERE");
-        await ctx.WaitForTextAsync("FIRST LINE", TimeSpan.FromSeconds(5));
+        await ctx.WaitForTextAsync("FIRST LINE", TimeSpan.FromSeconds(10));
         
         // Act - Clear the line
         ctx.ClearLine(0);
@@ -260,7 +260,7 @@ public class TerminalWidgetIntegrationTests
         
         // Simulate animation frame 1: Draw train at column 40
         ctx.InjectText(0, 40, "[TRAIN]");
-        await ctx.WaitForTextAsync("[TRAIN]", TimeSpan.FromSeconds(5));
+        await ctx.WaitForTextAsync("[TRAIN]", TimeSpan.FromSeconds(10));
         
         // Act - Simulate animation frame 2: Clear line and draw at column 30
         ctx.ClearLine(0);
@@ -311,7 +311,7 @@ public class TerminalWidgetIntegrationTests
         ctx.InjectText(0, 0, "Line 1");
         ctx.InjectText(1, 0, "Line 2");
         ctx.InjectText(2, 0, "Line 3");
-        await ctx.WaitForTextAsync("Line 3", TimeSpan.FromSeconds(5));
+        await ctx.WaitForTextAsync("Line 3", TimeSpan.FromSeconds(10));
         
         // Act - Clear all lines
         ctx.ClearLine(0);

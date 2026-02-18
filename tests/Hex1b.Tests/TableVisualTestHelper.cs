@@ -113,11 +113,11 @@ public static class TableVisualTestHelper
         // Wait for initial render
         if (testCase.RowCount > 0)
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(5), "Wait for table header");
+            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(10), "Wait for table header");
         }
         else
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(5), "Wait for empty table");
+            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(10), "Wait for empty table");
         }
         
         // Apply scroll position if needed

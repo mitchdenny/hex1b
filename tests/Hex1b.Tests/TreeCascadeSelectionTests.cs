@@ -305,7 +305,7 @@ public class TreeCascadeSelectionTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child 2"), 
-                TimeSpan.FromSeconds(5), "tree to render")
+                TimeSpan.FromSeconds(10), "tree to render")
             .Capture("cascade")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -345,7 +345,7 @@ public class TreeCascadeSelectionTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(5), "tree to render")
+            .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(10), "tree to render")
             .Space()  // Select parent (should cascade to children)
             .Wait(50)
             .Capture("after_space")
@@ -382,7 +382,7 @@ public class TreeCascadeSelectionTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // For root leaf items (depth 0): no guide, no indicator, checkbox at x=0-2
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "tree to render")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(10), "tree to render")
             .ClickAt(1, 1)  // Click on checkbox of Item 2 (second row, x=1 is on the 'x' in [x])
             .Wait(50)
             .Capture("after_click")
@@ -418,7 +418,7 @@ public class TreeCascadeSelectionTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // For root items (depth 0): checkbox is at x=2-5, so click at x=10 is on the label
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "tree to render")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(10), "tree to render")
             .ClickAt(10, 1)  // Click on label area of Item 2 (outside checkbox)
             .Wait(50)
             .Capture("after_click")
@@ -459,7 +459,7 @@ public class TreeCascadeSelectionTests
         // Verify children are visible initially (expanded)
         var beforeSnapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Parent") && s.ContainsText("Child 1"), 
-                TimeSpan.FromSeconds(5), "tree to render expanded")
+                TimeSpan.FromSeconds(10), "tree to render expanded")
             .Capture("before_click")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

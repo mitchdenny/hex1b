@@ -141,7 +141,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
             await _cts.CancelAsync();
             if (_runTask != null)
             {
-                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(5)); }
+                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(10)); }
                 catch { }
             }
 

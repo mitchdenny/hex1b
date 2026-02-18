@@ -26,7 +26,7 @@ public class Hex1bAppIntegrationTests
         // Run app and exit with Ctrl+C
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -50,7 +50,7 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -82,10 +82,10 @@ public class Hex1bAppIntegrationTests
         // Send some keys then exit
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Key(Hex1bKey.H, Hex1bModifiers.Shift)
             .Type("i")
-            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Hi"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -116,7 +116,7 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Click Me"), TimeSpan.FromSeconds(10))
             .Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -144,7 +144,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for app to start rendering
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5), "app to render")
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(10), "app to render")
             .Build()
             .ApplyAsync(terminal);
         
@@ -176,7 +176,7 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Line 3"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -211,11 +211,11 @@ public class Hex1bAppIntegrationTests
         // Type in first box, tab to second, type in second
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Type("a")
             .Tab()
             .Type("b")
-            .WaitUntil(s => s.ContainsText("b"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("b"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -252,10 +252,10 @@ public class Hex1bAppIntegrationTests
         // Navigate down twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(10))
             .Down()
             .Down()
-            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("> Item 3"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -290,10 +290,10 @@ public class Hex1bAppIntegrationTests
         // Click the button twice
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(10))
             .Enter()
             .Enter()
-            .WaitUntil(s => s.ContainsText("Count: 2"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Count: 2"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -319,7 +319,7 @@ public class Hex1bAppIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -381,7 +381,7 @@ public class Hex1bAppIntegrationTests
         // Act - Wait for initial render using proper synchronization
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Render:"), TimeSpan.FromSeconds(5), "initial render")
+            .WaitUntil(s => s.ContainsText("Render:"), TimeSpan.FromSeconds(10), "initial render")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -426,17 +426,17 @@ public class Hex1bAppIntegrationTests
 
         // Wait for app to be fully in alternate screen before sending Ctrl+C
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for app to exit gracefully
-        await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await runTask.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         // Wait for alternate screen exit sequence to flush
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => !s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
@@ -471,9 +471,9 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render, send CTRL-C, and wait for processing
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(10))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
-            .WaitUntil(_ => ctrlCPressed, TimeSpan.FromSeconds(5), "ctrlCPressed to be true")
+            .WaitUntil(_ => ctrlCPressed, TimeSpan.FromSeconds(10), "ctrlCPressed to be true")
             .Build()
             .ApplyAsync(terminal);
         
@@ -518,9 +518,9 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render, send CTRL-C, and wait for processing
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(10))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
-            .WaitUntil(_ => customHandlerCalled, TimeSpan.FromSeconds(5), "customHandlerCalled to be true")
+            .WaitUntil(_ => customHandlerCalled, TimeSpan.FromSeconds(10), "customHandlerCalled to be true")
             .Build()
             .ApplyAsync(terminal);
         

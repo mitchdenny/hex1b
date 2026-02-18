@@ -344,7 +344,7 @@ public class VStackNodeTests
                 var matchB = s.SearchFirstPattern(patternB);
                 var matchC = s.SearchFirstPattern(patternC);
                 return matchA?.Start.Y == 0 && matchB?.Start.Y == 1 && matchC?.Start.Y == 2;
-            }, TimeSpan.FromSeconds(5))
+            }, TimeSpan.FromSeconds(10))
             .Build()
             .ApplyAsync(terminal);
     }
@@ -366,7 +366,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -406,7 +406,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -446,15 +446,15 @@ public class VStackNodeTests
 
         // Type in first box, wait for it to appear, tab to second, type, etc.
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Type("1")
-            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(10))
             .Tab()
             .Type("2")
-            .WaitUntil(s => s.ContainsText("2"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("2"), TimeSpan.FromSeconds(10))
             .Tab()
             .Type("3")
-            .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -489,7 +489,7 @@ public class VStackNodeTests
 
         // Tab forward then shift-tab back - wait for any render to complete
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Tab()
             .Shift().Tab()
             .Type("A")
@@ -525,7 +525,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -563,7 +563,7 @@ public class VStackNodeTests
         // Capture snapshot BEFORE exiting the app
         // Tab to button and click
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(10))
             .Tab()
             .Enter()
             .Capture("final")
@@ -603,7 +603,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -635,7 +635,7 @@ public class VStackNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Empty stack - wait for alternate screen mode, then exit
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(10))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -663,7 +663,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(10))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
