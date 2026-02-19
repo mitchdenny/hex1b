@@ -113,11 +113,11 @@ public static class TableVisualTestHelper
         // Wait for initial render
         if (testCase.RowCount > 0)
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(2), "Wait for table header");
+            waitBuilder.WaitUntil(s => s.ContainsText("Name"), TimeSpan.FromSeconds(5), "Wait for table header");
         }
         else
         {
-            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(2), "Wait for empty table");
+            waitBuilder.WaitUntil(s => s.ContainsText("No data"), TimeSpan.FromSeconds(5), "Wait for empty table");
         }
         
         // Apply scroll position if needed
@@ -127,7 +127,30 @@ public static class TableVisualTestHelper
             {
                 waitBuilder.Key(Hex1bKey.DownArrow);
             }
-            waitBuilder.Wait(TimeSpan.FromMilliseconds(100)); // Wait for scroll to complete
+            
+            // For large scroll positions where the viewport actually needs to scroll past
+            // the initial view, use WaitUntil to verify the scroll completed. This is
+            // critical in CI where processing hundreds of key events takes real time.
+            var visibleRows = Math.Max(1, (testCase.Height - 4) / 2);
+            var effectiveFinalRow = testCase.FocusedRow >= 0 
+                ? Math.Min(testCase.FocusedRow + testCase.ScrollPosition, testCase.RowCount - 1)
+                : Math.Min(testCase.ScrollPosition, testCase.RowCount - 1);
+            var viewportWillScroll = effectiveFinalRow > visibleRows * 2 
+                && testCase.FocusedRow < testCase.ScrollPosition;
+            
+            if (viewportWillScroll)
+            {
+                var checkIndex = Math.Min(effectiveFinalRow - visibleRows / 2, data.Count - 1);
+                var expectedName = data[checkIndex].Name;
+                waitBuilder.WaitUntil(
+                    s => s.ContainsText(expectedName),
+                    TimeSpan.FromSeconds(30),
+                    $"Wait for scrolled content ({expectedName})");
+            }
+            else
+            {
+                waitBuilder.Wait(TimeSpan.FromMilliseconds(100));
+            }
         }
         
         // Wait a bit for final render to stabilize

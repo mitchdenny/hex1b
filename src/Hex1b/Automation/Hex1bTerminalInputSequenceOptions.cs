@@ -29,4 +29,5 @@ public sealed class Hex1bTerminalInputSequenceOptions
     /// to trigger the Wait steps. Default is null (uses Task.Delay with real time).
     /// </summary>
     public TimeProvider? TimeProvider { get; init; }
+
 }

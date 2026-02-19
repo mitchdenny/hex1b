@@ -546,7 +546,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             CursorMoveToken move => CursorMoveTokenToKeyEvent(move),
             
             // Cursor position with (1,1) = Home key when used as input
+            // Cursor position with (1,N) where N >= 2 = Home with xterm modifier code N
+            // (xterm sends CSI 1;{mod}H for modified Home, which tokenizes as CursorPosition(1,mod))
             CursorPositionToken { Row: 1, Column: 1 } => new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None),
+            CursorPositionToken { Row: 1 } cp when cp.Column >= 2 => new Hex1bKeyEvent(Hex1bKey.Home, '\0', DecodeXtermModifiers(cp.Column)),
             
             // Backtab (Shift+Tab) - CSI Z
             BackTabToken => new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift),
@@ -861,12 +864,22 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         };
         if (arrowDir.HasValue)
         {
-            return new CursorMoveToken(arrowDir.Value, 1);
+            if (evt.Modifiers == Hex1bModifiers.None)
+                return new CursorMoveToken(arrowDir.Value, 1);
+            return new ArrowKeyToken(arrowDir.Value, EncodeModifiers(evt.Modifiers));
         }
         
-        // Home/End in SS3 mode (common for many terminals)
-        if (evt.Key == Hex1bKey.Home) return new Ss3Token('H');
-        if (evt.Key == Hex1bKey.End) return new Ss3Token('F');
+        // Home/End
+        if (evt.Key == Hex1bKey.Home)
+        {
+            if (evt.Modifiers == Hex1bModifiers.None) return new Ss3Token('H');
+            return new SpecialKeyToken(1, EncodeModifiers(evt.Modifiers));
+        }
+        if (evt.Key == Hex1bKey.End)
+        {
+            if (evt.Modifiers == Hex1bModifiers.None) return new Ss3Token('F');
+            return new SpecialKeyToken(4, EncodeModifiers(evt.Modifiers));
+        }
         
         // Control characters
         if (evt.Key == Hex1bKey.Enter) return new ControlCharacterToken('\r');
@@ -890,6 +903,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         return null;
+    }
+    
+    /// <summary>
+    /// Decodes xterm modifier code to Hex1bModifiers.
+    /// Modifier code format: bits + 1, where bit 0=Shift, bit 1=Alt, bit 2=Ctrl.
+    /// </summary>
+    private static Hex1bModifiers DecodeXtermModifiers(int modifierCode)
+    {
+        if (modifierCode < 2) return Hex1bModifiers.None;
+        var bits = modifierCode - 1;
+        var modifiers = Hex1bModifiers.None;
+        if ((bits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
+        if ((bits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
+        if ((bits & 4) != 0) modifiers |= Hex1bModifiers.Control;
+        return modifiers;
     }
     
     private static int EncodeModifiers(Hex1bModifiers modifiers)

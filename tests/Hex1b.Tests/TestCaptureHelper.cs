@@ -13,9 +13,8 @@ public static class TestCaptureHelper
     /// <param name="name">Name for the SVG file (without extension). Must be unique within a test.</param>
     public static void CaptureSvg(Hex1bTerminal terminal, string name = "snapshot")
     {
-        var snapshot = terminal.CreateSnapshot();
-        var svg = snapshot.ToSvg();
-        AttachSvg($"{name}.svg", svg);
+        using var snapshot = terminal.CreateSnapshot();
+        CaptureSvg(snapshot, name);
     }
 
     /// <summary>
@@ -36,9 +35,8 @@ public static class TestCaptureHelper
     /// <param name="name">Name for the HTML file (without extension). Must be unique within a test.</param>
     public static void CaptureHtml(Hex1bTerminal terminal, string name = "snapshot")
     {
-        var snapshot = terminal.CreateSnapshot();
-        var html = snapshot.ToHtml();
-        AttachFile($"{name}.html", html);
+        using var snapshot = terminal.CreateSnapshot();
+        CaptureHtml(snapshot, name);
     }
 
     /// <summary>
@@ -60,9 +58,8 @@ public static class TestCaptureHelper
     /// <param name="name">Name for the ANSI file (without extension). Must be unique within a test.</param>
     public static void CaptureAnsi(Hex1bTerminal terminal, string name = "snapshot")
     {
-        var snapshot = terminal.CreateSnapshot();
-        var ansi = snapshot.ToAnsi();
-        AttachFile($"{name}.ansi", ansi);
+        using var snapshot = terminal.CreateSnapshot();
+        CaptureAnsi(snapshot, name);
     }
 
     /// <summary>
@@ -115,9 +112,8 @@ public static class TestCaptureHelper
     /// <param name="name">Base name for the files (without extension). Must be unique within a test.</param>
     public static void Capture(Hex1bTerminal terminal, string name = "snapshot")
     {
-        CaptureSvg(terminal, name);
-        CaptureHtml(terminal, name);
-        CaptureAnsi(terminal, name);
+        using var snapshot = terminal.CreateSnapshot();
+        Capture(snapshot, name);
     }
 
     /// <summary>

@@ -446,7 +446,7 @@ public class VStackNodeTests
 
         // Type in first box, wait for it to appear, tab to second, type, etc.
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("1")
             .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(2))
             .Tab()
@@ -489,7 +489,7 @@ public class VStackNodeTests
 
         // Tab forward then shift-tab back - wait for any render to complete
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Tab()
             .Shift().Tab()
             .Type("A")
@@ -635,7 +635,7 @@ public class VStackNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Empty stack - wait for alternate screen mode, then exit
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

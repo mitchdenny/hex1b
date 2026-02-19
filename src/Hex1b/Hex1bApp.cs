@@ -1106,8 +1106,31 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Create action context for mouse bindings (includes mouse coordinates)
         var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
         
-        // Check if the node has a drag binding for this event (checked first)
+        // Check if the node has a drag binding for this event
+        // For multi-clicks (double/triple), check mouse bindings first since
+        // double-click and triple-click bindings should take priority over drag
         var builder = hitNode.BuildBindings();
+        
+        // Check mouse bindings in order of decreasing click count
+        // This ensures double-click bindings are checked before single-click bindings
+        var sortedBindings = builder.MouseBindings
+            .OrderByDescending(b => b.ClickCount)
+            .ToList();
+
+        if (clickCount > 1)
+        {
+            // Multi-click: try mouse bindings first (double/triple click)
+            foreach (var mouseBinding in sortedBindings)
+            {
+                if (mouseBinding.Matches(eventWithClickCount))
+                {
+                    await mouseBinding.ExecuteAsync(actionContext);
+                    return; // First match wins
+                }
+            }
+        }
+
+        // Try drag bindings
         foreach (var dragBinding in builder.DragBindings)
         {
             if (dragBinding.Matches(eventWithClickCount))
@@ -1130,18 +1153,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             }
         }
         
-        // Check mouse bindings in order of decreasing click count
-        // This ensures double-click bindings are checked before single-click bindings
-        var sortedBindings = builder.MouseBindings
-            .OrderByDescending(b => b.ClickCount)
-            .ToList();
-        
-        foreach (var mouseBinding in sortedBindings)
+        // Single-click: try mouse bindings (not already checked for multi-click)
+        if (clickCount <= 1)
         {
-            if (mouseBinding.Matches(eventWithClickCount))
+            foreach (var mouseBinding in sortedBindings)
             {
-                await mouseBinding.ExecuteAsync(actionContext);
-                return; // First match wins
+                if (mouseBinding.Matches(eventWithClickCount))
+                {
+                    await mouseBinding.ExecuteAsync(actionContext);
+                    return; // First match wins
+                }
             }
         }
         
@@ -1312,7 +1333,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     public void Dispose()
     {
-        // Complete the invalidate channel
+        // Signal RunAsync to exit immediately
+        _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it
@@ -1328,7 +1350,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     public async ValueTask DisposeAsync()
     {
-        // Complete the invalidate channel
+        // Signal RunAsync to exit immediately
+        _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it

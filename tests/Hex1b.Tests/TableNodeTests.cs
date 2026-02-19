@@ -841,22 +841,25 @@ public class TableNodeTests
         // Act - start the app and send PageDown to scroll significantly
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for initial render, then send PageDown 3 times
-        await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for initial render, then send PageDown 3 times.
+        // IMPORTANT: capture the snapshot BEFORE exiting; alternate screen is cleared on exit.
+        using var finalSnapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
             .Key(Hex1bKey.PageDown)
             .Key(Hex1bKey.PageDown)
             .Key(Hex1bKey.PageDown)
             .WaitUntil(s => s.ContainsText("Product 15") || s.ContainsText("Product 20"), 
-                       TimeSpan.FromMilliseconds(500), "Wait for scroll to complete")
-            .Ctrl().Key(Hex1bKey.C) // Exit
+                       TimeSpan.FromSeconds(2), "Wait for scroll to complete")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        await runTask;
-
-        var finalSnapshot = terminal.CreateSnapshot();
         var finalText = finalSnapshot.GetScreenText();
+
+        using var _ = await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C) // Exit
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
         
         // Output for debugging
         TestContext.Current.TestOutputHelper?.WriteLine("=== FINAL SCREEN ===");

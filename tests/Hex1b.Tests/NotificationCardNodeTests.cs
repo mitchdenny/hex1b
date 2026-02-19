@@ -801,22 +801,26 @@ public class NotificationPanelHitTestTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // IMPORTANT: capture snapshot BEFORE exiting; alternate screen is cleared on exit.
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Post Notification"), TimeSpan.FromSeconds(2), "ready")
             .Key(Hex1bKey.Enter) // Post notification
             .Wait(TimeSpan.FromMilliseconds(200))
             .WaitUntil(s => s.ContainsText("Alert"), TimeSpan.FromSeconds(2), "notification_visible")
             .Capture("with_notification")
-            .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
+        using var _ = await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         // Floating notification should be visible on top
         Assert.True(snapshot.ContainsText("Alert"),
-            $"Floating notification should be visible. Screen:\n{snapshot}");
+            $"Floating notification should be visible. Screen:\n{snapshot.GetDisplayText()}");
         Assert.True(snapshot.ContainsText("Important message"),
-            $"Notification body should be visible. Screen:\n{snapshot}");
+            $"Notification body should be visible. Screen:\n{snapshot.GetDisplayText()}");
     }
 }

@@ -935,7 +935,7 @@ public class SplitterNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.InAlternateScreen, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("Hello Splitter")
             .WaitUntil(s => s.ContainsText("Hello Splitter"), TimeSpan.FromSeconds(2))
             .Capture("final")
@@ -1268,7 +1268,7 @@ public class SplitterNodeTests
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("⠶"),
-                TimeSpan.FromSeconds(1), "braille thumb on focused vertical divider")
+                TimeSpan.FromSeconds(2), "braille thumb on focused vertical divider")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

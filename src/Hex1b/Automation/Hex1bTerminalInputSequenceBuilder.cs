@@ -281,12 +281,43 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     }
 
     /// <summary>
+    /// Performs a double-click at the specified position.
+    /// </summary>
+    public Hex1bTerminalInputSequenceBuilder DoubleClickAt(int x, int y, MouseButton button = MouseButton.Left)
+    {
+        _mouseX = x;
+        _mouseY = y;
+        return DoubleClick(button);
+    }
+
+    /// <summary>
+    /// Performs a triple-click at the specified position.
+    /// </summary>
+    public Hex1bTerminalInputSequenceBuilder TripleClickAt(int x, int y, MouseButton button = MouseButton.Left)
+    {
+        _mouseX = x;
+        _mouseY = y;
+        return TripleClick(button);
+    }
+
+    /// <summary>
     /// Performs a double-click at the current position.
     /// </summary>
     public Hex1bTerminalInputSequenceBuilder DoubleClick(MouseButton button = MouseButton.Left)
     {
         _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers, ClickCount: 2));
         _steps.Add(new MouseInputStep(button, MouseAction.Up, _mouseX, _mouseY, _pendingModifiers, ClickCount: 2));
+        _pendingModifiers = Hex1bModifiers.None;
+        return this;
+    }
+
+    /// <summary>
+    /// Performs a triple-click at the current position.
+    /// </summary>
+    public Hex1bTerminalInputSequenceBuilder TripleClick(MouseButton button = MouseButton.Left)
+    {
+        _steps.Add(new MouseInputStep(button, MouseAction.Down, _mouseX, _mouseY, _pendingModifiers, ClickCount: 3));
+        _steps.Add(new MouseInputStep(button, MouseAction.Up, _mouseX, _mouseY, _pendingModifiers, ClickCount: 3));
         _pendingModifiers = Hex1bModifiers.None;
         return this;
     }

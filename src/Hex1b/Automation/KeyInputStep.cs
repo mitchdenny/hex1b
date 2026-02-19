@@ -12,7 +12,6 @@ public sealed record KeyInputStep(Hex1bKey Key, string Text, Hex1bModifiers Modi
         Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
-        terminal.SendEvent(new Hex1bKeyEvent(Key, Text, Modifiers));
-        return Task.CompletedTask;
+        return terminal.SendEventAsync(new Hex1bKeyEvent(Key, Text, Modifiers), ct);
     }
 }

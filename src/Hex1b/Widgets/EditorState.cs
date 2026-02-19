@@ -1,0 +1,895 @@
+using Hex1b.Documents;
+
+namespace Hex1b.Widgets;
+
+/// <summary>
+/// User-owned mutable state for an editor widget.
+/// Multiple EditorWidgets can share the same EditorState for synced cursors.
+/// Multiple EditorStates can share the same IHex1bDocument for independent views.
+/// </summary>
+public class EditorState
+{
+    public IHex1bDocument Document { get; }
+
+    /// <summary>All cursors (sorted, non-overlapping). Use for multi-cursor access.</summary>
+    public CursorSet Cursors { get; } = new();
+
+    /// <summary>The primary cursor. Alias for Cursors.Primary.</summary>
+    public DocumentCursor Cursor => Cursors.Primary;
+
+    /// <summary>Undo/redo history.</summary>
+    public EditHistory History { get; } = new();
+
+    public bool IsReadOnly { get; set; }
+    public int TabSize { get; set; } = 4;
+
+    /// <summary>
+    /// Byte-level cursor offset for renderers that navigate at byte granularity (e.g., hex editor).
+    /// When non-null, this takes priority over the char-based cursor position for byte-oriented operations.
+    /// Reset to null when cursor is moved by non-byte-aware operations.
+    /// </summary>
+    public int? ByteCursorOffset { get; set; }
+
+    public EditorState(IHex1bDocument document)
+    {
+        Document = document ?? throw new ArgumentNullException(nameof(document));
+    }
+
+    /// <summary>
+    /// Clamps all cursor and selection positions to the current document length.
+    /// Call after an external edit (from another editor sharing the same document)
+    /// that may have shrunk the document.
+    /// </summary>
+    public void ClampAllCursors()
+    {
+        var len = Document.Length;
+        foreach (var cursor in Cursors)
+            cursor.Clamp(len);
+    }
+
+    // ── Editing ──────────────────────────────────────────────────
+
+    /// <summary>Insert text at all cursor positions, replacing any selections.</summary>
+    public void InsertText(string text)
+    {
+        if (IsReadOnly) return;
+
+        var coalescable = text.Length == 1 && text[0] != '\n' && Cursors.Count == 1;
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                if (cursor.HasSelection)
+                {
+                    var range = cursor.SelectionRange;
+                    // Clamp range to document bounds (can be stale after rapid concurrent edits)
+                    var clampedEnd = Math.Min(range.End.Value, Document.Length);
+                    var clampedStart = Math.Min(range.Start.Value, clampedEnd);
+                    range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+
+                    var result = Document.Apply(new ReplaceOperation(range, text));
+                    CollectOps(result, ops);
+                    cursor.Position = new DocumentOffset(Math.Min(range.Start.Value + text.Length, Document.Length));
+                    cursor.ClearSelection();
+                }
+                else
+                {
+                    var pos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    var result = Document.Apply(new InsertOperation(pos, text));
+                    CollectOps(result, ops);
+                    cursor.Position = new DocumentOffset(Math.Min(pos.Value + text.Length, Document.Length));
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, coalescable);
+    }
+
+    /// <summary>Delete the character before each cursor (Backspace).</summary>
+    public void DeleteBackward()
+    {
+        if (IsReadOnly) return;
+
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value > 0)
+                {
+                    var pos = Math.Min(cursor.Position.Value, Document.Length);
+                    if (pos <= 0) continue;
+                    var deleteStart = new DocumentOffset(pos - 1);
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, new DocumentOffset(pos))));
+                    CollectOps(result, ops);
+                    cursor.Position = deleteStart;
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, false);
+    }
+
+    /// <summary>Delete the character after each cursor (Delete key).</summary>
+    public void DeleteForward()
+    {
+        if (IsReadOnly) return;
+
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value < Document.Length)
+                {
+                    var pos = Math.Min(cursor.Position.Value, Document.Length);
+                    if (pos >= Document.Length) continue;
+                    var deleteEnd = new DocumentOffset(Math.Min(pos + 1, Document.Length));
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(new DocumentOffset(pos), deleteEnd)));
+                    CollectOps(result, ops);
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, false);
+    }
+
+    /// <summary>Delete the word before each cursor (Ctrl+Backspace).</summary>
+    public void DeleteWordBackward()
+    {
+        if (IsReadOnly) return;
+
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value > 0)
+                {
+                    if (Document.Length == 0) continue;
+                    var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+                    var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                    if (colInLine < 0) colInLine = 0;
+                    var wordBoundary = GraphemeHelper.GetPreviousWordBoundary(lineText, colInLine);
+                    var deleteStart = new DocumentOffset(lineStartOffset + wordBoundary);
+
+                    if (deleteStart == cursor.Position) continue;
+                    var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    if (deleteStart >= clampedCursorPos) continue;
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(deleteStart, clampedCursorPos)));
+                    CollectOps(result, ops);
+                    cursor.Position = deleteStart;
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, false);
+    }
+
+    /// <summary>Delete the word after each cursor (Ctrl+Delete).</summary>
+    public void DeleteWordForward()
+    {
+        if (IsReadOnly) return;
+
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                if (cursor.HasSelection)
+                {
+                    DeleteCursorSelection(cursor, ops);
+                }
+                else if (cursor.Position.Value < Document.Length)
+                {
+                    if (Document.Length == 0) continue;
+                    var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+                    var colInLine = Math.Min(cursor.Position.Value, Document.Length) - lineStartOffset;
+                    if (colInLine < 0) colInLine = 0;
+                    var wordBoundary = GraphemeHelper.GetNextWordBoundary(lineText, colInLine);
+                    var deleteEnd = new DocumentOffset(Math.Min(lineStartOffset + wordBoundary, Document.Length));
+
+                    var clampedCursorPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+                    if (deleteEnd <= clampedCursorPos) continue;
+                    var result = Document.Apply(new DeleteOperation(new DocumentRange(clampedCursorPos, deleteEnd)));
+                    CollectOps(result, ops);
+                }
+                else
+                {
+                    continue;
+                }
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, false);
+    }
+
+    /// <summary>Delete the entire current line for each cursor (Ctrl+Shift+K).</summary>
+    public void DeleteLine()
+    {
+        if (IsReadOnly) return;
+
+        var cursorsBefore = Cursors.Snapshot();
+        var versionBefore = Document.Version;
+        var ops = new List<(EditOperation Op, EditOperation Inverse)>();
+
+        var useBatch = Cursors.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var (cursor, idx) in Cursors.InReverseOrder())
+            {
+                var docLenBefore = Document.Length;
+
+                cursor.ClearSelection();
+                cursor.Clamp(Document.Length);
+                if (Document.Length == 0) continue;
+                var pos = Document.OffsetToPosition(cursor.Position);
+                var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+
+                DocumentOffset lineEnd;
+                if (pos.Line < Document.LineCount)
+                {
+                    lineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line + 1, 1));
+                }
+                else
+                {
+                    lineEnd = new DocumentOffset(Document.Length);
+                    if (pos.Line > 1)
+                    {
+                        var prevLineEnd = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+                        lineStart = prevLineEnd - 1;
+                    }
+                }
+
+                if (lineStart == lineEnd) continue;
+                var result = Document.Apply(new DeleteOperation(new DocumentRange(lineStart, lineEnd)));
+                CollectOps(result, ops);
+                cursor.Position = lineStart;
+                cursor.Clamp(Document.Length);
+
+                AdjustProcessedCursors(idx, Document.Length - docLenBefore);
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        Cursors.MergeOverlapping();
+        FinishEditBatch(ops, cursorsBefore, versionBefore, false);
+    }
+
+    // ── Navigation ───────────────────────────────────────────────
+
+    /// <summary>Move all cursors in a direction. With extend, selection is extended.</summary>
+    public void MoveCursor(CursorDirection direction, bool extend = false)
+    {
+        ByteCursorOffset = null; // Clear byte-level tracking for char-level moves
+        foreach (var cursor in Cursors)
+        {
+            // For Left/Right without extend: collapse selection to boundary
+            if (!extend && cursor.HasSelection)
+            {
+                switch (direction)
+                {
+                    case CursorDirection.Left:
+                        cursor.Position = new DocumentOffset(Math.Min(cursor.SelectionStart.Value, Document.Length));
+                        cursor.ClearSelection();
+                        continue;
+                    case CursorDirection.Right:
+                        cursor.Position = new DocumentOffset(Math.Min(cursor.SelectionEnd.Value, Document.Length));
+                        cursor.ClearSelection();
+                        continue;
+                }
+            }
+
+            ApplyExtendForCursor(cursor, extend);
+
+            switch (direction)
+            {
+                case CursorDirection.Left:
+                {
+                    if (cursor.Position.Value > 0)
+                    {
+                        var text = Document.GetText();
+                        var prev = GraphemeHelper.GetPreviousClusterBoundary(text, cursor.Position.Value);
+                        cursor.Position = new DocumentOffset(prev);
+                    }
+                    break;
+                }
+
+                case CursorDirection.Right:
+                {
+                    if (cursor.Position.Value < Document.Length)
+                    {
+                        var text = Document.GetText();
+                        var next = GraphemeHelper.GetNextClusterBoundary(text, cursor.Position.Value);
+                        cursor.Position = new DocumentOffset(next);
+                    }
+                    break;
+                }
+
+                case CursorDirection.Up:
+                    MoveVertical(cursor, -1);
+                    break;
+
+                case CursorDirection.Down:
+                    MoveVertical(cursor, 1);
+                    break;
+            }
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to start of their current line (Home).</summary>
+    public void MoveToLineStart(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            var pos = Document.OffsetToPosition(cursor.Position);
+            cursor.Position = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to end of their current line (End).</summary>
+    public void MoveToLineEnd(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            var pos = Document.OffsetToPosition(cursor.Position);
+            var lineLen = Document.GetLineLength(pos.Line);
+            cursor.Position = Document.PositionToOffset(new DocumentPosition(pos.Line, lineLen + 1));
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to start of document (Ctrl+Home).</summary>
+    public void MoveToDocumentStart(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            cursor.Position = DocumentOffset.Zero;
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to end of document (Ctrl+End).</summary>
+    public void MoveToDocumentEnd(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            cursor.Position = new DocumentOffset(Document.Length);
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to previous word boundary (Ctrl+Left).</summary>
+    public void MoveWordLeft(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+
+            if (cursor.Position.Value == 0) continue;
+
+            var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+            var colInLine = cursor.Position.Value - lineStartOffset;
+
+            if (colInLine == 0)
+            {
+                cursor.Position = cursor.Position - 1;
+            }
+            else
+            {
+                var boundary = GraphemeHelper.GetPreviousWordBoundary(lineText, colInLine);
+                cursor.Position = new DocumentOffset(lineStartOffset + boundary);
+            }
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors to next word boundary (Ctrl+Right).</summary>
+    public void MoveWordRight(bool extend = false)
+    {
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+
+            if (cursor.Position.Value >= Document.Length) continue;
+
+            var lineText = GetLineTextForCursor(cursor, out var lineStartOffset);
+            var colInLine = cursor.Position.Value - lineStartOffset;
+
+            if (colInLine >= lineText.Length)
+            {
+                cursor.Position = cursor.Position + 1;
+            }
+            else
+            {
+                var boundary = GraphemeHelper.GetNextWordBoundary(lineText, colInLine);
+                cursor.Position = new DocumentOffset(lineStartOffset + boundary);
+            }
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors up by viewport height (PageUp).</summary>
+    public void MovePageUp(int viewportLines, bool extend = false)
+    {
+        var delta = -Math.Max(1, viewportLines - 1);
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            MoveVertical(cursor, delta);
+        }
+
+        AfterNavigation(extend);
+    }
+
+    /// <summary>Move all cursors down by viewport height (PageDown).</summary>
+    public void MovePageDown(int viewportLines, bool extend = false)
+    {
+        var delta = Math.Max(1, viewportLines - 1);
+        foreach (var cursor in Cursors)
+        {
+            ApplyExtendForCursor(cursor, extend);
+            MoveVertical(cursor, delta);
+        }
+
+        AfterNavigation(extend);
+    }
+
+    // ── Selection ────────────────────────────────────────────────
+
+    /// <summary>Select all text in the document (Ctrl+A). Collapses to single cursor.</summary>
+    public void SelectAll()
+    {
+        Cursors.CollapseToSingle();
+        Cursor.SelectionAnchor = DocumentOffset.Zero;
+        Cursor.Position = new DocumentOffset(Document.Length);
+    }
+
+    /// <summary>
+    /// Set the primary cursor to a specific document offset, clearing selection and collapsing multi-cursors.
+    /// Used for mouse click positioning.
+    /// </summary>
+    public void SetCursorPosition(DocumentOffset offset, bool extend = false)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+
+        if (!extend)
+        {
+            Cursors.CollapseToSingle();
+            Cursor.SelectionAnchor = null;
+        }
+        else if (Cursor.SelectionAnchor == null)
+        {
+            Cursor.SelectionAnchor = Cursor.Position;
+        }
+
+        Cursor.Position = clamped;
+    }
+
+    /// <summary>
+    /// Select the word at the given document offset. Collapses to single cursor.
+    /// Used for mouse double-click.
+    /// </summary>
+    public void SelectWordAt(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+        Cursors.CollapseToSingle();
+        Cursor.Position = clamped;
+        Cursor.SelectionAnchor = null;
+        SelectWordUnderCursor(Cursor);
+    }
+
+    /// <summary>
+    /// Select the entire line at the given document offset. Collapses to single cursor.
+    /// Used for mouse triple-click.
+    /// </summary>
+    public void SelectLineAt(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+        Cursors.CollapseToSingle();
+        var pos = Document.OffsetToPosition(clamped);
+        var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+        var lineEnd = pos.Line < Document.LineCount
+            ? Document.PositionToOffset(new DocumentPosition(pos.Line + 1, 1))
+            : new DocumentOffset(Document.Length);
+        Cursor.SelectionAnchor = lineStart;
+        Cursor.Position = lineEnd;
+    }
+
+    // ── Multi-cursor ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Add a new cursor at the given document offset (Ctrl+Click).
+    /// If a cursor already exists at this position, it is removed instead (toggle behavior).
+    /// </summary>
+    public void AddCursorAtPosition(DocumentOffset offset)
+    {
+        var clamped = new DocumentOffset(Math.Clamp(offset.Value, 0, Document.Length));
+
+        // Toggle: if a cursor already exists at this offset, remove it (unless it's the last one)
+        if (Cursors.Count > 1)
+        {
+            for (int i = 0; i < Cursors.Count; i++)
+            {
+                if (Cursors[i].Position == clamped)
+                {
+                    Cursors.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
+        Cursors.Add(clamped);
+    }
+
+    /// <summary>
+    /// Add a cursor at the next occurrence of the currently selected text (Ctrl+D).
+    /// If no text is selected, selects the word under the primary cursor.
+    /// </summary>
+    public void AddCursorAtNextMatch()
+    {
+        var primary = Cursor;
+
+        if (!primary.HasSelection)
+        {
+            // Select the word under cursor
+            SelectWordUnderCursor(primary);
+            if (!primary.HasSelection) return;
+        }
+
+        var selectedText = Document.GetText(primary.SelectionRange);
+        if (string.IsNullOrEmpty(selectedText)) return;
+
+        // Search from after the last cursor's selection end
+        var lastCursor = Cursors[Cursors.Count - 1];
+        var searchFrom = lastCursor.HasSelection ? lastCursor.SelectionEnd : lastCursor.Position;
+
+        var docText = Document.GetText();
+        var foundIndex = docText.IndexOf(selectedText, searchFrom.Value, StringComparison.Ordinal);
+
+        // Wrap around if not found after last cursor
+        if (foundIndex < 0)
+        {
+            foundIndex = docText.IndexOf(selectedText, 0, StringComparison.Ordinal);
+            // Don't add a cursor that already exists
+            if (foundIndex >= 0)
+            {
+                foreach (var cursor in Cursors)
+                {
+                    if (cursor.HasSelection &&
+                        cursor.SelectionStart.Value == foundIndex &&
+                        cursor.SelectionEnd.Value == foundIndex + selectedText.Length)
+                    {
+                        foundIndex = -1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (foundIndex < 0) return;
+
+        var matchStart = new DocumentOffset(foundIndex);
+        var matchEnd = new DocumentOffset(foundIndex + selectedText.Length);
+        Cursors.Add(matchEnd, matchStart); // Position at end, anchor at start
+    }
+
+    /// <summary>Collapse all cursors to just the primary.</summary>
+    public void CollapseToSingleCursor()
+    {
+        Cursors.CollapseToSingle();
+    }
+
+    // ── Undo/Redo ────────────────────────────────────────────────
+
+    /// <summary>Undo the last edit group. Restores cursors to pre-edit positions.</summary>
+    public void Undo()
+    {
+        var group = History.Undo();
+        if (group == null) return;
+
+        // Apply inverse operations to revert the document
+        var useBatch = group.InverseOperations.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var inverse in group.InverseOperations)
+            {
+                Document.Apply(inverse, "undo");
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        // Restore cursor state from before the edit
+        Cursors.Restore(group.CursorsBefore);
+        Cursors.ClampAll(Document.Length);
+    }
+
+    /// <summary>Redo the last undone edit group. Restores cursors to post-edit positions.</summary>
+    public void Redo()
+    {
+        var group = History.Redo();
+        if (group == null) return;
+
+        // Re-apply the original operations
+        var useBatch = group.Operations.Count > 1;
+        if (useBatch) Document.BeginBatch();
+        try
+        {
+            foreach (var op in group.Operations)
+            {
+                Document.Apply(op, "redo");
+            }
+        }
+        finally { if (useBatch) Document.EndBatch(); }
+
+        // Restore cursor state from after the edit
+        if (group.CursorsAfter != null)
+        {
+            Cursors.Restore(group.CursorsAfter);
+            Cursors.ClampAll(Document.Length);
+        }
+    }
+
+    // ── Internals ────────────────────────────────────────────────
+
+    private static void ApplyExtendForCursor(DocumentCursor cursor, bool extend)
+    {
+        if (extend) cursor.EnsureSelectionAnchor();
+        else cursor.ClearSelection();
+    }
+
+    private void DeleteCursorSelection(DocumentCursor cursor, List<(EditOperation Op, EditOperation Inverse)> ops)
+    {
+        if (!cursor.HasSelection) return;
+        var range = cursor.SelectionRange;
+        // Clamp range to document bounds (can be stale after rapid concurrent edits)
+        var clampedEnd = Math.Min(range.End.Value, Document.Length);
+        var clampedStart = Math.Min(range.Start.Value, clampedEnd);
+        range = new DocumentRange(new DocumentOffset(clampedStart), new DocumentOffset(clampedEnd));
+
+        if (range.IsEmpty)
+        {
+            cursor.Position = range.Start;
+            cursor.ClearSelection();
+            return;
+        }
+
+        var result = Document.Apply(new DeleteOperation(range));
+        CollectOps(result, ops);
+        cursor.Position = range.Start;
+        cursor.ClearSelection();
+    }
+
+    private static void CollectOps(EditResult result, List<(EditOperation Op, EditOperation Inverse)> ops)
+    {
+        for (var i = 0; i < result.Applied.Count; i++)
+        {
+            ops.Add((result.Applied[i], result.Inverse[i]));
+        }
+    }
+
+    /// <summary>
+    /// Record a batch of operations to history. For single-char typing, uses coalescing.
+    /// For multi-op batches, uses explicit grouping.
+    /// </summary>
+    private void FinishEditBatch(
+        List<(EditOperation Op, EditOperation Inverse)> ops,
+        CursorSetSnapshot cursorsBefore,
+        long versionBefore,
+        bool coalescable)
+    {
+        if (ops.Count == 0) return;
+
+        // Clamp all cursor positions and anchors to current document bounds.
+        // Anchors can become stale when edits shrink the document and the
+        // cursor had anchor==position (invisible selection, not cleared by edit paths).
+        Cursors.ClampAll(Document.Length);
+
+        var versionAfter = Document.Version;
+
+        if (coalescable && ops.Count == 1)
+        {
+            // Single operation, try coalescing with previous typing
+            History.RecordEdit(
+                ops[0].Op,
+                ops[0].Inverse,
+                Cursors,
+                versionBefore,
+                versionAfter,
+                coalescable: true);
+        }
+        else
+        {
+            // Multiple operations or non-coalescable: explicit group
+            var group = new EditGroup(cursorsBefore, versionBefore);
+            foreach (var (op, inverse) in ops)
+            {
+                group.AddOperation(op, inverse);
+            }
+            group.CursorsAfter = Cursors.Snapshot();
+            group.VersionAfter = versionAfter;
+            History.PushGroup(group);
+        }
+    }
+
+    private void MoveVertical(DocumentCursor cursor, int lineDelta)
+    {
+        var pos = Document.OffsetToPosition(cursor.Position);
+        var targetLine = Math.Clamp(pos.Line + lineDelta, 1, Document.LineCount);
+        if (targetLine == pos.Line) return;
+
+        var targetLineLength = Document.GetLineLength(targetLine);
+        var targetColumn = Math.Min(pos.Column, targetLineLength + 1);
+        var targetPos = new DocumentPosition(targetLine, targetColumn);
+        cursor.Position = Document.PositionToOffset(targetPos);
+    }
+
+    private string GetLineTextForCursor(DocumentCursor cursor, out int lineStartOffset)
+    {
+        var clampedPos = new DocumentOffset(Math.Min(cursor.Position.Value, Document.Length));
+        var pos = Document.OffsetToPosition(clampedPos);
+        var lineStart = Document.PositionToOffset(new DocumentPosition(pos.Line, 1));
+        lineStartOffset = lineStart.Value;
+        return Document.GetLineText(pos.Line);
+    }
+
+    private void SelectWordUnderCursor(DocumentCursor cursor)
+    {
+        if (Document.Length == 0) return;
+
+        var offset = cursor.Position.Value;
+        var text = Document.GetText();
+
+        // Find word boundaries
+        var start = offset;
+        while (start > 0 && char.IsLetterOrDigit(text[start - 1]))
+            start--;
+
+        var end = offset;
+        while (end < text.Length && char.IsLetterOrDigit(text[end]))
+            end++;
+
+        if (start == end) return;
+
+        cursor.SelectionAnchor = new DocumentOffset(start);
+        cursor.Position = new DocumentOffset(end);
+    }
+
+    private void AfterNavigation(bool extend)
+    {
+        if (!extend)
+        {
+            Cursors.Sort();
+            Cursors.MergeOverlapping();
+        }
+        else
+        {
+            Cursors.Sort();
+        }
+    }
+
+    /// <summary>
+    /// After processing a cursor edit at index idx (reverse iteration),
+    /// adjust all already-processed cursors (higher indices) by the document length delta.
+    /// </summary>
+    private void AdjustProcessedCursors(int idx, int delta)
+    {
+        if (delta == 0) return;
+        for (var j = idx + 1; j < Cursors.Count; j++)
+        {
+            var other = Cursors[j];
+            other.Position = new DocumentOffset(Math.Max(0, other.Position.Value + delta));
+            if (other.SelectionAnchor != null)
+            {
+                other.SelectionAnchor = new DocumentOffset(
+                    Math.Max(0, other.SelectionAnchor.Value.Value + delta));
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Specifies the direction of cursor movement within an editor.
+/// </summary>
+public enum CursorDirection
+{
+    Left,
+    Right,
+    Up,
+    Down
+}
