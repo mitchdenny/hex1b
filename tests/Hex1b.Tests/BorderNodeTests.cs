@@ -1160,7 +1160,7 @@ public class BorderNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.InAlternateScreen && s.ContainsText("┌"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

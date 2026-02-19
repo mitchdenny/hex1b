@@ -49,8 +49,7 @@ jobs:
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=test-results.trx" \
-            --results-directory ./TestResults \
-            --filter "FullyQualifiedName!~MultiCursorPerformanceTests&FullyQualifiedName!~EditorFuzzTests"
+            --results-directory ./TestResults
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=mcp-test-results.trx" \
