@@ -4,7 +4,7 @@ namespace Hex1b.Documents;
 /// Manages undo/redo history for an editor. Supports explicit grouping,
 /// automatic typing coalescing, and cursor state restoration.
 /// </summary>
-public class EditHistory
+public sealed class EditHistory
 {
     private readonly Stack<EditGroup> _undoStack = new();
     private readonly Stack<EditGroup> _redoStack = new();
@@ -153,7 +153,7 @@ public class EditHistory
     /// Push a fully-formed group directly onto the undo stack.
     /// Used by EditorState for multi-operation batches.
     /// </summary>
-    public void PushGroup(EditGroup group)
+    internal void PushGroup(EditGroup group)
     {
         if (group.IsEmpty) return;
         CommitOpenGroup();
@@ -165,7 +165,7 @@ public class EditHistory
     /// Get all groups since a specific document version (for sync/collaboration).
     /// Returns groups in chronological order.
     /// </summary>
-    public IReadOnlyList<EditGroup> GetGroupsSince(long version)
+    internal IReadOnlyList<EditGroup> GetGroupsSince(long version)
     {
         var result = new List<EditGroup>();
         foreach (var group in _undoStack.Reverse())

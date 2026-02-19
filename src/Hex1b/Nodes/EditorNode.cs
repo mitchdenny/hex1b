@@ -49,7 +49,7 @@ public sealed class EditorNode : Hex1bNode
     public int ScrollOffset
     {
         get => _scrollOffset;
-        set
+        internal set
         {
             var maxLine = State != null ? ViewRenderer.GetTotalLines(State.Document, Bounds.Width) : 1;
             var clamped = Math.Clamp(value, 1, Math.Max(1, maxLine));
@@ -65,7 +65,7 @@ public sealed class EditorNode : Hex1bNode
     public int HorizontalScrollOffset
     {
         get => _horizontalScrollOffset;
-        set
+        internal set
         {
             var clamped = Math.Max(0, value);
             if (_horizontalScrollOffset != clamped)

@@ -38,8 +38,15 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         {
             foreach (var cursor in state.Cursors)
             {
-                var pos = doc.OffsetToPosition(cursor.Position);
-                cursorPositions.Add((pos.Line, pos.Column));
+                try
+                {
+                    var pos = doc.OffsetToPosition(cursor.Position);
+                    cursorPositions.Add((pos.Line, pos.Column));
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Cursor offset stale due to concurrent mutation — skip
+                }
 
                 if (cursor.HasSelection)
                 {
@@ -61,7 +68,27 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 continue;
             }
 
-            var lineText = doc.GetLineText(docLine);
+            // Snapshot line count — document may be mutated concurrently
+            var lineCount = doc.LineCount;
+            if (docLine > lineCount)
+            {
+                var emptyLine = "~".PadRight(viewportColumns);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                continue;
+            }
+
+            string lineText;
+            try
+            {
+                lineText = doc.GetLineText(docLine);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Document was mutated concurrently — treat as empty line
+                var emptyLine = "~".PadRight(viewportColumns);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                continue;
+            }
 
             // Apply horizontal scroll offset
             string scrolledLine;
@@ -80,7 +107,17 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             var displayText = FitToDisplayWidth(scrolledLine, viewportColumns);
 
             // Build per-column cell type map for this line
-            var lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
+            int lineStartOffset;
+            try
+            {
+                lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Document mutated concurrently — render what we have without cursor/selection highlighting
+                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                continue;
+            }
             var lineEndOffset = lineStartOffset + lineText.Length;
             var cellTypes = BuildCellTypes(displayText, docLine, lineStartOffset, lineEndOffset,
                 cursorPositions, selectionRanges, horizontalScrollOffset);

@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Documents;
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 // ── Create a fake workspace with sample files ─────────────────
@@ -68,6 +69,8 @@ var openDocs = new Dictionary<string, (Hex1bDocument doc, EditorState textState,
 var openTabs = new List<string>(); // ordered list of open file paths (relative)
 var editorModes = new Dictionary<string, int>(); // 0 = Code, 1 = Hex
 var activeTab = 0;
+var stressTestRunning = false;
+var stressTestIteration = 0;
 
 (Hex1bDocument doc, EditorState textState, EditorState hexState) OpenFile(string relativePath)
 {
@@ -106,6 +109,44 @@ OpenFile("README.md");
 
 // ── Build file tree structure ─────────────────────────────────
 var rootEntry = FileEntry.ScanDirectory(workspaceDir, workspaceDir);
+
+// ── Stress test handler ───────────────────────────────────────
+void RunStressTest(MenuItemActivatedEventArgs args)
+{
+    if (stressTestRunning || activeTab < 0 || activeTab >= openTabs.Count) return;
+    var path = openTabs[activeTab];
+    if (!openDocs.TryGetValue(path, out var entry)) return;
+
+    stressTestRunning = true;
+    var state = entry.textState;
+    var line100 = new string('X', 100);
+    var line50 = new string('Y', 50);
+
+    // Fire-and-forget so the UI keeps rendering
+    Task.Run(async () =>
+    {
+        for (int i = 0; i < 100_000; i++)
+        {
+            stressTestIteration = i + 1;
+
+            state.MoveToDocumentStart();
+            state.InsertText($"[{i:D6}] {line100}\n");
+
+            state.MoveCursor(CursorDirection.Down);
+            state.InsertText("\n\n\n\n\n");
+
+            state.InsertText($"--- batch {i} ---\n");
+
+            for (int j = 0; j < 5; j++)
+                state.InsertText($"[{i:D6}.{j}] {line50}\n");
+
+            if (i % 100 == 0)
+                await Task.Delay(1);
+        }
+
+        stressTestRunning = false;
+    });
+}
 
 // ── UI ────────────────────────────────────────────────────────
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -150,6 +191,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     m2.MenuItem("Paste"),
                     m2.Separator(),
                     m2.MenuItem("Select All"),
+                    m2.Separator(),
+                    m2.MenuItem(stressTestRunning ? $"Stress Test Running ({stressTestIteration:N0})..." : "Run Stress Test").OnActivated(RunStressTest),
                 ]),
                 m.Menu("View", m2 =>
                 [
