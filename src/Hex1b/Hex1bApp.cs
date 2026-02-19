@@ -1333,7 +1333,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     public void Dispose()
     {
-        // Complete the invalidate channel
+        // Signal RunAsync to exit immediately
+        _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it
@@ -1349,7 +1350,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     public async ValueTask DisposeAsync()
     {
-        // Complete the invalidate channel
+        // Signal RunAsync to exit immediately
+        _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
         
         // Dispose the owned terminal if we created it
