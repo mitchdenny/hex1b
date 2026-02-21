@@ -402,21 +402,13 @@ static void DrawGlobe(Surface surface,
 
             if (underCloud)
             {
-                // Interior cloud cell — solid fill
-                surface.WriteChar(cx, cy, (char)0x28FF,
-                    foreground: Hex1bColor.FromRgb(220, 220, 230));
+                // Interior cloud cell — blank (terrain hidden)
             }
             else if (cloudPattern != 0)
             {
-                // Edge cell — fill solid if adjacent to interior, outline-only if pure exterior
-                bool adjacentInterior = IsUnderCloud(cx - 1, cy) || IsUnderCloud(cx + 1, cy)
-                    || IsUnderCloud(cx, cy - 1) || IsUnderCloud(cx, cy + 1);
-                if (adjacentInterior)
-                    surface.WriteChar(cx, cy, (char)0x28FF,
-                        foreground: Hex1bColor.FromRgb(220, 220, 230));
-                else
-                    surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
-                        foreground: Hex1bColor.FromRgb(220, 220, 230));
+                // Cloud edge — outline dots only
+                surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
+                    foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
