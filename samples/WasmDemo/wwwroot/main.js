@@ -33,9 +33,8 @@ function init() {
     // Spawn the Web Worker with initial dimensions so .NET starts at the right size
     worker = new Worker('./worker.js', { type: 'module' });
 
-    // Don't send initial resize - experiment
-    // worker.postMessage({ type: 'resize', cols: term.cols, rows: term.rows });
-    console.log(`[main] initial size: ${term.cols}x${term.rows} (resize disabled)`);
+    // Don't send initial resize - the worker gets initial size from postMessage
+    console.log(`[main] initial size: ${term.cols}x${term.rows}`);
 
     worker.onmessage = function (e) {
         const msg = e.data;
@@ -44,7 +43,8 @@ function init() {
             term.write(new Uint8Array(msg.data));
         } else if (msg.type === 'ready') {
             console.log(`Globe app ready (${msg.cols}x${msg.rows})`);
-            // No resize - experiment
+            // Send current size in case terminal was resized during startup
+            sendResize();
         } else if (msg.type === 'workerReady') {
             console.log('Worker loaded, .NET runtime starting...');
         } else if (msg.type === 'error') {
@@ -68,19 +68,19 @@ function init() {
         worker.postMessage({ type: 'input', data: base64 });
     });
 
-    // Debounce resize - DISABLED for experiment
-    // let resizeTimer = null;
-    // term.onResize(function (size) {
-    //     if (resizeTimer) clearTimeout(resizeTimer);
-    //     resizeTimer = setTimeout(() => {
-    //         sendResize();
-    //         resizeTimer = null;
-    //     }, 100);
-    // });
+    // Debounce resize
+    let resizeTimer = null;
+    term.onResize(function (size) {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            sendResize();
+            resizeTimer = null;
+        }, 100);
+    });
 
-    // window.addEventListener('resize', () => {
-    //     fitAddon.fit();
-    // });
+    window.addEventListener('resize', () => {
+        fitAddon.fit();
+    });
 }
 
 if (document.readyState === 'loading') {
