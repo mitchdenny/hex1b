@@ -349,22 +349,40 @@ static void DrawGlobe(Surface surface,
 
             if (cloudPattern != 0 && pattern == 0)
             {
+                // Cloud outline only (no terrain underneath)
                 surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern), foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
-                var color = AltitudeToColor(bestAlt);
                 bool underCloud = IsUnderCloud(cx, cy);
                 if (underCloud)
-                    color = Hex1bColor.FromRgb(
-                        (byte)(color.R * 0.6), (byte)(color.G * 0.6), (byte)(color.B * 0.6));
-                if (cloudPattern != 0)
                 {
+                    // Cloud fully occludes terrain — show cloud outline dots if any,
+                    // remaining dots become background (cloud fill)
+                    if (cloudPattern != 0)
+                    {
+                        // Cloud outline dots in bright white, cloud fill as background
+                        surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
+                            foreground: Hex1bColor.FromRgb(240, 240, 245),
+                            background: Hex1bColor.FromRgb(180, 185, 195));
+                    }
+                    else
+                    {
+                        // Fully under cloud — solid cloud background, no terrain visible
+                        surface.WriteChar(cx, cy, '▓',
+                            foreground: Hex1bColor.FromRgb(180, 185, 195),
+                            background: Hex1bColor.FromRgb(160, 165, 175));
+                    }
+                }
+                else if (cloudPattern != 0)
+                {
+                    // Cloud outline overlaps terrain — merge dots, cloud color wins
                     int merged = pattern | cloudPattern;
                     surface.WriteChar(cx, cy, (char)(0x2800 + merged), foreground: Hex1bColor.FromRgb(240, 240, 245));
                 }
                 else
                 {
+                    var color = AltitudeToColor(bestAlt);
                     surface.WriteChar(cx, cy, (char)(0x2800 + pattern), foreground: color);
                 }
             }
