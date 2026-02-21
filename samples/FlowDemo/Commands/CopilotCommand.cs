@@ -57,13 +57,13 @@ internal static class CopilotCommand
                                     ctx.HStack(h => [h.Spinner(), h.Text(" Thinking...")])));
                             }
 
-                            // Content panel (scrollable output area)
-                            var contentPanel = ctx.VScrollPanel(sv =>
+                            // Content panel — fill spacer at top pushes output to bottom
+                            var contentPanel = ctx.VStack(_ =>
                             {
                                 if (contentWidgets.Count == 0)
-                                    return [sv.VStack(__ => []).Fill()];
-                                return [.. contentWidgets];
-                            }, showScrollbar: false);
+                                    return [ctx.VStack(__ => []).Fill()];
+                                return [ctx.VStack(__ => []).Fill(), .. contentWidgets];
+                            });
 
                             // If terminal is active, show in HSplitter
                             Hex1bWidget mainArea;
@@ -105,7 +105,11 @@ internal static class CopilotCommand
                                         .Set(TextBoxTheme.RightBracket, ""),
                                     ctx.TextBox().OnSubmit(e =>
                                     {
-                                        HandleSubmit(e.Text?.Trim() ?? "", app, state);
+                                        var text = e.Text?.Trim() ?? "";
+                                        if (string.IsNullOrEmpty(text))
+                                            return;
+                                        e.Node.Text = "";
+                                        HandleSubmit(text, app, state);
                                     })
                                     .WithInputBindings(bindings =>
                                     {
