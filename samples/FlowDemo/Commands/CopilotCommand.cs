@@ -18,14 +18,6 @@ internal static class CopilotCommand
 
     private static readonly Mode[] Modes = [Mode.Normal, Mode.Plan, Mode.Autopilot];
 
-    private static string ModeLabel(Mode mode) => mode switch
-    {
-        Mode.Normal => "normal",
-        Mode.Plan => "plan",
-        Mode.Autopilot => "autopilot",
-        _ => "normal",
-    };
-
     public static async Task RunAsync()
     {
         var cursorRow = Console.GetCursorPosition().Top;
@@ -35,66 +27,58 @@ internal static class CopilotCommand
             .WithScrollback()
             .WithHex1bFlow(async flow =>
             {
+                string? pendingPrompt = null;
+
                 while (true)
                 {
-                    string? submittedText = null;
+                    string? submittedText = pendingPrompt;
+                    pendingPrompt = null;
 
-                    await flow.SliceAsync(
-                        builder: ctx =>
-                        {
-                            var modeColor = currentMode switch
+                    // Show the prompt unless we already have a pending one
+                    if (submittedText == null)
+                    {
+                        await flow.SliceAsync(
+                            builder: ctx =>
                             {
-                                Mode.Autopilot => Hex1bColor.FromRgb(0, 187, 0),
-                                Mode.Plan => Hex1bColor.FromRgb(59, 130, 246),
-                                _ => Hex1bColor.Default,
-                            };
+                                var modeColor = GetModeColor(currentMode);
+                                var modeText = GetModeText(currentMode);
 
-                            var modeText = currentMode switch
-                            {
-                                Mode.Autopilot => " autopilot · shift+tab switch mode · ctrl+s run command",
-                                Mode.Plan => " plan · shift+tab switch mode",
-                                _ => " normal · shift+tab switch mode",
-                            };
-
-                            return ctx.VStack(v =>
-                            [
-                                v.VStack(_ => []).Fill(),
-                                v.ThemePanel(
-                                    theme => theme
-                                        .Set(SeparatorTheme.Color, modeColor)
-                                        .Set(GlobalTheme.ForegroundColor, modeColor),
-                                    tv =>
-                                    [
-                                        tv.Separator(),
-                                        tv.TextBox().OnSubmit(e =>
-                                        {
-                                            submittedText = e.Text;
-                                            e.Context.RequestStop();
-                                        })
-                                        .WithInputBindings(bindings =>
-                                        {
-                                            bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                return ctx.VStack(v =>
+                                [
+                                    v.VStack(_ => []).Fill(),
+                                    v.ThemePanel(
+                                        theme => theme
+                                            .Set(SeparatorTheme.Color, modeColor)
+                                            .Set(GlobalTheme.ForegroundColor, modeColor),
+                                        tv =>
+                                        [
+                                            tv.Separator(),
+                                            tv.TextBox().OnSubmit(e =>
                                             {
-                                                int idx = Array.IndexOf(Modes, currentMode);
-                                                currentMode = Modes[(idx + 1) % Modes.Length];
-                                                actionCtx.Invalidate();
-                                            }, "Cycle mode");
-                                        }),
-                                        tv.Separator(),
-                                        tv.Text(modeText),
-                                    ]
-                                ),
-                            ]);
-                        },
-                        @yield: ctx => submittedText != null && submittedText != "/exit"
-                            ? ctx.VStack(v =>
-                            [
-                                v.Text($"  > {submittedText}"),
-                                v.Text($"  Echo: {submittedText}"),
-                            ])
-                            : ctx.Text(""),
-                        options: new Hex1bFlowSliceOptions { MaxHeight = 5 }
-                    );
+                                                submittedText = e.Text;
+                                                e.Context.RequestStop();
+                                            })
+                                            .WithInputBindings(bindings =>
+                                            {
+                                                bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                                {
+                                                    int idx = Array.IndexOf(Modes, currentMode);
+                                                    currentMode = Modes[(idx + 1) % Modes.Length];
+                                                    actionCtx.Invalidate();
+                                                }, "Cycle mode");
+                                            }),
+                                            tv.Separator(),
+                                            tv.Text(modeText),
+                                        ]
+                                    ),
+                                ]);
+                            },
+                            @yield: ctx => submittedText != null && submittedText != "/exit"
+                                ? ctx.Text($"  > {submittedText}")
+                                : ctx.Text(""),
+                            options: new Hex1bFlowSliceOptions { MaxHeight = 5 }
+                        );
+                    }
 
                     if (submittedText == "/exit" || submittedText == null)
                         break;
@@ -102,6 +86,128 @@ internal static class CopilotCommand
                     if (submittedText == "/shell")
                     {
                         await RunShellAsync(flow);
+                        continue;
+                    }
+
+                    // Simulate "thinking" with a magenta spinner
+                    await flow.SliceAsync(
+                        configure: app =>
+                        {
+                            // Auto-stop after 5 seconds
+                            _ = Task.Run(async () =>
+                            {
+                                await Task.Delay(5000);
+                                app.RequestStop();
+                            });
+
+                            return ctx => ctx.ThemePanel(
+                                theme => theme.Set(SpinnerTheme.ForegroundColor, Hex1bColor.Magenta),
+                                tv => [tv.HStack(h => [h.Spinner(), h.Text(" Thinking...")])]);
+                        },
+                        options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
+                    );
+
+                    // Generate mock response
+                    var mockResponse = GenerateMockResponse(submittedText);
+
+                    // Show response with a terminal in a splitter + prompt below
+                    string? nextSubmittedText = null;
+
+                    // Create child terminal for the working session
+                    int termWidth = Console.WindowWidth;
+                    var childTerminal = Hex1bTerminal.CreateBuilder()
+                        .WithDimensions(termWidth / 2, 20)
+                        .WithPtyProcess("bash")
+                        .WithTerminalWidget(out var handle)
+                        .Build();
+
+                    using var cts = new CancellationTokenSource();
+                    var terminalTask = Task.Run(async () =>
+                    {
+                        await childTerminal.RunAsync(cts.Token);
+                    });
+
+                    await flow.SliceAsync(
+                        configure: app =>
+                        {
+                            handle.StateChanged += state =>
+                            {
+                                if (state != TerminalState.Running)
+                                    app.Invalidate();
+                            };
+
+                            return ctx =>
+                            {
+                                var modeColor = GetModeColor(currentMode);
+                                var modeText = GetModeText(currentMode);
+
+                                return ctx.VStack(v =>
+                                [
+                                    v.HSplitter(
+                                        left => [
+                                            .. mockResponse.Select(line => left.Text(line))
+                                        ],
+                                        right => [right.Terminal(handle).Fill()],
+                                        leftWidth: termWidth / 2
+                                    ).Fill(),
+                                    v.ThemePanel(
+                                        theme => theme
+                                            .Set(SeparatorTheme.Color, modeColor)
+                                            .Set(GlobalTheme.ForegroundColor, modeColor),
+                                        tv =>
+                                        [
+                                            tv.Separator(),
+                                            tv.TextBox().OnSubmit(e =>
+                                            {
+                                                nextSubmittedText = e.Text;
+                                                e.Context.RequestStop();
+                                            })
+                                            .WithInputBindings(bindings =>
+                                            {
+                                                bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                                {
+                                                    int idx = Array.IndexOf(Modes, currentMode);
+                                                    currentMode = Modes[(idx + 1) % Modes.Length];
+                                                    actionCtx.Invalidate();
+                                                }, "Cycle mode");
+                                            }),
+                                            tv.Separator(),
+                                            tv.Text(modeText),
+                                        ]
+                                    ),
+                                ]);
+                            };
+                        },
+                        @yield: ctx => nextSubmittedText != null && nextSubmittedText != "/exit"
+                            ? ctx.VStack(v =>
+                            [
+                                .. mockResponse.Select(line => v.Text(line)),
+                                v.Text($"  > {nextSubmittedText}"),
+                            ])
+                            : ctx.VStack(v =>
+                                mockResponse.Select(line => v.Text(line)).ToArray()
+                            ),
+                        options: new Hex1bFlowSliceOptions { EnableMouse = true }
+                    );
+
+                    // Clean up terminal
+                    cts.Cancel();
+                    try { await terminalTask; } catch (OperationCanceledException) { }
+                    await childTerminal.DisposeAsync();
+
+                    // If user typed something in the splitter prompt, process it
+                    if (nextSubmittedText == "/exit")
+                        break;
+
+                    if (nextSubmittedText == "/shell")
+                    {
+                        await RunShellAsync(flow);
+                        continue;
+                    }
+
+                    if (nextSubmittedText != null)
+                    {
+                        pendingPrompt = nextSubmittedText;
                     }
                 }
             }, options => options.InitialCursorRow = cursorRow)
@@ -109,15 +215,44 @@ internal static class CopilotCommand
             .RunAsync();
     }
 
+    private static Hex1bColor GetModeColor(Mode mode) => mode switch
+    {
+        Mode.Autopilot => Hex1bColor.FromRgb(0, 187, 0),
+        Mode.Plan => Hex1bColor.FromRgb(59, 130, 246),
+        _ => Hex1bColor.Default,
+    };
+
+    private static string GetModeText(Mode mode) => mode switch
+    {
+        Mode.Autopilot => " autopilot · shift+tab switch mode · ctrl+s run command",
+        Mode.Plan => " plan · shift+tab switch mode",
+        _ => " normal · shift+tab switch mode",
+    };
+
+    private static string[] GenerateMockResponse(string prompt)
+    {
+        return [
+            "",
+            $"  🟢 \x1b[1mResponse to: {prompt}\x1b[0m",
+            "",
+            "  I've analyzed your request and here's what I found:",
+            "",
+            "  • Created src/Components/AuthService.cs with JWT validation",
+            "  • Updated Program.cs to register the auth middleware",
+            "  • Added unit tests in tests/AuthServiceTests.cs",
+            "",
+            "  All changes have been applied to your workspace.",
+            "",
+        ];
+    }
+
     private static async Task RunShellAsync(Hex1bFlowContext flow)
     {
-        // Capture scrollback lines as they scroll off
         var scrollbackLines = new List<string>();
 
         int termWidth = Console.WindowWidth;
         int termHeight = Console.WindowHeight;
 
-        // Create child terminal with bash, scrollback capture, and widget handle
         var childTerminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(termWidth, termHeight)
             .WithScrollback(1000, args =>
@@ -128,14 +263,12 @@ internal static class CopilotCommand
             .WithTerminalWidget(out var handle)
             .Build();
 
-        // Run the child terminal in the background
         using var cts = new CancellationTokenSource();
         var terminalTask = Task.Run(async () =>
         {
             await childTerminal.RunAsync(cts.Token);
         });
 
-        // Build the yield content from scrollback + screen buffer
         Hex1bApp? sliceApp = null;
         List<string>? capturedLines = null;
 
@@ -143,7 +276,6 @@ internal static class CopilotCommand
         {
             if (state != TerminalState.Running)
             {
-                // Capture screen buffer immediately when process exits
                 var (buf, w, h) = handle.GetScreenBufferSnapshot();
                 var screenLines = new List<string>();
                 for (int row = 0; row < h; row++)
@@ -157,7 +289,6 @@ internal static class CopilotCommand
                 var allLines = new List<string>(scrollbackLines);
                 allLines.AddRange(screenLines);
 
-                // Trim trailing blank lines
                 while (allLines.Count > 0 && string.IsNullOrWhiteSpace(allLines[^1]))
                     allLines.RemoveAt(allLines.Count - 1);
 
@@ -184,7 +315,6 @@ internal static class CopilotCommand
             options: new Hex1bFlowSliceOptions { EnableMouse = true }
         );
 
-        // Cancel the terminal task if still running
         cts.Cancel();
         try { await terminalTask; } catch (OperationCanceledException) { }
         await childTerminal.DisposeAsync();
