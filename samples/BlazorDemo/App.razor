@@ -1,0 +1,36 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Initialize xterm.js on the main thread via IJSRuntime (one-time call)
+        var sizeStr = await JS.InvokeAsync<string>("termInterop.init");
+        int cols = 80, rows = 24;
+        if (!string.IsNullOrEmpty(sizeStr))
+        {
+            var parts = sizeStr.Split(',');
+            if (parts.Length == 2 && int.TryParse(parts[0], out var c) && int.TryParse(parts[1], out var r))
+            {
+                cols = c;
+                rows = r;
+            }
+        }
+
+        Console.WriteLine($"[blazor] Starting globe ({cols}x{rows}), threading={Environment.ProcessorCount > 1}");
+
+        // Run globe on the main thread — [JSImport] calls are fast and synchronous here.
+        // With WasmEnableThreads, Hex1b's internal async/await and Task.Run 
+        // can dispatch to real background threads via the thread pool.
+        try
+        {
+            await GlobeRunner.RunAsync(cols, rows);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[blazor] Globe error: {ex}");
+        }
+    }
+}
