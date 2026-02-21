@@ -402,9 +402,8 @@ static void DrawGlobe(Surface surface,
 
             if (underCloud || cloudPattern != 0)
             {
-                // Inside cloud or on edge — fill with all 8 dots, outline keeps its dots
-                int cloudFill = cloudPattern != 0 ? cloudPattern : 0xFF;
-                surface.WriteChar(cx, cy, (char)(0x2800 + cloudFill),
+                // Cloud cell (interior or edge) — always fill all 8 dots
+                surface.WriteChar(cx, cy, (char)0x28FF,
                     foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
