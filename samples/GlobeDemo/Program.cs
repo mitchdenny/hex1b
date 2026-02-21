@@ -398,26 +398,19 @@ static void DrawGlobe(Surface surface,
             if (bx < dotW && by+3 < dotH && cloudGrid[bx, by+3]) cloudPattern |= 0x40;
             if (bx+1 < dotW && by+3 < dotH && cloudGrid[bx+1, by+3]) cloudPattern |= 0x80;
 
-            if (cloudPattern != 0 && pattern == 0)
+            bool underCloud = IsUnderCloud(cx, cy);
+
+            if (underCloud || cloudPattern != 0)
             {
-                // Cloud outline over empty space
-                surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern), foreground: Hex1bColor.FromRgb(220, 220, 230));
+                // Inside cloud or on edge — fill with all 8 dots, outline keeps its dots
+                int cloudFill = cloudPattern != 0 ? cloudPattern : 0xFF;
+                surface.WriteChar(cx, cy, (char)(0x2800 + cloudFill),
+                    foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
-                bool underCloud = IsUnderCloud(cx, cy);
-                if (underCloud || cloudPattern != 0)
-                {
-                    // Cloud: fill interior with all 8 dots, outline gets its own dots
-                    int cloudFill = cloudPattern != 0 ? cloudPattern : 0xFF;
-                    surface.WriteChar(cx, cy, (char)(0x2800 + cloudFill),
-                        foreground: Hex1bColor.FromRgb(220, 220, 230));
-                }
-                else
-                {
-                    var color = AltitudeToColor(bestAlt);
-                    surface.WriteChar(cx, cy, (char)(0x2800 + pattern), foreground: color);
-                }
+                var color = AltitudeToColor(bestAlt);
+                surface.WriteChar(cx, cy, (char)(0x2800 + pattern), foreground: color);
             }
         }
     }
