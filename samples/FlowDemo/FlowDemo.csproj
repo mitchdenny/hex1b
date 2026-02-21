@@ -11,4 +11,8 @@
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+
 </Project>

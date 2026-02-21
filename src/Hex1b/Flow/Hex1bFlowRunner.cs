@@ -14,9 +14,6 @@ internal sealed class Hex1bFlowRunner
     private readonly Hex1bFlowOptions _options;
     private readonly IHex1bAppTerminalWorkloadAdapter _parentAdapter;
 
-    // Visual stack of completed yield widgets
-    private readonly List<YieldEntry> _yieldStack = new();
-
     // Current cursor row in the terminal buffer (0-based, relative to terminal top)
     private int _cursorRow;
 
@@ -92,12 +89,8 @@ internal sealed class Hex1bFlowRunner
             {
                 _parentAdapter.Write("\n");
             }
-            // Adjust cursor row and yield stack after scroll
+            // Adjust cursor row after scroll (frozen yields are already on screen)
             _cursorRow -= neededNewlines;
-            foreach (var entry in _yieldStack)
-            {
-                entry.TopRow -= neededNewlines;
-            }
         }
 
         // Create the inline adapter for this slice
@@ -167,16 +160,10 @@ internal sealed class Hex1bFlowRunner
             try { await inputPumpTask; } catch (OperationCanceledException) { }
         }
 
-        // After slice completes, render the yield widget (if provided)
+        // After slice completes, render the yield widget as frozen output (if provided)
         if (yieldBuilder != null)
         {
             var yieldHeight = await RenderYieldWidgetAsync(yieldBuilder, terminalWidth, availableHeight);
-            _yieldStack.Add(new YieldEntry
-            {
-                Builder = yieldBuilder,
-                TopRow = _cursorRow,
-                Height = yieldHeight,
-            });
             _cursorRow += yieldHeight;
         }
         else
@@ -225,8 +212,8 @@ internal sealed class Hex1bFlowRunner
             await app.RunAsync(default);
         }
 
-        // After returning from full-screen, re-render visible yield widgets
-        await ReRenderYieldStackAsync();
+        // After returning from full-screen, the terminal restores the normal buffer
+        // which already contains the frozen yield output. No re-rendering needed.
     }
 
     /// <summary>
@@ -309,17 +296,6 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Re-renders the visible yield widget stack after returning from full-screen mode.
-    /// </summary>
-    private Task ReRenderYieldStackAsync()
-    {
-        // After exiting alternate screen, the terminal restores the normal buffer
-        // which already contains the yield widgets. No re-rendering needed for now.
-        // TODO: Re-render on resize or if content was corrupted
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
     /// Pumps output from a slice adapter to the parent adapter.
     /// </summary>
     private async Task PumpSliceOutputAsync(InlineSliceAdapter sliceAdapter, CancellationToken ct)
@@ -365,13 +341,6 @@ internal sealed class Hex1bFlowRunner
     {
         // Use the initial cursor row from options if provided
         return Task.FromResult(_options.InitialCursorRow ?? 0);
-    }
-
-    private sealed class YieldEntry
-    {
-        public required Func<RootContext, Hex1bWidget> Builder { get; init; }
-        public int TopRow { get; set; }
-        public required int Height { get; init; }
     }
 }
 

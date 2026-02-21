@@ -22,8 +22,9 @@ public sealed class Hex1bFlowContext
     /// </summary>
     /// <param name="builder">Widget builder for the interactive TUI content.</param>
     /// <param name="yield">
-    /// Optional widget builder for the "yield" state — rendered after the slice completes.
-    /// This widget is re-rendered on terminal resize and remains visible as the flow progresses.
+    /// Optional widget builder for the "yield" state — rendered once after the slice completes
+    /// as frozen terminal output. This output is never re-rendered and scrolls naturally
+    /// into the scrollback buffer as subsequent slices take space.
     /// </param>
     /// <param name="options">Optional configuration for the slice.</param>
     public Task SliceAsync(
@@ -44,7 +45,7 @@ public sealed class Hex1bFlowContext
     /// The app reference can be captured for use in background tasks.
     /// </param>
     /// <param name="yield">
-    /// Optional widget builder for the "yield" state — rendered after the slice completes.
+    /// Optional widget builder for the "yield" state — rendered once as frozen terminal output.
     /// </param>
     /// <param name="options">Optional configuration for the slice.</param>
     public Task SliceAsync(
