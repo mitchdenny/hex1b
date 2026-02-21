@@ -73,29 +73,28 @@ internal sealed class Hex1bFlowRunner
     {
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
-        var maxHeight = options?.MaxHeight ?? terminalHeight;
 
-        // Calculate available height from cursor position
-        var availableHeight = Math.Min(maxHeight, terminalHeight - _cursorRow);
-        if (availableHeight < 1) availableHeight = 1;
+        // The slice wants MaxHeight rows (or full terminal height if unspecified),
+        // capped to the terminal height since that's the max visible area.
+        var desiredHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
+        if (desiredHeight < 1) desiredHeight = 1;
 
-        // Reserve space by emitting newlines if needed
-        var neededNewlines = (_cursorRow + availableHeight) - terminalHeight;
-        if (neededNewlines > 0)
+        // Scroll the terminal if the cursor is too far down to fit the slice
+        var overflow = (_cursorRow + desiredHeight) - terminalHeight;
+        if (overflow > 0)
         {
-            // We need to scroll the terminal to make room
             _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
-            for (int i = 0; i < neededNewlines; i++)
+            for (int i = 0; i < overflow; i++)
             {
                 _parentAdapter.Write("\n");
             }
             // Adjust cursor row after scroll (frozen yields are already on screen)
-            _cursorRow -= neededNewlines;
+            _cursorRow -= overflow;
         }
 
         // Create the inline adapter for this slice
         using var sliceAdapter = new InlineSliceAdapter(
-            terminalWidth, availableHeight, _cursorRow,
+            terminalWidth, desiredHeight, _cursorRow,
             _parentAdapter.Capabilities);
 
         // Create the Hex1bApp with the inline adapter
@@ -163,13 +162,13 @@ internal sealed class Hex1bFlowRunner
         // After slice completes, render the yield widget as frozen output (if provided)
         if (yieldBuilder != null)
         {
-            var yieldHeight = await RenderYieldWidgetAsync(yieldBuilder, terminalWidth, availableHeight);
+            var yieldHeight = await RenderYieldWidgetAsync(yieldBuilder, terminalWidth, desiredHeight);
             _cursorRow += yieldHeight;
         }
         else
         {
             // No yield widget — just advance cursor past the slice region
-            _cursorRow += availableHeight;
+            _cursorRow += desiredHeight;
         }
     }
 
