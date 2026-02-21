@@ -75,21 +75,60 @@ public static class GlobeRunner
                         bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                         {
                             int prevDx = 0, prevDy = 0;
+                            int totalMove = 0;
                             int dotW = lastSurfaceW * 2, dotH = lastSurfaceH * 4;
                             double radius = Math.Min(dotW, dotH) * 0.65 * zoom;
                             double radiansPerCell = 2.0 / radius;
-                            return DragHandler.Simple(
-                                onMove: (dx, dy) =>
+                            return new DragHandler(
+                                onMove: (ctx, dx, dy) =>
                                 {
                                     int ddx = dx - prevDx, ddy = dy - prevDy;
                                     prevDx = dx; prevDy = dy;
+                                    totalMove += Math.Abs(ddx) + Math.Abs(ddy);
                                     if (ddx == 0 && ddy == 0) return;
-                                    // Screen-space rotation: pre-multiply so axes are always screen-relative
                                     var qYaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(ddx * radiansPerCell));
                                     var qPitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)(-ddy * radiansPerCell));
                                     rotQ = Quaternion.Normalize(qYaw * qPitch * rotQ);
                                 },
-                                onEnd: () => { }
+                                onEnd: actionCtx =>
+                                {
+                                    if (totalMove > 2) return;
+                                    int mx = startX, my = startY;
+
+                                    double bestDist = double.MaxValue;
+                                    int bestIdx = -1;
+                                    for (int i = 0; i < poiScreenPositions.Count; i++)
+                                    {
+                                        var sp = poiScreenPositions[i];
+                                        double dx2 = sp.cx - mx;
+                                        double dy2 = sp.cy - my;
+                                        double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
+                                        if (d < bestDist) { bestDist = d; bestIdx = i; }
+                                    }
+
+                                    if (bestIdx < 0 || bestDist > 8.0) return;
+                                    var clicked = poiScreenPositions[bestIdx];
+                                    var poi = pois[clicked.poiIndex];
+                                    windowCounter++;
+
+                                    actionCtx.Windows
+                                        .Window(w => w.VStack(v => [
+                                            v.Text($"  Population:  {poi.Population}"),
+                                            v.Text($"  Export:      {poi.PrimaryExport}"),
+                                            v.Text($"  Import:      {poi.PrimaryImport}"),
+                                            v.Text($"  Temps:       {poi.Temps}"),
+                                            v.Text($"  Ethnicity:   {poi.Ethnicity}"),
+                                            v.Text(""),
+                                            v.HStack(h => [
+                                                h.Button(" Close ").OnClick(ev => ev.Windows.Close(w.Window))
+                                            ])
+                                        ]))
+                                        .Title(poi.Name)
+                                        .Size(50, 11)
+                                        .Position(new WindowPositionSpec(WindowPosition.Center,
+                                            windowCounter % 5 * 3, windowCounter % 4 * 2))
+                                        .Open(actionCtx.Windows);
+                                }
                             );
                         });
 
@@ -100,46 +139,6 @@ public static class GlobeRunner
                         bindings.Mouse(MouseButton.ScrollDown).Action(_ =>
                         {
                             zoom = Math.Max(0.3, zoom * 0.87);
-                        });
-
-                        bindings.Mouse(MouseButton.Left).Action(actionCtx =>
-                        {
-                            int mx = actionCtx.MouseX, my = actionCtx.MouseY;
-                            if (mx < 0 || my < 0) return;
-
-                            double bestDist = double.MaxValue;
-                            int bestIdx = -1;
-                            for (int i = 0; i < poiScreenPositions.Count; i++)
-                            {
-                                var sp = poiScreenPositions[i];
-                                double dx2 = sp.cx - mx;
-                                double dy2 = sp.cy - my;
-                                double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
-                                if (d < bestDist) { bestDist = d; bestIdx = i; }
-                            }
-
-                            if (bestIdx < 0 || bestDist > 8.0) return;
-                            var clicked = poiScreenPositions[bestIdx];
-                            var poi = pois[clicked.poiIndex];
-                            windowCounter++;
-
-                            actionCtx.Windows
-                                .Window(w => w.VStack(v => [
-                                    v.Text($"  Population:  {poi.Population}"),
-                                    v.Text($"  Export:      {poi.PrimaryExport}"),
-                                    v.Text($"  Import:      {poi.PrimaryImport}"),
-                                    v.Text($"  Temps:       {poi.Temps}"),
-                                    v.Text($"  Ethnicity:   {poi.Ethnicity}"),
-                                    v.Text(""),
-                                    v.HStack(h => [
-                                        h.Button(" Close ").OnClick(ev => ev.Windows.Close(w.Window))
-                                    ])
-                                ]))
-                                .Title(poi.Name)
-                                .Size(50, 11)
-                                .Position(new WindowPositionSpec(WindowPosition.Center,
-                                    windowCounter % 5 * 3, windowCounter % 4 * 2))
-                                .Open(actionCtx.Windows);
                         });
                     }),
 

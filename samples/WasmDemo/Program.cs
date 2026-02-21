@@ -94,13 +94,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     double radiansPerCell = 2.0 / radius;
                     var startQ = rotQ;
 
-                    return DragHandler.Simple(
-                        onMove: (dx, dy) =>
+                    int totalMove = 0;
+                    return new DragHandler(
+                        onMove: (ctx, dx, dy) =>
                         {
                             int incDx = dx - prevDx;
                             int incDy = dy - prevDy;
                             prevDx = dx;
                             prevDy = dy;
+                            totalMove += Math.Abs(incDx) + Math.Abs(incDy);
 
                             float yawAngle = (float)(incDx * radiansPerCell);
                             float pitchAngle = (float)(-incDy * radiansPerCell);
@@ -109,7 +111,45 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             var qPitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitchAngle);
                             rotQ = Quaternion.Normalize(qYaw * qPitch * rotQ);
                         },
-                        onEnd: () => { }
+                        onEnd: actionCtx =>
+                        {
+                            if (totalMove > 2) return;
+                            int mx = startX, my = startY;
+
+                            double bestDist = double.MaxValue;
+                            int bestIdx = -1;
+                            for (int i = 0; i < poiScreenPositions.Count; i++)
+                            {
+                                var sp = poiScreenPositions[i];
+                                double dx2 = sp.cx - mx;
+                                double dy2 = sp.cy - my;
+                                double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
+                                if (d < bestDist) { bestDist = d; bestIdx = i; }
+                            }
+
+                            if (bestIdx < 0 || bestDist > 8.0) return;
+                            var clicked = poiScreenPositions[bestIdx];
+                            var poi = pois[clicked.poiIndex];
+                            windowCounter++;
+
+                            actionCtx.Windows
+                                .Window(w => w.VStack(v => [
+                                    v.Text($"  Population:  {poi.Population}"),
+                                    v.Text($"  Export:      {poi.PrimaryExport}"),
+                                    v.Text($"  Import:      {poi.PrimaryImport}"),
+                                    v.Text($"  Temps:       {poi.Temps}"),
+                                    v.Text($"  Ethnicity:   {poi.Ethnicity}"),
+                                    v.Text(""),
+                                    v.HStack(h => [
+                                        h.Button(" Close ").OnClick(ev => ev.Windows.Close(w.Window))
+                                    ])
+                                ]))
+                                .Title(poi.Name)
+                                .Size(50, 11)
+                                .Position(new WindowPositionSpec(WindowPosition.Center,
+                                    windowCounter % 5 * 3, windowCounter % 4 * 2))
+                                .Open(actionCtx.Windows);
+                        }
                     );
                 });
 
@@ -120,47 +160,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 bindings.Mouse(MouseButton.ScrollDown).Action(_ =>
                 {
                     zoom = Math.Max(0.3, zoom * 0.87);
-                });
-
-                // Click to open POI info window
-                bindings.Mouse(MouseButton.Left).Action(actionCtx =>
-                {
-                    int mx = actionCtx.MouseX, my = actionCtx.MouseY;
-                    if (mx < 0 || my < 0) return;
-
-                    double bestDist = double.MaxValue;
-                    int bestIdx = -1;
-                    for (int i = 0; i < poiScreenPositions.Count; i++)
-                    {
-                        var sp = poiScreenPositions[i];
-                        double dx2 = sp.cx - mx;
-                        double dy2 = sp.cy - my;
-                        double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
-                        if (d < bestDist) { bestDist = d; bestIdx = i; }
-                    }
-
-                    if (bestIdx < 0 || bestDist > 8.0) return;
-                    var clicked = poiScreenPositions[bestIdx];
-                    var poi = pois[clicked.poiIndex];
-                    windowCounter++;
-
-                    actionCtx.Windows
-                        .Window(w => w.VStack(v => [
-                            v.Text($"  Population:  {poi.Population}"),
-                            v.Text($"  Export:      {poi.PrimaryExport}"),
-                            v.Text($"  Import:      {poi.PrimaryImport}"),
-                            v.Text($"  Temps:       {poi.Temps}"),
-                            v.Text($"  Ethnicity:   {poi.Ethnicity}"),
-                            v.Text(""),
-                            v.HStack(h => [
-                                h.Button(" Close ").OnClick(ev => ev.Windows.Close(w.Window))
-                            ])
-                        ]))
-                        .Title(poi.Name)
-                        .Size(50, 11)
-                        .Position(new WindowPositionSpec(WindowPosition.Center,
-                            windowCounter % 5 * 3, windowCounter % 4 * 2))
-                        .Open(actionCtx.Windows);
                 });
             }),
 
