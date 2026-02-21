@@ -400,10 +400,16 @@ static void DrawGlobe(Surface surface,
 
             bool underCloud = IsUnderCloud(cx, cy);
 
-            if (underCloud || cloudPattern != 0)
+            if (underCloud)
             {
-                // Cloud cell (interior or edge) — always fill all 8 dots
+                // Interior cloud cell — solid fill
                 surface.WriteChar(cx, cy, (char)0x28FF,
+                    foreground: Hex1bColor.FromRgb(220, 220, 230));
+            }
+            else if (cloudPattern != 0)
+            {
+                // Exterior edge — only outline dots for crisp boundary
+                surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
                     foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
