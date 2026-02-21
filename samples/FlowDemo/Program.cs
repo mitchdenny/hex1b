@@ -32,9 +32,16 @@ sizzleCommand.SetAction(async (parseResult, ct) =>
     await SizzleCommand.RunAsync();
 });
 
+var copilotCommand = new Command("copilot", "Mock Copilot CLI chat interface.");
+copilotCommand.SetAction(async (parseResult, ct) =>
+{
+    await CopilotCommand.RunAsync();
+});
+
 var rootCommand = new RootCommand("FlowDemo — Mock Aspire CLI powered by Hex1b Flow");
 rootCommand.Subcommands.Add(newCommand);
 rootCommand.Subcommands.Add(agentCommand);
 rootCommand.Subcommands.Add(sizzleCommand);
+rootCommand.Subcommands.Add(copilotCommand);
 
 return await rootCommand.Parse(args).InvokeAsync();
