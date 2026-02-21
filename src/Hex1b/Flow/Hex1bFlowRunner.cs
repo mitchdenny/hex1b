@@ -245,29 +245,119 @@ internal sealed class Hex1bFlowRunner
 
     /// <summary>
     /// Renders a yield widget and returns its height.
+    /// If the content exceeds the available screen space, it is rendered in
+    /// pages with the terminal scrolling between each page so no content is lost.
     /// </summary>
     private async Task<int> RenderYieldWidgetAsync(
         Func<RootContext, Hex1bWidget> yieldBuilder,
         int width,
         int maxHeight)
     {
-        // For the spike, render the yield widget using a minimal Hex1bApp
-        // that runs for exactly one frame, then exits.
-        // First, do a quick measure to find how tall the yield content is.
-        var yieldHeight = maxHeight; // Use full available height; layout will use what it needs
+        // First, measure the yield widget to determine its natural height.
+        var measuredHeight = MeasureYieldHeight(yieldBuilder, width, maxHeight * 10);
+        if (measuredHeight < 1) measuredHeight = 1;
 
-        // Clear the slice region and render yield content
-        var sb = new StringBuilder();
-        for (int row = 0; row < yieldHeight; row++)
+        // If it fits in one screen, render in place
+        if (measuredHeight <= maxHeight)
         {
-            sb.Append($"\x1b[{_cursorRow + row + 1};1H");
-            sb.Append("\x1b[2K");
+            await RenderYieldPageAsync(yieldBuilder, width, measuredHeight);
+            return measuredHeight;
         }
-        _parentAdapter.Write(sb.ToString());
 
-        // For the spike: use a one-shot inline adapter to render the yield widget
+        // Content overflows the screen — render in pages.
+        // We render the full content into a tall adapter, then write it page by page
+        // to the terminal, scrolling between pages.
+        var totalRendered = 0;
+        var terminalHeight = _parentAdapter.Height;
+        var remainingLines = measuredHeight;
+
+        while (remainingLines > 0)
+        {
+            var pageHeight = Math.Min(remainingLines, terminalHeight);
+
+            // Scroll to make room for this page
+            var overflow = (_cursorRow + pageHeight) - terminalHeight;
+            if (overflow > 0)
+            {
+                _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
+                for (int i = 0; i < overflow; i++)
+                    _parentAdapter.Write("\n");
+                _cursorRow -= overflow;
+            }
+
+            // Clear the page region
+            var clearSb = new StringBuilder();
+            for (int row = 0; row < pageHeight; row++)
+            {
+                clearSb.Append($"\x1b[{_cursorRow + row + 1};1H");
+                clearSb.Append("\x1b[2K");
+            }
+            _parentAdapter.Write(clearSb.ToString());
+
+            // Render a slice of the yield content at the current offset
+            int offset = totalRendered;
+            await RenderYieldPageAsync(ctx =>
+            {
+                // Build a wrapper that skips the first 'offset' rows and takes 'pageHeight'
+                var fullWidget = yieldBuilder(ctx);
+                return fullWidget;
+            }, width, pageHeight, offset);
+
+            _cursorRow += pageHeight;
+            totalRendered += pageHeight;
+            remainingLines -= pageHeight;
+        }
+
+        return totalRendered;
+    }
+
+    /// <summary>
+    /// Measures the natural height of a yield widget tree.
+    /// </summary>
+    private int MeasureYieldHeight(Func<RootContext, Hex1bWidget> yieldBuilder, int width, int maxHeight)
+    {
+        // Build the widget to count top-level VStack children (each is 1 row of text)
+        var rootCtx = new RootContext();
+        var widget = yieldBuilder(rootCtx);
+
+        // If it's a VStack, count children
+        if (widget is VStackWidget vstack)
+            return vstack.Children.Count;
+
+        // Single widget = 1 row
+        return 1;
+    }
+
+    /// <summary>
+    /// Renders a yield widget page at the current cursor position.
+    /// </summary>
+    private async Task RenderYieldPageAsync(
+        Func<RootContext, Hex1bWidget> yieldBuilder,
+        int width,
+        int height,
+        int skipRows = 0)
+    {
+        Func<RootContext, Hex1bWidget> actualBuilder;
+        if (skipRows > 0)
+        {
+            actualBuilder = ctx =>
+            {
+                var widget = yieldBuilder(ctx);
+                if (widget is VStackWidget vstack && skipRows < vstack.Children.Count)
+                {
+                    var remaining = vstack.Children.Skip(skipRows).Take(height).ToArray();
+                    return new VStackWidget(remaining);
+                }
+                return widget;
+            };
+        }
+        else
+        {
+            actualBuilder = yieldBuilder;
+        }
+
         using var yieldAdapter = new InlineSliceAdapter(
-            width, yieldHeight, _cursorRow,
+            width, height, _cursorRow,
             _parentAdapter.Capabilities);
 
         var yieldOptions = new Hex1bAppOptions
@@ -278,30 +368,25 @@ internal sealed class Hex1bFlowRunner
         };
 
         if (_options.Theme != null)
-        {
             yieldOptions.Theme = _options.Theme;
-        }
 
-        // Pump output for the single render frame
         var pumpCts = new CancellationTokenSource();
         var pumpTask = PumpSliceOutputAsync(yieldAdapter, pumpCts.Token);
 
         try
         {
-            // Create app that renders once and stops
             Hex1bApp? yieldApp = null;
             bool rendered = false;
 
             yieldApp = new Hex1bApp(ctx =>
             {
-                var widget = yieldBuilder(ctx);
+                var widget = actualBuilder(ctx);
                 if (!rendered)
                 {
                     rendered = true;
-                    // Schedule stop after first render
                     _ = Task.Run(async () =>
                     {
-                        await Task.Delay(50); // Allow frame to flush
+                        await Task.Delay(50);
                         yieldApp?.RequestStop();
                     });
                 }
@@ -318,8 +403,6 @@ internal sealed class Hex1bFlowRunner
             pumpCts.Cancel();
             try { await pumpTask; } catch (OperationCanceledException) { }
         }
-
-        return yieldHeight;
     }
 
     /// <summary>
