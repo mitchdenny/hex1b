@@ -408,9 +408,15 @@ static void DrawGlobe(Surface surface,
             }
             else if (cloudPattern != 0)
             {
-                // Exterior edge — only outline dots for crisp boundary
-                surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
-                    foreground: Hex1bColor.FromRgb(220, 220, 230));
+                // Edge cell — fill solid if adjacent to interior, outline-only if pure exterior
+                bool adjacentInterior = IsUnderCloud(cx - 1, cy) || IsUnderCloud(cx + 1, cy)
+                    || IsUnderCloud(cx, cy - 1) || IsUnderCloud(cx, cy + 1);
+                if (adjacentInterior)
+                    surface.WriteChar(cx, cy, (char)0x28FF,
+                        foreground: Hex1bColor.FromRgb(220, 220, 230));
+                else
+                    surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
+                        foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
