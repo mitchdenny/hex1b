@@ -92,6 +92,15 @@ internal sealed class Hex1bFlowRunner
             _cursorRow -= overflow;
         }
 
+        // Clear the slice region so leftover characters from previous slices don't bleed through
+        var clearSb = new StringBuilder();
+        for (int row = 0; row < desiredHeight; row++)
+        {
+            clearSb.Append($"\x1b[{_cursorRow + row + 1};1H"); // 1-indexed CUP
+            clearSb.Append("\x1b[2K");                          // Clear entire line
+        }
+        _parentAdapter.Write(clearSb.ToString());
+
         // Create the inline adapter for this slice
         using var sliceAdapter = new InlineSliceAdapter(
             terminalWidth, desiredHeight, _cursorRow,
