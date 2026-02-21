@@ -102,9 +102,18 @@ internal sealed class Hex1bFlowRunner
         _parentAdapter.Write(clearSb.ToString());
 
         // Create the inline adapter for this slice
+        var sliceEnableMouse = options?.EnableMouse ?? false;
+        var sliceCapabilities = _parentAdapter.Capabilities;
+        if (sliceEnableMouse && !sliceCapabilities.SupportsMouse)
+        {
+            // Override capabilities to enable mouse for this slice even if the
+            // parent terminal didn't request it globally.
+            sliceCapabilities = sliceCapabilities with { SupportsMouse = true };
+        }
+
         using var sliceAdapter = new InlineSliceAdapter(
             terminalWidth, desiredHeight, _cursorRow,
-            _parentAdapter.Capabilities);
+            sliceCapabilities);
 
         // Create the Hex1bApp with the inline adapter
         var appOptions = new Hex1bAppOptions
