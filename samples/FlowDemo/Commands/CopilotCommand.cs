@@ -136,20 +136,23 @@ internal static class CopilotCommand
                                     app.Invalidate();
                             };
 
+                            // Focus the terminal widget initially
+                            app.RequestFocus(n => n is Hex1b.Nodes.TerminalNode);
+
                             return ctx =>
                             {
                                 var modeColor = GetModeColor(currentMode);
                                 var modeText = GetModeText(currentMode);
 
+                                var responsePanel = ctx.VStack(rv =>
+                                    mockResponse.Select(line => rv.Text(line)).ToArray()
+                                );
+
+                                var terminalPanel = ctx.Terminal(handle);
+
                                 return ctx.VStack(v =>
                                 [
-                                    v.HSplitter(
-                                        left => [
-                                            .. mockResponse.Select(line => left.Text(line))
-                                        ],
-                                        right => [right.Terminal(handle).Fill()],
-                                        leftWidth: termWidth / 2
-                                    ).Fill(),
+                                    v.HSplitter(responsePanel, terminalPanel, leftWidth: termWidth / 2).Fill(),
                                     v.ThemePanel(
                                         theme => theme
                                             .Set(SeparatorTheme.Color, modeColor)
