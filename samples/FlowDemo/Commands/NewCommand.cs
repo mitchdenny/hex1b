@@ -153,7 +153,8 @@ internal static class NewCommand
                             h.Text(creating ? $" {step}" : " Project created successfully!"),
                         ]);
                     },
-                    @yield: ctx => ctx.Text($"  ✓ Project created at {outputPath}")
+                    @yield: ctx => ctx.Text($"  ✓ Project created at {outputPath}"),
+                    options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
                 );
 
             }, options => options.InitialCursorRow = cursorRow)

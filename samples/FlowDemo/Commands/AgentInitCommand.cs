@@ -63,7 +63,8 @@ internal static class AgentInitCommand
                                 : $" Found {detected.Count} agents"),
                         ]);
                     },
-                    @yield: ctx => ctx.Text($"  ✓ Detected {detected.Count} agents")
+                    @yield: ctx => ctx.Text($"  ✓ Detected {detected.Count} agents"),
+                    options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
                 );
 
                 // Step 2: Agent selection with checkboxes
@@ -129,7 +130,8 @@ internal static class AgentInitCommand
                                 : $" Configured {configured.Count} agents"),
                         ]);
                     },
-                    @yield: ctx => ctx.Text($"  ✓ Configured {configured.Count} agents")
+                    @yield: ctx => ctx.Text($"  ✓ Configured {configured.Count} agents"),
+                    options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
                 );
 
             }, options => options.InitialCursorRow = cursorRow)
