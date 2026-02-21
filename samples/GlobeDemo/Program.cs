@@ -349,27 +349,22 @@ static void DrawGlobe(Surface surface,
 
             if (cloudPattern != 0 && pattern == 0)
             {
-                // Cloud outline only (no terrain underneath)
+                // Cloud outline over empty space
                 surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern), foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
                 bool underCloud = IsUnderCloud(cx, cy);
-                if (underCloud)
+                if (underCloud || cloudPattern != 0)
                 {
+                    // Inside cloud or on cloud edge — terrain is hidden,
+                    // only show cloud outline dots if present
                     if (cloudPattern != 0)
                     {
-                        // Cloud outline only — blank cell, just the outline dots
                         surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
                             foreground: Hex1bColor.FromRgb(240, 240, 245));
                     }
-                    // else: fully under cloud — leave cell blank (terrain occluded)
-                }
-                else if (cloudPattern != 0)
-                {
-                    // Cloud outline overlaps terrain — merge dots, cloud color wins
-                    int merged = pattern | cloudPattern;
-                    surface.WriteChar(cx, cy, (char)(0x2800 + merged), foreground: Hex1bColor.FromRgb(240, 240, 245));
+                    // else: interior of cloud — cell left blank
                 }
                 else
                 {
