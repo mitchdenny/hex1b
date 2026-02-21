@@ -100,17 +100,26 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
     public int OutputQueueDepth => _outputQueueDepth;
 
     /// <summary>
-    /// Enter TUI mode for inline slice — hides cursor but does NOT enter alternate screen.
+    /// Enter TUI mode for inline slice — hides cursor and enables mouse if supported.
+    /// Does NOT enter alternate screen.
     /// </summary>
     public void EnterTuiMode()
     {
         if (_inTuiMode) return;
         _inTuiMode = true;
-        WriteRaw("\x1b[?25l"); // Hide cursor
+
+        var sb = new StringBuilder();
+        sb.Append("\x1b[?25l"); // Hide cursor
+        if (_capabilities.SupportsMouse)
+        {
+            sb.Append("\x1b[?1003h"); // Enable mouse tracking (all motion)
+            sb.Append("\x1b[?1006h"); // SGR mouse mode
+        }
+        WriteRaw(sb.ToString());
     }
 
     /// <summary>
-    /// Exit TUI mode for inline slice — shows cursor, no alternate screen restore.
+    /// Exit TUI mode for inline slice — shows cursor, disables mouse, no alternate screen restore.
     /// </summary>
     public void ExitTuiMode()
     {
@@ -118,6 +127,11 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
         _inTuiMode = false;
 
         var sb = new StringBuilder();
+        if (_capabilities.SupportsMouse)
+        {
+            sb.Append("\x1b[?1006l"); // Disable SGR mouse mode
+            sb.Append("\x1b[?1003l"); // Disable mouse tracking
+        }
         sb.Append("\x1b[0m");   // Reset text attributes
         sb.Append("\x1b[?25h"); // Show cursor
         // Position cursor below the slice region
