@@ -327,9 +327,9 @@ static void DrawGlobe(Surface surface,
             if (r2 > 1.0) continue;
             double sz = Math.Sqrt(1.0 - r2);
             // Unproject using inverse of combined cloud rotation to get cloud-local coords
-            double wx = sx * invCloudRotM.M11 + sy * invCloudRotM.M12 + sz * invCloudRotM.M13;
-            double wy = sx * invCloudRotM.M21 + sy * invCloudRotM.M22 + sz * invCloudRotM.M23;
-            double wz = sx * invCloudRotM.M31 + sy * invCloudRotM.M32 + sz * invCloudRotM.M33;
+            double wx = sx * invCloudRotM.M11 + sy * invCloudRotM.M21 + sz * invCloudRotM.M31;
+            double wy = sx * invCloudRotM.M12 + sy * invCloudRotM.M22 + sz * invCloudRotM.M32;
+            double wz = sx * invCloudRotM.M13 + sy * invCloudRotM.M23 + sz * invCloudRotM.M33;
             // Fast nearest-vertex via spatial grid
             const int SpatialBuckets = 20;
             int bkx = (int)((wx + 1.5) * SpatialBuckets);
