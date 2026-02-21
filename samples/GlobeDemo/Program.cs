@@ -399,16 +399,35 @@ static void DrawGlobe(Surface surface,
             if (bx+1 < dotW && by+3 < dotH && cloudGrid[bx+1, by+3]) cloudPattern |= 0x80;
 
             bool underCloud = IsUnderCloud(cx, cy);
+            // Edge = not under cloud but adjacent to an under-cloud cell
+            bool isCloudEdge = !underCloud && (
+                IsUnderCloud(cx - 1, cy) || IsUnderCloud(cx + 1, cy) ||
+                IsUnderCloud(cx, cy - 1) || IsUnderCloud(cx, cy + 1));
 
             if (underCloud)
             {
                 // Interior cloud cell — blank (terrain hidden)
             }
-            else if (cloudPattern != 0)
+            else if (isCloudEdge)
             {
-                // Cloud edge — outline dots only
-                surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
-                    foreground: Hex1bColor.FromRgb(220, 220, 230));
+                // Cloud edge — use contour dots if available, otherwise synthesize
+                // edge from which neighbors are under cloud
+                int edgePattern = cloudPattern;
+                if (edgePattern == 0)
+                {
+                    // Synthesize: fill dots on the side facing cloud interior
+                    bool left  = IsUnderCloud(cx - 1, cy);
+                    bool right = IsUnderCloud(cx + 1, cy);
+                    bool above = IsUnderCloud(cx, cy - 1);
+                    bool below = IsUnderCloud(cx, cy + 1);
+                    if (left)  edgePattern |= 0x01 | 0x02 | 0x04 | 0x40; // left column
+                    if (right) edgePattern |= 0x08 | 0x10 | 0x20 | 0x80; // right column
+                    if (above) edgePattern |= 0x01 | 0x08;               // top row
+                    if (below) edgePattern |= 0x40 | 0x80;               // bottom row
+                }
+                if (edgePattern != 0)
+                    surface.WriteChar(cx, cy, (char)(0x2800 + edgePattern),
+                        foreground: Hex1bColor.FromRgb(220, 220, 230));
             }
             else if (pattern != 0)
             {
