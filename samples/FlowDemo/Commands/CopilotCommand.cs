@@ -43,7 +43,6 @@ internal static class CopilotCommand
                         return ctx =>
                         {
                             var modeColor = GetModeColor(state.CurrentMode);
-                            var modeText = GetModeText(state.CurrentMode);
 
                             // Build the content area (output lines + optional spinner)
                             var contentWidgets = new List<Hex1bWidget>();
@@ -82,31 +81,42 @@ internal static class CopilotCommand
                                 mainArea = contentPanel.Fill();
                             }
 
+                            // Info bar above prompt: folder on left, model on right
+                            var currentFolder = Environment.CurrentDirectory;
+                            var folderName = Path.GetFileName(currentFolder) ?? currentFolder;
+                            var infoBar = ctx.HStack(h => [
+                                h.Text($" 📁 {folderName}").FillWidth(),
+                                h.Text("gpt-4o "),
+                            ]);
+
                             // Prompt area (always at bottom)
-                            var promptArea = ctx.ThemePanel(
-                                theme => theme
-                                    .Set(SeparatorTheme.Color, modeColor)
-                                    .Set(GlobalTheme.ForegroundColor, modeColor),
-                                tv =>
-                                [
-                                    tv.Separator(),
-                                    tv.TextBox().OnSubmit(e =>
+                            var modeAnsi = GetModeAnsiText(state.CurrentMode);
+                            var promptArea = ctx.VStack(pv =>
+                            [
+                                infoBar,
+                                pv.ThemePanel(
+                                    theme => theme.Set(SeparatorTheme.Color, modeColor),
+                                    ctx.Separator()
+                                ),
+                                pv.TextBox().OnSubmit(e =>
+                                {
+                                    HandleSubmit(e.Text?.Trim() ?? "", app, state);
+                                })
+                                .WithInputBindings(bindings =>
+                                {
+                                    bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
                                     {
-                                        HandleSubmit(e.Text?.Trim() ?? "", app, state);
-                                    })
-                                    .WithInputBindings(bindings =>
-                                    {
-                                        bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
-                                        {
-                                            int idx = Array.IndexOf(Modes, state.CurrentMode);
-                                            state.CurrentMode = Modes[(idx + 1) % Modes.Length];
-                                            actionCtx.Invalidate();
-                                        }, "Cycle mode");
-                                    }),
-                                    tv.Separator(),
-                                    tv.Text(modeText),
-                                ]
-                            );
+                                        int idx = Array.IndexOf(Modes, state.CurrentMode);
+                                        state.CurrentMode = Modes[(idx + 1) % Modes.Length];
+                                        actionCtx.Invalidate();
+                                    }, "Cycle mode");
+                                }),
+                                pv.ThemePanel(
+                                    theme => theme.Set(SeparatorTheme.Color, modeColor),
+                                    ctx.Separator()
+                                ),
+                                pv.Text(modeAnsi),
+                            ]);
 
                             return ctx.VStack(v => [mainArea, promptArea]);
                         };
@@ -196,12 +206,27 @@ internal static class CopilotCommand
         _ => Hex1bColor.Default,
     };
 
-    private static string GetModeText(Mode mode) => mode switch
+    private static string GetModeAnsiText(Mode mode)
     {
-        Mode.Autopilot => " autopilot · shift+tab switch mode · ctrl+s run command",
-        Mode.Plan => " plan · shift+tab switch mode",
-        _ => " normal · shift+tab switch mode",
-    };
+        const string boldWhite = "\x1b[1;37m";
+        const string reset = "\x1b[0m";
+
+        var (label, colorAnsi) = mode switch
+        {
+            Mode.Autopilot => ("autopilot", "\x1b[38;2;0;187;0m"),
+            Mode.Plan => ("plan", "\x1b[38;2;59;130;246m"),
+            _ => ("normal", "\x1b[37m"),
+        };
+
+        var suffix = mode switch
+        {
+            Mode.Autopilot => $" {boldWhite}· shift+tab switch mode · ctrl+s run command{reset}",
+            Mode.Plan => $" {boldWhite}· shift+tab switch mode{reset}",
+            _ => $" {boldWhite}· shift+tab switch mode{reset}",
+        };
+
+        return $" {colorAnsi}{label}{reset}{suffix}";
+    }
 
     private static string[] GenerateMockResponse(string prompt)
     {
