@@ -357,22 +357,13 @@ static void DrawGlobe(Surface surface,
                 bool underCloud = IsUnderCloud(cx, cy);
                 if (underCloud)
                 {
-                    // Cloud fully occludes terrain — show cloud outline dots if any,
-                    // remaining dots become background (cloud fill)
                     if (cloudPattern != 0)
                     {
-                        // Cloud outline dots in bright white, cloud fill as background
+                        // Cloud outline only — blank cell, just the outline dots
                         surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
-                            foreground: Hex1bColor.FromRgb(240, 240, 245),
-                            background: Hex1bColor.FromRgb(180, 185, 195));
+                            foreground: Hex1bColor.FromRgb(240, 240, 245));
                     }
-                    else
-                    {
-                        // Fully under cloud — solid cloud background, no terrain visible
-                        surface.WriteChar(cx, cy, '▓',
-                            foreground: Hex1bColor.FromRgb(180, 185, 195),
-                            background: Hex1bColor.FromRgb(160, 165, 175));
-                    }
+                    // else: fully under cloud — leave cell blank (terrain occluded)
                 }
                 else if (cloudPattern != 0)
                 {
