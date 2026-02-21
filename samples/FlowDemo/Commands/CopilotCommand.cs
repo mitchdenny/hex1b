@@ -58,12 +58,12 @@ internal static class CopilotCommand
                             }
 
                             // Content panel (scrollable output area)
-                            var contentPanel = ctx.VStack(_ =>
+                            var contentPanel = ctx.VScrollPanel(sv =>
                             {
                                 if (contentWidgets.Count == 0)
-                                    return [ctx.VStack(__ => []).Fill()];
-                                return [ctx.VStack(__ => []).Fill(), .. contentWidgets];
-                            });
+                                    return [sv.VStack(__ => []).Fill()];
+                                return [.. contentWidgets];
+                            }, showScrollbar: false);
 
                             // If terminal is active, show in HSplitter
                             Hex1bWidget mainArea;
@@ -127,7 +127,12 @@ internal static class CopilotCommand
                             return ctx.VStack(v => [mainArea, promptArea]);
                         };
                     },
-                    options: new Hex1bFlowSliceOptions { EnableMouse = true }
+                    options: new Hex1bFlowSliceOptions { EnableMouse = true },
+                    @yield: ctx => state.OutputLines.Count > 0
+                        ? ctx.VStack(v =>
+                            state.OutputLines.Select(line => v.Text(line)).ToArray()
+                        )
+                        : ctx.Text("")
                 );
 
                 // Cleanup terminal if still running
