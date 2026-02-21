@@ -42,9 +42,12 @@ internal static class CopilotCommand
                     await flow.SliceAsync(
                         builder: ctx =>
                         {
-                            var modeColor = currentMode == Mode.Autopilot
-                                ? Hex1bColor.FromRgb(0, 187, 0)
-                                : Hex1bColor.Default;
+                            var modeColor = currentMode switch
+                            {
+                                Mode.Autopilot => Hex1bColor.FromRgb(0, 187, 0),
+                                Mode.Plan => Hex1bColor.FromRgb(59, 130, 246),
+                                _ => Hex1bColor.Default,
+                            };
 
                             var modeText = currentMode switch
                             {
