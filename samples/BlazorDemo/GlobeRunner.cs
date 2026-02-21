@@ -102,7 +102,7 @@ public static class GlobeRunner
                             zoom = Math.Max(0.3, zoom * 0.87);
                         });
 
-                        bindings.Mouse(MouseButton.Right).Action(actionCtx =>
+                        bindings.Mouse(MouseButton.Left).Action(actionCtx =>
                         {
                             int mx = actionCtx.MouseX, my = actionCtx.MouseY;
                             if (mx < 0 || my < 0) return;

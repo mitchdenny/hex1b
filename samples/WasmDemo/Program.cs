@@ -123,7 +123,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 });
 
                 // Click to open POI info window
-                bindings.Mouse(MouseButton.Right).Action(actionCtx =>
+                bindings.Mouse(MouseButton.Left).Action(actionCtx =>
                 {
                     int mx = actionCtx.MouseX, my = actionCtx.MouseY;
                     if (mx < 0 || my < 0) return;
