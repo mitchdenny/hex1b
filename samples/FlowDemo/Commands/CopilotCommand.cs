@@ -1,6 +1,7 @@
 using Hex1b;
 using Hex1b.Flow;
 using Hex1b.Input;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace FlowDemo.Commands;
@@ -39,27 +40,49 @@ internal static class CopilotCommand
                     string? submittedText = null;
 
                     await flow.SliceAsync(
-                        builder: ctx => ctx.VStack(v =>
-                        [
-                            v.VStack(_ => []).Fill(),
-                            v.Separator(),
-                            v.TextBox().OnSubmit(e =>
+                        builder: ctx =>
+                        {
+                            var modeColor = currentMode == Mode.Autopilot
+                                ? Hex1bColor.FromRgb(0, 187, 0)
+                                : Hex1bColor.Default;
+
+                            var modeText = currentMode switch
                             {
-                                submittedText = e.Text;
-                                e.Context.RequestStop();
-                            })
-                            .WithInputBindings(bindings =>
-                            {
-                                bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
-                                {
-                                    int idx = Array.IndexOf(Modes, currentMode);
-                                    currentMode = Modes[(idx + 1) % Modes.Length];
-                                    actionCtx.Invalidate();
-                                }, "Cycle mode");
-                            }),
-                            v.Separator(),
-                            v.Text($"  Mode: {ModeLabel(currentMode)}  (Shift+Tab to change)"),
-                        ]),
+                                Mode.Autopilot => " autopilot · shift+tab switch mode · ctrl+s run command",
+                                Mode.Plan => " plan · shift+tab switch mode",
+                                _ => " normal · shift+tab switch mode",
+                            };
+
+                            return ctx.VStack(v =>
+                            [
+                                v.VStack(_ => []).Fill(),
+                                v.ThemePanel(
+                                    theme => theme
+                                        .Set(SeparatorTheme.Color, modeColor)
+                                        .Set(GlobalTheme.ForegroundColor, modeColor),
+                                    tv =>
+                                    [
+                                        tv.Separator(),
+                                        tv.TextBox().OnSubmit(e =>
+                                        {
+                                            submittedText = e.Text;
+                                            e.Context.RequestStop();
+                                        })
+                                        .WithInputBindings(bindings =>
+                                        {
+                                            bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                            {
+                                                int idx = Array.IndexOf(Modes, currentMode);
+                                                currentMode = Modes[(idx + 1) % Modes.Length];
+                                                actionCtx.Invalidate();
+                                            }, "Cycle mode");
+                                        }),
+                                        tv.Separator(),
+                                        tv.Text(modeText),
+                                    ]
+                                ),
+                            ]);
+                        },
                         @yield: ctx => submittedText != null && submittedText != "/exit"
                             ? ctx.VStack(v =>
                             [
