@@ -408,14 +408,10 @@ static void DrawGlobe(Surface surface,
                 bool underCloud = IsUnderCloud(cx, cy);
                 if (underCloud || cloudPattern != 0)
                 {
-                    // Inside cloud or on cloud edge — terrain is hidden,
-                    // only show cloud outline dots if present
-                    if (cloudPattern != 0)
-                    {
-                        surface.WriteChar(cx, cy, (char)(0x2800 + cloudPattern),
-                            foreground: Hex1bColor.FromRgb(240, 240, 245));
-                    }
-                    // else: interior of cloud — cell left blank
+                    // Cloud: fill interior with all 8 dots, outline gets its own dots
+                    int cloudFill = cloudPattern != 0 ? cloudPattern : 0xFF;
+                    surface.WriteChar(cx, cy, (char)(0x2800 + cloudFill),
+                        foreground: Hex1bColor.FromRgb(220, 220, 230));
                 }
                 else
                 {
