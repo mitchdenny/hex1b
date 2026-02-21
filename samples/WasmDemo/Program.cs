@@ -11,12 +11,10 @@ using Hex1b.Widgets;
 await JSHost.ImportAsync("main.js", "../interop.js");
 
 var startTime = DateTime.UtcNow;
-double rotYaw = 0;
-double rotPitch = 0.35;
-double velYaw = 0.12;   // radians/sec - initial gentle auto-rotation
-double velPitch = 0;
+// Rotation as quaternion to avoid gimbal lock
+var rotQ = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.35f);
 double zoom = 1.0;
-var lastFrameTime = DateTime.UtcNow;
+int lastSurfaceW = 80, lastSurfaceH = 24;
 
 // Shared state for POI click detection (updated each render frame)
 var poiScreenPositions = new List<(string name, int cx, int cy, int poiIndex)>();
@@ -79,40 +77,37 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             z.Interactable(ic =>
                 ic.Surface(s =>
                 {
-                    var now = DateTime.UtcNow;
-                    double dt = (now - lastFrameTime).TotalSeconds;
-                    lastFrameTime = now;
-                    dt = Math.Min(dt, 0.1);
-
-                    rotYaw += velYaw * dt;
-                    rotPitch += velPitch * dt;
-                    rotPitch = Math.Clamp(rotPitch, -1.5, 1.5);
-
-                    velYaw *= Math.Pow(0.98, dt * 60);
-                    velPitch *= Math.Pow(0.95, dt * 60);
-                    
-                    // In WASM, maintain a constant gentle auto-rotation
-                    if (Math.Abs(velYaw) < 0.10)
-                        velYaw = 0.10;
+                    lastSurfaceW = s.Width;
+                    lastSurfaceH = s.Height;
 
                     return [s.Layer(surface => DrawGlobe(surface, contourSegments, contourLevels,
-                        rotYaw, rotPitch, zoom, pois, poiScreenPositions))];
+                        rotQ, zoom, pois, poiScreenPositions))];
                 })
-                .RedrawAfter(100)
             )
             .WithInputBindings(bindings =>
             {
                 bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                 {
+                    int prevDx = 0, prevDy = 0;
+                    int dotW = lastSurfaceW * 2, dotH = lastSurfaceH * 4;
+                    double radius = Math.Min(dotW, dotH) * 0.65 * zoom;
+                    double radiansPerCell = 2.0 / radius;
+                    var startQ = rotQ;
+
                     return DragHandler.Simple(
                         onMove: (dx, dy) =>
                         {
-                            double yawDelta = dx * 0.008;
-                            double pitchDelta = -dy * 0.008;
-                            rotYaw += yawDelta;
-                            rotPitch = Math.Clamp(rotPitch + pitchDelta, -1.5, 1.5);
-                            velYaw = yawDelta * 30;
-                            velPitch = pitchDelta * 30;
+                            int incDx = dx - prevDx;
+                            int incDy = dy - prevDy;
+                            prevDx = dx;
+                            prevDy = dy;
+
+                            float yawAngle = (float)(incDx * radiansPerCell);
+                            float pitchAngle = (float)(-incDy * radiansPerCell);
+
+                            var qYaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yawAngle);
+                            var qPitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitchAngle);
+                            rotQ = Quaternion.Normalize(qYaw * qPitch * rotQ);
                         },
                         onEnd: () => { }
                     );
@@ -228,7 +223,7 @@ static void TryInterpolateEdge(Vector3 va, Vector3 vb, double aa, double ab,
 void DrawGlobe(Surface surface,
     List<(Vector3 a, Vector3 b, double level)> contourSegments,
     int contourLevels,
-    double rotYaw, double rotPitch, double zoom,
+    Quaternion rotQ, double zoom,
     List<PointOfInterest> pois,
     List<(string name, int cx, int cy, int poiIndex)> poiScreenOut)
 {
@@ -259,20 +254,14 @@ void DrawGlobe(Surface surface,
     double centerX = dotW * 0.5;
     double centerY = dotH * 0.5;
 
-    double rotY = rotYaw;
-    double rotX = rotPitch;
-    double cosY = Math.Cos(rotY), sinY = Math.Sin(rotY);
-    double cosX = Math.Cos(rotX), sinX = Math.Sin(rotX);
+    var rotM = Matrix4x4.CreateFromQuaternion(rotQ);
 
     (double px, double py, double z) Project(Vector3 v)
     {
         double vx = v.X, vy = v.Y, vz = v.Z;
-        double x1 = vx * cosY + vz * sinY;
-        double y1 = vy;
-        double z1 = -vx * sinY + vz * cosY;
-        double x2 = x1;
-        double y2 = y1 * cosX - z1 * sinX;
-        double z2 = y1 * sinX + z1 * cosX;
+        double x2 = vx * rotM.M11 + vy * rotM.M21 + vz * rotM.M31;
+        double y2 = vx * rotM.M12 + vy * rotM.M22 + vz * rotM.M32;
+        double z2 = vx * rotM.M13 + vy * rotM.M23 + vz * rotM.M33;
         return (centerX + x2 * radius, centerY + y2 * radius, z2);
     }
 
