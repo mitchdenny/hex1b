@@ -91,6 +91,7 @@ internal static class CopilotCommand
 
                             // Prompt area (always at bottom)
                             var modeAnsi = GetModeAnsiText(state.CurrentMode);
+                            var modeColorAnsi = GetModeColorAnsi(state.CurrentMode);
                             var promptArea = ctx.VStack(pv =>
                             [
                                 infoBar,
@@ -98,19 +99,24 @@ internal static class CopilotCommand
                                     theme => theme.Set(SeparatorTheme.Color, modeColor),
                                     ctx.Separator()
                                 ),
-                                pv.TextBox().OnSubmit(e =>
-                                {
-                                    HandleSubmit(e.Text?.Trim() ?? "", app, state);
-                                })
-                                .WithInputBindings(bindings =>
-                                {
-                                    bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                pv.ThemePanel(
+                                    theme => theme
+                                        .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}> \x1b[0m")
+                                        .Set(TextBoxTheme.RightBracket, ""),
+                                    ctx.TextBox().OnSubmit(e =>
                                     {
-                                        int idx = Array.IndexOf(Modes, state.CurrentMode);
-                                        state.CurrentMode = Modes[(idx + 1) % Modes.Length];
-                                        actionCtx.Invalidate();
-                                    }, "Cycle mode");
-                                }),
+                                        HandleSubmit(e.Text?.Trim() ?? "", app, state);
+                                    })
+                                    .WithInputBindings(bindings =>
+                                    {
+                                        bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                        {
+                                            int idx = Array.IndexOf(Modes, state.CurrentMode);
+                                            state.CurrentMode = Modes[(idx + 1) % Modes.Length];
+                                            actionCtx.Invalidate();
+                                        }, "Cycle mode");
+                                    })
+                                ),
                                 pv.ThemePanel(
                                     theme => theme.Set(SeparatorTheme.Color, modeColor),
                                     ctx.Separator()
@@ -204,6 +210,13 @@ internal static class CopilotCommand
         Mode.Autopilot => Hex1bColor.FromRgb(0, 187, 0),
         Mode.Plan => Hex1bColor.FromRgb(59, 130, 246),
         _ => Hex1bColor.Default,
+    };
+
+    private static string GetModeColorAnsi(Mode mode) => mode switch
+    {
+        Mode.Autopilot => "\x1b[38;2;0;187;0m",
+        Mode.Plan => "\x1b[38;2;59;130;246m",
+        _ => "\x1b[37m",
     };
 
     private static string GetModeAnsiText(Mode mode)
