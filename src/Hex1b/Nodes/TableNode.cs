@@ -2014,7 +2014,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             bottomBorderY = Bounds.Height - 1;
 
-            if (RenderMode == TableRenderMode.Full)
+            if (!hasColumnStructure)
+            {
+                // Empty state: blank rows without column separators
+                while (y < bottomBorderY)
+                {
+                    RenderBlankFillRow(context, y);
+                    y++;
+                }
+            }
+            else if (RenderMode == TableRenderMode.Full)
             {
                 // Full mode: alternate between empty rows and horizontal separators.
                 // If we're continuing from the last data row that didn't get a trailing
@@ -2496,6 +2505,39 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             sb.Append(_vertical);
         }
 
+        sb.Append("\x1b[0m");
+        context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
+    }
+
+    /// <summary>
+    /// Renders a blank row with left/right borders only (no column separators) for empty-state fill-height spacing.
+    /// </summary>
+    private void RenderBlankFillRow(Hex1bRenderContext context, int y)
+    {
+        var borderColor = EffectiveBorderColor;
+        var sb = new System.Text.StringBuilder();
+        sb.Append(borderColor.ToForegroundAnsi());
+        sb.Append(_vertical);
+
+        // Selection column (if enabled) - kept visible even in empty state
+        if (ShowSelectionColumn)
+        {
+            sb.Append("\x1b[0m");
+            sb.Append(new string(' ', SelectionColumnWidth));
+            sb.Append(borderColor.ToForegroundAnsi());
+            sb.Append(_vertical);
+        }
+
+        // In Full mode, account for padding
+        int paddingTotal = RenderMode == TableRenderMode.Full ? _columnCount * 2 : 0;
+
+        // Content area without column separators
+        int contentWidth = _columnWidths.Sum() + (_columnCount - 1) + paddingTotal;
+        sb.Append("\x1b[0m");
+        sb.Append(new string(' ', contentWidth));
+
+        sb.Append(borderColor.ToForegroundAnsi());
+        sb.Append(_vertical);
         sb.Append("\x1b[0m");
         context.WriteClipped(Bounds.X, Bounds.Y + y, sb.ToString());
     }

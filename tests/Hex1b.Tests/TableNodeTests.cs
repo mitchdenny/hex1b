@@ -2937,5 +2937,72 @@ public class TableNodeTests
         await runTask;
     }
 
+    [Fact]
+    public async Task Table_EmptyData_FillHeight_NoColumnSeparatorsInFillRows()
+    {
+        // When there's no data and FillHeight is set, fill rows should NOT render
+        // column separator vertical bars (│) - only left/right borders.
+        const int termWidth = 60;
+        const int termHeight = 10;
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(termWidth, termHeight)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(Array.Empty<string>())
+                .Header(h => [
+                    h.Cell("Time").Width(SizeHint.Fixed(12)),
+                    h.Cell("Level").Width(SizeHint.Fixed(7)),
+                    h.Cell("Message").Width(SizeHint.Fill)
+                ])
+                .Row((r, item, _) => [r.Cell(item), r.Cell(item), r.Cell(item)])
+                .FillWidth()
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("No data"),
+                TimeSpan.FromSeconds(2), "empty table rendered")
+            .Wait(100)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var text = snapshot.GetScreenText();
+        TestContext.Current.TestOutputHelper?.WriteLine("=== Empty table fill height test ===");
+        TestContext.Current.TestOutputHelper?.WriteLine(text);
+
+        // Rows below the "No data" row (rows 4..8 with 0-indexed: header separator at row 2, 
+        // "No data" at row 3, fill rows at 4+, bottom border at 9) should NOT have column
+        // separator characters (│) between the left and right borders.
+        // Check a fill row (row 5 for example) - should only have │ at first and last column
+        for (int row = 4; row < termHeight - 1; row++)
+        {
+            var rowText = snapshot.GetTextAt(line: row, startColumn: 0, endColumn: termWidth - 1);
+            // Count vertical bar characters in the row (excluding left/right borders)
+            int verticalBarCount = 0;
+            for (int col = 1; col < termWidth - 1; col++)
+            {
+                var cell = snapshot.GetCell(col, row);
+                if (cell.Character == "│")
+                    verticalBarCount++;
+            }
+            Assert.Equal(0, verticalBarCount);
+        }
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+    }
+
     #endregion
 }

@@ -45,6 +45,7 @@ var scenarios = new[]
     "Async (10k, 0ms)",
     "Async (100k, 0ms)",
     "Themed Table",
+    "No Data (Empty)",
 };
 
 int selectedScenario = 0;
@@ -157,6 +158,7 @@ Hex1bWidget BuildScenarioContent<TParent>(WidgetContext<TParent> ctx) where TPar
         6 => BuildAsyncScenario(ctx, asyncDataSource10k0ms, () => asyncFocusedKey10k0ms, key => asyncFocusedKey10k0ms = key, "10k items, no delay"),
         7 => BuildAsyncScenario(ctx, asyncDataSource100k0ms, () => asyncFocusedKey100k0ms, key => asyncFocusedKey100k0ms = key, "100k items, no delay"),
         8 => BuildThemedScenario(ctx),
+        9 => BuildNoDataScenario(ctx),
         _ => ctx.Text("Unknown scenario")
     };
 }
@@ -433,6 +435,32 @@ Hex1bWidget BuildThemedScenario<TParent>(WidgetContext<TParent> ctx) where TPare
         ).FillHeight(),
         v.Text(""),
         v.Text("This table uses ThemePanel to customize borders, colors, and characters.")
+    ]);
+}
+
+Hex1bWidget BuildNoDataScenario<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text("No Data (Empty Table)"),
+        v.Text("─────────────────────"),
+        v.Text(""),
+        v.Table(Array.Empty<Product>())
+            .Header(h => [
+                h.Cell("Product").Width(SizeHint.Fill),
+                h.Cell("Category").Width(SizeHint.Content),
+                h.Cell("Price").Width(SizeHint.Fixed(10)).Align(Alignment.Right),
+                h.Cell("Stock").Width(SizeHint.Fixed(6)).Align(Alignment.Right)
+            ])
+            .Row((r, product, state) => [
+                r.Cell(product.Name),
+                r.Cell(product.Category),
+                r.Cell($"${product.Price:F2}"),
+                r.Cell(product.Stock.ToString())
+            ])
+            .FillWidth()
+            .FillHeight(),
+        v.Text(""),
+        v.Text("This table has no data - fill rows should have no column separators.")
     ]);
 }
 
