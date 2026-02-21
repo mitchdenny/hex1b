@@ -312,17 +312,19 @@ static void DrawGlobe(Surface surface,
             (int)Math.Round(pb.px), (int)Math.Round(pb.py));
     }
 
-    // Build cloud shadow grid: for each cell on globe, unproject to world space,
-    // undo cloud drift, and check precomputed cloud coverage via nearest vertex
+    // Build cloud shadow grid: for each cell, ray-trace onto the cloud sphere
+    // (radius 1.12) to determine if a cloud blocks the view at that screen position
     var cloudShadowGrid = new bool[cellW, cellH];
     var invCloudRotM = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(cloudRotQ));
+    double cloudRadius = 1.12;
+    double cloudScreenRadius = radius * cloudRadius;
     for (int cy2 = 0; cy2 < cellH; cy2++)
     {
         for (int cx2 = 0; cx2 < cellW; cx2++)
         {
-            // Cell center to dot-space
-            double sx = (cx2 * 2 + 1 - centerX) / radius;
-            double sy = (cy2 * 4 + 2 - centerY) / radius;
+            // Project cell onto cloud sphere (not terrain sphere)
+            double sx = (cx2 * 2 + 1 - centerX) / cloudScreenRadius;
+            double sy = (cy2 * 4 + 2 - centerY) / cloudScreenRadius;
             double r2 = sx * sx + sy * sy;
             if (r2 > 1.0) continue;
             double sz = Math.Sqrt(1.0 - r2);
