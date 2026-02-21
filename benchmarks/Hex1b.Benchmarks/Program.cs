@@ -1,21 +1,21 @@
-﻿using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
 using Hex1b.Benchmarks;
 
 // Parse command line args to select benchmark
 var benchmarkType = args.Length > 0 ? args[0].ToLowerInvariant() : "all";
+var bdnArgs = args.Length > 1 ? args[1..] : [];
 
 switch (benchmarkType)
 {
     case "surface":
-        BenchmarkRunner.Run<SurfaceBenchmarks>();
+        BenchmarkSwitcher.FromTypes([typeof(SurfaceBenchmarks)]).Run(bdnArgs);
         break;
     case "rendering":
-        BenchmarkRunner.Run<RenderingModeBenchmarks>();
+        BenchmarkSwitcher.FromTypes([typeof(RenderingModeBenchmarks)]).Run(bdnArgs);
         break;
     case "all":
     default:
-        BenchmarkRunner.Run<SurfaceBenchmarks>();
-        BenchmarkRunner.Run<RenderingModeBenchmarks>();
+        BenchmarkSwitcher.FromTypes([typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks)]).Run(bdnArgs);
         break;
 }

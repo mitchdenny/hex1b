@@ -88,6 +88,32 @@ public class TrackedObjectTests
     }
 
     [Fact]
+    public async Task WorkloadAdapter_WriteTokensWithBytes_WithSixel_UnrecognizedDcs_IsTracked()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+
+        // SurfaceComparer emits Sixel DCS payloads as raw UnrecognizedSequenceToken strings.
+        // When tokens are provided directly, the terminal should still track the Sixel.
+        var tokens = new List<AnsiToken>
+        {
+            new CursorPositionToken(1, 1),
+            new UnrecognizedSequenceToken("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\")
+        };
+
+        var bytes = AnsiTokenUtf8Serializer.Serialize(tokens);
+        workload.WriteTokensWithBytes(tokens, bytes);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(1))
+            .Build()
+            .ApplyAsync(terminal);
+
+        Assert.Equal(1, terminal.TrackedSixelCount);
+        Assert.True(terminal.ContainsSixelData());
+    }
+
+    [Fact]
     public async Task RenderContext_WithSixel_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

@@ -978,7 +978,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             while (!ct.IsCancellationRequested)
             {
-                var data = await _workload.ReadOutputAsync(ct);
+                ReadOnlyMemory<byte> data;
+                IReadOnlyList<AnsiToken>? preTokenizedTokens = null;
+
+                if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
+                {
+                    var item = await tokenWorkload.ReadOutputItemAsync(ct);
+                    data = item.Bytes;
+                    preTokenizedTokens = item.Tokens;
+                }
+                else
+                {
+                    data = await _workload.ReadOutputAsync(ct);
+                }
                 
                 if (data.IsEmpty)
                 {
@@ -990,26 +1002,37 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     continue;
                 }
                 
-                // Decode UTF-8 using the stateful decoder which handles incomplete sequences
-                // across read boundaries (e.g., braille characters split across reads)
-                var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
-                var chars = new char[charCount];
-                _utf8Decoder.GetChars(data.Span, chars, flush: false);
-                var decodedText = new string(chars);
-                
-                // Prepend any buffered incomplete escape sequence from previous read
-                var text = _incompleteSequenceBuffer + decodedText;
-                _incompleteSequenceBuffer = "";
-                
-                // Check if text ends with an incomplete escape sequence and buffer it
-                var (completeText, incomplete) = ExtractIncompleteEscapeSequence(text);
-                _incompleteSequenceBuffer = incomplete;
-                
-                if (string.IsNullOrEmpty(completeText))
-                    continue; // All content is incomplete, wait for more data
-                
-                // Tokenize once, use for all processing
-                var tokens = AnsiTokenizer.Tokenize(completeText);
+                string? completeText = null;
+                IReadOnlyList<AnsiToken> tokens;
+
+                if (preTokenizedTokens != null)
+                {
+                    tokens = NormalizePreTokenizedTokens(preTokenizedTokens);
+                }
+                else
+                {
+                    // Decode UTF-8 using the stateful decoder which handles incomplete sequences
+                    // across read boundaries (e.g., braille characters split across reads)
+                    var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
+                    var chars = new char[charCount];
+                    _utf8Decoder.GetChars(data.Span, chars, flush: false);
+                    var decodedText = new string(chars);
+                    
+                    // Prepend any buffered incomplete escape sequence from previous read
+                    var text = _incompleteSequenceBuffer + decodedText;
+                    _incompleteSequenceBuffer = "";
+                    
+                    // Check if text ends with an incomplete escape sequence and buffer it
+                    var extracted = ExtractIncompleteEscapeSequence(text);
+                    completeText = extracted.completeText;
+                    _incompleteSequenceBuffer = extracted.incompleteSequence;
+                    
+                    if (string.IsNullOrEmpty(completeText))
+                        continue; // All content is incomplete, wait for more data
+                    
+                    // Tokenize once, use for all processing
+                    tokens = AnsiTokenizer.Tokenize(completeText);
+                }
                 
                 _metrics.TerminalOutputTokens.Record(tokens.Count);
                 
@@ -1055,17 +1078,24 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // to preserve exact escape sequence syntax
                     else if (_presentationFilters.Count == 0)
                     {
-                        var originalBytes = Encoding.UTF8.GetBytes(completeText);
-                        await _presentation.WriteOutputAsync(originalBytes);
-                        _metrics.TerminalOutputBytes.Record(originalBytes.Length);
+                        if (completeText != null)
+                        {
+                            var originalBytes = Encoding.UTF8.GetBytes(completeText);
+                            await _presentation.WriteOutputAsync(originalBytes, ct);
+                            _metrics.TerminalOutputBytes.Record(originalBytes.Length);
+                        }
+                        else
+                        {
+                            await _presentation.WriteOutputAsync(data, ct);
+                            _metrics.TerminalOutputBytes.Record(data.Length);
+                        }
                     }
                     else
                     {
                         // Pass through presentation filters, serialize and send
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
-                        var filteredText = AnsiTokenSerializer.Serialize(filteredTokens);
-                        var filteredBytes = Encoding.UTF8.GetBytes(filteredText);
-                        await _presentation.WriteOutputAsync(filteredBytes);
+                        var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
+                        await _presentation.WriteOutputAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
                     }
                 }
@@ -1075,6 +1105,83 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             // Normal shutdown
         }
+    }
+
+    private static IReadOnlyList<AnsiToken> NormalizePreTokenizedTokens(IReadOnlyList<AnsiToken> tokens)
+    {
+        // When Hex1bApp provides pre-tokenized output, DCS sequences (Sixel) are currently
+        // represented as raw UnrecognizedSequenceToken payloads (ESC P ... ST). The terminal
+        // processing path expects them as DcsToken to track sixels and update internal state.
+        List<AnsiToken>? normalized = null;
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+
+            if (token is UnrecognizedSequenceToken unrec && TryExtractDcsPayload(unrec.Sequence, out var dcsPayload))
+            {
+                normalized ??= new List<AnsiToken>(tokens.Count);
+                if (normalized.Count == 0)
+                {
+                    for (int j = 0; j < i; j++)
+                    {
+                        normalized.Add(tokens[j]);
+                    }
+                }
+
+                normalized.Add(new DcsToken(dcsPayload));
+                continue;
+            }
+
+            if (normalized != null)
+            {
+                normalized.Add(token);
+            }
+        }
+
+        return normalized ?? tokens;
+    }
+
+    private static bool TryExtractDcsPayload(string sequence, out string payload)
+    {
+        payload = "";
+
+        int dataStart;
+        if (sequence.Length >= 2 && sequence[0] == '\x1b' && sequence[1] == 'P')
+        {
+            dataStart = 2;
+        }
+        else if (sequence.Length >= 1 && sequence[0] == '\x90')
+        {
+            dataStart = 1;
+        }
+        else
+        {
+            return false;
+        }
+
+        // Find ST: ESC \ or 0x9C
+        int dataEnd = -1;
+        for (int i = dataStart; i < sequence.Length; i++)
+        {
+            if (i + 1 < sequence.Length && sequence[i] == '\x1b' && sequence[i + 1] == '\\')
+            {
+                dataEnd = i;
+                break;
+            }
+
+            if (sequence[i] == '\x9c')
+            {
+                dataEnd = i;
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false;
+
+        payload = sequence.Substring(dataStart, dataEnd - dataStart);
+        return true;
     }
 
     private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, Hex1bAppWorkloadAdapter workload, CancellationToken ct)

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
+using Hex1b.Tokens;
 
 namespace Hex1b;
 
@@ -33,9 +34,9 @@ namespace Hex1b;
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IDisposable
 {
-    private readonly Channel<byte[]> _outputChannel;
+    private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private readonly TerminalCapabilities? _staticCapabilities;
@@ -77,7 +78,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SupportsTrueColor = true,
         };
 
-        _outputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -105,7 +106,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _presentationAdapter = presentationAdapter;
         _staticCapabilities = null;
 
-        _outputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
@@ -129,7 +130,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         var bytes = Encoding.UTF8.GetBytes(text);
-        if (_outputChannel.Writer.TryWrite(bytes))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, Tokens: null)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -141,7 +142,31 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(data.ToArray()))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data.ToArray(), Tokens: null)))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
+    }
+    
+    /// <summary>
+    /// Write raw bytes to the terminal without forcing a copy.
+    /// </summary>
+    public void Write(ReadOnlyMemory<byte> data)
+    {
+        if (_disposed) return;
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data, Tokens: null)))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
+    }
+    
+    /// <summary>
+    /// Writes output with an already-tokenized representation to avoid terminal-side UTF-8 decode + tokenization.
+    /// </summary>
+    internal void WriteTokensWithBytes(IReadOnlyList<AnsiToken> tokens, ReadOnlyMemory<byte> bytes)
+    {
+        if (_disposed) return;
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
@@ -253,28 +278,49 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         data = ReadOnlyMemory<byte>.Empty;
         if (_disposed) return false;
         
-        if (_outputChannel.Reader.TryRead(out var bytes))
+        if (_outputChannel.Reader.TryRead(out var item))
         {
             Interlocked.Decrement(ref _outputQueueDepth);
-            data = bytes;
+            data = item.Bytes;
             return true;
         }
+        return false;
+    }
+    
+    internal bool TryReadOutputItem(out WorkloadOutputItem item)
+    {
+        item = default;
+        if (_disposed) return false;
+
+        if (_outputChannel.Reader.TryRead(out item))
+        {
+            Interlocked.Decrement(ref _outputQueueDepth);
+            return true;
+        }
+        
         return false;
     }
 
     /// <inheritdoc />
     public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
     {
-        if (_disposed) return ReadOnlyMemory<byte>.Empty;
+        var item = await ReadOutputItemAsync(ct);
+        return item.Bytes;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
+    {
+        if (_disposed) return default;
 
         try
         {
             if (await _outputChannel.Reader.WaitToReadAsync(ct))
             {
-                if (_outputChannel.Reader.TryRead(out var bytes))
+                if (_outputChannel.Reader.TryRead(out var item))
                 {
                     Interlocked.Decrement(ref _outputQueueDepth);
-                    return bytes;
+                    return item;
                 }
             }
         }
@@ -287,7 +333,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             // Channel completed
         }
 
-        return ReadOnlyMemory<byte>.Empty;
+        return default;
     }
 
     /// <inheritdoc />
