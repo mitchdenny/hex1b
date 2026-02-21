@@ -253,8 +253,8 @@ internal sealed class Hex1bFlowRunner
     {
         // For the spike, render the yield widget using a minimal Hex1bApp
         // that runs for exactly one frame, then exits.
-        // We render it at the current cursor position.
-        var yieldHeight = Math.Min(3, maxHeight); // Simple heuristic for spike
+        // First, do a quick measure to find how tall the yield content is.
+        var yieldHeight = maxHeight; // Use full available height; layout will use what it needs
 
         // Clear the slice region and render yield content
         var sb = new StringBuilder();
