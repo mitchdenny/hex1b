@@ -110,7 +110,7 @@ internal sealed class Hex1bFlowRunner
         var appOptions = new Hex1bAppOptions
         {
             WorkloadAdapter = sliceAdapter,
-            EnableMouse = false,
+            EnableMouse = options?.EnableMouse ?? false,
             EnableDefaultCtrlCExit = true,
         };
 

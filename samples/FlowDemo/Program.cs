@@ -26,8 +26,15 @@ initCommand.SetAction(async (parseResult, ct) =>
 var agentCommand = new Command("agent", "Manage agent configurations.");
 agentCommand.Subcommands.Add(initCommand);
 
+var sizzleCommand = new Command("sizzle", "Showcase exotic Hex1b controls.");
+sizzleCommand.SetAction(async (parseResult, ct) =>
+{
+    await SizzleCommand.RunAsync();
+});
+
 var rootCommand = new RootCommand("FlowDemo — Mock Aspire CLI powered by Hex1b Flow");
 rootCommand.Subcommands.Add(newCommand);
 rootCommand.Subcommands.Add(agentCommand);
+rootCommand.Subcommands.Add(sizzleCommand);
 
 return await rootCommand.Parse(args).InvokeAsync();

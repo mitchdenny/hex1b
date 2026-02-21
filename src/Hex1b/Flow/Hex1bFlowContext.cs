@@ -80,4 +80,9 @@ public sealed class Hex1bFlowSliceOptions
     /// Maximum height in rows for the slice. If null, defaults to terminal height.
     /// </summary>
     public int? MaxHeight { get; init; }
+
+    /// <summary>
+    /// Whether to enable mouse input for this slice. Defaults to false.
+    /// </summary>
+    public bool EnableMouse { get; init; }
 }
