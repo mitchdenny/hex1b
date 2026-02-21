@@ -57,6 +57,24 @@ var cloudShadow = new bool[vertices.Count];
 for (int i = 0; i < vertices.Count; i++)
     cloudShadow[i] = cloudCoverage[i] > cloudThreshold;
 
+// Spatial index for fast nearest-vertex cloud lookups
+// Bucket vertices into a 3D grid for O(1) amortized nearest-neighbor search
+const int SpatialBuckets = 20;
+var spatialGrid = new Dictionary<(int, int, int), List<int>>();
+for (int i = 0; i < vertices.Count; i++)
+{
+    var v = vertices[i];
+    var key = ((int)((v.X + 1.5) * SpatialBuckets),
+               (int)((v.Y + 1.5) * SpatialBuckets),
+               (int)((v.Z + 1.5) * SpatialBuckets));
+    if (!spatialGrid.TryGetValue(key, out var list))
+    {
+        list = new List<int>();
+        spatialGrid[key] = list;
+    }
+    list.Add(i);
+}
+
 var weatherStartTime = DateTime.UtcNow;
 
 // Points of interest (lat/lon in degrees, converted to unit sphere positions)
@@ -92,7 +110,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     var cloudDrift = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(weatherTime * 0.02));
 
                     return [s.Layer(surface => DrawGlobe(surface, contourSegments, contourLevels,
-                        cloudSegments, cloudShadow, vertices, cloudDrift,
+                        cloudSegments, cloudShadow, vertices, spatialGrid, cloudDrift,
                         rotQ, zoom, pois, poiScreenPositions))];
                 })
                 .RedrawAfter(2000)
@@ -230,6 +248,7 @@ static void DrawGlobe(Surface surface,
     int contourLevels,
     List<(Vector3 a, Vector3 b)> cloudSegments,
     bool[] cloudShadow, List<Vector3> meshVertices,
+    Dictionary<(int, int, int), List<int>> spatialGrid,
     Quaternion cloudDrift,
     Quaternion rotQ, double zoom,
     List<PointOfInterest> pois,
@@ -293,18 +312,48 @@ static void DrawGlobe(Surface surface,
             (int)Math.Round(pb.px), (int)Math.Round(pb.py));
     }
 
-    // Precompute cloud shadow grid by projecting shadowed vertices with cloud drift
+    // Build cloud shadow grid: for each cell on globe, unproject to world space,
+    // undo cloud drift, and check precomputed cloud coverage via nearest vertex
     var cloudShadowGrid = new bool[cellW, cellH];
-    for (int i = 0; i < meshVertices.Count; i++)
+    var invCloudRotM = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(cloudRotQ));
+    for (int cy2 = 0; cy2 < cellH; cy2++)
     {
-        if (!cloudShadow[i]) continue;
-        var v = meshVertices[i];
-        var p = ProjectWith(v, cloudRotM);
-        if (p.z < 0) continue;
-        int cx3 = (int)((p.px) / 2);
-        int cy3 = (int)((p.py) / 4);
-        if (cx3 >= 0 && cx3 < cellW && cy3 >= 0 && cy3 < cellH)
-            cloudShadowGrid[cx3, cy3] = true;
+        for (int cx2 = 0; cx2 < cellW; cx2++)
+        {
+            // Cell center to dot-space
+            double sx = (cx2 * 2 + 1 - centerX) / radius;
+            double sy = (cy2 * 4 + 2 - centerY) / radius;
+            double r2 = sx * sx + sy * sy;
+            if (r2 > 1.0) continue;
+            double sz = Math.Sqrt(1.0 - r2);
+            // Unproject using inverse of combined cloud rotation to get cloud-local coords
+            double wx = sx * invCloudRotM.M11 + sy * invCloudRotM.M12 + sz * invCloudRotM.M13;
+            double wy = sx * invCloudRotM.M21 + sy * invCloudRotM.M22 + sz * invCloudRotM.M23;
+            double wz = sx * invCloudRotM.M31 + sy * invCloudRotM.M32 + sz * invCloudRotM.M33;
+            // Fast nearest-vertex via spatial grid
+            const int SpatialBuckets = 20;
+            int bkx = (int)((wx + 1.5) * SpatialBuckets);
+            int bky = (int)((wy + 1.5) * SpatialBuckets);
+            int bkz = (int)((wz + 1.5) * SpatialBuckets);
+            int bestIdx = 0;
+            double bestDist = double.MaxValue;
+            for (int dxi = -1; dxi <= 1; dxi++)
+            for (int dyi = -1; dyi <= 1; dyi++)
+            for (int dzi = -1; dzi <= 1; dzi++)
+            {
+                if (spatialGrid.TryGetValue((bkx + dxi, bky + dyi, bkz + dzi), out var bucket))
+                {
+                    foreach (var idx in bucket)
+                    {
+                        var v = meshVertices[idx];
+                        double dx = v.X - wx, dy = v.Y - wy, dz = v.Z - wz;
+                        double d = dx * dx + dy * dy + dz * dz;
+                        if (d < bestDist) { bestDist = d; bestIdx = idx; }
+                    }
+                }
+            }
+            cloudShadowGrid[cx2, cy2] = cloudShadow[bestIdx];
+        }
     }
 
     bool IsUnderCloud(int cellX, int cellY)
