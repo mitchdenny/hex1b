@@ -177,6 +177,16 @@ internal sealed class Hex1bFlowRunner
             try { await inputPumpTask; } catch (OperationCanceledException) { }
         }
 
+        // Clear the slice region so remnants of the interactive widget don't show
+        // through the (typically much smaller) yield widget.
+        var postClearSb = new StringBuilder();
+        for (int row = 0; row < desiredHeight; row++)
+        {
+            postClearSb.Append($"\x1b[{_cursorRow + row + 1};1H");
+            postClearSb.Append("\x1b[2K");
+        }
+        _parentAdapter.Write(postClearSb.ToString());
+
         // After slice completes, render the yield widget as frozen output (if provided)
         if (yieldBuilder != null)
         {
