@@ -83,9 +83,16 @@ internal static class CopilotCommand
 
                             // Info bar above prompt: folder on left, model on right
                             var currentFolder = Environment.CurrentDirectory;
-                            var folderName = Path.GetFileName(currentFolder) ?? currentFolder;
+                            var homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                            var displayPath = currentFolder.StartsWith(homePath, StringComparison.Ordinal)
+                                ? "~" + currentFolder[homePath.Length..]
+                                : currentFolder;
+                            var branchName = GetGitBranch(currentFolder);
+                            var folderDisplay = branchName is not null
+                                ? $" {displayPath}[⎇ {branchName}]"
+                                : $" {displayPath}";
                             var infoBar = ctx.HStack(h => [
-                                h.Text($" 📁 {folderName}").FillWidth(),
+                                h.Text(folderDisplay).FillWidth(),
                                 h.Text("gpt-4o "),
                             ]);
 
@@ -220,6 +227,25 @@ internal static class CopilotCommand
         Mode.Plan => Hex1bColor.FromRgb(59, 130, 246),
         _ => Hex1bColor.Default,
     };
+
+    private static string? GetGitBranch(string directory)
+    {
+        var dir = directory;
+        while (dir is not null)
+        {
+            var headPath = Path.Combine(dir, ".git", "HEAD");
+            if (File.Exists(headPath))
+            {
+                var head = File.ReadAllText(headPath).Trim();
+                const string refPrefix = "ref: refs/heads/";
+                return head.StartsWith(refPrefix, StringComparison.Ordinal)
+                    ? head[refPrefix.Length..]
+                    : head[..Math.Min(7, head.Length)]; // detached HEAD — show short SHA
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
+    }
 
     private static string GetModeColorAnsi(Mode mode) => mode switch
     {
