@@ -13,6 +13,7 @@ Widgets for organizing and positioning content.
 - **[Scroll](/guide/widgets/scroll)** — Scrollable content areas for overflow
 - **[Splitter](/guide/widgets/splitter)** — Resizable split views
 - **[DragBarPanel](/guide/widgets/dragbar)** — Panels with built-in resize handles
+- **[FloatPanel](/guide/widgets/float-panel)** — Absolute positioning container for overlays and HUDs
 - **[Responsive](/guide/widgets/responsive)** — Breakpoint-based adaptive layouts
 - **[Windows](/guide/widgets/windows)** — Floating, draggable window panels
 
