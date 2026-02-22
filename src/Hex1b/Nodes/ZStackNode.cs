@@ -84,9 +84,26 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // Only return focusables from the TOPMOST layer that has any focusables.
+        // Floats render on top of all flow children, so check them first.
+        if (Floats.Count > 0)
+        {
+            // Collect focusables from all floats + flow children in declaration order
+            var allFocusables = new List<Hex1bNode>();
+            var source = AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+            foreach (var child in source)
+            {
+                allFocusables.AddRange(child.GetFocusableNodes());
+            }
+            if (allFocusables.Count > 0)
+            {
+                foreach (var f in allFocusables)
+                    yield return f;
+                yield break;
+            }
+        }
+
+        // No floats — original ZStack behavior: only return focusables from the TOPMOST layer.
         // This prevents focus from escaping to lower layers when an overlay is shown.
-        // Iterate children in reverse (topmost first) and return focusables from the first layer that has any.
         for (int i = Children.Count - 1; i >= 0; i--)
         {
             var focusables = Children[i].GetFocusableNodes().ToList();
@@ -96,7 +113,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
                 {
                     yield return focusable;
                 }
-                yield break; // Stop after the first (topmost) layer with focusables
+                yield break;
             }
         }
     }
@@ -201,5 +218,6 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// <summary>
     /// Gets the direct children of this container for input routing.
     /// </summary>
-    public override IEnumerable<Hex1bNode> GetChildren() => Children;
+    public override IEnumerable<Hex1bNode> GetChildren()
+        => AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
 }

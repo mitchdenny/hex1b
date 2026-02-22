@@ -28,19 +28,16 @@ const overlayCode = `using Hex1b;
 var state = new OverlayState();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.ZStack(z => [
-        // Background content
-        z.VStack(v => [
-            v.Text("═══════════════════════════════════════"),
-            v.Text("         Main Application Area         "),
-            v.Text("═══════════════════════════════════════"),
-            v.Text(""),
-            v.Text("  Content goes here..."),
-        ]),
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.Text("═══════════════════════════════════════"),
+        v.Text("         Main Application Area         "),
+        v.Text("═══════════════════════════════════════"),
+        v.Text(""),
+        v.Text("  Content goes here..."),
         // Float overlay with score and controls
-        z.Float(z.Text(\`Score: \${state.Score}\`)).Absolute(2, 0),
-        z.Float(z.Button("+1 Point").OnClick(_ => state.Score++)).Absolute(2, 8),
-        z.Float(z.Button("Reset").OnClick(_ => state.Score = 0)).Absolute(20, 8),
+        v.Float(v.Text(\`Score: \${state.Score}\`)).Absolute(2, 0),
+        v.Float(v.Button("+1 Point").OnClick(_ => state.Score++)).Absolute(2, 8),
+        v.Float(v.Button("Reset").OnClick(_ => state.Score = 0)).Absolute(20, 8),
     ]))
     .Build();
 
@@ -148,13 +145,11 @@ The anchor widget must be a **direct sibling** in the same container. Anchoring 
 
 ## Use as an Overlay
 
-Float works well inside a `ZStack` to create HUD-style overlays on top of other content:
+Floats render on top of flow content, making them ideal for HUD-style overlays:
 
 <CodeBlock lang="csharp" :code="overlayCode" command="dotnet run" example="float-panel-overlay" exampleTitle="Float - Interactive Overlay" />
 
-::: tip Combining with ZStack
-Place your main content as the first child of a `ZStack`, then add floated widgets. The floats render on top, letting you position controls, status displays, or markers at exact coordinates over the background.
-:::
+The score text and buttons are floated over the background text. Flow children lay out normally while floats are positioned independently on top.
 
 ## Supported Containers
 

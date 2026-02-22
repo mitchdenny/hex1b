@@ -35,19 +35,16 @@ public class FloatPanelOverlayExample(ILogger<FloatPanelOverlayExample> logger) 
         return () =>
         {
             var ctx = new RootContext();
-            return ctx.ZStack(z => [
-                // Background content
-                z.VStack(v => [
-                    v.Text("═══════════════════════════════════════"),
-                    v.Text("         Main Application Area         "),
-                    v.Text("═══════════════════════════════════════"),
-                    v.Text(""),
-                    v.Text("  Content goes here..."),
-                ]),
+            return ctx.VStack(v => [
+                v.Text("═══════════════════════════════════════"),
+                v.Text("         Main Application Area         "),
+                v.Text("═══════════════════════════════════════"),
+                v.Text(""),
+                v.Text("  Content goes here..."),
                 // Float overlay with score and controls
-                z.Float(z.Text($"Score: {state.Score}")).Absolute(2, 0),
-                z.Float(z.Button("+1 Point").OnClick(_ => state.Score++)).Absolute(2, 8),
-                z.Float(z.Button("Reset").OnClick(_ => state.Score = 0)).Absolute(20, 8),
+                v.Float(v.Text($"Score: {state.Score}")).Absolute(2, 0),
+                v.Float(v.Button("+1 Point").OnClick(_ => state.Score++)).Absolute(2, 8),
+                v.Float(v.Button("Reset").OnClick(_ => state.Score = 0)).Absolute(20, 8),
             ]);
         };
     }

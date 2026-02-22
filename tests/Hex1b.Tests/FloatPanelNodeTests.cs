@@ -243,3 +243,71 @@ public class FloatWidgetTests
         Assert.Equal(13, fw.AbsoluteY);
     }
 }
+
+public class FloatWidgetIntegrationTests
+{
+    [Fact]
+    public async Task Integration_FloatButton_Enter_TriggersAction()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        var clicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Text("Content"),
+                    v.Float(v.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })).Absolute(2, 8),
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(5), "Submit button to appear")
+            .Enter()
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(200), "frame to process")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(clicked, "Floated button click handler was not invoked");
+    }
+}
+
+public class FloatWidgetZStackIntegrationTests
+{
+    [Fact]
+    public async Task Integration_ZStack_FloatButton_Enter_TriggersAction()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        var clicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.ZStack(z => [
+                    z.VStack(v => [
+                        v.Text("Background"),
+                    ]),
+                    z.Float(z.Button("Submit").OnClick(_ => { clicked = true; return Task.CompletedTask; })).Absolute(2, 8),
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Submit"), TimeSpan.FromSeconds(5), "Submit button to appear")
+            .Enter()
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(200), "frame to process")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(clicked, "ZStack floated button click handler was not invoked");
+    }
+}
