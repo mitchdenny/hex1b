@@ -26,7 +26,7 @@ await using var terminal = Hex1b.Hex1bTerminal.CreateBuilder()
 
                 // Header bar
                 g.Cell(c => c.Border(b => [
-                    b.Text("Grid Layout Demo — Holy Grail Layout"),
+                    b.Text("Grid Layout Demo — Sidebar Layout"),
                 ]).Title("Header")).Row(0).Column(1),
 
                 // Main content area

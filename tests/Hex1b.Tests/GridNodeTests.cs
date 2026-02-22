@@ -435,9 +435,9 @@ public class GridNodeTests
     #region Classic Layout Scenario
 
     [Fact]
-    public void Arrange_ClassicHolyGrailLayout_PositionsCorrectly()
+    public void Arrange_ClassicSidebarLayout_PositionsCorrectly()
     {
-        // Classic layout:
+        // Sidebar layout:
         // | Nav (20w) | Header  |
         // | Nav       | Content |
         var nav = new TextBlockNode { Text = "Nav" };

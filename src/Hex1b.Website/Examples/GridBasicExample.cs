@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// A live demo showing a holy-grail layout built with GridWidget.
+/// A live demo showing a sidebar layout built with GridWidget.
 /// </summary>
 public class GridBasicExample(ILogger<GridBasicExample> logger) : Hex1bExample
 {
@@ -14,7 +14,7 @@ public class GridBasicExample(ILogger<GridBasicExample> logger) : Hex1bExample
 
     public override string Id => "grid-basic";
     public override string Title => "Grid - Basic Layout";
-    public override string Description => "Demonstrates a holy-grail layout with sidebar, header, and content area using GridWidget.";
+    public override string Description => "Demonstrates a sidebar layout with header and content area using GridWidget.";
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {

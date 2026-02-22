@@ -1,6 +1,6 @@
 <script setup>
 import basicSnippet from './snippets/grid-basic.cs?raw'
-import holyGrailSnippet from './snippets/grid-holy-grail.cs?raw'
+import sidebarSnippet from './snippets/grid-sidebar.cs?raw'
 import columnsSnippet from './snippets/grid-columns.cs?raw'
 
 const basicCode = `using Hex1b;
@@ -87,11 +87,11 @@ ctx.Grid(g => [
 - `.Row(n)` is shorthand for `.RowSpan(n, 1)`
 - `.Column(n)` is shorthand for `.ColumnSpan(n, 1)`
 
-## Holy Grail Layout
+## Sidebar Layout
 
 A classic application layout with sidebar, header, and content area:
 
-<StaticTerminalPreview svgPath="/svg/grid-holy-grail.svg" :code="holyGrailSnippet" />
+<StaticTerminalPreview svgPath="/svg/grid-sidebar.svg" :code="sidebarSnippet" />
 
 The sidebar spans both rows while the header and content each occupy one row in the second column.
 
