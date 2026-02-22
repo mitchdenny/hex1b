@@ -1,4 +1,5 @@
 using System.Text;
+using Hex1b.Input;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -79,8 +80,11 @@ internal sealed class Hex1bFlowRunner
         var desiredHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
         if (desiredHeight < 1) desiredHeight = 1;
 
+        // Track the row origin for this slice (may be updated on resize)
+        var rowOrigin = _cursorRow;
+
         // Scroll the terminal if the cursor is too far down to fit the slice
-        var overflow = (_cursorRow + desiredHeight) - terminalHeight;
+        var overflow = (rowOrigin + desiredHeight) - terminalHeight;
         if (overflow > 0)
         {
             _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
@@ -89,17 +93,12 @@ internal sealed class Hex1bFlowRunner
                 _parentAdapter.Write("\n");
             }
             // Adjust cursor row after scroll (frozen yields are already on screen)
-            _cursorRow -= overflow;
+            rowOrigin -= overflow;
+            _cursorRow = rowOrigin;
         }
 
         // Clear the slice region so leftover characters from previous slices don't bleed through
-        var clearSb = new StringBuilder();
-        for (int row = 0; row < desiredHeight; row++)
-        {
-            clearSb.Append($"\x1b[{_cursorRow + row + 1};1H"); // 1-indexed CUP
-            clearSb.Append("\x1b[2K");                          // Clear entire line
-        }
-        _parentAdapter.Write(clearSb.ToString());
+        ClearRegion(rowOrigin, desiredHeight);
 
         // Create the inline adapter for this slice
         var sliceEnableMouse = options?.EnableMouse ?? false;
@@ -112,7 +111,7 @@ internal sealed class Hex1bFlowRunner
         }
 
         using var sliceAdapter = new InlineSliceAdapter(
-            terminalWidth, desiredHeight, _cursorRow,
+            terminalWidth, desiredHeight, rowOrigin,
             sliceCapabilities);
 
         // Create the Hex1bApp with the inline adapter
@@ -132,9 +131,33 @@ internal sealed class Hex1bFlowRunner
         using var outputPumpCts = new CancellationTokenSource();
         var outputPumpTask = PumpSliceOutputAsync(sliceAdapter, outputPumpCts.Token);
 
-        // Pump input from parent adapter to slice adapter
+        // Pump input from parent adapter to slice adapter, with resize handling
         using var inputPumpCts = new CancellationTokenSource();
-        var inputPumpTask = PumpSliceInputAsync(sliceAdapter, inputPumpCts.Token);
+        var inputPumpTask = PumpSliceInputAsync(sliceAdapter, inputPumpCts.Token,
+            onResize: (newWidth, newHeight) =>
+            {
+                // Recalculate slice dimensions after terminal resize
+                var newSliceHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
+                if (newSliceHeight < 1) newSliceHeight = 1;
+
+                // The slice anchors to the bottom of the terminal.
+                // After reflow, assume content above was reflowed and the slice
+                // should be repositioned at the bottom.
+                var newRowOrigin = Math.Max(0, newHeight - newSliceHeight);
+
+                // Clear the entire visible area below where we think we are —
+                // reflow may have left artifacts anywhere.
+                ClearRegion(0, newHeight);
+
+                // Update the adapter's row origin so ANSI rewrites use the new position
+                sliceAdapter.RowOrigin = newRowOrigin;
+                rowOrigin = newRowOrigin;
+                _cursorRow = newRowOrigin;
+                desiredHeight = newSliceHeight;
+
+                // Forward the resize with the slice height to the adapter
+                _ = sliceAdapter.ResizeAsync(newWidth, newSliceHeight);
+            });
 
         try
         {
@@ -179,13 +202,7 @@ internal sealed class Hex1bFlowRunner
 
         // Clear the slice region so remnants of the interactive widget don't show
         // through the (typically much smaller) yield widget.
-        var postClearSb = new StringBuilder();
-        for (int row = 0; row < desiredHeight; row++)
-        {
-            postClearSb.Append($"\x1b[{_cursorRow + row + 1};1H");
-            postClearSb.Append("\x1b[2K");
-        }
-        _parentAdapter.Write(postClearSb.ToString());
+        ClearRegion(_cursorRow, desiredHeight);
 
         // After slice completes, render the yield widget as frozen output (if provided)
         if (yieldBuilder != null)
@@ -286,13 +303,7 @@ internal sealed class Hex1bFlowRunner
             }
 
             // Clear the page region
-            var clearSb = new StringBuilder();
-            for (int row = 0; row < pageHeight; row++)
-            {
-                clearSb.Append($"\x1b[{_cursorRow + row + 1};1H");
-                clearSb.Append("\x1b[2K");
-            }
-            _parentAdapter.Write(clearSb.ToString());
+            ClearRegion(_cursorRow, pageHeight);
 
             // Render a slice of the yield content at the current offset
             int offset = totalRendered;
@@ -406,6 +417,20 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
+    /// Clears a region of the terminal at the given row origin.
+    /// </summary>
+    private void ClearRegion(int rowOrigin, int height)
+    {
+        var sb = new StringBuilder();
+        for (int row = 0; row < height; row++)
+        {
+            sb.Append($"\x1b[{rowOrigin + row + 1};1H");
+            sb.Append("\x1b[2K");
+        }
+        _parentAdapter.Write(sb.ToString());
+    }
+
+    /// <summary>
     /// Pumps output from a slice adapter to the parent adapter.
     /// </summary>
     private async Task PumpSliceOutputAsync(InlineSliceAdapter sliceAdapter, CancellationToken ct)
@@ -424,8 +449,12 @@ internal sealed class Hex1bFlowRunner
 
     /// <summary>
     /// Pumps input events from the parent adapter to a slice adapter.
+    /// Intercepts resize events to recalculate the slice position.
     /// </summary>
-    private async Task PumpSliceInputAsync(InlineSliceAdapter sliceAdapter, CancellationToken ct)
+    private async Task PumpSliceInputAsync(
+        InlineSliceAdapter sliceAdapter,
+        CancellationToken ct,
+        Action<int, int>? onResize = null)
     {
         try
         {
@@ -435,6 +464,12 @@ internal sealed class Hex1bFlowRunner
                 {
                     while (_parentAdapter.InputEvents.TryRead(out var evt))
                     {
+                        if (evt is Hex1bResizeEvent resize && onResize != null)
+                        {
+                            // Let the runner handle repositioning before forwarding
+                            onResize(resize.Width, resize.Height);
+                            continue; // ResizeAsync already called in onResize
+                        }
                         await sliceAdapter.WriteInputEventAsync(evt, ct);
                     }
                 }
