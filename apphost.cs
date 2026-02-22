@@ -87,6 +87,14 @@ var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
 var gridDemo = builder.AddCSharpApp("grid-demo", "./samples/GridDemo")
     .ExcludeFromManifest();
 
+// Kanban drag-and-drop demo
+var kanbanDemo = builder.AddCSharpApp("kanban-demo", "./samples/KanbanDemo")
+    .ExcludeFromManifest();
+
+// Flow chart drag-and-drop demo
+var flowChartDemo = builder.AddCSharpApp("flowchart-demo", "./samples/FlowChartDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

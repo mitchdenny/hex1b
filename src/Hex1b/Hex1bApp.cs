@@ -91,6 +91,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private int _dragStartX;
     private int _dragStartY;
     
+    // Drag-and-drop state for semantic drag operations (Draggable/Droppable widgets)
+    private readonly DragDropManager _dragDropManager = new();
+    
     // Render optimization - track if this is the first frame (needs full clear)
     private bool _isFirstFrame = true;
     
@@ -603,9 +606,22 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                         var deltaX = mouseEvent.X - _dragStartX;
                         var deltaY = mouseEvent.Y - _dragStartY;
                         _activeDragHandler.OnMove?.Invoke(dragContext, deltaX, deltaY);
+                        
+                        // Update drag-drop hover state for Draggable/Droppable widgets
+                        if (_dragDropManager.IsDragging)
+                        {
+                            UpdateDragDropHoverState(mouseEvent.X, mouseEvent.Y);
+                        }
                     }
                     else if (mouseEvent.Action == MouseAction.Up)
                     {
+                        // Complete drag-drop operation before clearing handler
+                        if (_dragDropManager.IsDragging && _activeDragNode is DraggableNode draggable)
+                        {
+                            await CompleteDragDropAsync(dragContext);
+                            draggable.IsDragging = false;
+                        }
+                        
                         _activeDragHandler.OnEnd?.Invoke(dragContext);
                         _activeDragHandler = null;
                         _activeDragNode = null;
@@ -1088,6 +1104,81 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     }
 
     /// <summary>
+    /// Finds the nearest DroppableNode ancestor (or self) for the node at the given position.
+    /// Used during drag operations to determine the drop target.
+    /// </summary>
+    private DroppableNode? FindDroppableAt(int x, int y)
+    {
+        var node = FindNodeAt(_rootNode, x, y);
+        while (node != null)
+        {
+            if (node is DroppableNode droppable)
+                return droppable;
+            node = node.Parent;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Updates the hover state on DroppableNodes during a drag operation.
+    /// </summary>
+    private void UpdateDragDropHoverState(int x, int y)
+    {
+        var droppable = FindDroppableAt(x, y);
+        var previousTarget = _dragDropManager.HoveredTarget;
+        
+        _dragDropManager.UpdatePosition(x, y, droppable);
+        
+        // Clear previous target's hover state
+        if (previousTarget != null && previousTarget != droppable)
+        {
+            previousTarget.IsHoveredByDrag = false;
+            previousTarget.CanAcceptDrag = false;
+            previousTarget.HoveredDragData = null;
+        }
+        
+        // Set new target's hover state
+        if (droppable != null && _dragDropManager.ActiveDragData != null)
+        {
+            droppable.IsHoveredByDrag = true;
+            droppable.CanAcceptDrag = droppable.Accepts(_dragDropManager.ActiveDragData);
+            droppable.HoveredDragData = _dragDropManager.ActiveDragData;
+        }
+    }
+
+    /// <summary>
+    /// Completes a drag-drop operation by firing the drop handler on the hovered target (if valid).
+    /// </summary>
+    private async Task CompleteDragDropAsync(InputBindingActionContext context)
+    {
+        var target = _dragDropManager.HoveredTarget;
+        var dragData = _dragDropManager.ActiveDragData;
+        var source = _dragDropManager.ActiveSource;
+        
+        if (target != null && dragData != null && source != null && target.Accepts(dragData))
+        {
+            // Calculate local coordinates relative to the drop target
+            var localX = _dragDropManager.DragX - target.Bounds.X;
+            var localY = _dragDropManager.DragY - target.Bounds.Y;
+            
+            if (target.DropAction != null)
+            {
+                await target.DropAction(context, dragData, source, localX, localY);
+            }
+        }
+        
+        // Clear hover state on the target
+        if (target != null)
+        {
+            target.IsHoveredByDrag = false;
+            target.CanAcceptDrag = false;
+            target.HoveredDragData = null;
+        }
+        
+        _dragDropManager.EndDrag();
+    }
+
+    /// <summary>
     /// Handles a mouse click by hit testing and routing through bindings.
     /// May initiate a drag if a drag binding matches.
     /// </summary>
@@ -1156,6 +1247,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 _activeDragNode = hitNode;
                 _dragStartX = mouseEvent.X;
                 _dragStartY = mouseEvent.Y;
+                
+                // Start semantic drag-drop if this is a DraggableNode
+                if (hitNode is DraggableNode draggableNode)
+                {
+                    _dragDropManager.StartDrag(draggableNode, draggableNode.DragData, mouseEvent.X, mouseEvent.Y);
+                    draggableNode.IsDragging = true;
+                }
+                
                 return;
             }
         }
