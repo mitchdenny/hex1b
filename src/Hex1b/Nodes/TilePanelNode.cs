@@ -118,21 +118,27 @@ public sealed class TilePanelNode : CompositeNode
 
     /// <summary>
     /// Builds the composed widget content for this tile panel.
+    /// The SurfaceWidget is wrapped in an Interactable to get proper focus,
+    /// hit-testing, and input binding support.
     /// </summary>
     internal Hex1bWidget BuildContent()
     {
         var tileLayer = BuildTileSurfaceWidget();
         var poiFloats = BuildPoiFloats();
 
+        // Wrap the tile surface in an Interactable so it receives focus and input
+        Hex1bWidget interactableTiles = new InteractableWidget(_ => tileLayer)
+            .WithInputBindings(ConfigureBindings);
+
         // ZStack: tiles at bottom, POI floats on top
         if (poiFloats.Count > 0)
         {
-            var children = new List<Hex1bWidget> { tileLayer };
+            var children = new List<Hex1bWidget> { interactableTiles };
             children.AddRange(poiFloats);
             return new ZStackWidget(children);
         }
 
-        return tileLayer;
+        return interactableTiles;
     }
 
     private SurfaceWidget BuildTileSurfaceWidget()
@@ -263,7 +269,10 @@ public sealed class TilePanelNode : CompositeNode
         return floats;
     }
 
-    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    /// <summary>
+    /// Configures the input bindings applied to the Interactable wrapping the tile surface.
+    /// </summary>
+    private void ConfigureBindings(InputBindingsBuilder bindings)
     {
         // Pan by 1 tile
         bindings.Key(Hex1bKey.UpArrow).Action(ctx => HandlePan(ctx, 0, -1), "Pan up");
@@ -277,9 +286,11 @@ public sealed class TilePanelNode : CompositeNode
         bindings.Shift().Key(Hex1bKey.LeftArrow).Action(ctx => HandlePan(ctx, -5, 0), "Pan left fast");
         bindings.Shift().Key(Hex1bKey.RightArrow).Action(ctx => HandlePan(ctx, 5, 0), "Pan right fast");
 
-        // Zoom
+        // Zoom — support both numpad (+/-) and regular keyboard (=/-)
         bindings.Key(Hex1bKey.Add).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
         bindings.Key(Hex1bKey.Subtract).Action(ctx => HandleZoom(ctx, -1), "Zoom out");
+        bindings.Key(Hex1bKey.OemPlus).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
+        bindings.Key(Hex1bKey.OemMinus).Action(ctx => HandleZoom(ctx, -1), "Zoom out");
 
         // Mouse scroll for zoom
         bindings.Mouse(MouseButton.ScrollUp).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
@@ -339,33 +350,5 @@ public sealed class TilePanelNode : CompositeNode
             return ZoomCallback(delta, ctx);
         }
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// TilePanel is focusable for keyboard navigation.
-    /// </summary>
-    public override bool IsFocusable => true;
-
-    /// <summary>
-    /// Returns this node as focusable so the input router delivers
-    /// key/mouse events to TilePanelNode's bindings (pan, zoom).
-    /// </summary>
-    public override IEnumerable<Hex1bNode> GetFocusableNodes()
-    {
-        yield return this;
-    }
-
-    private bool _isFocused;
-    public override bool IsFocused
-    {
-        get => _isFocused;
-        set
-        {
-            if (_isFocused != value)
-            {
-                _isFocused = value;
-                MarkDirty();
-            }
-        }
     }
 }

@@ -1,4 +1,5 @@
 using Hex1b.Data;
+using Hex1b.Layout;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -15,7 +16,7 @@ public static class TilePanelExtensions
         this WidgetContext<TParent> ctx,
         ITileDataSource dataSource)
         where TParent : Hex1bWidget
-        => new() { DataSource = dataSource };
+        => new() { DataSource = dataSource, HeightHint = SizeHint.Fill };
 
     /// <summary>
     /// Creates a TilePanel with the specified data source and camera position.
@@ -33,5 +34,6 @@ public static class TilePanelExtensions
             CameraX = cameraX,
             CameraY = cameraY,
             ZoomLevel = zoomLevel,
+            HeightHint = SizeHint.Fill,
         };
 }
