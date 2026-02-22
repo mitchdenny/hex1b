@@ -54,6 +54,7 @@ internal static class CopilotCommand
                 await flow.SliceAsync(
                     configure: app =>
                     {
+                        app.RequestFocus(n => n is TextBoxNode);
                         return ctx =>
                         {
                             var modeColor = GetModeColor(state.CurrentMode);
@@ -71,13 +72,13 @@ internal static class CopilotCommand
                                     ctx.HStack(h => [h.Spinner(), h.Text(" Thinking...")])));
                             }
 
-                            // Content panel — fill spacer at top pushes output to bottom
-                            var contentPanel = ctx.VStack(_ =>
+                            // Content panel (scrollable output area)
+                            var contentPanel = ctx.VScrollPanel(sv =>
                             {
                                 if (contentWidgets.Count == 0)
-                                    return [ctx.VStack(__ => []).Fill()];
-                                return [ctx.VStack(__ => []).Fill(), .. contentWidgets];
-                            });
+                                    return [sv.VStack(__ => []).Fill()];
+                                return [sv.VStack(__ => []).Fill(), .. contentWidgets];
+                            }, showScrollbar: false).Follow();
 
                             // If terminal is active, show in HSplitter
                             Hex1bWidget mainArea;
@@ -122,7 +123,7 @@ internal static class CopilotCommand
                                 ),
                                 pv.ThemePanel(
                                     theme => theme
-                                        .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}> \x1b[0m")
+                                        .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}❯ \x1b[0m")
                                         .Set(TextBoxTheme.RightBracket, ""),
                                     ctx.TextBox().OnSubmit(e =>
                                     {
@@ -194,14 +195,21 @@ internal static class CopilotCommand
             return;
         }
 
-        if (text == "/shell")
+        if (text == "/shell" || text.StartsWith('!'))
         {
+            var stayOpen = text.StartsWith("!!");
+            var shellCommand = text.StartsWith('!') ? text[(stayOpen ? 2 : 1)..].Trim() : null;
             int termWidth = Console.WindowWidth;
-            var newTerminal = Hex1bTerminal.CreateBuilder()
+            var builder = Hex1bTerminal.CreateBuilder()
                 .WithDimensions(termWidth / 2, 20)
-                .WithPtyProcess("bash")
-                .WithTerminalWidget(out var handle)
-                .Build();
+                .WithTerminalWidget(out var handle);
+            if (shellCommand is not null && stayOpen)
+                builder = builder.WithPtyProcess("bash", "-c", $"{shellCommand}; exec bash");
+            else if (shellCommand is not null)
+                builder = builder.WithPtyProcess("bash", "-c", shellCommand);
+            else
+                builder = builder.WithPtyProcess("bash");
+            var newTerminal = builder.Build();
 
             state.TerminalHandle = handle;
             state.ChildTerminal = newTerminal;
@@ -220,6 +228,7 @@ internal static class CopilotCommand
                 if (stateChange != TerminalState.Running && state.TerminalHandle == handleRef)
                 {
                     state.TerminalHandle = null;
+                    app.RequestFocus(n => n is TextBoxNode);
                     app.Invalidate();
                 }
             };
@@ -230,13 +239,13 @@ internal static class CopilotCommand
         }
 
         // Regular prompt — show it in output, start thinking
-        state.OutputLines.Add($"  > {text}");
+        state.OutputLines.Add($"❯ {text}");
         state.IsThinking = true;
         app.Invalidate();
 
         _ = Task.Run(async () =>
         {
-            await Task.Delay(5000);
+            await Task.Delay(250);
 
             state.IsThinking = false;
             state.OutputLines.AddRange(GenerateMockResponse(text));
@@ -299,7 +308,7 @@ internal static class CopilotCommand
     {
         return [
             "",
-            $"  🟢 \x1b[1mResponse to: {prompt}\x1b[0m",
+            $"\x1b[32m●\x1b[0m \x1b[1mResponse to: {prompt}\x1b[0m",
             "",
             "  I've analyzed your request and here's what I found:",
             "",

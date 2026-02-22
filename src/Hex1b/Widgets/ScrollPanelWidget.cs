@@ -25,6 +25,13 @@ public sealed record ScrollPanelWidget : Hex1bWidget
     public bool ShowScrollbar { get; init; }
     
     /// <summary>
+    /// When true, the scroll panel automatically follows the end of content.
+    /// The panel scrolls to the bottom when content grows, and disengages
+    /// when the user scrolls away. Re-engages when the user scrolls back to the end.
+    /// </summary>
+    public bool IsFollowing { get; init; }
+    
+    /// <summary>
     /// The async scroll handler. Called when the scroll position changes.
     /// </summary>
     internal Func<ScrollChangedEventArgs, Task>? ScrollHandler { get; init; }
@@ -61,6 +68,15 @@ public sealed record ScrollPanelWidget : Hex1bWidget
     public ScrollPanelWidget OnScroll(Func<ScrollChangedEventArgs, Task> handler)
         => this with { ScrollHandler = handler };
 
+    /// <summary>
+    /// Enables follow mode: the scroll panel automatically scrolls to the end
+    /// when content grows. Disengages when the user scrolls away, and re-engages
+    /// when the user scrolls back to the end.
+    /// </summary>
+    /// <returns>A new ScrollPanelWidget with follow mode enabled.</returns>
+    public ScrollPanelWidget Follow()
+        => this with { IsFollowing = true };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ScrollPanelNode ?? new ScrollPanelNode();
@@ -68,6 +84,20 @@ public sealed record ScrollPanelWidget : Hex1bWidget
         node.SourceWidget = this;
         node.Orientation = Orientation;
         node.ShowScrollbar = ShowScrollbar;
+        
+        // Enable follow mode — on first reconciliation (new node), initialize IsFollowing.
+        // On subsequent reconciliations, preserve the node's runtime IsFollowing state.
+        if (IsFollowing)
+        {
+            node.FollowEnabled = true;
+            if (context.IsNew)
+                node.IsFollowing = true;
+        }
+        else
+        {
+            node.FollowEnabled = false;
+            node.IsFollowing = false;
+        }
         
         // Convert the typed event handler to the internal InputBindingActionContext handler
         if (ScrollHandler != null)
