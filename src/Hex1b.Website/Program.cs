@@ -196,6 +196,10 @@ builder.Services.AddSingleton<IGalleryExample, WindowTitleActionsExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowResizableExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowPositionExample>();
 
+// Register FloatPanel widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, FloatPanelBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, FloatPanelOverlayExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
