@@ -2,6 +2,7 @@ using Hex1b;
 using Hex1b.Data;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -180,7 +181,7 @@ public class TilePanelNodeTests
     }
 
     [Fact]
-    public void BuildContent_WithNoPois_ReturnsSurfaceOnly()
+    public void BuildContent_WithNoPois_ReturnsInteractable()
     {
         var node = new TilePanelNode
         {
@@ -194,7 +195,8 @@ public class TilePanelNodeTests
 
         var content = node.BuildContent();
 
-        Assert.IsType<SurfaceWidget>(content);
+        // With no POIs, content is just the Interactable wrapping SurfaceWidget
+        Assert.IsType<InteractableWidget>(content);
     }
 
     [Fact]
@@ -215,7 +217,7 @@ public class TilePanelNodeTests
         Assert.IsType<ZStackWidget>(content);
         var zstack = (ZStackWidget)content;
         Assert.Equal(2, zstack.Children.Count);
-        Assert.IsType<SurfaceWidget>(zstack.Children[0]);
+        Assert.IsType<InteractableWidget>(zstack.Children[0]);
         Assert.IsType<FloatPanelWidget>(zstack.Children[1]);
     }
 
@@ -234,25 +236,199 @@ public class TilePanelNodeTests
 
         var content = node.BuildContent();
 
-        // Far-away POI should be excluded, returning just the surface
-        Assert.IsType<SurfaceWidget>(content);
+        // Far-away POI should be excluded, returning just the interactable
+        Assert.IsType<InteractableWidget>(content);
     }
 
     [Fact]
-    public void IsFocusable_ReturnsTrue()
+    public void TilePanelNode_IsNotDirectlyFocusable()
     {
+        // TilePanelNode delegates focus to the InteractableNode it wraps the surface in
         var node = new TilePanelNode();
-        Assert.True(node.IsFocusable);
+        Assert.False(node.IsFocusable);
+    }
+}
+
+public class TilePanelFocusTests
+{
+    [Fact]
+    public void TilePanelNode_InVStack_InteractableReceivesFocus()
+    {
+        var ds = new TestTileDataSource();
+        var tilePanelWidget = new TilePanelWidget { DataSource = ds, CameraX = 0, CameraY = 0, ZoomLevel = 0 }
+            .OnPan(e => { });
+
+        var vstack = new VStackWidget([new TextBlockWidget("header"), tilePanelWidget]);
+        var context = ReconcileContext.CreateRoot(new FocusRing());
+
+        // Use ReconcileChildAsync like the real app does — this sets IsNew = true
+        var dummyParent = new TextBlockNode();
+        var rootNode = (VStackNode)context.ReconcileChildAsync(null, vstack, dummyParent).GetAwaiter().GetResult()!;
+
+        // Find the TilePanelNode
+        TilePanelNode? tilePanelNode = null;
+        foreach (var child in rootNode.GetChildren())
+        {
+            if (child is TilePanelNode tpn)
+            {
+                tilePanelNode = tpn;
+                break;
+            }
+        }
+
+        Assert.NotNull(tilePanelNode);
+
+        // The InteractableNode inside TilePanelNode should be focusable and receive focus
+        var focusables = tilePanelNode.GetFocusableNodes().ToList();
+        Assert.True(focusables.Count > 0, "TilePanelNode should have focusable descendants");
+        Assert.IsType<InteractableNode>(focusables[0]);
+        Assert.True(focusables[0].IsFocused, "InteractableNode should receive focus");
+
+        // Verify PanCallback is wired
+        Assert.NotNull(tilePanelNode.PanCallback);
+    }
+}
+
+public class TilePanelIntegrationTests
+{
+    [Fact]
+    public async Task TilePanel_ArrowKey_PansCamera()
+    {
+        var cameraX = 0.0;
+        var cameraY = 0.0;
+        var zoomLevel = 0;
+        var panCount = 0;
+        var ds = new TestTileDataSource();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
+            [
+                v.Text($"Camera: ({cameraX:F1}, {cameraY:F1})"),
+                v.TilePanel(ds, cameraX, cameraY, zoomLevel)
+                    .OnPan(e =>
+                    {
+                        cameraX += e.DeltaX;
+                        cameraY += e.DeltaY;
+                        panCount++;
+                    })
+                    .OnZoom(e => zoomLevel = e.NewZoomLevel),
+            ]))
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render, then press right arrow
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Camera:"), TimeSpan.FromSeconds(5), "initial render")
+            .Key(Hex1bKey.RightArrow)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("1.0"), TimeSpan.FromSeconds(2), "camera to move right")
+            .Capture("after-pan")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(panCount > 0, "Pan handler should have been called");
+        Assert.Equal(1.0, cameraX);
+        Assert.Equal(0.0, cameraY);
     }
 
     [Fact]
-    public void IsFocused_WhenChanged_MarksDirty()
+    public async Task TilePanel_PlusKey_Zooms()
     {
-        var node = new TilePanelNode();
-        node.ClearDirty();
+        var zoomLevel = 0;
+        var zoomCount = 0;
+        var ds = new TestTileDataSource();
 
-        node.IsFocused = true;
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
+            [
+                v.Text($"Zoom: {zoomLevel}"),
+                v.TilePanel(ds, 0, 0, zoomLevel)
+                    .OnPan(e => { })
+                    .OnZoom(e =>
+                    {
+                        zoomLevel = e.NewZoomLevel;
+                        zoomCount++;
+                    }),
+            ]))
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
 
-        Assert.True(node.IsDirty);
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Zoom: 0"), TimeSpan.FromSeconds(5), "initial render")
+            .Key(Hex1bKey.OemPlus)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s => s.ContainsText("Zoom: 1"), TimeSpan.FromSeconds(2), "zoom to change")
+            .Capture("after-zoom-key")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(zoomCount > 0, "Zoom handler should have been called");
+        Assert.Equal(1, zoomLevel);
+    }
+
+    [Fact]
+    public async Task TilePanel_MouseScroll_Zooms()
+    {
+        var cameraX = 0.0;
+        var cameraY = 0.0;
+        var zoomLevel = 0;
+        var zoomCount = 0;
+        var ds = new TestTileDataSource();
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VStack(v =>
+            [
+                v.Text($"Zoom: {zoomLevel}"),
+                v.TilePanel(ds, cameraX, cameraY, zoomLevel)
+                    .OnPan(e =>
+                    {
+                        cameraX += e.DeltaX;
+                        cameraY += e.DeltaY;
+                    })
+                    .OnZoom(e =>
+                    {
+                        zoomLevel = e.NewZoomLevel;
+                        zoomCount++;
+                    }),
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render, send scroll event, verify zoom changed
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Zoom:"), TimeSpan.FromSeconds(5), "initial render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await terminal.SendEventAsync(new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, 20, 5, Hex1bModifiers.None));
+        await Task.Delay(300);
+
+        // Exit
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(zoomCount > 0, "Zoom handler should have been called");
+        Assert.Equal(1, zoomLevel);
     }
 }
