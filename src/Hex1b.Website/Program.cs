@@ -128,6 +128,9 @@ builder.Services.AddSingleton<IGalleryExample, ScrollInfiniteExample>();
 // Register Align widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, AlignDemoExample>();
 
+// Register Grid widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, GridBasicExample>();
+
 // Register Terminal widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TerminalBasicExample>();
 
