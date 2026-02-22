@@ -83,6 +83,10 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
 var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
     .ExcludeFromManifest();
 
+// Grid demo
+var gridDemo = builder.AddCSharpApp("grid-demo", "./samples/GridDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
