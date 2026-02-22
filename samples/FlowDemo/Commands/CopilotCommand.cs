@@ -23,11 +23,24 @@ internal static class CopilotCommand
         public Mode CurrentMode = Mode.Normal;
         public List<string> OutputLines = [];
         public bool IsThinking;
+        public bool ShowCommands;
         public TerminalWidgetHandle? TerminalHandle;
         public Hex1bTerminal? ChildTerminal;
         public CancellationTokenSource? TerminalCts;
         public Task? TerminalTask;
     }
+
+    private static readonly (string Name, string Description)[] Commands =
+    [
+        ("/explain", "Explain code or a concept"),
+        ("/fix", "Fix a bug or issue in the code"),
+        ("/test", "Generate unit tests for code"),
+        ("/docs", "Generate documentation"),
+        ("/review", "Review code for issues"),
+        ("/commit", "Generate a commit message"),
+        ("/shell", "Open an inline bash shell"),
+        ("/exit", "Exit the Copilot CLI"),
+    ];
 
     public static async Task RunAsync()
     {
@@ -117,6 +130,7 @@ internal static class CopilotCommand
                                         if (string.IsNullOrEmpty(text))
                                             return;
                                         e.Node.Text = "";
+                                        state.ShowCommands = false;
                                         HandleSubmit(text, app, state);
                                     })
                                     .WithInputBindings(bindings =>
@@ -127,6 +141,11 @@ internal static class CopilotCommand
                                             state.CurrentMode = Modes[(idx + 1) % Modes.Length];
                                             actionCtx.Invalidate();
                                         }, "Cycle mode");
+                                        bindings.Ctrl().Key(Hex1bKey.S).Action(actionCtx =>
+                                        {
+                                            state.ShowCommands = !state.ShowCommands;
+                                            actionCtx.Invalidate();
+                                        }, "Toggle commands");
                                     })
                                 ),
                                 pv.ThemePanel(
@@ -134,6 +153,9 @@ internal static class CopilotCommand
                                     ctx.Separator()
                                 ),
                                 pv.Text(modeAnsi),
+                                .. (state.ShowCommands
+                                    ? Commands.Select(c => pv.Text($"  {modeColorAnsi}{c.Name}\x1b[0m  {c.Description}")).ToArray()
+                                    : []),
                             ]);
 
                             return ctx.VStack(v => [mainArea, promptArea]);
