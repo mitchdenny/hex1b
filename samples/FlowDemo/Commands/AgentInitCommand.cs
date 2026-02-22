@@ -35,8 +35,8 @@ internal static class AgentInitCommand
                 var detecting = true;
                 var detectedCount = 0;
 
-                await flow.SliceAsync(
-                    configure: app =>
+                await flow.StepAsync(
+                    configure: step =>
                     {
                         _ = Task.Run(async () =>
                         {
@@ -46,13 +46,13 @@ internal static class AgentInitCommand
                                 await Task.Delay(600);
                                 detected.Add(agent);
                                 detectedCount = detected.Count;
-                                app.Invalidate();
+                                step.Invalidate();
                             }
 
                             detecting = false;
-                            app.Invalidate();
+                            step.Invalidate();
                             await Task.Delay(300);
-                            app.RequestStop();
+                            step.Complete(y => y.Text($"  ✓ Detected {detected.Count} agents"));
                         });
 
                         return ctx => ctx.HStack(h =>
@@ -63,8 +63,7 @@ internal static class AgentInitCommand
                                 : $" Found {detected.Count} agents"),
                         ]);
                     },
-                    @yield: ctx => ctx.Text($"  ✓ Detected {detected.Count} agents"),
-                    options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
+                    options: opts => opts.MaxHeight = 1
                 );
 
                 // Step 2: Agent selection with checkboxes
@@ -74,8 +73,8 @@ internal static class AgentInitCommand
                     selected.Add(agent.Name);
                 }
 
-                await flow.SliceAsync(
-                    builder: ctx => ctx.VStack(v =>
+                await flow.StepAsync(
+                    configure: step => ctx => ctx.VStack(v =>
                     [
                         v.Text("Select agents to configure:"),
                         .. detected.Select(agent =>
@@ -89,10 +88,10 @@ internal static class AgentInitCommand
                                         selected.Add(agent.Name);
                                 })),
                         v.Text($"  {selected.Count} of {detected.Count} selected"),
-                        v.Button("Configure selected").OnClick(e => e.Context.RequestStop()),
+                        v.Button("Configure selected").OnClick(e =>
+                            step.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
                     ]),
-                    @yield: ctx => ctx.Text($"  ✓ Selected: {string.Join(", ", selected)}"),
-                    options: new Hex1bFlowSliceOptions { MaxHeight = detected.Count + 5 }
+                    options: opts => opts.MaxHeight = detected.Count + 5
                 );
 
                 // Step 3: Configuration spinner per agent
@@ -100,8 +99,8 @@ internal static class AgentInitCommand
                 var currentAgent = "";
                 var configuredIndex = 0;
 
-                await flow.SliceAsync(
-                    configure: app =>
+                await flow.StepAsync(
+                    configure: step =>
                     {
                         _ = Task.Run(async () =>
                         {
@@ -111,15 +110,15 @@ internal static class AgentInitCommand
                             {
                                 currentAgent = agent.Name;
                                 configuredIndex++;
-                                app.Invalidate();
+                                step.Invalidate();
                                 await Task.Delay(1000);
                                 configured.Add(agent.Name);
                             }
 
                             configuring = false;
-                            app.Invalidate();
+                            step.Invalidate();
                             await Task.Delay(300);
-                            app.RequestStop();
+                            step.Complete(y => y.Text($"  ✓ Configured {configured.Count} agents"));
                         });
 
                         return ctx => ctx.HStack(h =>
@@ -130,8 +129,7 @@ internal static class AgentInitCommand
                                 : $" Configured {configured.Count} agents"),
                         ]);
                     },
-                    @yield: ctx => ctx.Text($"  ✓ Configured {configured.Count} agents"),
-                    options: new Hex1bFlowSliceOptions { MaxHeight = 1 }
+                    options: opts => opts.MaxHeight = 1
                 );
 
             }, options => options.InitialCursorRow = cursorRow)

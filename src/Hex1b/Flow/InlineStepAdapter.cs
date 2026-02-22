@@ -6,11 +6,11 @@ using Hex1b.Input;
 namespace Hex1b.Flow;
 
 /// <summary>
-/// Workload adapter for inline slice rendering. Renders in the normal terminal buffer
+/// Workload adapter for inline step rendering. Renders in the normal terminal buffer
 /// without entering the alternate screen. All cursor positioning is offset by the
-/// slice's row origin in the terminal.
+/// step's row origin in the terminal.
 /// </summary>
-internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
+internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -30,7 +30,7 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
     [GeneratedRegex(@"\x1b\[2J")]
     private static partial Regex ClearScreenRegex();
 
-    public InlineSliceAdapter(int width, int height, int rowOrigin, TerminalCapabilities? capabilities = null)
+    public InlineStepAdapter(int width, int height, int rowOrigin, TerminalCapabilities? capabilities = null)
     {
         _width = width;
         _height = height;
@@ -56,7 +56,7 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
     }
 
     /// <summary>
-    /// The row origin of this slice in the terminal buffer.
+    /// The row origin of this step in the terminal buffer.
     /// </summary>
     public int RowOrigin
     {
@@ -100,7 +100,7 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
     public int OutputQueueDepth => _outputQueueDepth;
 
     /// <summary>
-    /// Enter TUI mode for inline slice — hides cursor and enables mouse if supported.
+    /// Enter TUI mode for inline step — hides cursor and enables mouse if supported.
     /// Does NOT enter alternate screen.
     /// </summary>
     public void EnterTuiMode()
@@ -119,7 +119,7 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
     }
 
     /// <summary>
-    /// Exit TUI mode for inline slice — shows cursor, disables mouse, no alternate screen restore.
+    /// Exit TUI mode for inline step — shows cursor, disables mouse, no alternate screen restore.
     /// </summary>
     public void ExitTuiMode()
     {
@@ -134,13 +134,13 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
         }
         sb.Append("\x1b[0m");   // Reset text attributes
         sb.Append("\x1b[?25h"); // Show cursor
-        // Position cursor below the slice region
+        // Position cursor below the step region
         sb.Append($"\x1b[{_rowOrigin + _height + 1};1H");
         WriteRaw(sb.ToString());
     }
 
     /// <summary>
-    /// Clear the slice region only (not the full screen).
+    /// Clear the step region only (not the full screen).
     /// </summary>
     public void Clear()
     {
@@ -186,19 +186,38 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
 
     public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        // Raw byte input is not used for flow slices — events arrive via WriteInputEventAsync
+        // Raw byte input is not used for flow steps — events arrive via WriteInputEventAsync
         return ValueTask.CompletedTask;
     }
 
     public ValueTask WriteInputEventAsync(Hex1bEvent evt, CancellationToken ct = default)
     {
         if (_disposed) return ValueTask.CompletedTask;
+
+        // Translate mouse coordinates from absolute terminal space to step-relative space
+        if (evt is Hex1bMouseEvent mouse)
+        {
+            var relativeY = mouse.Y - _rowOrigin;
+            if (relativeY < 0 || relativeY >= _height)
+                return ValueTask.CompletedTask; // Outside step bounds
+            evt = mouse with { Y = relativeY };
+        }
+
         return _inputChannel.Writer.WriteAsync(evt, ct);
     }
 
     public bool TryWriteInputEvent(Hex1bEvent evt)
     {
         if (_disposed) return false;
+
+        if (evt is Hex1bMouseEvent mouse)
+        {
+            var relativeY = mouse.Y - _rowOrigin;
+            if (relativeY < 0 || relativeY >= _height)
+                return false;
+            evt = mouse with { Y = relativeY };
+        }
+
         return _inputChannel.Writer.TryWrite(evt);
     }
 
@@ -249,13 +268,13 @@ internal sealed partial class InlineSliceAdapter : IHex1bAppTerminalWorkloadAdap
 
     /// <summary>
     /// Rewrites ANSI cursor position sequences to apply the row offset,
-    /// and converts full-screen clears to slice-region clears.
+    /// and converts full-screen clears to step-region clears.
     /// </summary>
     private string RewriteCursorPositions(string text)
     {
         if (_rowOrigin == 0) return text;
 
-        // Replace clear screen (ESC[2J) with slice-region clear
+        // Replace clear screen (ESC[2J) with step-region clear
         text = ClearScreenRegex().Replace(text, _ =>
         {
             var sb = new StringBuilder();

@@ -3,8 +3,8 @@ using Hex1b.Widgets;
 namespace Hex1b.Flow;
 
 /// <summary>
-/// Context passed to a flow callback. Provides methods to run inline slices
-/// and full-screen TUI applications as sequential steps in a flow.
+/// Context passed to a flow callback. Provides methods to run interactive steps
+/// and full-screen TUI applications as sequential parts of a flow.
 /// </summary>
 public sealed class Hex1bFlowContext
 {
@@ -15,45 +15,44 @@ public sealed class Hex1bFlowContext
         _runner = runner;
     }
 
-    /// <summary>
-    /// Runs an inline micro-TUI slice in the normal terminal buffer.
-    /// The slice reserves space from the current cursor position down and supports
-    /// full interactivity (focus, keyboard navigation, etc.).
-    /// </summary>
-    /// <param name="builder">Widget builder for the interactive TUI content.</param>
-    /// <param name="yield">
-    /// Optional widget builder for the "yield" state — rendered once after the slice completes
-    /// as frozen terminal output. This output is never re-rendered and scrolls naturally
-    /// into the scrollback buffer as subsequent slices take space.
-    /// </param>
-    /// <param name="options">Optional configuration for the slice.</param>
-    public Task SliceAsync(
-        Func<RootContext, Hex1bWidget> builder,
-        Func<RootContext, Hex1bWidget>? @yield = null,
-        Hex1bFlowSliceOptions? options = null)
+    private static Hex1bFlowStepOptions? BuildOptions(Action<Hex1bFlowStepOptions>? configure)
     {
-        return _runner.RunSliceAsync(builder, @yield, options);
+        if (configure == null) return null;
+        var options = new Hex1bFlowStepOptions();
+        configure(options);
+        return options;
     }
 
     /// <summary>
-    /// Runs an inline micro-TUI slice, providing access to the underlying <see cref="Hex1bApp"/>
-    /// for programmatic control (e.g., <see cref="Hex1bApp.Invalidate"/> from background tasks,
-    /// or <see cref="Hex1bApp.RequestStop"/> to end the slice).
+    /// Runs an inline interactive step in the normal terminal buffer.
+    /// The step reserves space from the current cursor position down and supports
+    /// full interactivity (focus, keyboard navigation, etc.).
+    /// </summary>
+    /// <param name="builder">Widget builder for the interactive TUI content.</param>
+    /// <param name="options">Optional callback to configure step options.</param>
+    public Task StepAsync(
+        Func<RootContext, Hex1bWidget> builder,
+        Action<Hex1bFlowStepOptions>? options = null)
+    {
+        return _runner.RunStepAsync(builder, BuildOptions(options));
+    }
+
+    /// <summary>
+    /// Runs an inline interactive step, providing access to <see cref="Hex1bStepContext"/>
+    /// for programmatic control. Use <see cref="Hex1bStepContext.Complete"/> to set the
+    /// frozen output rendered after the step completes, or <see cref="Hex1bStepContext.RequestStop"/>
+    /// to exit without output.
     /// </summary>
     /// <param name="configure">
-    /// Configuration callback that receives the app instance and returns the widget builder.
-    /// The app reference can be captured for use in background tasks.
+    /// Configuration callback that receives the step context and returns the widget builder.
+    /// The step context can be captured for use in event handlers and background tasks.
     /// </param>
-    /// <param name="yield">
-    /// Optional widget builder for the "yield" state — rendered once as frozen terminal output.
-    /// </param>
-    /// <param name="options">Optional configuration for the slice.</param>
-    public Task SliceAsync(
-        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configure,
-        Func<RootContext, Hex1bWidget>? @yield = null,
-        Hex1bFlowSliceOptions? options = null)
+    /// <param name="options">Optional callback to configure step options.</param>
+    public Task StepAsync(
+        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>> configure,
+        Action<Hex1bFlowStepOptions>? options = null)
     {
-        return _runner.RunSliceAsync(configure, @yield, options);
+        return _runner.RunStepAsync(configure, BuildOptions(options));
     }
 
     /// <summary>
@@ -64,25 +63,25 @@ public sealed class Hex1bFlowContext
     /// Configuration callback that receives the app and options, returning the widget builder.
     /// Same pattern as the builder's WithHex1bApp method.
     /// </param>
-    public Task FullScreenAsync(
+    public Task FullScreenStepAsync(
         Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
     {
-        return _runner.RunFullScreenAsync(configure);
+        return _runner.RunFullScreenStepAsync(configure);
     }
 }
 
 /// <summary>
-/// Options for configuring an inline flow slice.
+/// Options for configuring an inline flow step.
 /// </summary>
-public sealed class Hex1bFlowSliceOptions
+public sealed class Hex1bFlowStepOptions
 {
     /// <summary>
-    /// Maximum height in rows for the slice. If null, defaults to terminal height.
+    /// Maximum height in rows for the step. If null, defaults to terminal height.
     /// </summary>
-    public int? MaxHeight { get; init; }
+    public int? MaxHeight { get; set; }
 
     /// <summary>
-    /// Whether to enable mouse input for this slice. Defaults to false.
+    /// Whether to enable mouse input for this step. Defaults to false.
     /// </summary>
-    public bool EnableMouse { get; init; }
+    public bool EnableMouse { get; set; }
 }

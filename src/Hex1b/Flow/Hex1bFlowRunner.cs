@@ -6,7 +6,7 @@ using Hex1b.Widgets;
 namespace Hex1b.Flow;
 
 /// <summary>
-/// Orchestrates a flow — consuming sequential steps (slices and full-screen apps)
+/// Orchestrates a flow — consuming sequential steps (steps and full-screen apps)
 /// and managing the visual stack of yield widgets in the normal terminal buffer.
 /// </summary>
 internal sealed class Hex1bFlowRunner
@@ -45,45 +45,42 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Runs an inline slice — a micro-TUI in the normal buffer.
+    /// Runs an inline step — a micro-TUI in the normal buffer.
     /// </summary>
-    internal async Task RunSliceAsync(
+    internal async Task RunStepAsync(
         Func<RootContext, Hex1bWidget> builder,
-        Func<RootContext, Hex1bWidget>? yieldBuilder,
-        Hex1bFlowSliceOptions? options)
+        Hex1bFlowStepOptions? options)
     {
-        await RunSliceInternalAsync(builder, null, yieldBuilder, options);
+        await RunStepInternalAsync(builder, null, options);
     }
 
     /// <summary>
-    /// Runs an inline slice with app access for programmatic control.
+    /// Runs an inline step with step context for programmatic control.
     /// </summary>
-    internal async Task RunSliceAsync(
-        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configure,
-        Func<RootContext, Hex1bWidget>? yieldBuilder,
-        Hex1bFlowSliceOptions? options)
+    internal async Task RunStepAsync(
+        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>> configure,
+        Hex1bFlowStepOptions? options)
     {
-        await RunSliceInternalAsync(null, configure, yieldBuilder, options);
+        await RunStepInternalAsync(null, configure, options);
     }
 
-    private async Task RunSliceInternalAsync(
+    private async Task RunStepInternalAsync(
         Func<RootContext, Hex1bWidget>? builder,
-        Func<Hex1bApp, Func<RootContext, Hex1bWidget>>? configure,
-        Func<RootContext, Hex1bWidget>? yieldBuilder,
-        Hex1bFlowSliceOptions? options)
+        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>>? configure,
+        Hex1bFlowStepOptions? options)
     {
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
 
-        // The slice wants MaxHeight rows (or full terminal height if unspecified),
+        // The step wants MaxHeight rows (or full terminal height if unspecified),
         // capped to the terminal height since that's the max visible area.
         var desiredHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
         if (desiredHeight < 1) desiredHeight = 1;
 
-        // Track the row origin for this slice (may be updated on resize)
+        // Track the row origin for this step (may be updated on resize)
         var rowOrigin = _cursorRow;
 
-        // Scroll the terminal if the cursor is too far down to fit the slice
+        // Scroll the terminal if the cursor is too far down to fit the step
         var overflow = (rowOrigin + desiredHeight) - terminalHeight;
         if (overflow > 0)
         {
@@ -97,27 +94,27 @@ internal sealed class Hex1bFlowRunner
             _cursorRow = rowOrigin;
         }
 
-        // Clear the slice region so leftover characters from previous slices don't bleed through
+        // Clear the step region so leftover characters from previous steps don't bleed through
         ClearRegion(rowOrigin, desiredHeight);
 
-        // Create the inline adapter for this slice
-        var sliceEnableMouse = options?.EnableMouse ?? false;
-        var sliceCapabilities = _parentAdapter.Capabilities;
-        if (sliceEnableMouse && !sliceCapabilities.SupportsMouse)
+        // Create the inline adapter for this step
+        var stepEnableMouse = options?.EnableMouse ?? false;
+        var stepCapabilities = _parentAdapter.Capabilities;
+        if (stepEnableMouse && !stepCapabilities.SupportsMouse)
         {
-            // Override capabilities to enable mouse for this slice even if the
+            // Override capabilities to enable mouse for this step even if the
             // parent terminal didn't request it globally.
-            sliceCapabilities = sliceCapabilities with { SupportsMouse = true };
+            stepCapabilities = stepCapabilities with { SupportsMouse = true };
         }
 
-        using var sliceAdapter = new InlineSliceAdapter(
+        using var stepAdapter = new InlineStepAdapter(
             terminalWidth, desiredHeight, rowOrigin,
-            sliceCapabilities);
+            stepCapabilities);
 
         // Create the Hex1bApp with the inline adapter
         var appOptions = new Hex1bAppOptions
         {
-            WorkloadAdapter = sliceAdapter,
+            WorkloadAdapter = stepAdapter,
             EnableMouse = options?.EnableMouse ?? false,
             EnableDefaultCtrlCExit = true,
         };
@@ -127,43 +124,45 @@ internal sealed class Hex1bFlowRunner
             appOptions.Theme = _options.Theme;
         }
 
-        // Pump output from slice adapter to parent adapter
+        // Pump output from step adapter to parent adapter
         using var outputPumpCts = new CancellationTokenSource();
-        var outputPumpTask = PumpSliceOutputAsync(sliceAdapter, outputPumpCts.Token);
+        var outputPumpTask = PumpStepOutputAsync(stepAdapter, outputPumpCts.Token);
 
-        // Pump input from parent adapter to slice adapter, with resize handling
+        // Pump input from parent adapter to step adapter, with resize handling
         using var inputPumpCts = new CancellationTokenSource();
-        var inputPumpTask = PumpSliceInputAsync(sliceAdapter, inputPumpCts.Token,
+        var inputPumpTask = PumpStepInputAsync(stepAdapter, inputPumpCts.Token,
             onResize: (newWidth, newHeight) =>
             {
-                // Recalculate slice dimensions after terminal resize
-                var newSliceHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
-                if (newSliceHeight < 1) newSliceHeight = 1;
+                // Recalculate step dimensions after terminal resize
+                var newStepHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
+                if (newStepHeight < 1) newStepHeight = 1;
 
-                // The slice anchors to the bottom of the terminal.
-                // After reflow, assume content above was reflowed and the slice
+                // The step anchors to the bottom of the terminal.
+                // After reflow, assume content above was reflowed and the step
                 // should be repositioned at the bottom.
-                var newRowOrigin = Math.Max(0, newHeight - newSliceHeight);
+                var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
 
                 // Clear the entire visible area below where we think we are —
                 // reflow may have left artifacts anywhere.
                 ClearRegion(0, newHeight);
 
                 // Update the adapter's row origin so ANSI rewrites use the new position
-                sliceAdapter.RowOrigin = newRowOrigin;
+                stepAdapter.RowOrigin = newRowOrigin;
                 rowOrigin = newRowOrigin;
                 _cursorRow = newRowOrigin;
-                desiredHeight = newSliceHeight;
+                desiredHeight = newStepHeight;
 
-                // Forward the resize with the slice height to the adapter
-                _ = sliceAdapter.ResizeAsync(newWidth, newSliceHeight);
+                // Forward the resize with the step height to the adapter
+                _ = stepAdapter.ResizeAsync(newWidth, newStepHeight);
             });
+
+        Hex1bStepContext? stepContext = null;
 
         try
         {
             if (configure != null)
             {
-                // Configure pattern: pass app reference to the callback
+                // Configure pattern: pass step context to the callback
                 Hex1bApp? app = null;
                 Func<RootContext, Hex1bWidget>? widgetBuilder = null;
                 bool configureInvoked = false;
@@ -173,12 +172,13 @@ internal sealed class Hex1bFlowRunner
                     if (!configureInvoked)
                     {
                         configureInvoked = true;
-                        widgetBuilder = configure(app!);
+                        widgetBuilder = configure(stepContext!);
                     }
                     return widgetBuilder!(ctx);
                 };
 
                 app = new Hex1bApp(wrappedBuilder, appOptions);
+                stepContext = new Hex1bStepContext(app);
                 await using (app)
                 {
                     await app.RunAsync(default);
@@ -200,19 +200,20 @@ internal sealed class Hex1bFlowRunner
             try { await inputPumpTask; } catch (OperationCanceledException) { }
         }
 
-        // Clear the slice region so remnants of the interactive widget don't show
-        // through the (typically much smaller) yield widget.
+        // Clear the step region so remnants of the interactive widget don't show
+        // through the (typically much smaller) completed widget.
         ClearRegion(_cursorRow, desiredHeight);
 
-        // After slice completes, render the yield widget as frozen output (if provided)
-        if (yieldBuilder != null)
+        // After step completes, render the completed widget as frozen output
+        var completedBuilder = stepContext?.CompletedBuilder;
+        if (completedBuilder != null)
         {
-            var yieldHeight = await RenderYieldWidgetAsync(yieldBuilder, terminalWidth, desiredHeight);
-            _cursorRow += yieldHeight;
+            var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
+            _cursorRow += completedHeight;
         }
         else
         {
-            // No yield widget — just advance cursor past the slice region
+            // No completed widget — just advance cursor past the step region
             _cursorRow += desiredHeight;
         }
     }
@@ -220,7 +221,7 @@ internal sealed class Hex1bFlowRunner
     /// <summary>
     /// Runs a full-screen TUI application in the alternate screen buffer.
     /// </summary>
-    internal async Task RunFullScreenAsync(
+    internal async Task RunFullScreenStepAsync(
         Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
     {
         // The parent adapter handles alt-buffer transitions naturally
@@ -305,7 +306,7 @@ internal sealed class Hex1bFlowRunner
             // Clear the page region
             ClearRegion(_cursorRow, pageHeight);
 
-            // Render a slice of the yield content at the current offset
+            // Render a step of the yield content at the current offset
             int offset = totalRendered;
             await RenderYieldPageAsync(ctx =>
             {
@@ -367,7 +368,7 @@ internal sealed class Hex1bFlowRunner
             actualBuilder = yieldBuilder;
         }
 
-        using var yieldAdapter = new InlineSliceAdapter(
+        using var yieldAdapter = new InlineStepAdapter(
             width, height, _cursorRow,
             _parentAdapter.Capabilities);
 
@@ -382,7 +383,7 @@ internal sealed class Hex1bFlowRunner
             yieldOptions.Theme = _options.Theme;
 
         var pumpCts = new CancellationTokenSource();
-        var pumpTask = PumpSliceOutputAsync(yieldAdapter, pumpCts.Token);
+        var pumpTask = PumpStepOutputAsync(yieldAdapter, pumpCts.Token);
 
         try
         {
@@ -431,15 +432,15 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Pumps output from a slice adapter to the parent adapter.
+    /// Pumps output from a step adapter to the parent adapter.
     /// </summary>
-    private async Task PumpSliceOutputAsync(InlineSliceAdapter sliceAdapter, CancellationToken ct)
+    private async Task PumpStepOutputAsync(InlineStepAdapter stepAdapter, CancellationToken ct)
     {
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                var data = await sliceAdapter.ReadOutputAsync(ct);
+                var data = await stepAdapter.ReadOutputAsync(ct);
                 if (data.IsEmpty) continue;
                 _parentAdapter.Write(Encoding.UTF8.GetString(data.Span));
             }
@@ -448,11 +449,11 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Pumps input events from the parent adapter to a slice adapter.
-    /// Intercepts resize events to recalculate the slice position.
+    /// Pumps input events from the parent adapter to a step adapter.
+    /// Intercepts resize events to recalculate the step position.
     /// </summary>
-    private async Task PumpSliceInputAsync(
-        InlineSliceAdapter sliceAdapter,
+    private async Task PumpStepInputAsync(
+        InlineStepAdapter stepAdapter,
         CancellationToken ct,
         Action<int, int>? onResize = null)
     {
@@ -470,7 +471,7 @@ internal sealed class Hex1bFlowRunner
                             onResize(resize.Width, resize.Height);
                             continue; // ResizeAsync already called in onResize
                         }
-                        await sliceAdapter.WriteInputEventAsync(evt, ct);
+                        await stepAdapter.WriteInputEventAsync(evt, ct);
                     }
                 }
             }
@@ -495,7 +496,7 @@ internal sealed class Hex1bFlowRunner
 public sealed class Hex1bFlowOptions
 {
     /// <summary>
-    /// Theme for all slices and full-screen apps in the flow.
+    /// Theme for all steps and full-screen apps in the flow.
     /// </summary>
     public Hex1bTheme? Theme { get; set; }
 

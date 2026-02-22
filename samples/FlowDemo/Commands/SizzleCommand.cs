@@ -92,8 +92,8 @@ internal static class SizzleCommand
                 int globeHeight = Math.Max(termHeight / 2, 10);
 
                 // Inline globe slice — right-click a location to select it
-                await flow.SliceAsync(
-                    configure: app => ctx => ctx.VStack(vstack => [
+                await flow.StepAsync(
+                    configure: step => ctx => ctx.VStack(vstack => [
                         vstack.Text("🌍 Right-click a location to select it. Drag to rotate, scroll to zoom. Ctrl+C to cancel."),
                         vstack.Interactable(ic =>
                             ic.Surface(s =>
@@ -155,15 +155,12 @@ internal static class SizzleCommand
                                 if (bestIdx < 0 || bestDist > 8.0) return;
                                 var clicked = poiScreenPositions[bestIdx];
                                 selectedLocation = Pois[clicked.poiIndex].Name;
-                                app.RequestStop();
+                                step.Complete(y => y.Text($"  ✓ Selected: {selectedLocation}"));
                             });
                         })
                         .Fill()
                     ]),
-                    @yield: ctx => ctx.Text(selectedLocation != null
-                        ? $"  ✓ Selected: {selectedLocation}"
-                        : "  ✗ No location selected."),
-                    options: new Hex1bFlowSliceOptions { MaxHeight = globeHeight, EnableMouse = true }
+                    options: opts => { opts.MaxHeight = globeHeight; opts.EnableMouse = true; }
                 );
 
             }, options => options.InitialCursorRow = cursorRow)

@@ -51,10 +51,10 @@ internal static class CopilotCommand
             .WithScrollback()
             .WithHex1bFlow(async flow =>
             {
-                await flow.SliceAsync(
-                    configure: app =>
+                await flow.StepAsync(
+                    configure: step =>
                     {
-                        app.RequestFocus(n => n is TextBoxNode);
+                        step.RequestFocus(n => n is TextBoxNode);
                         return ctx =>
                         {
                             var modeColor = GetModeColor(state.CurrentMode);
@@ -132,7 +132,7 @@ internal static class CopilotCommand
                                             return;
                                         e.Node.Text = "";
                                         state.ShowCommands = false;
-                                        HandleSubmit(text, app, state);
+                                        HandleSubmit(text, step, state);
                                     })
                                     .WithInputBindings(bindings =>
                                     {
@@ -162,12 +162,7 @@ internal static class CopilotCommand
                             return ctx.VStack(v => [mainArea, promptArea]);
                         };
                     },
-                    options: new Hex1bFlowSliceOptions { EnableMouse = true },
-                    @yield: ctx => state.OutputLines.Count > 0
-                        ? ctx.VStack(v =>
-                            state.OutputLines.Select(line => v.Text(line)).ToArray()
-                        )
-                        : ctx.Text("")
+                    options: opts => opts.EnableMouse = true
                 );
 
                 // Cleanup terminal if still running
@@ -184,14 +179,18 @@ internal static class CopilotCommand
             .RunAsync();
     }
 
-    private static void HandleSubmit(string text, Hex1bApp app, AppState state)
+    private static void HandleSubmit(string text, Hex1bStepContext step, AppState state)
     {
         if (string.IsNullOrEmpty(text))
             return;
 
         if (text == "/exit")
         {
-            app.RequestStop();
+            step.Complete(ctx => state.OutputLines.Count > 0
+                ? ctx.VStack(v =>
+                    state.OutputLines.Select(line => v.Text(line)).ToArray()
+                )
+                : ctx.Text(""));
             return;
         }
 
@@ -228,20 +227,20 @@ internal static class CopilotCommand
                 if (stateChange != TerminalState.Running && state.TerminalHandle == handleRef)
                 {
                     state.TerminalHandle = null;
-                    app.RequestFocus(n => n is TextBoxNode);
-                    app.Invalidate();
+                    step.RequestFocus(n => n is TextBoxNode);
+                    step.Invalidate();
                 }
             };
 
-            app.RequestFocus(n => n is Hex1b.Nodes.TerminalNode);
-            app.Invalidate();
+            step.RequestFocus(n => n is Hex1b.Nodes.TerminalNode);
+            step.Invalidate();
             return;
         }
 
         // Regular prompt — show it in output, start thinking
         state.OutputLines.Add($"❯ {text}");
         state.IsThinking = true;
-        app.Invalidate();
+        step.Invalidate();
 
         _ = Task.Run(async () =>
         {
@@ -249,7 +248,7 @@ internal static class CopilotCommand
 
             state.IsThinking = false;
             state.OutputLines.AddRange(GenerateMockResponse(text));
-            app.Invalidate();
+            step.Invalidate();
         });
     }
 

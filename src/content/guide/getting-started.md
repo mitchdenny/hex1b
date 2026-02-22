@@ -189,6 +189,11 @@ class TodoState
 
 Hex1b is a .NET library for building terminal user interfaces (TUI). If you are familiiar with the way that React is used in the browser to construct a virtual DOM which is then synchronized with the real browser DOM then this should feel familiar.
 
+Hex1b supports two styles of terminal UI:
+
+- **Full-screen apps** use the alternate screen buffer — like `vim` or `htop`. The terminal is restored when the app exits. This guide covers full-screen apps.
+- **Flow apps** render interactive steps inline in the normal terminal buffer — like `npm init` or `dotnet new`. Each step's output stays in scrollback. See **[Your First Flow App](/guide/building-clis)** if this is what you're building.
+
 ## Prerequisites
 
 - .NET 10 or later
