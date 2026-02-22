@@ -87,6 +87,9 @@ var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
 var gridDemo = builder.AddCSharpApp("grid-demo", "./samples/GridDemo")
     .ExcludeFromManifest();
 
+var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
