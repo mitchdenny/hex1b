@@ -28,13 +28,13 @@ public class FloatPanelBasicExample(ILogger<FloatPanelBasicExample> logger) : He
         return () =>
         {
             var ctx = new RootContext();
-            return ctx.FloatPanel(f => [
-                f.Place(2, 1, f.Text("📍 Marker at (2, 1)")),
-                f.Place(30, 5, f.Text("📍 Marker at (30, 5)")),
-                f.Place(10, 9, f.Text("📍 Marker at (10, 9)")),
-                f.Place(45, 3, f.Border(b => [
+            return ctx.VStack(v => [
+                v.Float(v.Text("📍 Marker at (2, 1)")).Absolute(2, 1),
+                v.Float(v.Text("📍 Marker at (30, 5)")).Absolute(30, 5),
+                v.Float(v.Text("📍 Marker at (10, 9)")).Absolute(10, 9),
+                v.Float(v.Border(b => [
                     b.Text("Boxed content")
-                ]).Title("Info")),
+                ]).Title("Info")).Absolute(45, 3),
             ]);
         };
     }

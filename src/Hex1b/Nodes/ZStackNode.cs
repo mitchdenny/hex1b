@@ -15,6 +15,8 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// The child nodes, in render order (first = bottom, last = top).
     /// </summary>
     public List<Hex1bNode> Children { get; set; } = new();
+    public List<FloatEntry> Floats { get; set; } = new();
+    public List<Hex1bNode> AllChildrenInOrder { get; set; } = new();
     
     /// <summary>
     /// The popup stack for this ZStack. Content pushed here appears as overlay layers.
@@ -164,9 +166,10 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
         }
         
         // After layout, clean up any popups with stale anchor references.
-        // This happens when an anchor node is replaced during reconciliation but
-        // the popup still holds a reference to the old node (which has zero bounds).
         Popups.RemoveStaleAnchoredPopups();
+
+        // Arrange floats after flow layout completes
+        FloatLayoutHelper.ArrangeFloats(Floats, bounds);
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -175,12 +178,14 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Render children in order - first child is at bottom, last is on top
-        // Use RenderChild for automatic caching support
+        // Render flow children in order — first child is at bottom, last is on top
         for (int i = 0; i < Children.Count; i++)
         {
             context.RenderChild(Children[i]);
         }
+
+        // Render floats on top of all flow children
+        FloatLayoutHelper.RenderFloats(Floats, context);
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;

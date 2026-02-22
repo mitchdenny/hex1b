@@ -44,12 +44,10 @@ public class FloatPanelOverlayExample(ILogger<FloatPanelOverlayExample> logger) 
                     v.Text(""),
                     v.Text("  Content goes here..."),
                 ]),
-                // FloatPanel overlay with score and controls
-                z.FloatPanel(f => [
-                    f.Place(2, 0, f.Text($"Score: {state.Score}")),
-                    f.Place(2, 8, f.Button("+1 Point").OnClick(_ => state.Score++)),
-                    f.Place(20, 8, f.Button("Reset").OnClick(_ => state.Score = 0)),
-                ]),
+                // Float overlay with score and controls
+                z.Float(z.Text($"Score: {state.Score}")).Absolute(2, 0),
+                z.Float(z.Button("+1 Point").OnClick(_ => state.Score++)).Absolute(2, 8),
+                z.Float(z.Button("Reset").OnClick(_ => state.Score = 0)).Absolute(20, 8),
             ]);
         };
     }

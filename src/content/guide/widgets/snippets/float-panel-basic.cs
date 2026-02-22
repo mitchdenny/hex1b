@@ -1,5 +1,5 @@
-ctx.FloatPanel(f => [
-    f.Place(5, 2, f.Text("📍 Marker A")),
-    f.Place(30, 6, f.Text("📍 Marker B")),
-    f.Place(15, 10, f.Text("📍 Marker C")),
+ctx.VStack(v => [
+    v.Float(v.Text("📍 Marker A")).Absolute(5, 2),
+    v.Float(v.Text("📍 Marker B")).Absolute(30, 6),
+    v.Float(v.Text("📍 Marker C")).Absolute(15, 10),
 ])

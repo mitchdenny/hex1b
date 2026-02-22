@@ -2,7 +2,7 @@ using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
-public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
+public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget, IFloatWidgetContainer
 {
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -10,9 +10,15 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
 
         // Create child context with horizontal layout axis
         var childContext = context.WithLayoutAxis(LayoutAxis.Horizontal);
-        
+
+        // Separate flow and float children, reconcile floats
+        var widgetToNode = new Dictionary<Hex1bWidget, Hex1bNode>(ReferenceEqualityComparer.Instance);
+        var (flowChildren, floatEntries, allInOrder) = await FloatLayoutHelper.ReconcileFloatsAsync(
+            Children, node.Floats, childContext, node, widgetToNode);
+
         // Track children that will be removed (their bounds need clearing)
-        for (int i = Children.Count; i < node.Children.Count; i++)
+        var flowCount = flowChildren.Count;
+        for (int i = flowCount; i < node.Children.Count; i++)
         {
             var removedChild = node.Children[i];
             if (removedChild.Bounds.Width > 0 && removedChild.Bounds.Height > 0)
@@ -21,19 +27,22 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
             }
         }
         
-        // Reconcile children
+        // Reconcile flow children
         var newChildren = new List<Hex1bNode>();
-        for (int i = 0; i < Children.Count; i++)
+        for (int i = 0; i < flowCount; i++)
         {
             var existingChild = i < node.Children.Count ? node.Children[i] : null;
-            var positionedContext = childContext.WithChildPosition(i, Children.Count);
-            var reconciledChild = await positionedContext.ReconcileChildAsync(existingChild, Children[i], node);
+            var positionedContext = childContext.WithChildPosition(i, flowCount);
+            var reconciledChild = await positionedContext.ReconcileChildAsync(existingChild, flowChildren[i], node);
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
+                widgetToNode[flowChildren[i]] = reconciledChild;
             }
         }
         node.Children = newChildren;
+        node.Floats = floatEntries;
+        node.AllChildrenInOrder = allInOrder;
 
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
         if (context.IsNew && !context.ParentManagesFocus())

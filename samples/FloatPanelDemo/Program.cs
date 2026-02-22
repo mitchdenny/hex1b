@@ -14,18 +14,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         state.App = app;
         state.Start();
 
-        return ctx =>
+        return ctx => ctx.VStack(v =>
         {
-            var children = new List<FloatChild>();
+            var widgets = new List<Hex1bWidget>();
 
             for (int i = 0; i < state.Icons.Count; i++)
             {
                 var icon = state.Icons[i];
-                var index = i;
 
-                children.Add(ctx.Place(
-                    (int)icon.X, (int)icon.Y,
-                    ctx.Interactable(ic =>
+                widgets.Add(v.Float(
+                    v.Interactable(ic =>
                         ic.Text(ic.IsHovered ? $"[{icon.Emoji}]" : icon.Emoji)
                     )
                     .OnHoverChanged(e =>
@@ -36,18 +34,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     {
                         state.LastClicked = $"Clicked: {icon.Name}";
                     })
-                ));
+                ).Absolute((int)icon.X, (int)icon.Y));
             }
 
             // Floating status text
-            children.Add(ctx.Place(
-                (int)state.StatusX, (int)state.StatusY,
-                ctx.Text(state.LastClicked ?? "Hover an icon, click to identify")
-            ));
+            widgets.Add(v.Float(
+                v.Text(state.LastClicked ?? "Hover an icon, click to identify")
+            ).Absolute((int)state.StatusX, (int)state.StatusY));
 
-            return ctx.FloatPanel(f => [.. children])
-                .RedrawAfter(state.FrameMs);
-        };
+            return [.. widgets];
+        }).RedrawAfter(state.FrameMs);
     })
     .Build();
 
