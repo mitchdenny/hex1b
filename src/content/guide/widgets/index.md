@@ -7,6 +7,7 @@ Hex1b provides a rich library of widgets for building terminal user interfaces. 
 Widgets for organizing and positioning content.
 
 - **[Stacks (HStack/VStack)](/guide/widgets/stacks)** — Arrange children horizontally or vertically
+- **[Grid](/guide/widgets/grid)** — Two-dimensional grid layout with row/column spanning
 - **[Border](/guide/widgets/containers)** — Bordered containers with optional titles
 - **[Align](/guide/widgets/align)** — Position content within available space
 - **[Scroll](/guide/widgets/scroll)** — Scrollable content areas for overflow

@@ -169,6 +169,23 @@ new VStackWidget([
 ])
 ```
 
+### Grid Layout
+
+For complex two-dimensional layouts, use [GridWidget](/guide/widgets/grid):
+
+```csharp
+ctx.Grid(g => {
+    g.Columns.Add(SizeHint.Fixed(20));
+    g.Columns.Add(SizeHint.Fill);
+
+    return [
+        g.Cell(c => c.Text("Nav")).RowSpan(0, 2).Column(0),
+        g.Cell(c => c.Text("Header")).Row(0).Column(1),
+        g.Cell(c => c.Text("Content")).Row(1).Column(1),
+    ];
+})
+```
+
 ## Live Demo
 
 <TerminalDemo example="layout" title="Layout Demo" />
