@@ -3,6 +3,7 @@ using Hex1b.Flow;
 using Hex1b.Input;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using GitReader.Structures;
 
 namespace FlowDemo.Commands;
 
@@ -230,21 +231,17 @@ internal static class CopilotCommand
 
     private static string? GetGitBranch(string directory)
     {
-        var dir = directory;
-        while (dir is not null)
+        try
         {
-            var headPath = Path.Combine(dir, ".git", "HEAD");
-            if (File.Exists(headPath))
-            {
-                var head = File.ReadAllText(headPath).Trim();
-                const string refPrefix = "ref: refs/heads/";
-                return head.StartsWith(refPrefix, StringComparison.Ordinal)
-                    ? head[refPrefix.Length..]
-                    : head[..Math.Min(7, head.Length)]; // detached HEAD — show short SHA
-            }
-            dir = Path.GetDirectoryName(dir);
+            // Use GitReader to read the branch — handles worktrees, bare repos, etc.
+            using var repo = GitReader.Repository.Factory.OpenStructureAsync(directory)
+                .GetAwaiter().GetResult();
+            return repo.Head?.Name;
         }
-        return null;
+        catch
+        {
+            return null;
+        }
     }
 
     private static string GetModeColorAnsi(Mode mode) => mode switch
