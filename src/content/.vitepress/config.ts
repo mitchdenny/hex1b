@@ -42,6 +42,7 @@ export default defineConfig({
           text: 'Building TUIs',
           items: [
             { text: 'Your First App', link: '/guide/getting-started' },
+            { text: 'Your First Flow App', link: '/guide/building-clis' },
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },

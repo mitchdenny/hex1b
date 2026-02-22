@@ -75,6 +75,23 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// </summary>
     private InputBindingActionContext? _pendingEventContext;
     
+    /// <summary>
+    /// Whether follow mode is enabled via the widget configuration.
+    /// </summary>
+    internal bool FollowEnabled { get; set; }
+    
+    /// <summary>
+    /// When true, the scroll panel auto-scrolls to the end when content grows.
+    /// Set to false when the user scrolls away from the end.
+    /// Re-engaged when the user scrolls back to the end.
+    /// </summary>
+    public bool IsFollowing { get; set; }
+    
+    /// <summary>
+    /// Tracks the previous content size to detect content growth for follow mode.
+    /// </summary>
+    private int _previousContentSize;
+    
     private ScrollOrientation _orientation = ScrollOrientation.Vertical;
     /// <summary>
     /// The scroll orientation (vertical or horizontal).
@@ -356,6 +373,12 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         Offset = clampedOffset;
         MarkDirty();
         
+        // Update follow state based on user scroll position
+        if (FollowEnabled)
+        {
+            IsFollowing = Offset >= MaxOffset;
+        }
+        
         // Fire scroll event
         if (ScrollAction != null && context != null)
         {
@@ -533,6 +556,13 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         {
             ContentSize = _contentSize.Width;
         }
+        
+        // Follow mode: snap to end when content grows
+        if (FollowEnabled && IsFollowing && ContentSize > _previousContentSize)
+        {
+            Offset = MaxOffset;
+        }
+        _previousContentSize = ContentSize;
         
         // The scroll widget takes whatever space is given to it
         // Width = content width + scrollbar (for vertical scroll)

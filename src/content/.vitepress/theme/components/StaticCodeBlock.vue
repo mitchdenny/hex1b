@@ -37,7 +37,7 @@ const props = defineProps<{
 const slots = useSlots()
 const highlightedCode = ref<string>('')
 const copied = ref(false)
-const actualCode = ref('')
+const actualCode = ref(props.code || '')
 const terminalEl = ref<HTMLElement | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -119,7 +119,7 @@ function getCodeFromSlot(): string {
 
 async function highlightCode() {
   const code = props.code || getCodeFromSlot()
-  if (code && code !== actualCode.value) {
+  if (code && (!highlightedCode.value || code !== actualCode.value)) {
     actualCode.value = code
     highlightedCode.value = await codeToHtml(code, {
       lang: props.lang || 'csharp',
