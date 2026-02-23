@@ -268,7 +268,7 @@ Hex1bWidget BuildDropTargetIndicator(DropTargetContext dt)
         return dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(60, 60, 60)),
             dt.Text(" ─── ─── ─── ───"));
 
-    return dt.Text("");
+    return dt.Text("").Height(SizeHint.Fixed(0));
 }
 
 record KanbanTask(string Id, string Title, string Category, Hex1bColor CategoryColor);
