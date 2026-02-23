@@ -147,40 +147,26 @@ Hex1bWidget BuildTaskCard(
                     dc.VStack(v => [
                         v.Text($" ┄┄┄┄┄┄┄┄┄┄┄┄┄┄"),
                         v.Text($"   "),
+                        v.Text($"   "),
                     ])
                 )
             );
         }
 
-        return dc.ThemePanel(
-            t => t
-                .Set(BorderTheme.BorderColor, Hex1bColor.DarkGray)
-                .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
-            dc.Border(
-                dc.VStack(v => [
-                    v.Text($" {task.Title}"),
-                    v.ThemePanel(
-                        t => t.Set(GlobalTheme.ForegroundColor, task.CategoryColor),
-                        v.Text($"   [{task.Category}]")),
-                ])
-            )
-        );
+        // Normal card with smart matter particle background
+        return dc.Surface(s =>
+        {
+            UpdateGhostParticles(ghostParticles, ghostRandom, s.Width, s.Height);
+            return [
+                s.Layer(surface => RenderGhostParticles(surface, ghostParticles, task.Title, task.CategoryColor, task.Category)),
+            ];
+        })
+        .Width(SizeHint.Fill)
+        .Height(SizeHint.Fixed(3))
+        .RedrawAfter(50);
     })
     .DragOverlay(dc =>
     {
-        if (task.Id == "task-1")
-        {
-            // Smart matter animated ghost for the first task card
-            return dc.Surface(s =>
-            {
-                UpdateGhostParticles(ghostParticles, ghostRandom, s.Width, s.Height);
-                return [s.Layer(surface => RenderGhostParticles(surface, ghostParticles, task.Title))];
-            })
-            .Width(SizeHint.Fixed(20))
-            .Height(SizeHint.Fixed(4))
-            .RedrawAfter(50);
-        }
-
         // Lightweight ghost that follows the cursor
         return dc.ThemePanel(
             t => t
@@ -229,7 +215,7 @@ void UpdateGhostParticles(GhostParticle[] particles, Random rng, int width, int 
     }
 }
 
-void RenderGhostParticles(Surface surface, GhostParticle[] particles, string title)
+void RenderGhostParticles(Surface surface, GhostParticle[] particles, string title, Hex1bColor categoryColor, string category)
 {
     int dotW = surface.Width * 2;
     int dotH = surface.Height * 4;
@@ -283,13 +269,20 @@ void RenderGhostParticles(Surface surface, GhostParticle[] particles, string tit
         surface[cx, cy] = new SurfaceCell(ch.ToString(), Hex1bColor.FromRgb(r, g, b), existing.Background);
     }
 
-    // Overlay title text in the middle row
-    int midY = surface.Height / 2;
-    var titleText = $" 📋 {title} ";
+    // Overlay title text on the first row
+    var titleText = $" {title}";
     for (int i = 0; i < titleText.Length && i < surface.Width; i++)
     {
-        var bg = surface[i, midY].Background ?? Hex1bColor.FromRgb(10, 15, 25);
-        surface[i, midY] = new SurfaceCell(titleText[i].ToString(), Hex1bColor.White, bg);
+        var bg = surface[i, 0].Background ?? Hex1bColor.FromRgb(10, 15, 25);
+        surface[i, 0] = new SurfaceCell(titleText[i].ToString(), Hex1bColor.White, bg);
+    }
+
+    // Overlay category on the second row
+    var catText = $"   [{category}]";
+    for (int i = 0; i < catText.Length && i < surface.Width && 1 < surface.Height; i++)
+    {
+        var bg = surface[i, 1].Background ?? Hex1bColor.FromRgb(10, 15, 25);
+        surface[i, 1] = new SurfaceCell(catText[i].ToString(), categoryColor, bg);
     }
 }
 
