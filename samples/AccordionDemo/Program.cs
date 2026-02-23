@@ -172,16 +172,6 @@ var activeTab = -1;
 var statusMessage = "Ready";
 var expandedSection = 0; // which accordion section is expanded
 
-// Outline items (simplified — in a real IDE these would be parsed)
-var outlineItems = new List<(string Icon, string Name, string Kind)>
-{
-    ("▸", "Program", "class"),
-    ("▸", "Main()", "method"),
-    ("▸", "Utils", "class"),
-    ("▸", "Greet()", "method"),
-    ("▸", "Add()", "method"),
-};
-
 // Timeline / git log (fake)
 var timelineItems = new List<(string Hash, string Message, string Author)>
 {
@@ -282,7 +272,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 m.Menu("View", m2 =>
                 [
                     m2.MenuItem("Explorer").OnActivated(_ => expandedSection = 0),
-                    m2.MenuItem("Outline").OnActivated(_ => expandedSection = 1),
+                    m2.MenuItem("Document").OnActivated(_ => expandedSection = 1),
                     m2.MenuItem("Timeline").OnActivated(_ => expandedSection = 2),
                     m2.MenuItem("Source Control").OnActivated(_ => expandedSection = 3),
                 ]),
@@ -326,27 +316,23 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             }),
                         ]),
 
-                        // ── OUTLINE section ──
+                        // ── OUTLINE section (document internals) ──
                         a.Section(s =>
                         {
-                            var widgets = new List<Hex1bWidget>();
                             if (activeTab >= 0 && activeTab < openTabs.Count)
                             {
-                                foreach (var item in outlineItems)
+                                var path = openTabs[activeTab];
+                                if (openDocs.TryGetValue(path, out var entry))
                                 {
-                                    widgets.Add(s.Text($"  {item.Icon} {item.Name}  ({item.Kind})"));
+                                    return [s.DocumentDiagnosticPanel(entry.Doc).FillHeight()];
                                 }
                             }
-                            else
-                            {
-                                widgets.Add(s.Text("  No file open"));
-                            }
-                            return widgets;
-                        }).Title("OUTLINE")
+                            return [s.Text("  No file open")];
+                        }).Title("DOCUMENT")
                         .Expanded(expandedSection == 1)
                         .RightActions(ra =>
                         [
-                            ra.Icon("⟳").OnClick(_ => statusMessage = "Outline refreshed"),
+                            ra.Icon("⟳").OnClick(_ => statusMessage = "Document view refreshed"),
                         ]),
 
                         // ── TIMELINE section ──
