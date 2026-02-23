@@ -48,11 +48,8 @@ public sealed class DropTargetNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        if (!IsActive || Child == null)
-        {
-            // Inactive: zero height but full width so Bounds.Y is meaningful
+        if (Child == null)
             return new Size(constraints.MaxWidth, 0);
-        }
 
         return Child.Measure(constraints);
     }
@@ -60,15 +57,12 @@ public sealed class DropTargetNode : Hex1bNode
     protected override void ArrangeCore(Rect rect)
     {
         base.ArrangeCore(rect);
-        if (IsActive)
-        {
-            Child?.Arrange(rect);
-        }
+        Child?.Arrange(rect);
     }
 
     public override void Render(Hex1bRenderContext context)
     {
-        if (IsActive && Child != null)
+        if (Child != null)
             context.RenderChild(Child);
     }
 

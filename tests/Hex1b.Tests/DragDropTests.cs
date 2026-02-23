@@ -519,7 +519,7 @@ public class DragDropTests
     }
 
     [Fact]
-    public void DropTargetNode_Measure_WhenInactive_ReturnsZeroHeight()
+    public void DropTargetNode_Measure_WhenInactive_MeasuresChild()
     {
         var node = new DropTargetNode();
         var child = new TextBlockNode { Text = "indicator" };
@@ -527,8 +527,9 @@ public class DragDropTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 20));
 
-        Assert.Equal(0, size.Height);
-        Assert.Equal(40, size.Width);
+        // Inactive node still measures child — visibility is controlled by builder callback
+        Assert.Equal(1, size.Height);
+        Assert.True(size.Width > 0);
     }
 
     [Fact]
