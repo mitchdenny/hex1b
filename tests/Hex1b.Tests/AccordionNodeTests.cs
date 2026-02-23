@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
@@ -280,5 +281,126 @@ public class AccordionNodeTests
 
         actionCtx.Expand();
         Assert.True(actionCtx.IsExpanded);
+    }
+}
+
+public class AccordionIntegrationTests
+{
+    [Fact]
+    public async Task Accordion_BasicRender_ShowsSectionTitles()
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.Accordion(a => [
+                a.Section(s => [s.Text("Content 1")]).Title("Section A"),
+                a.Section(s => [s.Text("Content 2")]).Title("Section B"),
+            ]))
+            .WithHeadless()
+            .WithDimensions(40, 10)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Section A"), TimeSpan.FromSeconds(5), "accordion to render")
+            .Capture("accordion-basic")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("Section A"));
+        Assert.True(snapshot.ContainsText("Section B"));
+    }
+}
+
+public class AccordionKeyboardTests
+{
+    [Fact]
+    public async Task Accordion_EnterKey_TogglesSections()
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.Accordion(a => [
+                a.Section(s => [s.Text("Content A")]).Title("First"),
+                a.Section(s => [s.Text("Content B")]).Title("Second"),
+            ]))
+            .WithHeadless()
+            .WithDimensions(40, 12)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("First"), TimeSpan.FromSeconds(5), "accordion to render")
+            .Capture("before-toggle")
+            // First section should be expanded by default - shows Content A
+            .Key(Hex1bKey.Enter)  // Toggle first section (collapse)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-collapse")
+            .Key(Hex1bKey.DownArrow)  // Move to second section
+            .Key(Hex1bKey.Enter)  // Toggle second section (expand)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-expand-second")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // After expanding second, "Content B" should be visible
+        Assert.True(snapshot.ContainsText("Content B"));
+    }
+}
+
+public class AccordionLayoutTests
+{
+    [Fact]
+    public async Task Accordion_InVStackWithBorder_Renders()
+    {
+        // Regression: VStack measures children with maxHeight=int.MaxValue,
+        // which caused accordion to freeze trying to distribute infinite space.
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+                v.Text("Title"),
+                v.Separator(),
+                v.HStack(h => [
+                    h.Border(b => [
+                        b.Accordion(a => [
+                            a.Section(s => [s.Text("Content")]).Title("EXPLORER"),
+                            a.Section(s => [s.Text("More")]).Title("OUTLINE"),
+                            a.Section(s => [s.Text("Third")]).Title("SOURCE CONTROL").Collapsed(),
+                        ])
+                    ]).Title("Sidebar").FixedWidth(35),
+                    h.Border(b => [b.Text("Main")]).Title("Editor"),
+                ]),
+            ]))
+            .WithMouse()
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5), "app to start")
+            .Wait(TimeSpan.FromMilliseconds(500))
+            .Capture("vstack-accordion")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Dump first 10 lines of screen for debugging
+        var lines = new List<string>();
+        for (int row = 0; row < 24; row++)
+        {
+            try { lines.Add(snapshot.GetTextAt(row, 0, 79)); } catch { }
+        }
+        var screenDump = string.Join("\n", lines);
+        if (!snapshot.ContainsText("EXPLORER"))
+            Assert.Fail($"Missing EXPLORER.\nScreen:\n{screenDump}");
+        Assert.True(snapshot.ContainsText("OUTLINE"));
+        Assert.True(snapshot.ContainsText("SOURCE CONTROL"));
     }
 }

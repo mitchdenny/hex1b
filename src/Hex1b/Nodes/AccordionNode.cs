@@ -198,26 +198,45 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
             return constraints.Constrain(new Size(constraints.MaxWidth, totalHeaderHeight));
         }
 
-        // Distribute remaining height equally among expanded sections
-        var availableContentHeight = constraints.MaxHeight - totalHeaderHeight;
-        var perSectionHeight = availableContentHeight / expandedCount;
-        var remainder = availableContentHeight % expandedCount;
+        var isBounded = constraints.MaxHeight < int.MaxValue;
 
-        var totalHeight = totalHeaderHeight;
-        var expandedIdx = 0;
-        for (int i = 0; i < _sections.Count; i++)
+        if (isBounded)
         {
-            if (_expandedStates[i] && _contentNodes[i] != null)
-            {
-                var sectionContentHeight = perSectionHeight + (expandedIdx < remainder ? 1 : 0);
-                var contentConstraints = new Constraints(0, constraints.MaxWidth, 0, sectionContentHeight);
-                _contentNodes[i]!.Measure(contentConstraints);
-                totalHeight += sectionContentHeight;
-                expandedIdx++;
-            }
-        }
+            // Bounded: distribute remaining height equally among expanded sections
+            var availableContentHeight = constraints.MaxHeight - totalHeaderHeight;
+            var perSectionHeight = availableContentHeight / expandedCount;
+            var remainder = availableContentHeight % expandedCount;
 
-        return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
+            var expandedIdx = 0;
+            for (int i = 0; i < _sections.Count; i++)
+            {
+                if (_expandedStates[i] && _contentNodes[i] != null)
+                {
+                    var sectionContentHeight = perSectionHeight + (expandedIdx < remainder ? 1 : 0);
+                    var contentConstraints = new Constraints(0, constraints.MaxWidth, 0, sectionContentHeight);
+                    _contentNodes[i]!.Measure(contentConstraints);
+                    expandedIdx++;
+                }
+            }
+
+            return constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
+        }
+        else
+        {
+            // Unbounded (content sizing): measure each section to natural size
+            var totalHeight = totalHeaderHeight;
+            for (int i = 0; i < _sections.Count; i++)
+            {
+                if (_expandedStates[i] && _contentNodes[i] != null)
+                {
+                    var contentConstraints = new Constraints(0, constraints.MaxWidth, 0, int.MaxValue);
+                    var contentSize = _contentNodes[i]!.Measure(contentConstraints);
+                    totalHeight += contentSize.Height;
+                }
+            }
+
+            return constraints.Constrain(new Size(constraints.MaxWidth, totalHeight));
+        }
     }
 
     protected override void ArrangeCore(Rect bounds)
