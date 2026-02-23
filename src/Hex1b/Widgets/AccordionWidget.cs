@@ -60,10 +60,31 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
         for (int i = 0; i < Sections.Count; i++)
         {
             var section = Sections[i];
+            var sectionIndex = i;
+
+            // Build left actions; prepend a default toggle if user didn't provide one
+            var leftActions = new List<AccordionSectionAction>();
+            var hasToggle = section.LeftSectionActions.Any(a => a.IsToggle);
+            if (!hasToggle)
+            {
+                leftActions.Add(AccordionSectionActionBuilder.DefaultToggle(node, sectionIndex));
+            }
+            foreach (var a in section.LeftSectionActions)
+            {
+                leftActions.Add(WireToggleHandler(a, node, sectionIndex));
+            }
+
+            // Build right actions
+            var rightActions = new List<AccordionSectionAction>();
+            foreach (var a in section.RightSectionActions)
+            {
+                rightActions.Add(WireToggleHandler(a, node, sectionIndex));
+            }
+
             sections.Add(new AccordionNode.SectionInfo(
                 section.SectionTitle,
-                section.LeftActionIcons,
-                section.RightActionIcons));
+                leftActions,
+                rightActions));
         }
 
         node.SetSections(sections);
@@ -112,6 +133,22 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
         }
 
         return node;
+    }
+
+    /// <summary>
+    /// Wires up toggle actions with the node and section index so they can call ToggleSection.
+    /// Non-toggle actions are returned as-is.
+    /// </summary>
+    private static AccordionSectionAction WireToggleHandler(AccordionSectionAction action, AccordionNode node, int sectionIndex)
+    {
+        if (!action.IsToggle)
+            return action;
+
+        // Ensure toggle actions have a click handler that toggles the section
+        return action with
+        {
+            ClickHandler = action.ClickHandler ?? (ctx => ctx.Toggle())
+        };
     }
 
     internal override Type GetExpectedNodeType() => typeof(AccordionNode);

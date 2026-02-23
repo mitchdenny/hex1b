@@ -16,15 +16,15 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public sealed record SectionInfo(
         string Title,
-        IReadOnlyList<IconWidget> LeftActions,
-        IReadOnlyList<IconWidget> RightActions);
+        IReadOnlyList<AccordionSectionAction> LeftActions,
+        IReadOnlyList<AccordionSectionAction> RightActions);
 
     private List<SectionInfo> _sections = [];
     private List<bool> _expandedStates = [];
     private List<Hex1bNode?> _contentNodes = [];
     private List<Rect> _headerBounds = [];
     private List<Rect> _contentBounds = [];
-    private List<(int X, int Width, int SectionIndex, int IconIndex, bool IsLeft, IconWidget Icon)> _iconHitRegions = [];
+    private List<(int X, int Width, int SectionIndex, int IconIndex, bool IsLeft, AccordionSectionAction Action)> _iconHitRegions = [];
     private int _focusedSectionIndex;
 
     /// <summary>
@@ -344,28 +344,24 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         var x = header.X;
         var y = header.Y;
 
-        // Render chevron
-        var chevron = _expandedStates[sectionIndex] ? expandedChevron : collapsedChevron;
-        context.WriteClipped(x, y, $"{fgCode}{bgCode}{chevron} {resetToGlobal}");
-        x += 2;
-
-        // Render left icons
+        // Render left actions
         for (int iconIdx = 0; iconIdx < section.LeftActions.Count; iconIdx++)
         {
-            var icon = section.LeftActions[iconIdx];
-            var iconWidth = icon.Icon.Length;
-            _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, true, icon));
-            context.WriteClipped(x, y, $"{fgCode}{bgCode}{icon.Icon} {resetToGlobal}");
+            var action = section.LeftActions[iconIdx];
+            var iconText = ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron);
+            var iconWidth = iconText.Length;
+            _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, true, action));
+            context.WriteClipped(x, y, $"{fgCode}{bgCode}{iconText} {resetToGlobal}");
             x += iconWidth + 1;
         }
 
         // Render title
         var maxTitleWidth = header.Width - (x - header.X);
-        // Reserve space for right icons
+        // Reserve space for right actions
         var rightIconsWidth = 0;
-        foreach (var icon in section.RightActions)
+        foreach (var action in section.RightActions)
         {
-            rightIconsWidth += icon.Icon.Length + 1;
+            rightIconsWidth += ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron).Length + 1;
         }
         maxTitleWidth -= rightIconsWidth;
 
@@ -378,7 +374,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         context.WriteClipped(x, y, $"{fgCode}{bgCode}{title}{resetToGlobal}");
         x += title.Length;
 
-        // Fill remaining space before right icons
+        // Fill remaining space before right actions
         var rightIconsStartX = header.X + header.Width - rightIconsWidth;
         if (x < rightIconsStartX)
         {
@@ -387,16 +383,33 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
             x = rightIconsStartX;
         }
 
-        // Render right icons
+        // Render right actions
         for (int iconIdx = 0; iconIdx < section.RightActions.Count; iconIdx++)
         {
-            var icon = section.RightActions[iconIdx];
-            var iconWidth = icon.Icon.Length;
-            context.WriteClipped(x, y, $"{fgCode}{bgCode} {icon.Icon}{resetToGlobal}");
+            var action = section.RightActions[iconIdx];
+            var iconText = ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron);
+            var iconWidth = iconText.Length;
+            context.WriteClipped(x, y, $"{fgCode}{bgCode} {iconText}{resetToGlobal}");
             x += 1; // space before icon
-            _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, false, icon));
+            _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, false, action));
             x += iconWidth;
         }
+    }
+
+    private string ResolveActionIcon(AccordionSectionAction action, int sectionIndex, char expandedChevron, char collapsedChevron)
+    {
+        if (!action.IsToggle)
+            return action.Icon;
+
+        var isExpanded = _expandedStates[sectionIndex];
+        var expandedIcon = action.ExpandedIcon;
+        var collapsedIcon = action.Icon;
+
+        // Empty strings mean "use theme default"
+        if (isExpanded)
+            return string.IsNullOrEmpty(expandedIcon) ? expandedChevron.ToString() : expandedIcon;
+        else
+            return string.IsNullOrEmpty(collapsedIcon) ? collapsedChevron.ToString() : collapsedIcon;
     }
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
@@ -446,15 +459,15 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         var mouseX = ctx.MouseX;
         var mouseY = ctx.MouseY;
 
-        // Check icon hit regions first
-        foreach (var (iconX, iconWidth, sectionIndex, iconIndex, isLeft, icon) in _iconHitRegions)
+        // Check action hit regions first
+        foreach (var (iconX, iconWidth, sectionIndex, iconIndex, isLeft, action) in _iconHitRegions)
         {
             if (mouseY == _headerBounds[sectionIndex].Y && mouseX >= iconX && mouseX < iconX + iconWidth)
             {
-                if (icon.ClickHandler != null)
+                if (action.ClickHandler != null)
                 {
-                    var args = new Events.IconClickedEventArgs(icon, null!, ctx);
-                    await icon.ClickHandler(args);
+                    var actionCtx = new AccordionSectionActionContext(this, sectionIndex);
+                    action.ClickHandler(actionCtx);
                 }
                 return;
             }

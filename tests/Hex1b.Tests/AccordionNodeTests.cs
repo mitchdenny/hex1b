@@ -199,22 +199,32 @@ public class AccordionNodeTests
     }
 
     [Fact]
-    public void AccordionSectionWidget_LeftActions_SetsIcons()
+    public void AccordionSectionWidget_LeftActions_SetsActions()
     {
         var section = new AccordionSectionWidget(s => [])
-            .LeftActions(a => [new IconWidget("+")]);
+            .LeftActions(a => [a.Icon("+")]);
 
-        Assert.Single(section.LeftActionIcons);
-        Assert.Equal("+", section.LeftActionIcons[0].Icon);
+        Assert.Single(section.LeftSectionActions);
+        Assert.Equal("+", section.LeftSectionActions[0].Icon);
     }
 
     [Fact]
-    public void AccordionSectionWidget_RightActions_SetsIcons()
+    public void AccordionSectionWidget_RightActions_SetsActions()
     {
         var section = new AccordionSectionWidget(s => [])
-            .RightActions(a => [new IconWidget("×"), new IconWidget("⟳")]);
+            .RightActions(a => [a.Icon("×"), a.Icon("⟳")]);
 
-        Assert.Equal(2, section.RightActionIcons.Count);
+        Assert.Equal(2, section.RightSectionActions.Count);
+    }
+
+    [Fact]
+    public void AccordionSectionWidget_LeftActions_Toggle_SetsIsToggle()
+    {
+        var section = new AccordionSectionWidget(s => [])
+            .LeftActions(a => [a.Toggle("▶", "▼")]);
+
+        Assert.Single(section.LeftSectionActions);
+        Assert.True(section.LeftSectionActions[0].IsToggle);
     }
 
     [Fact]

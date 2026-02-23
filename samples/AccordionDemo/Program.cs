@@ -22,8 +22,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             s.Text("      Product.cs"),
                         ]).Title("EXPLORER")
                         .RightActions(ra => [
-                            ra.Icon("+").OnClick(e => { statusMessage = "New file created"; }),
-                            ra.Icon("⟳").OnClick(e => { statusMessage = "Explorer refreshed"; }),
+                            ra.Icon("+").OnClick(ctx => { statusMessage = "New file created"; }),
+                            ra.Icon("⟳").OnClick(ctx => { statusMessage = "Explorer refreshed"; }),
                         ]),
 
                         a.Section(s => [
@@ -32,7 +32,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             s.Text("  ▸ Fields"),
                         ]).Title("OUTLINE")
                         .RightActions(ra => [
-                            ra.Icon("⟳").OnClick(e => { statusMessage = "Outline refreshed"; }),
+                            ra.Icon("⟳").OnClick(ctx => { statusMessage = "Outline refreshed"; }),
                         ]),
 
                         a.Section(s => [
@@ -41,7 +41,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             s.Text("  ● Added accordion widget"),
                         ]).Title("TIMELINE")
                         .RightActions(ra => [
-                            ra.Icon("🔍").OnClick(e => { statusMessage = "Timeline filter opened"; }),
+                            ra.Icon("🔍").OnClick(ctx => { statusMessage = "Timeline filter opened"; }),
                         ]),
 
                         a.Section(s => [
@@ -50,11 +50,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             s.Text("  develop"),
                         ]).Title("SOURCE CONTROL")
                         .LeftActions(la => [
-                            la.Icon("✓").OnClick(e => { statusMessage = "Changes committed"; }),
+                            la.Toggle("▶", "▼"),
+                            la.Icon("✓").OnClick(ctx => { statusMessage = "Changes committed"; }),
                         ])
                         .RightActions(ra => [
-                            ra.Icon("⟳").OnClick(e => { statusMessage = "Source control refreshed"; }),
-                            ra.Icon("…").OnClick(e => { statusMessage = "More actions menu"; }),
+                            ra.Icon("⟳").OnClick(ctx => { statusMessage = "Source control refreshed"; }),
+                            ra.Icon("…").OnClick(ctx => { statusMessage = "More actions menu"; }),
                         ]),
                     ])
                 ]).FillHeight()

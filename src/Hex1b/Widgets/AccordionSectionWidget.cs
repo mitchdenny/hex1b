@@ -22,14 +22,15 @@ public sealed record AccordionSectionWidget(
     public bool? IsExpanded { get; init; }
 
     /// <summary>
-    /// Action icons displayed on the left side of the section header.
+    /// Actions displayed on the left side of the section header.
+    /// A default toggle chevron is prepended if no toggle action is included.
     /// </summary>
-    internal IReadOnlyList<IconWidget> LeftActionIcons { get; init; } = [];
+    internal IReadOnlyList<AccordionSectionAction> LeftSectionActions { get; init; } = [];
 
     /// <summary>
-    /// Action icons displayed on the right side of the section header.
+    /// Actions displayed on the right side of the section header.
     /// </summary>
-    internal IReadOnlyList<IconWidget> RightActionIcons { get; init; } = [];
+    internal IReadOnlyList<AccordionSectionAction> RightSectionActions { get; init; } = [];
 
     /// <summary>
     /// Sets the title for this section.
@@ -52,39 +53,40 @@ public sealed record AccordionSectionWidget(
         => this with { IsExpanded = false };
 
     /// <summary>
-    /// Adds action icons to the left side of the section header.
+    /// Adds actions to the left side of the section header.
+    /// A default toggle chevron is prepended unless a toggle action is included.
     /// </summary>
-    /// <param name="builder">A function that returns the icons to add.</param>
+    /// <param name="builder">A function that returns the actions to add.</param>
     /// <example>
     /// <code>
     /// a.Section(s => [...])
     ///   .Title("Explorer")
-    ///   .LeftActions(la => [la.Icon("📌")])
+    ///   .LeftActions(la => [la.Toggle("▶", "▼"), la.Icon("📌").OnClick(ctx => ctx.Collapse())])
     /// </code>
     /// </example>
-    public AccordionSectionWidget LeftActions(Func<WidgetContext<AccordionSectionWidget>, IEnumerable<IconWidget>> builder)
+    public AccordionSectionWidget LeftActions(Func<AccordionSectionActionBuilder, IEnumerable<AccordionSectionAction>> builder)
     {
-        var ctx = new WidgetContext<AccordionSectionWidget>();
-        var icons = builder(ctx).ToList();
-        return this with { LeftActionIcons = icons };
+        var ctx = new AccordionSectionActionBuilder();
+        var actions = builder(ctx).ToList();
+        return this with { LeftSectionActions = actions };
     }
 
     /// <summary>
-    /// Adds action icons to the right side of the section header.
+    /// Adds actions to the right side of the section header.
     /// </summary>
-    /// <param name="builder">A function that returns the icons to add.</param>
+    /// <param name="builder">A function that returns the actions to add.</param>
     /// <example>
     /// <code>
     /// a.Section(s => [...])
     ///   .Title("Explorer")
-    ///   .RightActions(ra => [ra.Icon("×").OnClick(e => e.Section.Collapse())])
+    ///   .RightActions(ra => [ra.Icon("+").OnClick(ctx => ...), ra.Collapse()])
     /// </code>
     /// </example>
-    public AccordionSectionWidget RightActions(Func<WidgetContext<AccordionSectionWidget>, IEnumerable<IconWidget>> builder)
+    public AccordionSectionWidget RightActions(Func<AccordionSectionActionBuilder, IEnumerable<AccordionSectionAction>> builder)
     {
-        var ctx = new WidgetContext<AccordionSectionWidget>();
-        var icons = builder(ctx).ToList();
-        return this with { RightActionIcons = icons };
+        var ctx = new AccordionSectionActionBuilder();
+        var actions = builder(ctx).ToList();
+        return this with { RightSectionActions = actions };
     }
 
     /// <summary>
@@ -96,7 +98,6 @@ public sealed record AccordionSectionWidget(
         var children = ContentBuilder(ctx).ToList();
         if (includeSpacer)
         {
-            // Inject spacer to fill remaining vertical space within the section
             children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
         }
         return new VStackWidget(children);
@@ -104,8 +105,6 @@ public sealed record AccordionSectionWidget(
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
-        // AccordionSectionWidget is not directly reconciled - it's used by AccordionNode
-        // to build section headers and content. This method should not be called directly.
         throw new InvalidOperationException(
             "AccordionSectionWidget should not be reconciled directly. Use Accordion instead.");
     }
