@@ -163,7 +163,7 @@ ctx.VStack(v => [
 
 ## Anchor-Relative Positioning
 
-Instead of absolute coordinates, floats can be positioned relative to a sibling widget using alignment methods. This is useful for tooltips, dropdowns, and contextual overlays.
+Instead of absolute coordinates, floats can be positioned relative to another widget in the container using alignment methods. The anchor can be a flow sibling, a widget nested inside a flow child, or even another float. This is useful for tooltips, dropdowns, and contextual overlays.
 
 ### Alignment Methods
 
@@ -207,7 +207,46 @@ Use the dropdowns to see how each alignment option positions the floated border 
 <CodeBlock lang="csharp" :code="alignmentCode" command="dotnet run" example="float-alignment" exampleTitle="Float - Alignment Explorer" />
 
 ::: info Anchor Scope
-The anchor widget must be a **direct sibling** in the same container. Anchoring to widgets nested inside other containers is not supported.
+The anchor widget can be any widget within the same container—either a direct flow sibling or a widget nested inside a flow child (e.g., a border wrapped in `Center` or `Padding`). Floats can also anchor to other floated widgets in the same container.
+:::
+
+### Anchoring to Nested Widgets
+
+The anchor widget doesn't have to be a direct flow child—it can be nested inside layout wrappers like `Center`, `Padding`, or other containers:
+
+```csharp
+ctx.VStack(v =>
+{
+    var innerBorder = v.Border(b => [b.Text("Target")]).Title("Anchor");
+    return [
+        v.Center(v.Padding(4, 4, 2, 2, innerBorder)),
+        v.Float(v.Text("←")).ExtendLeft(innerBorder).AlignTop(innerBorder),
+    ];
+})
+```
+
+The float positions relative to the inner border's actual rendered bounds, not the `Center`/`Padding` wrapper. This is useful when you want visual padding around an anchor but need floats to align precisely with the inner content.
+
+### Float-to-Float Anchoring
+
+Floats can anchor to other floated widgets in the same container. The float declared first is arranged first, so subsequent floats can reference its position:
+
+```csharp
+ctx.VStack(v =>
+{
+    var menu = v.Border(b => [b.Text("Menu")]).Title("Menu");
+    var tooltip = v.Text("Tooltip text");
+    return [
+        v.Float(menu).Absolute(5, 3),
+        v.Float(tooltip).ExtendRight(menu).AlignTop(menu),
+    ];
+})
+```
+
+The tooltip float chains to the menu float—it appears immediately to the right, top-aligned. This enables building complex floating UIs like cascading menus or multi-part HUDs.
+
+::: warning Declaration Order Matters
+When a float anchors to another float, the anchor must be declared **before** the dependent float in the children array. Floats are arranged in declaration order.
 :::
 
 ## Use as an Overlay
