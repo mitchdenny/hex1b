@@ -99,6 +99,10 @@ var flowChartDemo = builder.AddCSharpApp("flowchart-demo", "./samples/FlowChartD
 var floatPanelDemo = builder.AddCSharpApp("float-panel-demo", "./samples/FloatPanelDemo")
     .ExcludeFromManifest();
 
+// Float Alignment Explorer demo
+var floatAlignmentExplorer = builder.AddCSharpApp("float-alignment-explorer", "./samples/FloatAlignmentExplorer")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
