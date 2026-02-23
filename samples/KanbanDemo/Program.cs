@@ -130,12 +130,16 @@ Hex1bWidget BuildColumn(
     {
         if (e.DragData is KanbanTask task)
         {
-            // Remove from source column
+            var posIndex = int.Parse(e.TargetId.Split('-')[1]);
+
+            // If reordering within the same column, adjust for index shift after removal
+            var sourceIndex = tasks.IndexOf(task);
             foreach (var col in columns.Values)
                 col.Remove(task);
 
-            // Insert at the position indicated by the drop target
-            var posIndex = int.Parse(e.TargetId.Split('-')[1]);
+            if (sourceIndex >= 0 && posIndex > sourceIndex)
+                posIndex--;
+
             posIndex = Math.Min(posIndex, tasks.Count);
             tasks.Insert(posIndex, task);
             lastAction = $" Moved \"{task.Title}\" to {columnName} at position {posIndex}";
