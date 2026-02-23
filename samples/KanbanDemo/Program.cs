@@ -27,6 +27,7 @@ var columns = new Dictionary<string, List<KanbanTask>>
 
 string? lastAction = null;
 var dropTargetMode = DropTargetMode.ActiveOnly;
+var showDragSource = true;
 var rainbowTimer = System.Diagnostics.Stopwatch.StartNew();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -41,6 +42,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 h.Text(" Drop Targets: "),
                 h.ToggleSwitch(["Off", "Active Only", "Always Visible"], (int)dropTargetMode)
                     .OnSelectionChanged(e => { dropTargetMode = (DropTargetMode)e.SelectedIndex; }),
+                h.Text("  Drag Source: "),
+                h.ToggleSwitch(["Hidden", "Visible"], showDragSource ? 1 : 0)
+                    .OnSelectionChanged(e => { showDragSource = e.SelectedIndex == 1; }),
                 h.Text("").Fill(),
             ]),
             v.Text(" Drag task cards between columns with the mouse"),
@@ -165,9 +169,12 @@ Hex1bWidget BuildTaskCard(
 {
     return parent.Draggable(task, dc =>
     {
-        // When dragging, show an empty placeholder to give the sense of physical movement
+        // When dragging, show placeholder or hide based on toggle
         if (dc.IsDragging)
         {
+            if (!showDragSource)
+                return dc.Text("").Height(SizeHint.Fixed(0));
+
             return dc.ThemePanel(
                 t => t
                     .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(60, 60, 60))
