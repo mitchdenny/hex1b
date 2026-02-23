@@ -51,6 +51,14 @@ public sealed class DropTargetNode : Hex1bNode
         if (Child == null)
             return new Size(constraints.MaxWidth, 0);
 
+        // Respect child's HeightHint (e.g., Fixed(0) for invisible drop targets)
+        if (Child.HeightHint is { IsFixed: true } hint)
+        {
+            var constrained = constraints.WithMaxHeight(hint.FixedValue);
+            var size = Child.Measure(constrained);
+            return new Size(size.Width, hint.FixedValue);
+        }
+
         return Child.Measure(constraints);
     }
 
