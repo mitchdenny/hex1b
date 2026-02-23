@@ -1158,21 +1158,21 @@ public class BorderNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting the app
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen && s.ContainsText("┌"), TimeSpan.FromSeconds(5))
+        // WaitUntil verifies all border corners are rendered before Ctrl+C exits.
+        // The snapshot from ApplyWithCaptureAsync is taken AFTER Ctrl+C, so on Linux CI
+        // the terminal buffer may be cleared. Use WaitUntil as the primary assertion.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen
+                && s.ContainsText("┌")
+                && s.ContainsText("┐")
+                && s.ContainsText("└")
+                && s.ContainsText("┘"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
-
-        // Should still have complete border - use captured snapshot
-        Assert.True(snapshot.ContainsText("┌"));
-        Assert.True(snapshot.ContainsText("┐"));
-        Assert.True(snapshot.ContainsText("└"));
-        Assert.True(snapshot.ContainsText("┘"));
     }
 
     #endregion
