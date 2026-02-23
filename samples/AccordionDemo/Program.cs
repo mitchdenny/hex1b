@@ -1,6 +1,8 @@
 using Hex1b;
 using Hex1b.Theming;
 
+var statusMessage = "Ready";
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text(" Accordion Demo "),
@@ -20,27 +22,40 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             s.Text("      Product.cs"),
                         ]).Title("EXPLORER")
                         .RightActions(ra => [
-                            ra.Icon("+"),
-                            ra.Icon("⟳"),
+                            ra.Icon("+").OnClick(e => { statusMessage = "New file created"; }),
+                            ra.Icon("⟳").OnClick(e => { statusMessage = "Explorer refreshed"; }),
                         ]),
 
                         a.Section(s => [
                             s.Text("  ▸ Properties"),
                             s.Text("  ▸ Methods"),
                             s.Text("  ▸ Fields"),
-                        ]).Title("OUTLINE"),
+                        ]).Title("OUTLINE")
+                        .RightActions(ra => [
+                            ra.Icon("⟳").OnClick(e => { statusMessage = "Outline refreshed"; }),
+                        ]),
 
                         a.Section(s => [
                             s.Text("  ● Updated README.md"),
                             s.Text("  ● Fixed build script"),
                             s.Text("  ● Added accordion widget"),
-                        ]).Title("TIMELINE"),
+                        ]).Title("TIMELINE")
+                        .RightActions(ra => [
+                            ra.Icon("🔍").OnClick(e => { statusMessage = "Timeline filter opened"; }),
+                        ]),
 
                         a.Section(s => [
                             s.Text("  main"),
                             s.Text("  feature/accordion"),
                             s.Text("  develop"),
-                        ]).Title("SOURCE CONTROL"),
+                        ]).Title("SOURCE CONTROL")
+                        .LeftActions(la => [
+                            la.Icon("✓").OnClick(e => { statusMessage = "Changes committed"; }),
+                        ])
+                        .RightActions(ra => [
+                            ra.Icon("⟳").OnClick(e => { statusMessage = "Source control refreshed"; }),
+                            ra.Icon("…").OnClick(e => { statusMessage = "More actions menu"; }),
+                        ]),
                     ])
                 ]).FillHeight()
             ]).Title("Sidebar").FixedWidth(35).FillHeight(),
@@ -53,11 +68,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     inner.Text("Use ↑/↓ to navigate sections"),
                     inner.Text("Press Enter or Space to toggle"),
                     inner.Text("Click headers to expand/collapse"),
+                    inner.Text("Click action icons on headers"),
                     inner.Text(""),
                     inner.Text("Press Ctrl+C to exit"),
                 ])
             ]).Title("Editor"),
         ]).FillHeight(),
+
+        v.Separator(),
+        v.Text($" {statusMessage}"),
     ]))
     .WithDiagnostics()
     .WithMouse()
