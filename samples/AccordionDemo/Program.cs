@@ -170,7 +170,7 @@ var openTabs = new List<string>();
 var editorModes = new Dictionary<string, int>(); // 0=Code, 1=Hex
 var activeTab = -1;
 var statusMessage = "Ready";
-var expandedSection = 0; // which accordion section is expanded
+int? expandedSectionOverride = null; // set by View menu, consumed once
 
 // Timeline / git log (fake)
 var timelineItems = new List<(string Hash, string Message, string Author)>
@@ -271,10 +271,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ]),
                 m.Menu("View", m2 =>
                 [
-                    m2.MenuItem("Explorer").OnActivated(_ => expandedSection = 0),
-                    m2.MenuItem("Document").OnActivated(_ => expandedSection = 1),
-                    m2.MenuItem("Timeline").OnActivated(_ => expandedSection = 2),
-                    m2.MenuItem("Source Control").OnActivated(_ => expandedSection = 3),
+                    m2.MenuItem("Explorer").OnActivated(_ => expandedSectionOverride = 0),
+                    m2.MenuItem("Document").OnActivated(_ => expandedSectionOverride = 1),
+                    m2.MenuItem("Timeline").OnActivated(_ => expandedSectionOverride = 2),
+                    m2.MenuItem("Source Control").OnActivated(_ => expandedSectionOverride = 3),
                 ]),
                 m.Menu("Help", m2 =>
                 [
@@ -289,9 +289,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 left =>
                 [
                     left.Accordion(a =>
-                    [
-                        // ── EXPLORER section with file tree ──
-                        a.Section(s =>
+                    {
+                        // Consume the override (set by View menu) — applied once then cleared
+                        var eso = expandedSectionOverride;
+                        expandedSectionOverride = null;
+
+                        var explorer = a.Section(s =>
                         [
                             s.Tree(tc => BuildTreeItems(tc, rootEntry.Children))
                                 .OnItemActivated(e =>
@@ -305,7 +308,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 })
                                 .FillHeight(),
                         ]).Title("EXPLORER")
-                        .Expanded(expandedSection == 0)
                         .RightActions(ra =>
                         [
                             ra.Icon("+").OnClick(_ => statusMessage = "New file..."),
@@ -314,10 +316,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 rootEntry = FileEntry.ScanDirectory(workspaceDir, workspaceDir);
                                 statusMessage = "Explorer refreshed";
                             }),
-                        ]),
+                        ]);
 
-                        // ── OUTLINE section (document internals) ──
-                        a.Section(s =>
+                        var document = a.Section(s =>
                         {
                             if (activeTab >= 0 && activeTab < openTabs.Count)
                             {
@@ -329,14 +330,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             }
                             return [s.Text("  No file open")];
                         }).Title("DOCUMENT")
-                        .Expanded(expandedSection == 1)
                         .RightActions(ra =>
                         [
                             ra.Icon("⟳").OnClick(_ => statusMessage = "Document view refreshed"),
-                        ]),
+                        ]);
 
-                        // ── TIMELINE section ──
-                        a.Section(s =>
+                        var timeline = a.Section(s =>
                         {
                             var widgets = new List<Hex1bWidget>();
                             foreach (var item in timelineItems)
@@ -346,14 +345,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             }
                             return widgets;
                         }).Title("TIMELINE")
-                        .Expanded(expandedSection == 2)
                         .RightActions(ra =>
                         [
                             ra.Icon("🔍").OnClick(_ => statusMessage = "Filter timeline..."),
-                        ]),
+                        ]);
 
-                        // ── SOURCE CONTROL section ──
-                        a.Section(s =>
+                        var sourceControl = a.Section(s =>
                         {
                             var widgets = new List<Hex1bWidget>();
                             foreach (var change in scChanges)
@@ -372,7 +369,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             widgets.Add(s.Text($"  {scChanges.Count} changes"));
                             return widgets;
                         }).Title("SOURCE CONTROL")
-                        .Expanded(expandedSection == 3)
                         .LeftActions(la =>
                         [
                             la.Toggle(),
@@ -382,8 +378,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         [
                             ra.Icon("⟳").OnClick(_ => statusMessage = "Pulling changes..."),
                             ra.Icon("…").OnClick(_ => statusMessage = "More SCM actions..."),
-                        ]),
-                    ])
+                        ]);
+
+                        // Apply View menu override if set
+                        if (eso == 0) explorer = explorer.Expanded();
+                        if (eso == 1) document = document.Expanded();
+                        if (eso == 2) timeline = timeline.Expanded();
+                        if (eso == 3) sourceControl = sourceControl.Expanded();
+
+                        return [explorer, document, timeline, sourceControl];
+                    })
                 ],
 
                 // RIGHT: Editor tabs
