@@ -8,7 +8,7 @@ namespace Hex1b.Widgets;
 /// This is useful for overlays, floating panels, menus, and modal dialogs.
 /// </summary>
 /// <param name="Children">The child widgets to stack. First child is at the bottom, last is on top.</param>
-public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
+public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget, IFloatWidgetContainer
 {
     /// <summary>
     /// The clipping scope for this ZStack's content.
@@ -42,9 +42,14 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
 
         // Create child context - ZStack doesn't have a layout axis, children fill available space
         var childContext = context.WithLayoutAxis(LayoutAxis.Vertical); // Use vertical as default
-        
-        // Build the complete list of children: explicit children + popup children
-        var allChildren = Children.ToList();
+
+        // Separate flow and float children, reconcile floats
+        var widgetToNode = new Dictionary<Hex1bWidget, Hex1bNode>(ReferenceEqualityComparer.Instance);
+        var (flowChildren, floatEntries) = await FloatLayoutHelper.ReconcileFloatsAsync(
+            Children, node.Floats, childContext, node, widgetToNode);
+
+        // Build the complete list of children: flow children + popup children
+        var allChildren = new List<Hex1bWidget>(flowChildren);
         var popupWidgets = node.Popups.BuildPopupWidgets().ToList();
         allChildren.AddRange(popupWidgets);
         
@@ -57,23 +62,20 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         
         // Track whether new popups were added (for focus management)
         var previousChildCount = node.Children.Count;
-        var popupStartIndex = Children.Count;
+        var popupStartIndex = flowChildren.Count;
         var previousPopupCount = previousChildCount > popupStartIndex ? previousChildCount - popupStartIndex : 0;
         var currentPopupCount = popupWidgets.Count;
         var newPopupsAdded = currentPopupCount > previousPopupCount;
         
-        // Check if the topmost popup was replaced (same or more count, different entry)
-        // This handles the case of replacing one popup with another via Pop() + PushAnchored()
-        // We should NOT trigger focus management when popups are simply removed
+        // Check if the topmost popup was replaced
         var topmostPopupReplaced = false;
         var currentTopmostEntry = node.Popups.Entries.Count > 0 ? node.Popups.Entries[^1] : null;
         if (currentTopmostEntry != null && node.LastTopmostPopupEntry != null && 
             !ReferenceEquals(currentTopmostEntry, node.LastTopmostPopupEntry) &&
-            currentPopupCount >= previousPopupCount)  // Only if count stayed same or increased
+            currentPopupCount >= previousPopupCount)
         {
             topmostPopupReplaced = true;
         }
-        // Update the tracked topmost entry for next reconcile
         node.LastTopmostPopupEntry = currentTopmostEntry;
         
         // Track children that will be removed (their bounds need clearing)
@@ -95,9 +97,16 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
             if (reconciledChild != null)
             {
                 newChildren.Add(reconciledChild);
+                if (i < flowChildren.Count)
+                {
+                    widgetToNode[flowChildren[i]] = reconciledChild;
+                }
             }
         }
         node.Children = newChildren;
+        node.Floats = floatEntries;
+        node.AllChildrenInOrder = FloatLayoutHelper.BuildDeclarationOrder(Children, floatEntries, widgetToNode);
+        FloatLayoutHelper.ResolveAnchors(floatEntries, node);
         
         // Update popup entries with their reconciled content nodes for coordinate-aware dismissal
         var popupEntries = node.Popups.Entries;

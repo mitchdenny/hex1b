@@ -203,6 +203,11 @@ builder.Services.AddSingleton<IGalleryExample, WindowTitleActionsExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowResizableExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowPositionExample>();
 
+// Register Float widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, FloatBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, FloatOverlayExample>();
+builder.Services.AddSingleton<IGalleryExample, FloatAlignmentExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

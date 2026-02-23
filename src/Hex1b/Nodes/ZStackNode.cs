@@ -15,6 +15,8 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// The child nodes, in render order (first = bottom, last = top).
     /// </summary>
     public List<Hex1bNode> Children { get; set; } = new();
+    public List<FloatEntry> Floats { get; set; } = new();
+    public List<Hex1bNode> AllChildrenInOrder { get; set; } = new();
     
     /// <summary>
     /// The popup stack for this ZStack. Content pushed here appears as overlay layers.
@@ -82,9 +84,30 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // Only return focusables from the TOPMOST layer that has any focusables.
+        // When popups are present, they ALWAYS take priority — only the topmost
+        // popup layer should be focusable (prevents focus escaping to lower layers).
+        // This must run even when floats are present.
+        var hasPopups = Popups.Entries.Count > 0;
+
+        if (!hasPopups && Floats.Count > 0)
+        {
+            // No popups, but floats — use declaration order (flow + floats interleaved)
+            var allFocusables = new List<Hex1bNode>();
+            var source = AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+            foreach (var child in source)
+            {
+                allFocusables.AddRange(child.GetFocusableNodes());
+            }
+            if (allFocusables.Count > 0)
+            {
+                foreach (var f in allFocusables)
+                    yield return f;
+                yield break;
+            }
+        }
+
+        // Original ZStack behavior: only return focusables from the TOPMOST layer.
         // This prevents focus from escaping to lower layers when an overlay is shown.
-        // Iterate children in reverse (topmost first) and return focusables from the first layer that has any.
         for (int i = Children.Count - 1; i >= 0; i--)
         {
             var focusables = Children[i].GetFocusableNodes().ToList();
@@ -94,7 +117,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
                 {
                     yield return focusable;
                 }
-                yield break; // Stop after the first (topmost) layer with focusables
+                yield break;
             }
         }
     }
@@ -164,9 +187,10 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
         }
         
         // After layout, clean up any popups with stale anchor references.
-        // This happens when an anchor node is replaced during reconciliation but
-        // the popup still holds a reference to the old node (which has zero bounds).
         Popups.RemoveStaleAnchoredPopups();
+
+        // Arrange floats after flow layout completes
+        FloatLayoutHelper.ArrangeFloats(Floats, bounds);
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -175,12 +199,14 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Render children in order - first child is at bottom, last is on top
-        // Use RenderChild for automatic caching support
+        // Render flow children in order — first child is at bottom, last is on top
         for (int i = 0; i < Children.Count; i++)
         {
             context.RenderChild(Children[i]);
         }
+
+        // Render floats on top of all flow children
+        FloatLayoutHelper.RenderFloats(Floats, context);
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;
@@ -196,5 +222,12 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// <summary>
     /// Gets the direct children of this container for input routing.
     /// </summary>
-    public override IEnumerable<Hex1bNode> GetChildren() => Children;
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        // When popups are present, use Children (includes popup layers)
+        // rather than AllChildrenInOrder (which only has flow + floats)
+        if (Popups.Entries.Count > 0)
+            return Children;
+        return AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+    }
 }

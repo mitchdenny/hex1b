@@ -8,6 +8,8 @@ namespace Hex1b;
 public sealed class HStackNode : Hex1bNode, ILayoutProvider
 {
     public List<Hex1bNode> Children { get; set; } = new();
+    public List<FloatEntry> Floats { get; set; } = new();
+    public List<Hex1bNode> AllChildrenInOrder { get; set; } = new();
 
     /// <summary>
     /// The clip mode for the HStack's content. Defaults to Clip.
@@ -38,7 +40,8 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        foreach (var child in Children)
+        var source = AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+        foreach (var child in source)
         {
             foreach (var focusable in child.GetFocusableNodes())
             {
@@ -70,7 +73,11 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
     {
         base.ArrangeCore(bounds);
 
-        if (Children.Count == 0) return;
+        if (Children.Count == 0)
+        {
+            FloatLayoutHelper.ArrangeFloats(Floats, bounds);
+            return;
+        }
 
         // Calculate how to distribute width among children
         var availableWidth = bounds.Width;
@@ -122,6 +129,9 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
             Children[i].Arrange(childBounds);
             x += childSizes[i];
         }
+
+        // Arrange floats after flow layout completes
+        FloatLayoutHelper.ArrangeFloats(Floats, bounds);
     }
 
     public override void Render(Hex1bRenderContext context)
@@ -130,11 +140,13 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
         
-        // Use RenderChild for automatic caching support
         for (int i = 0; i < Children.Count; i++)
         {
             context.RenderChild(Children[i]);
         }
+
+        // Render floats on top
+        FloatLayoutHelper.RenderFloats(Floats, context);
         
         context.CurrentLayoutProvider = previousLayout;
         ParentLayoutProvider = null;
@@ -151,5 +163,6 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Gets the direct children of this container for input routing.
     /// </summary>
-    public override IEnumerable<Hex1bNode> GetChildren() => Children;
+    public override IEnumerable<Hex1bNode> GetChildren()
+        => AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
 }
