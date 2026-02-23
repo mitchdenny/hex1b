@@ -218,19 +218,19 @@ public class AccordionNodeTests
     }
 
     [Fact]
-    public void AccordionWidget_MultipleExpanded_DefaultsToTrue()
+    public void AccordionWidget_MultipleExpanded_DefaultsToFalse()
     {
         var widget = new AccordionWidget([]);
 
-        Assert.True(widget.AllowMultipleExpanded);
+        Assert.False(widget.AllowMultipleExpanded);
     }
 
     [Fact]
-    public void AccordionWidget_MultipleExpanded_CanBeDisabled()
+    public void AccordionWidget_MultipleExpanded_CanBeEnabled()
     {
-        var widget = new AccordionWidget([]).MultipleExpanded(false);
+        var widget = new AccordionWidget([]).MultipleExpanded(true);
 
-        Assert.False(widget.AllowMultipleExpanded);
+        Assert.True(widget.AllowMultipleExpanded);
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
     /// <summary>
     /// Whether multiple sections can be expanded simultaneously. Defaults to true.
     /// </summary>
-    public bool AllowMultipleExpanded { get; init; } = true;
+    public bool AllowMultipleExpanded { get; init; } = false;
 
     /// <summary>
     /// Sets a synchronous handler for section expand/collapse changes.
