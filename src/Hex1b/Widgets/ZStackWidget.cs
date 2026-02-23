@@ -45,7 +45,7 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
 
         // Separate flow and float children, reconcile floats
         var widgetToNode = new Dictionary<Hex1bWidget, Hex1bNode>(ReferenceEqualityComparer.Instance);
-        var (flowChildren, floatEntries, allInOrder) = await FloatLayoutHelper.ReconcileFloatsAsync(
+        var (flowChildren, floatEntries) = await FloatLayoutHelper.ReconcileFloatsAsync(
             Children, node.Floats, childContext, node, widgetToNode);
 
         // Build the complete list of children: flow children + popup children
@@ -105,7 +105,7 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
         node.Floats = floatEntries;
-        node.AllChildrenInOrder = allInOrder;
+        node.AllChildrenInOrder = FloatLayoutHelper.BuildDeclarationOrder(Children, floatEntries, widgetToNode);
         
         // Update popup entries with their reconciled content nodes for coordinate-aware dismissal
         var popupEntries = node.Popups.Entries;

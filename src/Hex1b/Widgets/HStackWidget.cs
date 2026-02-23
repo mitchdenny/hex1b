@@ -13,7 +13,7 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
 
         // Separate flow and float children, reconcile floats
         var widgetToNode = new Dictionary<Hex1bWidget, Hex1bNode>(ReferenceEqualityComparer.Instance);
-        var (flowChildren, floatEntries, allInOrder) = await FloatLayoutHelper.ReconcileFloatsAsync(
+        var (flowChildren, floatEntries) = await FloatLayoutHelper.ReconcileFloatsAsync(
             Children, node.Floats, childContext, node, widgetToNode);
 
         // Track children that will be removed (their bounds need clearing)
@@ -42,7 +42,7 @@ public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
         node.Floats = floatEntries;
-        node.AllChildrenInOrder = allInOrder;
+        node.AllChildrenInOrder = FloatLayoutHelper.BuildDeclarationOrder(Children, floatEntries, widgetToNode);
 
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus
         if (context.IsNew && !context.ParentManagesFocus())

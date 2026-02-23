@@ -311,3 +311,36 @@ public class FloatWidgetZStackIntegrationTests
         Assert.True(clicked, "ZStack floated button click handler was not invoked");
     }
 }
+
+public class FloatWidgetPickerIntegrationTests
+{
+    [Fact]
+    public async Task Integration_FlowButtonInVStackWithFloats_ReceivesFocus()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        var flowClicked = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.Button("Flow Button").OnClick(_ => { flowClicked = true; return Task.CompletedTask; }),
+                    v.Float(v.Border(b => [b.Text("Float")]).Title("F")).Absolute(30, 5),
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Flow Button"), TimeSpan.FromSeconds(5), "flow button to appear")
+            .Enter()
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(200), "frame to process")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(flowClicked, "Flow button in VStack with floats should receive focus and be clickable");
+    }
+}

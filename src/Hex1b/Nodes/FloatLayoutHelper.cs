@@ -58,7 +58,7 @@ public static class FloatLayoutHelper
     /// A tuple of (flowChildren, floatEntries, allChildrenInOrder) where allChildrenInOrder
     /// preserves declaration order for focus traversal.
     /// </returns>
-    public static async Task<(List<Hex1bWidget> FlowChildren, List<FloatEntry> Floats, List<Hex1bNode> AllInOrder)>
+    public static async Task<(List<Hex1bWidget> FlowChildren, List<FloatEntry> Floats)>
         ReconcileFloatsAsync(
             IReadOnlyList<Hex1bWidget> allChildren,
             List<FloatEntry> existingFloats,
@@ -85,7 +85,7 @@ public static class FloatLayoutHelper
         // If no floats, return early
         if (floatWidgets.Count == 0)
         {
-            return (flowChildren, [], []);
+            return (flowChildren, []);
         }
 
         // Pass 2: reconcile float children
@@ -123,9 +123,19 @@ public static class FloatLayoutHelper
             }
         }
 
-        // Build declaration-order list for focus traversal
+        return (flowChildren, floatEntries);
+    }
+
+    /// <summary>
+    /// Builds a declaration-order list of all children (flow + float) for focus traversal.
+    /// Must be called AFTER flow children have been reconciled and added to <paramref name="widgetToNode"/>.
+    /// </summary>
+    public static List<Hex1bNode> BuildDeclarationOrder(
+        IReadOnlyList<Hex1bWidget> allChildren,
+        List<FloatEntry> floatEntries,
+        Dictionary<Hex1bWidget, Hex1bNode> widgetToNode)
+    {
         var allInOrder = new List<Hex1bNode>();
-        int flowIdx = 0;
         int floatIdx = 0;
         for (int i = 0; i < allChildren.Count; i++)
         {
@@ -139,16 +149,13 @@ public static class FloatLayoutHelper
             }
             else
             {
-                // Flow children's nodes are in widgetToNode
                 if (widgetToNode.TryGetValue(allChildren[i], out var node))
                 {
                     allInOrder.Add(node);
                 }
-                flowIdx++;
             }
         }
-
-        return (flowChildren, floatEntries, allInOrder);
+        return allInOrder;
     }
 
     /// <summary>
