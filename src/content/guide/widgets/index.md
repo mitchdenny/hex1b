@@ -22,6 +22,7 @@ Widgets that respond to user input.
 
 - **[Button](/guide/widgets/button)** — Clickable buttons with keyboard support
 - **[Checkbox](/guide/widgets/checkbox)** — Toggleable checked/unchecked/indeterminate state
+- **[Drag & Drop](/guide/widgets/drag-drop)** — Draggable sources, droppable targets, and positional insertion
 - **[SplitButton](/guide/widgets/split-button)** — Button with dropdown for secondary actions
 - **[TabPanel](/guide/widgets/tabpanel)** — Tabbed interface for organizing content into switchable panels
 - **[TextBox](/guide/widgets/textbox)** — Single and multi-line text input
