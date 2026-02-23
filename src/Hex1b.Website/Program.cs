@@ -203,9 +203,9 @@ builder.Services.AddSingleton<IGalleryExample, WindowTitleActionsExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowResizableExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowPositionExample>();
 
-// Register FloatPanel widget documentation examples
-builder.Services.AddSingleton<IGalleryExample, FloatPanelBasicExample>();
-builder.Services.AddSingleton<IGalleryExample, FloatPanelOverlayExample>();
+// Register Float widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, FloatBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, FloatOverlayExample>();
 
 var app = builder.Build();
 

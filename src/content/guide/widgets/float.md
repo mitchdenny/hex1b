@@ -1,12 +1,12 @@
 <!--
   MIRROR WARNING: The code samples below must stay in sync with their WebSocket example counterparts:
-  - basicCode   → src/Hex1b.Website/Examples/FloatPanelBasicExample.cs
-  - overlayCode → src/Hex1b.Website/Examples/FloatPanelOverlayExample.cs
+  - basicCode   → src/Hex1b.Website/Examples/FloatBasicExample.cs
+  - overlayCode → src/Hex1b.Website/Examples/FloatOverlayExample.cs
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
-import basicSnippet from './snippets/float-panel-basic.cs?raw'
-import overlapSnippet from './snippets/float-panel-overlap.cs?raw'
+import basicSnippet from './snippets/float-basic.cs?raw'
+import overlapSnippet from './snippets/float-overlap.cs?raw'
 
 const basicCode = `using Hex1b;
 
@@ -59,7 +59,7 @@ FloatWidget is useful for overlays, HUDs, tooltips, map markers, and any scenari
 
 Use the `Float` extension method to wrap a widget, then call `Absolute(x, y)` to position it:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="float-panel-basic" exampleTitle="Float - Basic Usage" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="float-basic" exampleTitle="Float - Basic Usage" />
 
 Each floated child is placed at the specified `(x, y)` character position relative to the container's origin. The child can be any widget—text, borders, buttons, or even nested layout containers.
 
@@ -86,7 +86,7 @@ Children are offset from the container's own position, not from the terminal ori
 
 Float children render **after** all normal flow children, in their array order. When floats overlap, the last one wins:
 
-<StaticTerminalPreview svgPath="/svg/float-panel-overlap.svg" :code="overlapSnippet" />
+<StaticTerminalPreview svgPath="/svg/float-overlap.svg" :code="overlapSnippet" />
 
 ### Flow vs Float
 
@@ -147,7 +147,7 @@ The anchor widget must be a **direct sibling** in the same container. Anchoring 
 
 Floats render on top of flow content, making them ideal for HUD-style overlays:
 
-<CodeBlock lang="csharp" :code="overlayCode" command="dotnet run" example="float-panel-overlay" exampleTitle="Float - Interactive Overlay" />
+<CodeBlock lang="csharp" :code="overlayCode" command="dotnet run" example="float-overlay" exampleTitle="Float - Interactive Overlay" />
 
 The score text and buttons are floated over the background text. Flow children lay out normally while floats are positioned independently on top.
 

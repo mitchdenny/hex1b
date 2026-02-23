@@ -5,21 +5,21 @@ using Microsoft.Extensions.Logging;
 namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// FloatPanel Widget Documentation: Interactive Overlay
-/// Demonstrates FloatPanel as a HUD overlay with buttons.
+/// Float Widget Documentation: Interactive Overlay
+/// Demonstrates Float as a HUD overlay with buttons.
 /// </summary>
 /// <remarks>
 /// MIRROR WARNING: This example must stay in sync with the overlayCode sample in:
-/// src/content/guide/widgets/float-panel.md
+/// src/content/guide/widgets/float.md
 /// When updating code here, update the corresponding markdown and vice versa.
 /// </remarks>
-public class FloatPanelOverlayExample(ILogger<FloatPanelOverlayExample> logger) : Hex1bExample
+public class FloatOverlayExample(ILogger<FloatOverlayExample> logger) : Hex1bExample
 {
-    private readonly ILogger<FloatPanelOverlayExample> _logger = logger;
+    private readonly ILogger<FloatOverlayExample> _logger = logger;
 
-    public override string Id => "float-panel-overlay";
-    public override string Title => "FloatPanel - Interactive Overlay";
-    public override string Description => "Demonstrates FloatPanel as a HUD overlay with interactive buttons";
+    public override string Id => "float-overlay";
+    public override string Title => "Float - Interactive Overlay";
+    public override string Description => "Demonstrates Float as a HUD overlay with interactive buttons";
 
     private class OverlayState
     {
@@ -28,7 +28,7 @@ public class FloatPanelOverlayExample(ILogger<FloatPanelOverlayExample> logger) 
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating float panel overlay example widget builder");
+        _logger.LogInformation("Creating float overlay example widget builder");
 
         var state = new OverlayState();
 
