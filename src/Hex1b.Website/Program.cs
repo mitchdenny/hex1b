@@ -196,6 +196,10 @@ builder.Services.AddSingleton<IGalleryExample, TabPanelBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TabPanelSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, TabPanelDynamicExample>();
 
+// Accordion examples
+builder.Services.AddSingleton<IGalleryExample, AccordionBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, AccordionActionsExample>();
+
 // Window widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, WindowBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, WindowModalExample>();
