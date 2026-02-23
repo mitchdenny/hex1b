@@ -26,6 +26,7 @@ var columns = new Dictionary<string, List<KanbanTask>>
 };
 
 string? lastAction = null;
+var dropTargetMode = DropTargetMode.ActiveOnly;
 var rainbowTimer = System.Diagnostics.Stopwatch.StartNew();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -33,9 +34,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         return ctx.VStack(v => [
             // Header
-            v.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-                v.Text(" ◆ Kanban Board — Drag & Drop Demo")),
+            v.HStack(h => [
+                h.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
+                    h.Text(" ◆ Kanban Board — Drag & Drop Demo  ")),
+                h.Text(" Drop Targets: "),
+                h.ToggleSwitch(["Off", "Active Only", "Always Visible"], (int)dropTargetMode)
+                    .OnSelectionChanged(e => { dropTargetMode = (DropTargetMode)e.SelectedIndex; }),
+                h.Text("").Fill(),
+            ]),
             v.Text(" Drag task cards between columns with the mouse"),
             v.Separator(),
 
@@ -93,21 +100,21 @@ Hex1bWidget BuildColumn(
                     items.Add(v.Separator());
 
                     // Drop target before first card
-                    items.Add(dc.DropTarget("pos-0", dt =>
-                        dt.IsActive
-                            ? dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
-                                dt.Text(" ─── insert here ───"))
-                            : dt.Text("")));
+                    if (dropTargetMode != DropTargetMode.Off)
+                    {
+                        items.Add(dc.DropTarget("pos-0", dt =>
+                            BuildDropTargetIndicator(dt)));
+                    }
 
                     // Cards interleaved with drop targets
                     for (int i = 0; i < tasks.Count; i++)
                     {
                         items.Add(BuildTaskCard(v, tasks[i]));
-                        items.Add(dc.DropTarget($"pos-{i + 1}", dt =>
-                            dt.IsActive
-                                ? dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
-                                    dt.Text(" ─── insert here ───"))
-                                : dt.Text("")));
+                        if (dropTargetMode != DropTargetMode.Off)
+                        {
+                            items.Add(dc.DropTarget($"pos-{i + 1}", dt =>
+                                BuildDropTargetIndicator(dt)));
+                        }
                     }
 
                     // Empty space filler
@@ -251,4 +258,19 @@ double GetWaveAngle(string category) => category switch
     _ => 0.0,           // horizontal
 };
 
+Hex1bWidget BuildDropTargetIndicator(DropTargetContext dt)
+{
+    if (dt.IsActive)
+        return dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
+            dt.Text(" ─── insert here ───"));
+
+    if (dropTargetMode == DropTargetMode.AlwaysVisible)
+        return dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(60, 60, 60)),
+            dt.Text(" ─── ─── ─── ───"));
+
+    return dt.Text("");
+}
+
 record KanbanTask(string Id, string Title, string Category, Hex1bColor CategoryColor);
+
+enum DropTargetMode { Off, ActiveOnly, AlwaysVisible }
