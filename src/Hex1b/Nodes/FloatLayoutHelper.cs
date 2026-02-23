@@ -127,21 +127,40 @@ public static class FloatLayoutHelper
 
     /// <summary>
     /// Resolves anchor widget references to their reconciled nodes.
-    /// Must be called AFTER flow children have been reconciled and added to <paramref name="widgetToNode"/>.
+    /// Must be called AFTER flow children have been reconciled.
+    /// Searches the node tree recursively so anchors can reference nested widgets
+    /// (e.g., a Border inside a Center/Padding wrapper).
     /// </summary>
-    public static void ResolveAnchors(List<FloatEntry> floats, Dictionary<Hex1bWidget, Hex1bNode> widgetToNode)
+    public static void ResolveAnchors(List<FloatEntry> floats, Hex1bNode parentNode)
     {
         foreach (var entry in floats)
         {
             if (entry.HorizontalAnchorWidget != null)
             {
-                entry.HorizontalAnchor = ResolveAnchor(entry.HorizontalAnchorWidget, widgetToNode);
+                entry.HorizontalAnchor = FindNodeForWidget(entry.HorizontalAnchorWidget, parentNode);
             }
             if (entry.VerticalAnchorWidget != null)
             {
-                entry.VerticalAnchor = ResolveAnchor(entry.VerticalAnchorWidget, widgetToNode);
+                entry.VerticalAnchor = FindNodeForWidget(entry.VerticalAnchorWidget, parentNode);
             }
         }
+    }
+
+    private static Hex1bNode? FindNodeForWidget(Hex1bWidget widget, Hex1bNode root)
+    {
+        // Check the root itself
+        if (ReferenceEquals(root.ReconcileSourceWidget, widget))
+            return root;
+
+        // Search children recursively
+        foreach (var child in root.GetChildren())
+        {
+            var found = FindNodeForWidget(widget, child);
+            if (found != null)
+                return found;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -241,23 +260,4 @@ public static class FloatLayoutHelper
         }
     }
 
-    private static Hex1bNode? ResolveAnchor(Hex1bWidget anchorWidget, Dictionary<Hex1bWidget, Hex1bNode> widgetToNode)
-    {
-        // Try reference equality first (most common — same variable)
-        if (widgetToNode.TryGetValue(anchorWidget, out var node))
-        {
-            return node;
-        }
-
-        // Fall back to record equality (same content)
-        foreach (var (widget, n) in widgetToNode)
-        {
-            if (widget.Equals(anchorWidget))
-            {
-                return n;
-            }
-        }
-
-        return null;
-    }
 }

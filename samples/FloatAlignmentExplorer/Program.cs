@@ -12,13 +12,14 @@ string[] offsetOptions = ["0", "-2", "-1", "1", "2", "3", "4"];
 
 var app = new Hex1bApp(ctx => ctx.VStack(v =>
 {
-    // Anchor widget — padded and centered so relative placement is visible
-    var anchor = v.Center(
-        v.Padding(8, 8, 4, 4,
-            v.Border(b => [
-                b.Text("  Anchor Widget  ")
-            ]).Title("Anchor")
-        )
+    // Anchor — the inner border is the alignment target
+    var anchorBorder = v.Border(b => [
+        b.Text("  Anchor Widget  ")
+    ]).Title("Anchor");
+
+    // Wrap in Center + Padding for visual space, but float aligns to the inner border
+    var anchorDisplay = v.Center(
+        v.Padding(8, 8, 3, 3, anchorBorder)
     );
 
     // Build the float with selected alignment
@@ -28,7 +29,7 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
         ]).Title("Float")
     );
 
-    floated = ApplyAlignment(floated, anchor);
+    floated = ApplyAlignment(floated, anchorBorder);
 
     return [
         v.Text(" Float Alignment Explorer (Tab: navigate, Enter: open picker, ↑↓: select, Ctrl+C: quit)"),
@@ -48,7 +49,7 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
         v.Text(""),
         v.Text($" H: {horizontal} ({hOffset})  V: {vertical} ({vOffset})"),
         v.Text(""),
-        anchor,
+        anchorDisplay,
         floated,
     ];
 }), new Hex1bAppOptions { EnableMouse = true });

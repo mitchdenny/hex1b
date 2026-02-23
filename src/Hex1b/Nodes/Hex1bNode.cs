@@ -4,6 +4,7 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b;
 
@@ -330,6 +331,12 @@ public abstract class Hex1bNode
     /// Used by VStack to distribute height among children.
     /// </summary>
     public SizeHint? HeightHint { get; set; }
+
+    /// <summary>
+    /// The widget that was last reconciled to produce this node.
+    /// Used by float anchor resolution to find nodes for nested anchor widgets.
+    /// </summary>
+    internal Hex1bWidget? ReconcileSourceWidget { get; set; }
 
     /// <summary>
     /// Measures the desired size of this node given the constraints.

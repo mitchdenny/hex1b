@@ -207,6 +207,7 @@ public sealed class ReconcileContext
 
         // Set common properties on the reconciled node
         node.Parent = parent;
+        node.ReconcileSourceWidget = widget;
         node.BindingsConfigurator = widget.BindingsConfigurator;
         node.CachePredicate = widget.CachePredicate;
         node.WidthHint = widget.WidthHint;

@@ -437,4 +437,48 @@ public class FloatWidgetPickerIntegrationTests
 
         Assert.True(floatLine > anchorLine, $"Float (line {floatLine}) should be below Anchor (line {anchorLine}). Screen:\n{text}");
     }
+
+    [Fact]
+    public async Task Integration_FloatExtendLeft_AlignTop_NestedAnchor_PositionsCorrectly()
+    {
+        // Anchor border is nested inside Center(Padding(...)) — tests recursive anchor resolution
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+
+        using var app = new Hex1bApp(ctx => ctx.VStack(v =>
+        {
+            var anchorBorder = v.Border(b => [b.Text("  Anchor  ")]).Title("Anchor");
+            var wrapped = v.Center(v.Padding(8, 8, 3, 3, anchorBorder));
+            var floated = v.Float(v.Text("<<"))
+                .ExtendLeft(anchorBorder)
+                .AlignTop(anchorBorder);
+            return [wrapped, floated];
+        }), new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var snap = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Anchor") && s.ContainsText("<<"), TimeSpan.FromSeconds(5), "both widgets to render")
+            .Capture("result")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var text = snap.GetScreenText();
+        var lines = text.Split('\n');
+
+        // Find the line with "<<" and the line with "Anchor" title
+        int floatLine = -1, anchorTitleLine = -1;
+        int floatCol = -1, anchorCol = -1;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].Contains("<<")) { floatLine = i; floatCol = lines[i].IndexOf("<<"); }
+            if (lines[i].Contains("Anchor")) { anchorTitleLine = i; anchorCol = lines[i].IndexOf("Anchor"); }
+        }
+
+        // Float should be to the LEFT of the anchor border (ExtendLeft)
+        Assert.True(floatCol < anchorCol, $"Float col {floatCol} should be left of Anchor col {anchorCol}. Screen:\n{text}");
+        // Float should be top-aligned with the anchor (AlignTop), which means same row or close
+        Assert.True(Math.Abs(floatLine - anchorTitleLine) <= 1, $"Float line {floatLine} should be near Anchor line {anchorTitleLine}. Screen:\n{text}");
+    }
 }

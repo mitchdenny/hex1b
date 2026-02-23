@@ -105,7 +105,7 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
         node.Floats = floatEntries;
-        FloatLayoutHelper.ResolveAnchors(floatEntries, widgetToNode);
+        FloatLayoutHelper.ResolveAnchors(floatEntries, node);
         node.AllChildrenInOrder = FloatLayoutHelper.BuildDeclarationOrder(Children, floatEntries, widgetToNode);
         
         // Update popup entries with their reconciled content nodes for coordinate-aware dismissal
