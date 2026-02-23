@@ -84,10 +84,14 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // Floats render on top of all flow children, so check them first.
-        if (Floats.Count > 0)
+        // When popups are present, they ALWAYS take priority — only the topmost
+        // popup layer should be focusable (prevents focus escaping to lower layers).
+        // This must run even when floats are present.
+        var hasPopups = Popups.Entries.Count > 0;
+
+        if (!hasPopups && Floats.Count > 0)
         {
-            // Collect focusables from all floats + flow children in declaration order
+            // No popups, but floats — use declaration order (flow + floats interleaved)
             var allFocusables = new List<Hex1bNode>();
             var source = AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
             foreach (var child in source)
@@ -102,7 +106,7 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
             }
         }
 
-        // No floats — original ZStack behavior: only return focusables from the TOPMOST layer.
+        // Original ZStack behavior: only return focusables from the TOPMOST layer.
         // This prevents focus from escaping to lower layers when an overlay is shown.
         for (int i = Children.Count - 1; i >= 0; i--)
         {
@@ -219,5 +223,11 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     /// Gets the direct children of this container for input routing.
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
-        => AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+    {
+        // When popups are present, use Children (includes popup layers)
+        // rather than AllChildrenInOrder (which only has flow + floats)
+        if (Popups.Entries.Count > 0)
+            return Children;
+        return AllChildrenInOrder.Count > 0 ? AllChildrenInOrder : Children;
+    }
 }
