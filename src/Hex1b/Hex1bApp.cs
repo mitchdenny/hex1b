@@ -1092,9 +1092,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>
     /// Finds the deepest (topmost) node at the given position by traversing the tree.
     /// </summary>
-    private static Hex1bNode? FindNodeAt(Hex1bNode? node, int x, int y)
+    private static Hex1bNode? FindNodeAt(Hex1bNode? node, int x, int y, bool skipDragOverlay = false)
     {
         if (node == null) return null;
+        
+        // Skip drag overlay subtree so it doesn't intercept hit testing during drag
+        if (skipDragOverlay && node is DragOverlayNode) return null;
         
         // Check if point is within this node's bounds
         if (!node.Bounds.Contains(x, y)) return null;
@@ -1103,7 +1106,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var children = node.GetChildren().ToList();
         for (int i = children.Count - 1; i >= 0; i--)
         {
-            var hit = FindNodeAt(children[i], x, y);
+            var hit = FindNodeAt(children[i], x, y, skipDragOverlay);
             if (hit != null) return hit;
         }
         
@@ -1114,10 +1117,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>
     /// Finds the nearest DroppableNode ancestor (or self) for the node at the given position.
     /// Used during drag operations to determine the drop target.
+    /// Skips the drag overlay subtree so the ghost doesn't intercept drops.
     /// </summary>
     private DroppableNode? FindDroppableAt(int x, int y)
     {
-        var node = FindNodeAt(_rootNode, x, y);
+        var node = FindNodeAt(_rootNode, x, y, skipDragOverlay: true);
         while (node != null)
         {
             if (node is DroppableNode droppable)
