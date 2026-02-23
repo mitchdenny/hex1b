@@ -341,7 +341,7 @@ Mouse press on Draggable → Drag starts → Move over Droppable → Release →
 
 Create draggable items with `ctx.Draggable()` and drop zones with `ctx.Droppable()`. Both receive context objects that let you render differently based on drag state:
 
-<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="drag-drop-basic" exampleTitle="Drag & Drop - Basic Usage" />
 
 ### Key Points
 
@@ -353,7 +353,7 @@ Create draggable items with `ctx.Draggable()` and drop zones with `ctx.Droppable
 
 By default, dragging moves the cursor but doesn't show a visual representation of what's being dragged. Use `.DragOverlay()` to create a **ghost** — a floating widget that follows the cursor:
 
-<CodeBlock lang="csharp" :code="ghostCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="ghostCode" command="dotnet run" example="drag-drop-ghost" exampleTitle="Drag & Drop - Ghost Overlay" />
 
 The overlay builder receives the same `DraggableContext` as the main builder, so you can reuse the same rendering logic. The ghost is automatically positioned near the cursor and clamped to screen bounds.
 
@@ -365,7 +365,7 @@ The drag ghost is constrained to roughly one-third of the screen width. This pre
 
 Use `.Accept()` to control which drag data a droppable will receive. The predicate runs during hover, and its result is exposed via `dc.CanAcceptDrag` so you can show visual rejection feedback:
 
-<CodeBlock lang="csharp" :code="acceptCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="acceptCode" command="dotnet run" example="drag-drop-accept" exampleTitle="Drag & Drop - Accept Predicates" />
 
 When the predicate returns `false`:
 - `dc.CanAcceptDrag` is `false` (show rejection styling)
@@ -378,7 +378,7 @@ If no `.Accept()` predicate is set, all drag data is accepted.
 
 For scenarios like reorderable lists or Kanban boards, you need to know **where** within a droppable the item should be inserted. Drop targets mark specific insertion points:
 
-<CodeBlock lang="csharp" :code="dropTargetCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="dropTargetCode" command="dotnet run" example="drag-drop-target" exampleTitle="Drag & Drop - Drop Targets" />
 
 ### How Drop Targets Work
 
@@ -463,7 +463,7 @@ Received by `OnDropTarget` handlers:
 
 Here's a complete Kanban board with three columns, drag ghosts, and positional insertion via drop targets:
 
-<CodeBlock lang="csharp" :code="kanbanCode" command="dotnet run" />
+<CodeBlock lang="csharp" :code="kanbanCode" command="dotnet run" example="drag-drop-kanban" exampleTitle="Drag & Drop - Kanban Board" />
 
 This demonstrates:
 - **Cards as draggable sources** with placeholder rendering while dragging

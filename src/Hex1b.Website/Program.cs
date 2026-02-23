@@ -157,6 +157,13 @@ builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
 
+// Drag & Drop examples
+builder.Services.AddSingleton<IGalleryExample, DragDropBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, DragDropGhostExample>();
+builder.Services.AddSingleton<IGalleryExample, DragDropAcceptExample>();
+builder.Services.AddSingleton<IGalleryExample, DragDropTargetExample>();
+builder.Services.AddSingleton<IGalleryExample, DragDropKanbanExample>();
+
 // Chart examples
 builder.Services.AddSingleton<IGalleryExample, ChartColumnBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartColumnMultiSeriesExample>();
