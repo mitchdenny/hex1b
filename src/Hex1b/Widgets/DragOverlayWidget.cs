@@ -48,8 +48,11 @@ internal sealed class DragOverlayNode : Hex1bNode
     {
         if (Child == null) return Size.Zero;
 
-        // Measure child with loose constraints
-        var childConstraints = new Constraints(0, constraints.MaxWidth, 0, constraints.MaxHeight);
+        // Measure child with content-fitting constraints
+        // Use a reasonable max width (e.g., 1/3 of screen) so fill-width children
+        // don't expand to full screen when rendered as an overlay
+        var maxChildWidth = Math.Max(20, constraints.MaxWidth / 3);
+        var childConstraints = new Constraints(0, maxChildWidth, 0, constraints.MaxHeight);
         _childSize = Child.Measure(childConstraints);
 
         // Return full available size so we get full screen bounds for positioning

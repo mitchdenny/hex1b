@@ -11,15 +11,15 @@ using Hex1b.Widgets;
 // context-driven rendering, and OnDrop event handling.
 // One card has a smart matter particle animation on its drag ghost.
 
-// Mini smart matter particle state for the animated ghost
-var ghostParticles = new GhostParticle[60];
+// Mini smart matter particle state for animated surface inside cards
+var ghostParticles = new GhostParticle[40];
 var ghostRandom = new Random(42);
 for (int i = 0; i < ghostParticles.Length; i++)
 {
     ghostParticles[i] = new GhostParticle
     {
-        X = ghostRandom.NextDouble() * 30,
-        Y = 12 - 1 - ghostRandom.NextDouble() * 2,
+        X = ghostRandom.NextDouble() * 40,
+        Y = ghostRandom.NextDouble() * 8,
         Vx = 0,
         Vy = -ghostRandom.NextDouble() * 0.6 - 0.2,
         Brightness = 0.5 + ghostRandom.NextDouble() * 0.5,
@@ -42,6 +42,7 @@ var columns = new Dictionary<string, List<KanbanTask>>
 };
 
 string? lastAction = null;
+var rainbowTimer = System.Diagnostics.Stopwatch.StartNew();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
@@ -153,37 +154,111 @@ Hex1bWidget BuildTaskCard(
             );
         }
 
-        // Normal card with smart matter particle background
-        return dc.Surface(s =>
-        {
-            UpdateGhostParticles(ghostParticles, ghostRandom, s.Width, s.Height);
-            return [
-                s.Layer(surface => RenderGhostParticles(surface, ghostParticles, task.Title, task.CategoryColor, task.Category)),
-            ];
-        })
-        .Width(SizeHint.Fill)
-        .Height(SizeHint.Fixed(3))
-        .RedrawAfter(50);
+        return BuildCardContent(dc, task);
     })
-    .DragOverlay(dc =>
-    {
-        // Lightweight ghost that follows the cursor
-        return dc.ThemePanel(
-            t => t
-                .Set(BorderTheme.BorderColor, Hex1bColor.Cyan)
-                .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
-            dc.Border(
-                dc.Text($" 📋 {task.Title} ")
-            )
-        );
-    });
+    .DragOverlay(dc => BuildCardContent(dc, task));
 }
 
-// Mini smart matter particle functions (top-level, before type declarations)
+Hex1bWidget BuildCardContent<T>(WidgetContext<T> ctx, KanbanTask task) where T : Hex1bWidget
+{
+    return ctx.ThemePanel(
+        t => t
+            .Set(BorderTheme.BorderColor, Hex1bColor.DarkGray)
+            .Set(GlobalTheme.ForegroundColor, Hex1bColor.White)
+            .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(20, 20, 30)),
+        ctx.Border(
+            ctx.VStack(v => [
+                v.Text($" {task.Title}"),
+                v.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, task.CategoryColor),
+                    v.Text($"   [{task.Category}]")),
+                v.Surface(s =>
+                {
+                    var phase = rainbowTimer.Elapsed.TotalSeconds * 0.15;
+                    var tint = GetTintRgb(task.Category);
+                    var angle = GetWaveAngle(task.Category);
+                    return [s.Layer(surface => RenderTintedWave(surface, phase % 1.0, tint.r, tint.g, tint.b, angle))];
+                })
+                .Height(SizeHint.Fixed(6))
+                .RedrawAfter(100),
+            ])
+        )
+    );
+}
+
+void RenderTintedWave(Surface surface, double phase, double tr, double tg, double tb, double angle)
+{
+    var cosA = Math.Cos(angle);
+    var sinA = Math.Sin(angle);
+
+    for (int y = 0; y < surface.Height; y++)
+    {
+        for (int x = 0; x < surface.Width; x++)
+        {
+            // Project position along the angle direction
+            var proj = x * cosA + y * sinA;
+            var denom = Math.Max(1.0, surface.Width * Math.Abs(cosA) + surface.Height * Math.Abs(sinA));
+            var t = proj / denom;
+
+            // Animated grayscale intensity via overlapping sine waves
+            var wave1 = Math.Sin((t + phase) * Math.PI * 4) * 0.5 + 0.5;
+            var wave2 = Math.Sin((t * 1.5 - phase * 2) * Math.PI * 3) * 0.3 + 0.5;
+            var intensity = Math.Clamp(wave1 * 0.6 + wave2 * 0.4, 0, 1);
+
+            // Raise the floor so darks aren't too strong
+            intensity = 0.35 + intensity * 0.65;
+
+            byte r = (byte)(intensity * tr);
+            byte g = (byte)(intensity * tg);
+            byte b = (byte)(intensity * tb);
+            surface[x, y] = new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, b));
+        }
+    }
+}
+
+(double r, double g, double b) GetTintRgb(string category) => category switch
+{
+    "UI" => (80, 220, 255),
+    "DevOps" => (255, 220, 80),
+    "Testing" => (80, 255, 120),
+    "Backend" => (255, 100, 220),
+    _ => (180, 180, 220),
+};
+
+double GetWaveAngle(string category) => category switch
+{
+    "UI" => 0.6,        // ~34° diagonal down-right
+    "DevOps" => -0.4,   // ~-23° diagonal up-right
+    "Testing" => 1.2,   // ~69° mostly vertical
+    "Backend" => -0.8,  // ~-46° steep diagonal
+    _ => 0.0,           // horizontal
+};
+
+(byte r, byte g, byte b) HsvToRgb(double h, double s, double v)
+{
+    var hi = (int)(h * 6) % 6;
+    var f = h * 6 - Math.Floor(h * 6);
+    var p = v * (1 - s);
+    var q = v * (1 - f * s);
+    var t = v * (1 - (1 - f) * s);
+
+    var (rd, gd, bd) = hi switch
+    {
+        0 => (v, t, p),
+        1 => (q, v, p),
+        2 => (p, v, t),
+        3 => (p, q, v),
+        4 => (t, p, v),
+        _ => (v, p, q),
+    };
+    return ((byte)(rd * 255), (byte)(gd * 255), (byte)(bd * 255));
+}
+
+// Mini smart matter particle functions
 void UpdateGhostParticles(GhostParticle[] particles, Random rng, int width, int height)
 {
-    int dotW = width * 2;   // 2 dots per cell horizontally (braille)
-    int dotH = height * 4;  // 4 dots per cell vertically (braille)
+    int dotW = width * 2;
+    int dotH = height * 4;
 
     for (int i = 0; i < particles.Length; i++)
     {
@@ -215,7 +290,7 @@ void UpdateGhostParticles(GhostParticle[] particles, Random rng, int width, int 
     }
 }
 
-void RenderGhostParticles(Surface surface, GhostParticle[] particles, string title, Hex1bColor categoryColor, string category)
+void RenderGhostParticles(Surface surface, GhostParticle[] particles)
 {
     int dotW = surface.Width * 2;
     int dotH = surface.Height * 4;
@@ -267,22 +342,6 @@ void RenderGhostParticles(Surface surface, GhostParticle[] particles, string tit
 
         var existing = surface[cx, cy];
         surface[cx, cy] = new SurfaceCell(ch.ToString(), Hex1bColor.FromRgb(r, g, b), existing.Background);
-    }
-
-    // Overlay title text on the first row
-    var titleText = $" {title}";
-    for (int i = 0; i < titleText.Length && i < surface.Width; i++)
-    {
-        var bg = surface[i, 0].Background ?? Hex1bColor.FromRgb(10, 15, 25);
-        surface[i, 0] = new SurfaceCell(titleText[i].ToString(), Hex1bColor.White, bg);
-    }
-
-    // Overlay category on the second row
-    var catText = $"   [{category}]";
-    for (int i = 0; i < catText.Length && i < surface.Width && 1 < surface.Height; i++)
-    {
-        var bg = surface[i, 1].Background ?? Hex1bColor.FromRgb(10, 15, 25);
-        surface[i, 1] = new SurfaceCell(catText[i].ToString(), categoryColor, bg);
     }
 }
 

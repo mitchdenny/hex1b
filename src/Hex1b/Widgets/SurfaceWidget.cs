@@ -36,22 +36,6 @@ public record SurfaceWidget(
 ) : Hex1bWidget
 {
     /// <summary>
-    /// Gets the width sizing hint for this widget.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to <see cref="SizeHint.Fill"/> to take all available width.
-    /// </remarks>
-    public new SizeHint? WidthHint { get; init; } = SizeHint.Fill;
-
-    /// <summary>
-    /// Gets the height sizing hint for this widget.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to <see cref="SizeHint.Fill"/> to take all available height.
-    /// </remarks>
-    public new SizeHint? HeightHint { get; init; } = SizeHint.Fill;
-
-    /// <summary>
     /// Returns a new widget with the specified width hint.
     /// </summary>
     /// <param name="hint">The width sizing hint.</param>
@@ -86,8 +70,8 @@ public record SurfaceWidget(
         node.MarkDirty();
 
         node.LayerBuilder = LayerBuilder;
-        node.WidthHint = WidthHint;
-        node.HeightHint = HeightHint;
+        // HeightHint and WidthHint are set by ReconcileContext from the base Hex1bWidget properties.
+        // SurfaceNode.MeasureCore defaults to fill behavior when they are null.
 
         return Task.FromResult<Hex1bNode>(node);
     }
