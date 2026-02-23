@@ -47,6 +47,67 @@ class OverlayState
 {
     public int Score { get; set; }
 }`
+
+const alignmentCode = `using Hex1b;
+using Hex1b.Widgets;
+
+var state = new AlignmentState();
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
+    {
+        var anchor = v.Border(b => [
+            b.Text("  Anchor Widget  ")
+        ]).Title("Anchor");
+
+        var floated = v.Float(
+            v.Border(b => [ b.Text("Float") ]).Title("Float")
+        );
+
+        floated = state.Horizontal switch
+        {
+            "AlignLeft" => floated.AlignLeft(anchor, state.Offset),
+            "AlignRight" => floated.AlignRight(anchor, state.Offset),
+            "ExtendLeft" => floated.ExtendLeft(anchor, state.Offset),
+            "ExtendRight" => floated.ExtendRight(anchor, state.Offset),
+            _ => floated,
+        };
+        floated = state.Vertical switch
+        {
+            "AlignTop" => floated.AlignTop(anchor, state.Offset),
+            "AlignBottom" => floated.AlignBottom(anchor, state.Offset),
+            "ExtendTop" => floated.ExtendTop(anchor, state.Offset),
+            "ExtendBottom" => floated.ExtendBottom(anchor, state.Offset),
+            _ => floated,
+        };
+        if (state.Horizontal == "(none)" && state.Vertical == "(none)")
+            floated = floated.Absolute(25, 6);
+
+        return [
+            v.Text(""),
+            v.HStack(h => [
+                h.Text(" Horizontal: "),
+                h.Picker("(none)", "AlignLeft", "AlignRight", "ExtendLeft", "ExtendRight")
+                    .OnSelectionChanged(e => state.Horizontal = e.SelectedText),
+                h.Text("  Vertical: "),
+                h.Picker("(none)", "AlignTop", "AlignBottom", "ExtendTop", "ExtendBottom")
+                    .OnSelectionChanged(e => state.Vertical = e.SelectedText),
+            ]),
+            v.Text(""),
+            anchor,
+            floated,
+        ];
+    }))
+    .Build();
+
+await terminal.RunAsync();
+
+class AlignmentState
+{
+    public string Horizontal { get; set; } = "(none)";
+    public string Vertical { get; set; } = "(none)";
+    public int Offset { get; set; }
+}`
 </script>
 
 # FloatWidget
@@ -138,6 +199,12 @@ ctx.VStack(v =>
 ```
 
 Alignment methods are composable—chain a horizontal and a vertical method to position in both axes. The `offset` parameter shifts the float from the computed position.
+
+### Try It: Alignment Explorer
+
+Use the dropdowns to see how each alignment option positions the floated border relative to the anchor:
+
+<CodeBlock lang="csharp" :code="alignmentCode" command="dotnet run" example="float-alignment" exampleTitle="Float - Alignment Explorer" />
 
 ::: info Anchor Scope
 The anchor widget must be a **direct sibling** in the same container. Anchoring to widgets nested inside other containers is not supported.
