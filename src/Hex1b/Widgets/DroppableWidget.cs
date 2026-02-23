@@ -50,6 +50,23 @@ public sealed record DroppableWidget(Func<DroppableContext, Hex1bWidget> Builder
     public DroppableWidget OnDrop(Func<DropEventArgs, Task> handler)
         => this with { DropHandler = handler };
 
+    /// <summary>
+    /// The async handler called when an item is dropped on a specific <see cref="DropTargetWidget"/> within this droppable.
+    /// </summary>
+    internal Func<DropTargetEventArgs, Task>? DropTargetHandler { get; init; }
+
+    /// <summary>
+    /// Sets a synchronous handler for drops on specific <see cref="DropTargetWidget"/> insertion points.
+    /// </summary>
+    public DroppableWidget OnDropTarget(Action<DropTargetEventArgs> handler)
+        => this with { DropTargetHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler for drops on specific <see cref="DropTargetWidget"/> insertion points.
+    /// </summary>
+    public DroppableWidget OnDropTarget(Func<DropTargetEventArgs, Task> handler)
+        => this with { DropTargetHandler = handler };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as DroppableNode ?? new DroppableNode();
@@ -68,6 +85,20 @@ public sealed record DroppableWidget(Func<DroppableContext, Hex1bWidget> Builder
         else
         {
             node.DropAction = null;
+        }
+
+        // Wire up drop target handler
+        if (DropTargetHandler != null)
+        {
+            node.DropTargetAction = async (ctx, targetId, dragData, source) =>
+            {
+                var args = new DropTargetEventArgs(this, node, ctx, targetId, dragData, source);
+                await DropTargetHandler(args);
+            };
+        }
+        else
+        {
+            node.DropTargetAction = null;
         }
 
         var dc = new DroppableContext(node);

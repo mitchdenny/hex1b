@@ -501,4 +501,135 @@ public class DragDropTests
     }
 
     #endregion
+
+    #region DropTargetNode Tests
+
+    [Fact]
+    public void DropTargetNode_IsNotFocusable()
+    {
+        var node = new DropTargetNode();
+        Assert.False(node.IsFocusable);
+    }
+
+    [Fact]
+    public void DropTargetNode_IsActive_DefaultFalse()
+    {
+        var node = new DropTargetNode();
+        Assert.False(node.IsActive);
+    }
+
+    [Fact]
+    public void DropTargetNode_Measure_WhenInactive_ReturnsZeroHeight()
+    {
+        var node = new DropTargetNode();
+        var child = new TextBlockNode { Text = "indicator" };
+        node.Child = child;
+
+        var size = node.Measure(new Constraints(0, 40, 0, 20));
+
+        Assert.Equal(0, size.Height);
+        Assert.Equal(40, size.Width);
+    }
+
+    [Fact]
+    public void DropTargetNode_Measure_WhenActive_MeasuresChild()
+    {
+        var node = new DropTargetNode();
+        var child = new TextBlockNode { Text = "drop here" };
+        node.Child = child;
+        node.IsActive = true;
+
+        var size = node.Measure(new Constraints(0, 40, 0, 20));
+
+        Assert.Equal(1, size.Height); // TextBlock is 1 row
+    }
+
+    [Fact]
+    public void DropTargetNode_TargetId_CanBeSet()
+    {
+        var node = new DropTargetNode { TargetId = "after-card-2" };
+        Assert.Equal("after-card-2", node.TargetId);
+    }
+
+    [Fact]
+    public void DropTargetNode_GetFocusableNodes_ReturnsEmpty()
+    {
+        var node = new DropTargetNode { Child = new TextBlockNode() };
+        Assert.Empty(node.GetFocusableNodes());
+    }
+
+    #endregion
+
+    #region DropTarget Proximity Tests
+
+    [Fact]
+    public void DroppableNode_FindDropTargets_FindsDescendants()
+    {
+        var droppable = new DroppableNode();
+        var vstack = new VStackNode();
+        var dt1 = new DropTargetNode { TargetId = "pos-1" };
+        var dt2 = new DropTargetNode { TargetId = "pos-2" };
+        vstack.Children = [dt1, new TextBlockNode(), dt2];
+        droppable.Child = vstack;
+
+        var targets = droppable.FindDropTargets();
+
+        Assert.Equal(2, targets.Count);
+        Assert.Equal("pos-1", targets[0].TargetId);
+        Assert.Equal("pos-2", targets[1].TargetId);
+    }
+
+    [Fact]
+    public void DroppableNode_FindDropTargets_EmptyWhenNone()
+    {
+        var droppable = new DroppableNode();
+        droppable.Child = new TextBlockNode();
+
+        var targets = droppable.FindDropTargets();
+
+        Assert.Empty(targets);
+    }
+
+    [Fact]
+    public void DragDropManager_ActiveDropTarget_ClearedOnEndDrag()
+    {
+        var manager = new DragDropManager();
+        var source = new DraggableNode { DragData = "test" };
+        manager.StartDrag(source, "test", 0, 0);
+        manager.ActiveDropTarget = new DropTargetNode { TargetId = "pos-1", IsActive = true };
+
+        manager.EndDrag();
+
+        Assert.Null(manager.ActiveDropTarget);
+    }
+
+    #endregion
+
+    #region DropTargetContext Tests
+
+    [Fact]
+    public void DropTargetContext_IsActive_ReflectsNodeState()
+    {
+        var node = new DropTargetNode { TargetId = "test" };
+        var ctx = new DropTargetContext(node);
+
+        Assert.False(ctx.IsActive);
+
+        node.IsActive = true;
+        Assert.True(ctx.IsActive);
+    }
+
+    [Fact]
+    public void DropTargetContext_DragData_ReflectsNodeState()
+    {
+        var node = new DropTargetNode { TargetId = "test" };
+        var ctx = new DropTargetContext(node);
+
+        Assert.Null(ctx.DragData);
+
+        node.DragData = "some-data";
+        Assert.Equal("some-data", ctx.DragData);
+    }
+
+    #endregion
 }

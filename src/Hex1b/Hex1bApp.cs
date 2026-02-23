@@ -1133,6 +1133,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     /// <summary>
     /// Updates the hover state on DroppableNodes during a drag operation.
+    /// Also updates proximity-based DropTarget activation.
     /// </summary>
     private void UpdateDragDropHoverState(int x, int y)
     {
@@ -1147,6 +1148,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             previousTarget.IsHoveredByDrag = false;
             previousTarget.CanAcceptDrag = false;
             previousTarget.HoveredDragData = null;
+            
+            // Clear any active drop targets in the previous droppable
+            ClearDropTargets(previousTarget);
         }
         
         // Set new target's hover state
@@ -1155,6 +1159,83 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             droppable.IsHoveredByDrag = true;
             droppable.CanAcceptDrag = droppable.Accepts(_dragDropManager.ActiveDragData);
             droppable.HoveredDragData = _dragDropManager.ActiveDragData;
+            
+            // Update drop target proximity
+            UpdateDropTargetProximity(droppable, y, _dragDropManager.ActiveDragData);
+        }
+        else
+        {
+            // No droppable — clear active drop target
+            if (_dragDropManager.ActiveDropTarget != null)
+            {
+                _dragDropManager.ActiveDropTarget.IsActive = false;
+                _dragDropManager.ActiveDropTarget.DragData = null;
+                _dragDropManager.ActiveDropTarget = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the nearest DropTargetNode to the cursor within the given droppable and activates it.
+    /// </summary>
+    private void UpdateDropTargetProximity(DroppableNode droppable, int cursorY, object dragData)
+    {
+        var targets = droppable.FindDropTargets();
+        if (targets.Count == 0)
+        {
+            if (_dragDropManager.ActiveDropTarget != null)
+            {
+                _dragDropManager.ActiveDropTarget.IsActive = false;
+                _dragDropManager.ActiveDropTarget.DragData = null;
+                _dragDropManager.ActiveDropTarget = null;
+            }
+            return;
+        }
+
+        // Find nearest target by vertical distance to cursor
+        DropTargetNode? nearest = null;
+        int nearestDist = int.MaxValue;
+
+        foreach (var target in targets)
+        {
+            var centerY = target.Bounds.Y + target.Bounds.Height / 2;
+            var dist = Math.Abs(cursorY - centerY);
+            if (dist < nearestDist)
+            {
+                nearestDist = dist;
+                nearest = target;
+            }
+        }
+
+        // Deactivate previous if different
+        if (_dragDropManager.ActiveDropTarget != null && _dragDropManager.ActiveDropTarget != nearest)
+        {
+            _dragDropManager.ActiveDropTarget.IsActive = false;
+            _dragDropManager.ActiveDropTarget.DragData = null;
+        }
+
+        // Activate nearest
+        if (nearest != null)
+        {
+            nearest.IsActive = true;
+            nearest.DragData = dragData;
+            _dragDropManager.ActiveDropTarget = nearest;
+        }
+    }
+
+    /// <summary>
+    /// Clears all DropTargetNode activation state within a droppable.
+    /// </summary>
+    private void ClearDropTargets(DroppableNode droppable)
+    {
+        foreach (var target in droppable.FindDropTargets())
+        {
+            target.IsActive = false;
+            target.DragData = null;
+        }
+        if (_dragDropManager.ActiveDropTarget != null)
+        {
+            _dragDropManager.ActiveDropTarget = null;
         }
     }
 
@@ -1166,15 +1247,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var target = _dragDropManager.HoveredTarget;
         var dragData = _dragDropManager.ActiveDragData;
         var source = _dragDropManager.ActiveSource;
+        var activeDropTarget = _dragDropManager.ActiveDropTarget;
         
         if (target != null && dragData != null && source != null && target.Accepts(dragData))
         {
-            // Calculate local coordinates relative to the drop target
-            var localX = _dragDropManager.DragX - target.Bounds.X;
-            var localY = _dragDropManager.DragY - target.Bounds.Y;
-            
-            if (target.DropAction != null)
+            // If there's an active drop target, fire the drop target handler
+            if (activeDropTarget != null && target.DropTargetAction != null)
             {
+                await target.DropTargetAction(context, activeDropTarget.TargetId, dragData, source);
+            }
+            else if (target.DropAction != null)
+            {
+                // Fall back to the general drop handler
+                var localX = _dragDropManager.DragX - target.Bounds.X;
+                var localY = _dragDropManager.DragY - target.Bounds.Y;
                 await target.DropAction(context, dragData, source, localX, localY);
             }
         }
@@ -1185,6 +1271,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             target.IsHoveredByDrag = false;
             target.CanAcceptDrag = false;
             target.HoveredDragData = null;
+            ClearDropTargets(target);
         }
         
         _dragDropManager.EndDrag();

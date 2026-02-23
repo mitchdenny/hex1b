@@ -7,24 +7,8 @@ using Hex1b.Widgets;
 // Demo: Kanban Board with Drag and Drop
 //
 // A 3-column Kanban board where task cards can be dragged between columns.
-// Demonstrates: Draggable sources, Droppable targets, Accept predicates,
-// context-driven rendering, and OnDrop event handling.
-// One card has a smart matter particle animation on its drag ghost.
-
-// Mini smart matter particle state for animated surface inside cards
-var ghostParticles = new GhostParticle[40];
-var ghostRandom = new Random(42);
-for (int i = 0; i < ghostParticles.Length; i++)
-{
-    ghostParticles[i] = new GhostParticle
-    {
-        X = ghostRandom.NextDouble() * 40,
-        Y = ghostRandom.NextDouble() * 8,
-        Vx = 0,
-        Vy = -ghostRandom.NextDouble() * 0.6 - 0.2,
-        Brightness = 0.5 + ghostRandom.NextDouble() * 0.5,
-    };
-}
+// Demonstrates: Draggable sources, Droppable targets, Drop targets for
+// positional insertion, context-driven rendering, and animated Surface widgets.
 
 var columns = new Dictionary<string, List<KanbanTask>>
 {
@@ -98,24 +82,44 @@ Hex1bWidget BuildColumn(
         return dc.ThemePanel(
             t => t.Set(BorderTheme.BorderColor, borderColor),
             dc.Border(
-                dc.VStack(v => [
-                    // Column header
-                    v.ThemePanel(
-                        t => t.Set(GlobalTheme.ForegroundColor, columnColor),
-                        v.Text(headerText)),
-                    v.Separator(),
+                dc.VStack(v =>
+                {
+                    var items = new List<Hex1bWidget>();
 
-                    // Task cards
-                    ..tasks.Select(task => BuildTaskCard(v, task)),
+                    // Column header
+                    items.Add(v.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, columnColor),
+                        v.Text(headerText)));
+                    items.Add(v.Separator());
+
+                    // Drop target before first card
+                    items.Add(dc.DropTarget("pos-0", dt =>
+                        dt.IsActive
+                            ? dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
+                                dt.Text(" ─── insert here ───"))
+                            : dt.Text("")));
+
+                    // Cards interleaved with drop targets
+                    for (int i = 0; i < tasks.Count; i++)
+                    {
+                        items.Add(BuildTaskCard(v, tasks[i]));
+                        items.Add(dc.DropTarget($"pos-{i + 1}", dt =>
+                            dt.IsActive
+                                ? dt.ThemePanel(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Green),
+                                    dt.Text(" ─── insert here ───"))
+                                : dt.Text("")));
+                    }
 
                     // Empty space filler
-                    v.Text("").Fill(),
-                ])
+                    items.Add(v.Text("").Fill());
+
+                    return [.. items];
+                })
             )
         );
     })
     .Accept(data => data is KanbanTask)
-    .OnDrop(e =>
+    .OnDropTarget(e =>
     {
         if (e.DragData is KanbanTask task)
         {
@@ -123,7 +127,20 @@ Hex1bWidget BuildColumn(
             foreach (var col in columns.Values)
                 col.Remove(task);
 
-            // Add to target column
+            // Insert at the position indicated by the drop target
+            var posIndex = int.Parse(e.TargetId.Split('-')[1]);
+            posIndex = Math.Min(posIndex, tasks.Count);
+            tasks.Insert(posIndex, task);
+            lastAction = $" Moved \"{task.Title}\" to {columnName} at position {posIndex}";
+        }
+    })
+    .OnDrop(e =>
+    {
+        // Fallback: append to end when no drop target is active
+        if (e.DragData is KanbanTask task)
+        {
+            foreach (var col in columns.Values)
+                col.Remove(task);
             tasks.Add(task);
             lastAction = $" Moved \"{task.Title}\" to {columnName}";
         }
@@ -234,120 +251,4 @@ double GetWaveAngle(string category) => category switch
     _ => 0.0,           // horizontal
 };
 
-(byte r, byte g, byte b) HsvToRgb(double h, double s, double v)
-{
-    var hi = (int)(h * 6) % 6;
-    var f = h * 6 - Math.Floor(h * 6);
-    var p = v * (1 - s);
-    var q = v * (1 - f * s);
-    var t = v * (1 - (1 - f) * s);
-
-    var (rd, gd, bd) = hi switch
-    {
-        0 => (v, t, p),
-        1 => (q, v, p),
-        2 => (p, v, t),
-        3 => (p, q, v),
-        4 => (t, p, v),
-        _ => (v, p, q),
-    };
-    return ((byte)(rd * 255), (byte)(gd * 255), (byte)(bd * 255));
-}
-
-// Mini smart matter particle functions
-void UpdateGhostParticles(GhostParticle[] particles, Random rng, int width, int height)
-{
-    int dotW = width * 2;
-    int dotH = height * 4;
-
-    for (int i = 0; i < particles.Length; i++)
-    {
-        ref var p = ref particles[i];
-
-        // Rise upward with turbulence
-        p.Vy += -0.05 + rng.NextDouble() * 0.02;
-        p.Vx += (rng.NextDouble() - 0.5) * 0.3;
-
-        // Dampen
-        p.Vx *= 0.9;
-        p.Vy *= 0.95;
-
-        p.X += p.Vx;
-        p.Y += p.Vy;
-
-        // Wrap around when particles go off screen
-        if (p.Y < 0)
-        {
-            p.Y = dotH - 1;
-            p.X = rng.NextDouble() * dotW;
-            p.Vy = -rng.NextDouble() * 0.6 - 0.2;
-        }
-        if (p.X < 0) p.X += dotW;
-        if (p.X >= dotW) p.X -= dotW;
-
-        // Pulse brightness
-        p.Brightness = 0.5 + 0.5 * Math.Sin(p.Y / 3.0 + p.X / 5.0);
-    }
-}
-
-void RenderGhostParticles(Surface surface, GhostParticle[] particles)
-{
-    int dotW = surface.Width * 2;
-    int dotH = surface.Height * 4;
-
-    // Dark background
-    for (int y = 0; y < surface.Height; y++)
-        for (int x = 0; x < surface.Width; x++)
-            surface[x, y] = new SurfaceCell(" ", null, Hex1bColor.FromRgb(10, 15, 25));
-
-    // Group particles by cell for braille rendering
-    var cells = new Dictionary<(int, int), (int bits, double bright)>();
-
-    foreach (var p in particles)
-    {
-        int dotX = (int)Math.Round(p.X);
-        int dotY = (int)Math.Round(p.Y);
-        if (dotX < 0 || dotX >= dotW || dotY < 0 || dotY >= dotH) continue;
-
-        int cellX = dotX / 2;
-        int cellY = dotY / 4;
-        if (cellX < 0 || cellX >= surface.Width || cellY < 0 || cellY >= surface.Height) continue;
-
-        int localX = dotX % 2;
-        int localY = dotY % 4;
-        int bit = localY switch
-        {
-            0 => localX == 0 ? 0x01 : 0x08,
-            1 => localX == 0 ? 0x02 : 0x10,
-            2 => localX == 0 ? 0x04 : 0x20,
-            3 => localX == 0 ? 0x40 : 0x80,
-            _ => 0
-        };
-
-        var key = (cellX, cellY);
-        var cur = cells.GetValueOrDefault(key, (0, 0.0));
-        cells[key] = (cur.Item1 | bit, Math.Max(cur.Item2, p.Brightness));
-    }
-
-    foreach (var kvp in cells)
-    {
-        var (cx, cy) = kvp.Key;
-        int bits = kvp.Value.Item1;
-        double bright = kvp.Value.Item2;
-        var ch = (char)(0x2800 + bits);
-
-        byte r = (byte)(80 + bright * 175);
-        byte g = (byte)(180 + bright * 75);
-        byte b = (byte)(220 + bright * 35);
-
-        var existing = surface[cx, cy];
-        surface[cx, cy] = new SurfaceCell(ch.ToString(), Hex1bColor.FromRgb(r, g, b), existing.Background);
-    }
-}
-
 record KanbanTask(string Id, string Title, string Category, Hex1bColor CategoryColor);
-
-struct GhostParticle
-{
-    public double X, Y, Vx, Vy, Brightness;
-}

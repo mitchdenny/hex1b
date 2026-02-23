@@ -33,6 +33,12 @@ public sealed class DroppableNode : Hex1bNode
     /// </summary>
     public Func<InputBindingActionContext, object, DraggableNode, int, int, Task>? DropAction { get; set; }
 
+    /// <summary>
+    /// The async action to execute when a valid item is dropped on a specific <see cref="DropTargetNode"/>.
+    /// Parameters: context, targetId, dragData, sourceNode.
+    /// </summary>
+    public Func<InputBindingActionContext, string, object, DraggableNode, Task>? DropTargetAction { get; set; }
+
     private bool _isHoveredByDrag;
 
     /// <summary>
@@ -99,6 +105,27 @@ public sealed class DroppableNode : Hex1bNode
         {
             foreach (var focusable in Child.GetFocusableNodes())
                 yield return focusable;
+        }
+    }
+
+    /// <summary>
+    /// Finds all <see cref="DropTargetNode"/> descendants within this droppable's subtree.
+    /// </summary>
+    public List<DropTargetNode> FindDropTargets()
+    {
+        var targets = new List<DropTargetNode>();
+        CollectDropTargets(this, targets);
+        return targets;
+    }
+
+    private static void CollectDropTargets(Hex1bNode node, List<DropTargetNode> targets)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is DropTargetNode dt)
+                targets.Add(dt);
+            else
+                CollectDropTargets(child, targets);
         }
     }
 }

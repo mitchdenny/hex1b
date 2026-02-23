@@ -32,6 +32,11 @@ internal sealed class DragDropManager
     public DroppableNode? HoveredTarget { get; private set; }
 
     /// <summary>
+    /// The drop target node currently nearest to the cursor within the hovered droppable (if any).
+    /// </summary>
+    public DropTargetNode? ActiveDropTarget { get; set; }
+
+    /// <summary>
     /// Whether a drag operation is currently active.
     /// </summary>
     public bool IsDragging => ActiveSource != null;
@@ -78,6 +83,7 @@ internal sealed class DragDropManager
         ActiveSourceWidget = null;
         ActiveDragData = null;
         HoveredTarget = null;
+        ActiveDropTarget = null;
         DragX = 0;
         DragY = 0;
     }

@@ -32,4 +32,14 @@ public sealed class DroppableContext : WidgetContext<DroppableWidget>
     /// Null if no drag is hovering.
     /// </summary>
     public object? HoveredDragData => _node.HoveredDragData;
+
+    /// <summary>
+    /// Creates a drop target insertion point within this droppable region.
+    /// The builder receives a <see cref="DropTargetContext"/> with <see cref="DropTargetContext.IsActive"/>
+    /// indicating whether this is the nearest target to the cursor.
+    /// </summary>
+    /// <param name="id">A unique identifier for this drop target.</param>
+    /// <param name="builder">A builder that returns the content to render (e.g., a separator line when active).</param>
+    public DropTargetWidget DropTarget(string id, Func<DropTargetContext, Hex1bWidget> builder)
+        => new(id, builder);
 }
