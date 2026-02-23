@@ -24,7 +24,7 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
     internal Func<AccordionSectionExpandedEventArgs, Task>? SectionExpandedHandler { get; init; }
 
     /// <summary>
-    /// Whether multiple sections can be expanded simultaneously. Defaults to true.
+    /// Whether multiple sections can be expanded simultaneously. Defaults to false.
     /// </summary>
     public bool AllowMultipleExpanded { get; init; } = false;
 
@@ -67,7 +67,7 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
             var hasToggle = section.LeftSectionActions.Any(a => a.IsToggle);
             if (!hasToggle)
             {
-                leftActions.Add(AccordionSectionActionBuilder.DefaultToggle(node, sectionIndex));
+                leftActions.Add(AccordionSectionActionBuilder.DefaultToggle());
             }
             foreach (var a in section.LeftSectionActions)
             {

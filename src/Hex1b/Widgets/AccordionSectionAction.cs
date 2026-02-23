@@ -29,7 +29,7 @@ public sealed record AccordionSectionAction
     /// <summary>
     /// Creates a new section action with the specified icon.
     /// </summary>
-    public AccordionSectionAction(string icon)
+    internal AccordionSectionAction(string icon)
     {
         Icon = icon;
     }

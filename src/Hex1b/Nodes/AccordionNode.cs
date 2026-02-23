@@ -14,7 +14,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Information about a single accordion section (display data only, no expanded state).
     /// </summary>
-    public sealed record SectionInfo(
+    internal sealed record SectionInfo(
         string Title,
         IReadOnlyList<AccordionSectionAction> LeftActions,
         IReadOnlyList<AccordionSectionAction> RightActions);
@@ -30,7 +30,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Whether multiple sections can be expanded simultaneously.
     /// </summary>
-    public bool AllowMultipleExpanded { get; set; } = true;
+    public bool AllowMultipleExpanded { get; internal set; } = true;
 
     /// <summary>
     /// Handler for section expand/collapse changes.

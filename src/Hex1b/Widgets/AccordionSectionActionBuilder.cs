@@ -44,7 +44,7 @@ public readonly struct AccordionSectionActionBuilder
     /// <summary>
     /// Creates the default toggle action used when no toggle is provided by the user.
     /// </summary>
-    internal static AccordionSectionAction DefaultToggle(Nodes.AccordionNode node, int sectionIndex)
+    internal static AccordionSectionAction DefaultToggle()
         => new("")
         {
             ExpandedIcon = "",
