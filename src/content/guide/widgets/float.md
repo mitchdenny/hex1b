@@ -56,9 +56,15 @@ var state = new AlignmentState();
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
     {
-        var anchor = v.Border(b => [
+        // Anchor — the inner border is the alignment target
+        var anchorBorder = v.Border(b => [
             b.Text("  Anchor Widget  ")
         ]).Title("Anchor");
+
+        // Wrap in Center + Padding so we have space around the anchor
+        var anchorDisplay = v.Center(
+            v.Padding(8, 8, 3, 3, anchorBorder)
+        );
 
         var floated = v.Float(
             v.Border(b => [ b.Text("Float") ]).Title("Float")
@@ -66,22 +72,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
         floated = state.Horizontal switch
         {
-            "AlignLeft" => floated.AlignLeft(anchor, state.Offset),
-            "AlignRight" => floated.AlignRight(anchor, state.Offset),
-            "ExtendLeft" => floated.ExtendLeft(anchor, state.Offset),
-            "ExtendRight" => floated.ExtendRight(anchor, state.Offset),
+            "AlignLeft" => floated.AlignLeft(anchorBorder, state.HOffset),
+            "AlignRight" => floated.AlignRight(anchorBorder, state.HOffset),
+            "ExtendLeft" => floated.ExtendLeft(anchorBorder, state.HOffset),
+            "ExtendRight" => floated.ExtendRight(anchorBorder, state.HOffset),
             _ => floated,
         };
         floated = state.Vertical switch
         {
-            "AlignTop" => floated.AlignTop(anchor, state.Offset),
-            "AlignBottom" => floated.AlignBottom(anchor, state.Offset),
-            "ExtendTop" => floated.ExtendTop(anchor, state.Offset),
-            "ExtendBottom" => floated.ExtendBottom(anchor, state.Offset),
+            "AlignTop" => floated.AlignTop(anchorBorder, state.VOffset),
+            "AlignBottom" => floated.AlignBottom(anchorBorder, state.VOffset),
+            "ExtendTop" => floated.ExtendTop(anchorBorder, state.VOffset),
+            "ExtendBottom" => floated.ExtendBottom(anchorBorder, state.VOffset),
             _ => floated,
         };
         if (state.Horizontal == "(none)" && state.Vertical == "(none)")
-            floated = floated.Absolute(25, 6);
+            floated = floated.Absolute(25, 8);
 
         return [
             v.Text(""),
@@ -89,12 +95,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 h.Text(" Horizontal: "),
                 h.Picker("(none)", "AlignLeft", "AlignRight", "ExtendLeft", "ExtendRight")
                     .OnSelectionChanged(e => state.Horizontal = e.SelectedText),
-                h.Text("  Vertical: "),
+                h.Text("  Offset: "),
+                h.Picker("0", "-2", "-1", "1", "2", "3", "4")
+                    .OnSelectionChanged(e => state.HOffset = int.Parse(e.SelectedText)),
+            ]),
+            v.HStack(h => [
+                h.Text(" Vertical:   "),
                 h.Picker("(none)", "AlignTop", "AlignBottom", "ExtendTop", "ExtendBottom")
                     .OnSelectionChanged(e => state.Vertical = e.SelectedText),
+                h.Text("  Offset: "),
+                h.Picker("0", "-2", "-1", "1", "2", "3", "4")
+                    .OnSelectionChanged(e => state.VOffset = int.Parse(e.SelectedText)),
             ]),
             v.Text(""),
-            anchor,
+            v.Text(\` H: \${state.Horizontal} (\${state.HOffset})  V: \${state.Vertical} (\${state.VOffset})\`),
+            v.Text(""),
+            anchorDisplay,
             floated,
         ];
     }))
@@ -106,7 +122,8 @@ class AlignmentState
 {
     public string Horizontal { get; set; } = "(none)";
     public string Vertical { get; set; } = "(none)";
-    public int Offset { get; set; }
+    public int HOffset { get; set; }
+    public int VOffset { get; set; }
 }`
 </script>
 

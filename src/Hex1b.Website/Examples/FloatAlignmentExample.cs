@@ -26,7 +26,8 @@ public class FloatAlignmentExample(ILogger<FloatAlignmentExample> logger) : Hex1
     {
         public string Horizontal { get; set; } = "(none)";
         public string Vertical { get; set; } = "(none)";
-        public int Offset { get; set; }
+        public int HOffset { get; set; }
+        public int VOffset { get; set; }
     }
 
     private static readonly string[] HorizontalOptions =
@@ -50,10 +51,15 @@ public class FloatAlignmentExample(ILogger<FloatAlignmentExample> logger) : Hex1
 
             return ctx.VStack(v =>
             {
-                // Anchor widget
-                var anchor = v.Border(b => [
+                // Anchor — the inner border is the alignment target
+                var anchorBorder = v.Border(b => [
                     b.Text("  Anchor Widget  ")
                 ]).Title("Anchor");
+
+                // Wrap in Center + Padding for visual space
+                var anchorDisplay = v.Center(
+                    v.Padding(8, 8, 3, 3, anchorBorder)
+                );
 
                 // Build the float with selected alignment
                 var floated = v.Float(
@@ -62,23 +68,26 @@ public class FloatAlignmentExample(ILogger<FloatAlignmentExample> logger) : Hex1
                     ]).Title("Float")
                 );
 
-                floated = ApplyAlignment(floated, anchor, state);
+                floated = ApplyAlignment(floated, anchorBorder, state);
 
                 return [
                     v.Text(""),
                     v.HStack(h => [
                         h.Text(" Horizontal: "),
                         h.Picker(HorizontalOptions).OnSelectionChanged(e => state.Horizontal = e.SelectedText),
-                        h.Text("  Vertical: "),
+                        h.Text("  Offset: "),
+                        h.Picker(OffsetOptions).OnSelectionChanged(e => state.HOffset = int.Parse(e.SelectedText)),
+                    ]),
+                    v.HStack(h => [
+                        h.Text(" Vertical:   "),
                         h.Picker(VerticalOptions).OnSelectionChanged(e => state.Vertical = e.SelectedText),
                         h.Text("  Offset: "),
-                        h.Picker(OffsetOptions)
-                            .OnSelectionChanged(e => state.Offset = int.Parse(e.SelectedText)),
+                        h.Picker(OffsetOptions).OnSelectionChanged(e => state.VOffset = int.Parse(e.SelectedText)),
                     ]),
                     v.Text(""),
-                    v.Text($" H: {state.Horizontal}  V: {state.Vertical}  Offset: {state.Offset}"),
+                    v.Text($" H: {state.Horizontal} ({state.HOffset})  V: {state.Vertical} ({state.VOffset})"),
                     v.Text(""),
-                    anchor,
+                    anchorDisplay,
                     floated,
                 ];
             });
@@ -87,30 +96,27 @@ public class FloatAlignmentExample(ILogger<FloatAlignmentExample> logger) : Hex1
 
     private static FloatWidget ApplyAlignment(FloatWidget floated, Hex1bWidget anchor, AlignmentState state)
     {
-        // Apply horizontal alignment
         floated = state.Horizontal switch
         {
-            "AlignLeft" => floated.AlignLeft(anchor, state.Offset),
-            "AlignRight" => floated.AlignRight(anchor, state.Offset),
-            "ExtendLeft" => floated.ExtendLeft(anchor, state.Offset),
-            "ExtendRight" => floated.ExtendRight(anchor, state.Offset),
+            "AlignLeft" => floated.AlignLeft(anchor, state.HOffset),
+            "AlignRight" => floated.AlignRight(anchor, state.HOffset),
+            "ExtendLeft" => floated.ExtendLeft(anchor, state.HOffset),
+            "ExtendRight" => floated.ExtendRight(anchor, state.HOffset),
             _ => floated,
         };
 
-        // Apply vertical alignment
         floated = state.Vertical switch
         {
-            "AlignTop" => floated.AlignTop(anchor, state.Offset),
-            "AlignBottom" => floated.AlignBottom(anchor, state.Offset),
-            "ExtendTop" => floated.ExtendTop(anchor, state.Offset),
-            "ExtendBottom" => floated.ExtendBottom(anchor, state.Offset),
+            "AlignTop" => floated.AlignTop(anchor, state.VOffset),
+            "AlignBottom" => floated.AlignBottom(anchor, state.VOffset),
+            "ExtendTop" => floated.ExtendTop(anchor, state.VOffset),
+            "ExtendBottom" => floated.ExtendBottom(anchor, state.VOffset),
             _ => floated,
         };
 
-        // If neither axis is set, default to a visible absolute position
         if (state.Horizontal == "(none)" && state.Vertical == "(none)")
         {
-            floated = floated.Absolute(25, 6);
+            floated = floated.Absolute(25, 8);
         }
 
         return floated;
