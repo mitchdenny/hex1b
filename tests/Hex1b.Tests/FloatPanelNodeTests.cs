@@ -343,4 +343,61 @@ public class FloatWidgetPickerIntegrationTests
 
         Assert.True(flowClicked, "Flow button in VStack with floats should receive focus and be clickable");
     }
+
+    [Fact]
+    public async Task Integration_AlignmentExplorerLayout_PickerOpensAndSelects()
+    {
+        // Exact reproduction of the FloatAlignmentExplorer sample layout
+        var horizontal = "(none)";
+        string[] hOptions = ["(none)", "AlignLeft", "AlignRight", "ExtendLeft", "ExtendRight"];
+        string[] vOptions = ["(none)", "AlignTop", "AlignBottom", "ExtendTop", "ExtendBottom"];
+        string[] offsetOptions = ["0", "-2", "-1", "1", "2", "3", "4"];
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+
+        // Use the synchronous Hex1bApp constructor - same as the sample
+        using var app = new Hex1bApp(ctx => ctx.VStack(v =>
+        {
+            var anchor = v.Border(b => [b.Text("  Anchor Widget  ")]).Title("Anchor");
+            var floated = v.Float(v.Border(b => [b.Text("Float")]).Title("Float"));
+            floated = horizontal switch
+            {
+                "AlignLeft" => floated.AlignLeft(anchor, 0),
+                _ => floated.Absolute(25, 6),
+            };
+            return [
+                v.Text(""),
+                v.HStack(h => [
+                    h.Text(" Horizontal: "),
+                    h.Picker(hOptions).OnSelectionChanged(e => horizontal = e.SelectedText),
+                    h.Text("  Vertical: "),
+                    h.Picker(vOptions),
+                    h.Text("  Offset: "),
+                    h.Picker(offsetOptions),
+                ]),
+                v.Text(""),
+                v.Text($" H: {horizontal}"),
+                v.Text(""),
+                anchor,
+                floated,
+            ];
+        }), new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("(none)"), TimeSpan.FromSeconds(5), "picker to appear")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("AlignLeft") && s.ContainsText("AlignRight"), TimeSpan.FromSeconds(5), "dropdown to open")
+            .Down()
+            .WaitUntil(s => true, TimeSpan.FromMilliseconds(200), "frame to process")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("H: AlignLeft"), TimeSpan.FromSeconds(5), "selection to apply")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("AlignLeft", horizontal);
+    }
 }

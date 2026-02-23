@@ -26,6 +26,7 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
     floated = ApplyAlignment(floated, anchor);
 
     return [
+        v.Text(" Float Alignment Explorer (Tab: navigate, Enter: open picker, ↑↓: select, Ctrl+C: quit)"),
         v.Text(""),
         v.HStack(h => [
             h.Text(" Horizontal: "),
@@ -41,7 +42,7 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
         anchor,
         floated,
     ];
-}));
+}), new Hex1bAppOptions { EnableMouse = true });
 
 await app.RunAsync();
 
