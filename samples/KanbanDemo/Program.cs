@@ -118,20 +118,45 @@ Hex1bWidget BuildTaskCard(
 {
     return parent.Draggable(task, dc =>
     {
-        var borderColor = dc.IsDragging ? Hex1bColor.Cyan : Hex1bColor.DarkGray;
-        var textColor = dc.IsDragging ? Hex1bColor.DarkGray : Hex1bColor.White;
+        // When dragging, show an empty placeholder to give the sense of physical movement
+        if (dc.IsDragging)
+        {
+            return dc.ThemePanel(
+                t => t
+                    .Set(BorderTheme.BorderColor, Hex1bColor.FromRgb(60, 60, 60))
+                    .Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                dc.Border(
+                    dc.VStack(v => [
+                        v.Text($" ┄┄┄┄┄┄┄┄┄┄┄┄┄┄"),
+                        v.Text($"   "),
+                    ])
+                )
+            );
+        }
 
         return dc.ThemePanel(
             t => t
-                .Set(BorderTheme.BorderColor, borderColor)
-                .Set(GlobalTheme.ForegroundColor, textColor),
+                .Set(BorderTheme.BorderColor, Hex1bColor.DarkGray)
+                .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
             dc.Border(
                 dc.VStack(v => [
-                    v.Text(dc.IsDragging ? $" ↕ {task.Title}" : $" {task.Title}"),
+                    v.Text($" {task.Title}"),
                     v.ThemePanel(
                         t => t.Set(GlobalTheme.ForegroundColor, task.CategoryColor),
                         v.Text($"   [{task.Category}]")),
                 ])
+            )
+        );
+    })
+    .DragOverlay(dc =>
+    {
+        // Lightweight ghost that follows the cursor
+        return dc.ThemePanel(
+            t => t
+                .Set(BorderTheme.BorderColor, Hex1bColor.Cyan)
+                .Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
+            dc.Border(
+                dc.Text($" 📋 {task.Title} ")
             )
         );
     });

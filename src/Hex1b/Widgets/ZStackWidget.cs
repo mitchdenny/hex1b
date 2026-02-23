@@ -48,6 +48,13 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         var popupWidgets = node.Popups.BuildPopupWidgets().ToList();
         allChildren.AddRange(popupWidgets);
         
+        // Add drag overlay as the topmost layer (above popups) if active
+        var dragOverlay = node.DragDropManager?.BuildOverlayWidget();
+        if (dragOverlay != null)
+        {
+            allChildren.Add(dragOverlay);
+        }
+        
         // Track whether new popups were added (for focus management)
         var previousChildCount = node.Children.Count;
         var popupStartIndex = Children.Count;

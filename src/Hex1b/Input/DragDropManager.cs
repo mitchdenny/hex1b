@@ -1,4 +1,5 @@
 using Hex1b.Nodes;
+using Hex1b.Widgets;
 
 namespace Hex1b.Input;
 
@@ -19,6 +20,11 @@ internal sealed class DragDropManager
     /// The node that initiated the drag.
     /// </summary>
     public DraggableNode? ActiveSource { get; private set; }
+
+    /// <summary>
+    /// The source widget that initiated the drag. Stored to access DragOverlayBuilder.
+    /// </summary>
+    public DraggableWidget? ActiveSourceWidget { get; private set; }
 
     /// <summary>
     /// The droppable node currently under the cursor (if any).
@@ -46,6 +52,7 @@ internal sealed class DragDropManager
     public void StartDrag(DraggableNode source, object dragData, int x, int y)
     {
         ActiveSource = source;
+        ActiveSourceWidget = source.SourceWidget;
         ActiveDragData = dragData;
         DragX = x;
         DragY = y;
@@ -68,9 +75,24 @@ internal sealed class DragDropManager
     public void EndDrag()
     {
         ActiveSource = null;
+        ActiveSourceWidget = null;
         ActiveDragData = null;
         HoveredTarget = null;
         DragX = 0;
         DragY = 0;
+    }
+
+    /// <summary>
+    /// Builds the drag overlay widget if a drag is active and the source has a DragOverlayBuilder.
+    /// Returns null if no overlay should be shown.
+    /// </summary>
+    public Hex1bWidget? BuildOverlayWidget()
+    {
+        if (!IsDragging || ActiveSource == null || ActiveSourceWidget?.DragOverlayBuilder == null)
+            return null;
+
+        var context = new DraggableContext(ActiveSource);
+        var overlayContent = ActiveSourceWidget.DragOverlayBuilder(context);
+        return new DragOverlayWidget(overlayContent, DragX, DragY);
     }
 }

@@ -401,4 +401,104 @@ public class DragDropTests
     }
 
     #endregion
+
+    #region Drag Overlay Tests
+
+    [Fact]
+    public void DragDropManager_BuildOverlayWidget_NoDrag_ReturnsNull()
+    {
+        var manager = new DragDropManager();
+        Assert.Null(manager.BuildOverlayWidget());
+    }
+
+    [Fact]
+    public void DragDropManager_BuildOverlayWidget_NoBuilder_ReturnsNull()
+    {
+        var manager = new DragDropManager();
+        var source = new DraggableNode
+        {
+            DragData = "test",
+            SourceWidget = new DraggableWidget("test", dc => new TextBlockWidget("Content"))
+        };
+
+        manager.StartDrag(source, "test", 10, 20);
+
+        // No DragOverlayBuilder set on the widget
+        Assert.Null(manager.BuildOverlayWidget());
+    }
+
+    [Fact]
+    public void DragDropManager_BuildOverlayWidget_WithBuilder_ReturnsOverlay()
+    {
+        var manager = new DragDropManager();
+        var widget = new DraggableWidget("test", dc => new TextBlockWidget("Content"))
+            .DragOverlay(dc => new TextBlockWidget("Ghost"));
+        var source = new DraggableNode
+        {
+            DragData = "test",
+            SourceWidget = widget
+        };
+
+        manager.StartDrag(source, "test", 10, 20);
+
+        var overlay = manager.BuildOverlayWidget();
+        Assert.NotNull(overlay);
+        Assert.IsType<DragOverlayWidget>(overlay);
+    }
+
+    [Fact]
+    public void DragDropManager_BuildOverlayWidget_UsesCurrentPosition()
+    {
+        var manager = new DragDropManager();
+        var widget = new DraggableWidget("test", dc => new TextBlockWidget("Content"))
+            .DragOverlay(dc => new TextBlockWidget("Ghost"));
+        var source = new DraggableNode
+        {
+            DragData = "test",
+            SourceWidget = widget
+        };
+
+        manager.StartDrag(source, "test", 5, 10);
+        manager.UpdatePosition(30, 15, null);
+
+        var overlay = (DragOverlayWidget)manager.BuildOverlayWidget()!;
+        Assert.Equal(30, overlay.CursorX);
+        Assert.Equal(15, overlay.CursorY);
+    }
+
+    [Fact]
+    public void DragOverlayNode_IsFocusable_ReturnsFalse()
+    {
+        var node = new DragOverlayNode();
+        Assert.False(node.IsFocusable);
+    }
+
+    [Fact]
+    public void DragOverlayNode_GetFocusableNodes_ReturnsEmpty()
+    {
+        var child = new ButtonNode { Label = "Ghost" };
+        var node = new DragOverlayNode { Child = child };
+        Assert.Empty(node.GetFocusableNodes());
+    }
+
+    [Fact]
+    public void DragOverlayNode_Arrange_PositionsAtCursorWithOffset()
+    {
+        var child = new TextBlockNode { Text = "Ghost" };
+        var node = new DragOverlayNode
+        {
+            Child = child,
+            CursorX = 10,
+            CursorY = 5
+        };
+
+        node.Measure(new Constraints(0, 80, 0, 24));
+        node.Arrange(new Rect(0, 0, 80, 24));
+
+        // Child should be positioned at cursor + 1 offset
+        Assert.Equal(11, child.Bounds.X);
+        Assert.Equal(5, child.Bounds.Y);
+    }
+
+    #endregion
 }

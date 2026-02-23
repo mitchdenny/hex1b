@@ -22,6 +22,12 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     public PopupStack Popups { get; } = new();
     
     /// <summary>
+    /// The drag-drop manager for this ZStack. When a drag is active with an overlay builder,
+    /// the overlay widget is rendered as the topmost layer.
+    /// </summary>
+    internal DragDropManager? DragDropManager { get; set; }
+    
+    /// <summary>
     /// The notification stack for this ZStack. Notifications posted here can be displayed
     /// by any NotificationPanel that registers with this stack.
     /// </summary>

@@ -732,6 +732,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
             _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
             
+            // Ensure the drag-drop manager is set on the root ZStack for overlay rendering.
+            // It's set after reconciliation here, but since ZStackNode persists across frames,
+            // it will be available for BuildOverlayWidget() on the NEXT reconciliation.
+            if (_rootNode is ZStackNode rootZStack)
+            {
+                rootZStack.DragDropManager = _dragDropManager;
+            }
+            
             reconcileTicks = Stopwatch.GetTimestamp() - reconcileFrameStart;
             if (_diagnosticTimingEnabled) _diagReconcileTicks = reconcileTicks;
         }
