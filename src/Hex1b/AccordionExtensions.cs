@@ -1,3 +1,4 @@
+using Hex1b.Layout;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -9,6 +10,7 @@ public static class AccordionExtensions
 {
     /// <summary>
     /// Creates an Accordion widget using a builder pattern.
+    /// The accordion fills available vertical space by default.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
@@ -30,11 +32,12 @@ public static class AccordionExtensions
     {
         var accordionContext = new AccordionContext();
         var sections = builder(accordionContext).ToList();
-        return new AccordionWidget(sections);
+        return new AccordionWidget(sections) { HeightHint = SizeHint.Fill };
     }
 
     /// <summary>
     /// Creates an Accordion widget with pre-built sections.
+    /// The accordion fills available vertical space by default.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="ctx">The widget context.</param>
@@ -45,6 +48,6 @@ public static class AccordionExtensions
         IEnumerable<AccordionSectionWidget> sections)
         where TParent : Hex1bWidget
     {
-        return new AccordionWidget(sections.ToList());
+        return new AccordionWidget(sections.ToList()) { HeightHint = SizeHint.Fill };
     }
 }

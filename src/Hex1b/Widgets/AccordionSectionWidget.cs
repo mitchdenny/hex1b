@@ -94,6 +94,8 @@ public sealed record AccordionSectionWidget(
     {
         var ctx = new WidgetContext<VStackWidget>();
         var children = ContentBuilder(ctx).ToList();
+        // Inject spacer to fill remaining vertical space within the section
+        children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
         return new VStackWidget(children);
     }
 
