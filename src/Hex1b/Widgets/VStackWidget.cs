@@ -42,6 +42,7 @@ public sealed record VStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         }
         node.Children = newChildren;
         node.Floats = floatEntries;
+        FloatLayoutHelper.ResolveAnchors(floatEntries, widgetToNode);
         node.AllChildrenInOrder = FloatLayoutHelper.BuildDeclarationOrder(Children, floatEntries, widgetToNode);
 
         // Set initial focus only if this is a new node AND we're at the root or parent doesn't manage focus

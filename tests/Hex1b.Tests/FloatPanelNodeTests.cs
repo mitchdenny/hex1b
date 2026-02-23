@@ -400,4 +400,41 @@ public class FloatWidgetPickerIntegrationTests
 
         Assert.Equal("AlignLeft", horizontal);
     }
+
+    [Fact]
+    public async Task Integration_FloatAlignRight_PositionsRelativeToAnchor()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+
+        using var app = new Hex1bApp(ctx => ctx.VStack(v =>
+        {
+            var anchor = v.Border(b => [b.Text("  Anchor  ")]).Title("Anchor");
+            var floated = v.Float(v.Border(b => [b.Text("F")]).Title("Float"))
+                .AlignRight(anchor)
+                .ExtendBottom(anchor);
+            return [anchor, floated];
+        }), new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var snap = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Anchor") && s.ContainsText("F"), TimeSpan.FromSeconds(5), "both widgets to render")
+            .Capture("result")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var text = snap.GetScreenText();
+        // The float should appear BELOW the anchor (ExtendBottom), not at row 0
+        var lines = text.Split('\n');
+        int anchorLine = -1, floatLine = -1;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].Contains("Anchor") && anchorLine == -1) anchorLine = i;
+            if (lines[i].Contains("│F│")) floatLine = i;
+        }
+
+        Assert.True(floatLine > anchorLine, $"Float (line {floatLine}) should be below Anchor (line {anchorLine}). Screen:\n{text}");
+    }
 }

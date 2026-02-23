@@ -34,6 +34,12 @@ public sealed class FloatEntry
 
     /// <summary>Vertical offset.</summary>
     public int VerticalOffset { get; set; }
+
+    /// <summary>Unresolved anchor widget reference for horizontal alignment (resolved after flow reconciliation).</summary>
+    internal Hex1bWidget? HorizontalAnchorWidget { get; set; }
+
+    /// <summary>Unresolved anchor widget reference for vertical alignment (resolved after flow reconciliation).</summary>
+    internal Hex1bWidget? VerticalAnchorWidget { get; set; }
 }
 
 /// <summary>
@@ -44,7 +50,7 @@ public static class FloatLayoutHelper
 {
     /// <summary>
     /// Separates children into flow and float widgets, reconciles float children,
-    /// and resolves anchor widget references to their reconciled nodes.
+    /// and stores anchor widget references for later resolution.
     /// </summary>
     /// <param name="allChildren">All children from the container widget.</param>
     /// <param name="existingFloats">Previously reconciled float entries (for node reuse).</param>
@@ -55,8 +61,8 @@ public static class FloatLayoutHelper
     /// used here to resolve anchor references.
     /// </param>
     /// <returns>
-    /// A tuple of (flowChildren, floatEntries, allChildrenInOrder) where allChildrenInOrder
-    /// preserves declaration order for focus traversal.
+    /// A tuple of (flowChildren, floatEntries) where float entries have unresolved anchors.
+    /// Call <see cref="ResolveAnchors"/> after flow children are reconciled to resolve anchor references.
     /// </returns>
     public static async Task<(List<Hex1bWidget> FlowChildren, List<FloatEntry> Floats)>
         ReconcileFloatsAsync(
@@ -88,7 +94,7 @@ public static class FloatLayoutHelper
             return (flowChildren, []);
         }
 
-        // Pass 2: reconcile float children
+        // Pass 2: reconcile float children and store anchor widget refs
         var floatEntries = new List<FloatEntry>();
         for (int i = 0; i < floatWidgets.Count; i++)
         {
@@ -107,23 +113,35 @@ public static class FloatLayoutHelper
                     HorizontalOffset = fw.HorizontalOffset,
                     VerticalAlignment = fw.VerticalAlignment,
                     VerticalOffset = fw.VerticalOffset,
+                    // Store widget refs for later resolution
+                    HorizontalAnchorWidget = fw.HorizontalAnchor,
+                    VerticalAnchorWidget = fw.VerticalAnchor,
                 };
-
-                // Resolve anchor widget references to nodes
-                if (fw.HorizontalAnchor != null)
-                {
-                    entry.HorizontalAnchor = ResolveAnchor(fw.HorizontalAnchor, widgetToNode);
-                }
-                if (fw.VerticalAnchor != null)
-                {
-                    entry.VerticalAnchor = ResolveAnchor(fw.VerticalAnchor, widgetToNode);
-                }
 
                 floatEntries.Add(entry);
             }
         }
 
         return (flowChildren, floatEntries);
+    }
+
+    /// <summary>
+    /// Resolves anchor widget references to their reconciled nodes.
+    /// Must be called AFTER flow children have been reconciled and added to <paramref name="widgetToNode"/>.
+    /// </summary>
+    public static void ResolveAnchors(List<FloatEntry> floats, Dictionary<Hex1bWidget, Hex1bNode> widgetToNode)
+    {
+        foreach (var entry in floats)
+        {
+            if (entry.HorizontalAnchorWidget != null)
+            {
+                entry.HorizontalAnchor = ResolveAnchor(entry.HorizontalAnchorWidget, widgetToNode);
+            }
+            if (entry.VerticalAnchorWidget != null)
+            {
+                entry.VerticalAnchor = ResolveAnchor(entry.VerticalAnchorWidget, widgetToNode);
+            }
+        }
     }
 
     /// <summary>
