@@ -92,11 +92,15 @@ public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Secti
         }
 
         // Reconcile content for expanded sections
+        // Only the first expanded section gets the spacer to fill remaining vertical space
+        var firstExpandedFound = false;
         for (int i = 0; i < Sections.Count; i++)
         {
             if (node.IsSectionExpanded(i))
             {
-                var contentWidget = Sections[i].BuildContent();
+                var includeSpacer = !firstExpandedFound;
+                firstExpandedFound = true;
+                var contentWidget = Sections[i].BuildContent(includeSpacer);
                 var existingContent = node.GetSectionContent(i);
                 var contentNode = await context.ReconcileChildAsync(existingContent, contentWidget, node);
                 node.SetSectionContent(i, contentNode);

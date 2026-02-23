@@ -90,12 +90,15 @@ public sealed record AccordionSectionWidget(
     /// <summary>
     /// Builds the content widget tree for this section.
     /// </summary>
-    internal Hex1bWidget? BuildContent()
+    internal Hex1bWidget? BuildContent(bool includeSpacer)
     {
         var ctx = new WidgetContext<VStackWidget>();
         var children = ContentBuilder(ctx).ToList();
-        // Inject spacer to fill remaining vertical space within the section
-        children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
+        if (includeSpacer)
+        {
+            // Inject spacer to fill remaining vertical space within the section
+            children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
+        }
         return new VStackWidget(children);
     }
 
