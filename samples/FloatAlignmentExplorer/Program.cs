@@ -3,7 +3,8 @@ using Hex1b.Widgets;
 
 string horizontal = "(none)";
 string vertical = "(none)";
-int offset = 0;
+int hOffset = 0;
+int vOffset = 0;
 
 string[] horizontalOptions = ["(none)", "AlignLeft", "AlignRight", "ExtendLeft", "ExtendRight"];
 string[] verticalOptions = ["(none)", "AlignTop", "AlignBottom", "ExtendTop", "ExtendBottom"];
@@ -11,10 +12,14 @@ string[] offsetOptions = ["0", "-2", "-1", "1", "2", "3", "4"];
 
 var app = new Hex1bApp(ctx => ctx.VStack(v =>
 {
-    // Anchor widget
-    var anchor = v.Border(b => [
-        b.Text("  Anchor Widget  ")
-    ]).Title("Anchor");
+    // Anchor widget — padded and centered so relative placement is visible
+    var anchor = v.Center(
+        v.Padding(8, 8, 4, 4,
+            v.Border(b => [
+                b.Text("  Anchor Widget  ")
+            ]).Title("Anchor")
+        )
+    );
 
     // Build the float with selected alignment
     var floated = v.Float(
@@ -31,13 +36,17 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
         v.HStack(h => [
             h.Text(" Horizontal: "),
             h.Picker(horizontalOptions).OnSelectionChanged(e => horizontal = e.SelectedText),
-            h.Text("  Vertical: "),
+            h.Text("  Offset: "),
+            h.Picker(offsetOptions).OnSelectionChanged(e => hOffset = int.Parse(e.SelectedText)),
+        ]),
+        v.HStack(h => [
+            h.Text(" Vertical:   "),
             h.Picker(verticalOptions).OnSelectionChanged(e => vertical = e.SelectedText),
             h.Text("  Offset: "),
-            h.Picker(offsetOptions).OnSelectionChanged(e => offset = int.Parse(e.SelectedText)),
+            h.Picker(offsetOptions).OnSelectionChanged(e => vOffset = int.Parse(e.SelectedText)),
         ]),
         v.Text(""),
-        v.Text($" H: {horizontal}  V: {vertical}  Offset: {offset}"),
+        v.Text($" H: {horizontal} ({hOffset})  V: {vertical} ({vOffset})"),
         v.Text(""),
         anchor,
         floated,
@@ -50,26 +59,26 @@ FloatWidget ApplyAlignment(FloatWidget floated, Hex1bWidget anchor)
 {
     floated = horizontal switch
     {
-        "AlignLeft" => floated.AlignLeft(anchor, offset),
-        "AlignRight" => floated.AlignRight(anchor, offset),
-        "ExtendLeft" => floated.ExtendLeft(anchor, offset),
-        "ExtendRight" => floated.ExtendRight(anchor, offset),
+        "AlignLeft" => floated.AlignLeft(anchor, hOffset),
+        "AlignRight" => floated.AlignRight(anchor, hOffset),
+        "ExtendLeft" => floated.ExtendLeft(anchor, hOffset),
+        "ExtendRight" => floated.ExtendRight(anchor, hOffset),
         _ => floated,
     };
 
     floated = vertical switch
     {
-        "AlignTop" => floated.AlignTop(anchor, offset),
-        "AlignBottom" => floated.AlignBottom(anchor, offset),
-        "ExtendTop" => floated.ExtendTop(anchor, offset),
-        "ExtendBottom" => floated.ExtendBottom(anchor, offset),
+        "AlignTop" => floated.AlignTop(anchor, vOffset),
+        "AlignBottom" => floated.AlignBottom(anchor, vOffset),
+        "ExtendTop" => floated.ExtendTop(anchor, vOffset),
+        "ExtendBottom" => floated.ExtendBottom(anchor, vOffset),
         _ => floated,
     };
 
     // If neither axis is set, default to a visible absolute position
     if (horizontal == "(none)" && vertical == "(none)")
     {
-        floated = floated.Absolute(25, 6);
+        floated = floated.Absolute(25, 8);
     }
 
     return floated;
