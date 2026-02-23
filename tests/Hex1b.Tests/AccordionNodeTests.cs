@@ -182,9 +182,9 @@ public class AccordionNodeTests
     }
 
     [Fact]
-    public void AccordionSectionWidget_Collapsed_SetsFlag()
+    public void AccordionSectionWidget_ExpandedFalse_SetsFlag()
     {
-        var section = new AccordionSectionWidget(s => []).Collapsed();
+        var section = new AccordionSectionWidget(s => []).Expanded(false);
 
         Assert.False(section.IsExpanded);
     }
@@ -378,7 +378,7 @@ public class AccordionLayoutTests
                         b.Accordion(a => [
                             a.Section(s => [s.Text("Content")]).Title("EXPLORER"),
                             a.Section(s => [s.Text("More")]).Title("OUTLINE"),
-                            a.Section(s => [s.Text("Third")]).Title("SOURCE CONTROL").Collapsed(),
+                            a.Section(s => [s.Text("Third")]).Title("SOURCE CONTROL").Expanded(false),
                         ])
                     ]).Title("Sidebar").FixedWidth(35),
                     h.Border(b => [b.Text("Main")]).Title("Editor"),

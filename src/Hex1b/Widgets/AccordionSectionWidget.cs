@@ -40,17 +40,12 @@ public sealed record AccordionSectionWidget(
         => this with { SectionTitle = title };
 
     /// <summary>
-    /// Marks this section as expanded.
+    /// Sets the initial expanded state for this section.
+    /// When not explicitly set, the accordion expands the first section by default.
     /// </summary>
     /// <param name="expanded">True to expand, false to collapse.</param>
     public AccordionSectionWidget Expanded(bool expanded = true)
         => this with { IsExpanded = expanded };
-
-    /// <summary>
-    /// Marks this section as collapsed.
-    /// </summary>
-    public AccordionSectionWidget Collapsed()
-        => this with { IsExpanded = false };
 
     /// <summary>
     /// Adds actions to the left side of the section header.

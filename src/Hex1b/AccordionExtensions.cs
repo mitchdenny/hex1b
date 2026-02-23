@@ -34,20 +34,4 @@ public static class AccordionExtensions
         var sections = builder(accordionContext).ToList();
         return new AccordionWidget(sections) { HeightHint = SizeHint.Fill };
     }
-
-    /// <summary>
-    /// Creates an Accordion widget with pre-built sections.
-    /// The accordion fills available vertical space by default.
-    /// </summary>
-    /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="sections">The sections to display.</param>
-    /// <returns>An AccordionWidget.</returns>
-    public static AccordionWidget Accordion<TParent>(
-        this WidgetContext<TParent> ctx,
-        IEnumerable<AccordionSectionWidget> sections)
-        where TParent : Hex1bWidget
-    {
-        return new AccordionWidget(sections.ToList()) { HeightHint = SizeHint.Fill };
-    }
 }
