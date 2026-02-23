@@ -71,7 +71,7 @@ public sealed class DroppableNode : Hex1bNode
     /// <summary>
     /// Evaluates whether this target accepts the given drag data.
     /// </summary>
-    public bool Accepts(object dragData)
+    internal bool Accepts(object dragData)
         => AcceptPredicate == null || AcceptPredicate(dragData);
 
     public override bool IsFocusable => false;
@@ -111,7 +111,7 @@ public sealed class DroppableNode : Hex1bNode
     /// <summary>
     /// Finds all <see cref="DropTargetNode"/> descendants within this droppable's subtree.
     /// </summary>
-    public List<DropTargetNode> FindDropTargets()
+    internal List<DropTargetNode> FindDropTargets()
     {
         var targets = new List<DropTargetNode>();
         CollectDropTargets(this, targets);

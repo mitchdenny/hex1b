@@ -34,7 +34,7 @@ internal sealed class DragDropManager
     /// <summary>
     /// The drop target node currently nearest to the cursor within the hovered droppable (if any).
     /// </summary>
-    public DropTargetNode? ActiveDropTarget { get; set; }
+    public DropTargetNode? ActiveDropTarget { get; internal set; }
 
     /// <summary>
     /// Whether a drag operation is currently active.

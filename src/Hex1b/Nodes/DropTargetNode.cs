@@ -5,8 +5,8 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// A node that marks an insertion point for drag-and-drop within a <see cref="DroppableNode"/>.
-/// When inactive, measures as zero height (invisible). When active (nearest to cursor),
-/// measures its child normally so the visual indicator appears.
+/// Visibility is controlled by the builder callback: when inactive, the builder typically returns
+/// a zero-height widget; when active (nearest to cursor), it returns a visual indicator.
 /// </summary>
 public sealed class DropTargetNode : Hex1bNode
 {
