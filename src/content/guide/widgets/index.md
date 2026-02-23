@@ -26,6 +26,7 @@ Widgets that respond to user input.
 - **[Drag & Drop](/guide/widgets/drag-drop)** — Draggable sources, droppable targets, and positional insertion
 - **[SplitButton](/guide/widgets/split-button)** — Button with dropdown for secondary actions
 - **[TabPanel](/guide/widgets/tabpanel)** — Tabbed interface for organizing content into switchable panels
+- **[Accordion](/guide/widgets/accordion)** — Collapsible section container for sidebar-style layouts
 - **[TextBox](/guide/widgets/textbox)** — Single and multi-line text input
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
 - **[Tree](/guide/widgets/tree)** — Hierarchical data with expand/collapse and multi-select

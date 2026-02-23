@@ -103,6 +103,10 @@ var floatPanelDemo = builder.AddCSharpApp("float-panel-demo", "./samples/FloatPa
 var floatAlignmentExplorer = builder.AddCSharpApp("float-alignment-explorer", "./samples/FloatAlignmentExplorer")
     .ExcludeFromManifest();
 
+// Accordion demo
+var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
