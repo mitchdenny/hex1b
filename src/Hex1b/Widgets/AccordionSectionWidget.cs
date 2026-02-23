@@ -98,7 +98,13 @@ public sealed record AccordionSectionWidget(
         var children = ContentBuilder(ctx).ToList();
         if (includeSpacer)
         {
-            children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
+            // Only inject the spacer if no user content already fills vertical space.
+            // This prevents the spacer from competing with fill-height content like TreeWidget.
+            var hasUserFill = children.Any(c => c.HeightHint is { IsFill: true });
+            if (!hasUserFill)
+            {
+                children.Add(new AccordionSectionSpacerWidget { HeightHint = Layout.SizeHint.Fill });
+            }
         }
         return new VStackWidget(children);
     }
