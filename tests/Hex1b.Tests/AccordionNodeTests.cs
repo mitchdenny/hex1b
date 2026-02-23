@@ -14,11 +14,14 @@ public class AccordionNodeTests
         {
             sections.Add(new AccordionNode.SectionInfo(
                 $"Section {i}",
-                expanded[i],
                 [],
                 []));
         }
         node.SetSections(sections);
+        for (int i = 0; i < sectionCount; i++)
+        {
+            node.SetExpandedState(i, expanded[i]);
+        }
         return node;
     }
 

@@ -12,15 +12,15 @@ namespace Hex1b.Nodes;
 public sealed class AccordionNode : Hex1bNode, ILayoutProvider
 {
     /// <summary>
-    /// Information about a single accordion section.
+    /// Information about a single accordion section (display data only, no expanded state).
     /// </summary>
     public sealed record SectionInfo(
         string Title,
-        bool IsExpanded,
         IReadOnlyList<IconWidget> LeftActions,
         IReadOnlyList<IconWidget> RightActions);
 
     private List<SectionInfo> _sections = [];
+    private List<bool> _expandedStates = [];
     private List<Hex1bNode?> _contentNodes = [];
     private List<Rect> _headerBounds = [];
     private List<Rect> _contentBounds = [];
@@ -82,12 +82,25 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     internal void SetSections(List<SectionInfo> sections)
     {
         _sections = sections;
-        // Ensure content nodes list matches section count
+        // Ensure expanded states and content nodes lists match section count
+        while (_expandedStates.Count < sections.Count)
+            _expandedStates.Add(false);
+        while (_expandedStates.Count > sections.Count)
+            _expandedStates.RemoveAt(_expandedStates.Count - 1);
         while (_contentNodes.Count < sections.Count)
             _contentNodes.Add(null);
         while (_contentNodes.Count > sections.Count)
             _contentNodes.RemoveAt(_contentNodes.Count - 1);
         MarkDirty();
+    }
+
+    /// <summary>
+    /// Sets the expanded state for a section during reconciliation.
+    /// </summary>
+    internal void SetExpandedState(int index, bool expanded)
+    {
+        if (index >= 0 && index < _expandedStates.Count)
+            _expandedStates[index] = expanded;
     }
 
     /// <summary>
@@ -109,32 +122,32 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     /// Gets whether a section is expanded.
     /// </summary>
     public bool IsSectionExpanded(int index) =>
-        index >= 0 && index < _sections.Count && _sections[index].IsExpanded;
+        index >= 0 && index < _expandedStates.Count && _expandedStates[index];
 
     /// <summary>
     /// Sets the expanded state of a section.
     /// </summary>
     public void SetSectionExpanded(int index, bool expanded)
     {
-        if (index < 0 || index >= _sections.Count)
+        if (index < 0 || index >= _expandedStates.Count)
             return;
 
-        if (_sections[index].IsExpanded == expanded)
+        if (_expandedStates[index] == expanded)
             return;
 
         if (!AllowMultipleExpanded && expanded)
         {
             // Collapse all other sections
-            for (int i = 0; i < _sections.Count; i++)
+            for (int i = 0; i < _expandedStates.Count; i++)
             {
-                if (i != index && _sections[i].IsExpanded)
+                if (i != index && _expandedStates[i])
                 {
-                    _sections[i] = _sections[i] with { IsExpanded = false };
+                    _expandedStates[i] = false;
                 }
             }
         }
 
-        _sections[index] = _sections[index] with { IsExpanded = expanded };
+        _expandedStates[index] = expanded;
         MarkDirty();
     }
 
@@ -143,9 +156,9 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public void ToggleSection(int index)
     {
-        if (index >= 0 && index < _sections.Count)
+        if (index >= 0 && index < _expandedStates.Count)
         {
-            SetSectionExpanded(index, !_sections[index].IsExpanded);
+            SetSectionExpanded(index, !_expandedStates[index]);
         }
     }
 
@@ -155,7 +168,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
 
         for (int i = 0; i < _sections.Count; i++)
         {
-            if (_sections[i].IsExpanded && _contentNodes[i] != null)
+            if (_expandedStates[i] && _contentNodes[i] != null)
             {
                 foreach (var focusable in _contentNodes[i]!.GetFocusableNodes())
                 {
@@ -177,7 +190,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     protected override Size MeasureCore(Constraints constraints)
     {
         var totalHeaderHeight = _sections.Count; // 1 row per header
-        var expandedCount = _sections.Count(s => s.IsExpanded);
+        var expandedCount = _expandedStates.Count(e => e);
 
         if (expandedCount == 0 || constraints.MaxHeight <= totalHeaderHeight)
         {
@@ -194,7 +207,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         var expandedIdx = 0;
         for (int i = 0; i < _sections.Count; i++)
         {
-            if (_sections[i].IsExpanded && _contentNodes[i] != null)
+            if (_expandedStates[i] && _contentNodes[i] != null)
             {
                 var sectionContentHeight = perSectionHeight + (expandedIdx < remainder ? 1 : 0);
                 var contentConstraints = new Constraints(0, constraints.MaxWidth, 0, sectionContentHeight);
@@ -215,7 +228,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         _contentBounds.Clear();
 
         var totalHeaderHeight = _sections.Count;
-        var expandedCount = _sections.Count(s => s.IsExpanded);
+        var expandedCount = _expandedStates.Count(e => e);
 
         var availableContentHeight = Math.Max(0, bounds.Height - totalHeaderHeight);
         var perSectionHeight = expandedCount > 0 ? availableContentHeight / expandedCount : 0;
@@ -231,7 +244,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
             currentY++;
 
             // Content (if expanded)
-            if (_sections[i].IsExpanded && _contentNodes[i] != null)
+            if (_expandedStates[i] && _contentNodes[i] != null)
             {
                 var sectionContentHeight = perSectionHeight + (expandedIdx < remainder ? 1 : 0);
                 var contentRect = new Rect(bounds.X, currentY, bounds.Width, sectionContentHeight);
@@ -260,7 +273,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         {
             RenderHeader(context, theme, resetToGlobal, i, expandedChevron, collapsedChevron);
 
-            if (_sections[i].IsExpanded && _contentNodes[i] != null && i < _contentBounds.Count)
+            if (_expandedStates[i] && _contentNodes[i] != null && i < _contentBounds.Count)
             {
                 var contentRect = _contentBounds[i];
                 if (contentRect.Height > 0)
@@ -313,7 +326,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         var y = header.Y;
 
         // Render chevron
-        var chevron = section.IsExpanded ? expandedChevron : collapsedChevron;
+        var chevron = _expandedStates[sectionIndex] ? expandedChevron : collapsedChevron;
         context.WriteClipped(x, y, $"{fgCode}{bgCode}{chevron} {resetToGlobal}");
         x += 2;
 
@@ -443,23 +456,23 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
 
     private async Task ToggleSectionAsync(int index)
     {
-        if (index < 0 || index >= _sections.Count)
+        if (index < 0 || index >= _expandedStates.Count)
             return;
 
-        var newExpanded = !_sections[index].IsExpanded;
+        var newExpanded = !_expandedStates[index];
 
         if (!AllowMultipleExpanded && newExpanded)
         {
-            for (int i = 0; i < _sections.Count; i++)
+            for (int i = 0; i < _expandedStates.Count; i++)
             {
-                if (i != index && _sections[i].IsExpanded)
+                if (i != index && _expandedStates[i])
                 {
-                    _sections[i] = _sections[i] with { IsExpanded = false };
+                    _expandedStates[i] = false;
                 }
             }
         }
 
-        _sections[index] = _sections[index] with { IsExpanded = newExpanded };
+        _expandedStates[index] = newExpanded;
         MarkDirty();
 
         if (SectionExpandedHandler != null)

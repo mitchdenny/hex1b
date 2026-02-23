@@ -58,6 +58,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]).Title("Editor"),
         ]),
     ]))
+    .WithMouse()
     .Build();
 
 await terminal.RunAsync();
